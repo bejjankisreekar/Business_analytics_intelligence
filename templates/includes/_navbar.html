@@ -1,0 +1,22 @@
+<header class="relative z-20 border-b border-white/5">
+  <nav class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
+    <a href="{% url 'core:landing' %}" class="flex items-center gap-2.5">
+      <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-mint-500 text-sm font-extrabold text-white shadow-lg shadow-brand-600/30">BI</span>
+      <span class="text-[15px] font-semibold tracking-tight text-white">Business<span class="text-brand-400">Analytics</span>Intelligence</span>
+    </a>
+    <div class="hidden items-center gap-8 md:flex">
+      <a href="{% url 'core:landing' %}#features" class="text-sm text-slate-400 transition hover:text-white">Features</a>
+      <a href="{% url 'core:landing' %}#how-it-works" class="text-sm text-slate-400 transition hover:text-white">How it works</a>
+      <a href="{% url 'core:landing' %}#pricing" class="text-sm text-slate-400 transition hover:text-white">Pricing</a>
+      <a href="{% url 'core:landing' %}#security" class="text-sm text-slate-400 transition hover:text-white">Security</a>
+    </div>
+    <div class="flex items-center gap-3">
+      {% if request.user.is_authenticated %}
+        <a href="{% url 'finance:dashboard' %}" class="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-ink-950 transition hover:bg-slate-100">Go to dashboard</a>
+      {% else %}
+        <a href="{% url 'accounts:login' %}" class="hidden text-sm font-medium text-slate-300 transition hover:text-white sm:block">Sign in</a>
+        <a href="{% url 'accounts:signup' %}" class="rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110">Start free</a>
+      {% endif %}
+    </div>
+  </nav>
+</header>

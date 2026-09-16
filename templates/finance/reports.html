@@ -1,0 +1,185 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Financial Reports · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Financial Reports</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · {{ period.label }}</p>
+  </div>
+  <form method="get" class="flex items-center gap-2">
+    <select name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
+      {% for value, label in period_choices %}
+      <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="mt-6 flex gap-2 border-b border-white/5">
+  <button onclick="bai.showTab('pnl')" id="tab-btn-pnl" class="report-tab report-tab--active">Profit &amp; Loss</button>
+  <button onclick="bai.showTab('bs')" id="tab-btn-bs" class="report-tab">Balance Sheet</button>
+  <button onclick="bai.showTab('cf')" id="tab-btn-cf" class="report-tab">Cash Flow</button>
+</div>
+
+<!-- P&L -->
+<section id="tab-pnl" class="mt-6">
+  <div class="card p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-semibold text-white">Profit &amp; Loss Statement</h2>
+        <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}</p>
+      </div>
+      <a href="{% url 'finance:pnl_pdf' %}?period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
+    </div>
+    <table class="mt-5 w-full text-sm">
+      <tbody class="divide-y divide-white/5">
+        <tr><td class="py-2.5 text-slate-300">Revenue (Sales)</td><td class="py-2.5 text-right font-medium text-white">{{ organization.currency }} {{ pnl.revenue|floatformat:2|intcomma }}</td></tr>
+        <tr><td class="py-2.5 text-slate-300">Cost of Goods / Purchases</td><td class="py-2.5 text-right font-medium text-red-400">({{ organization.currency }} {{ pnl.cogs|floatformat:2|intcomma }})</td></tr>
+        <tr class="border-t border-white/10"><td class="py-2.5 font-semibold text-white">Gross Profit</td><td class="py-2.5 text-right font-semibold text-white">{{ organization.currency }} {{ pnl.gross_profit|floatformat:2|intcomma }}</td></tr>
+
+        <tr><td colspan="2" class="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Operating expenses</td></tr>
+        {% for row in pnl.opex_rows %}
+        <tr><td class="py-2 pl-4 text-slate-400">{{ row.name }}</td><td class="py-2 text-right text-slate-300">({{ organization.currency }} {{ row.amount|floatformat:2|intcomma }})</td></tr>
+        {% empty %}
+        <tr><td class="py-2 pl-4 text-slate-500" colspan="2">No expenses recorded for this period.</td></tr>
+        {% endfor %}
+        <tr class="border-t border-white/10"><td class="py-2.5 font-medium text-slate-300">Total operating expenses</td><td class="py-2.5 text-right font-medium text-red-400">({{ organization.currency }} {{ pnl.total_opex|floatformat:2|intcomma }})</td></tr>
+
+        <tr class="border-t-2 border-white/20"><td class="py-3 text-base font-bold text-white">Net Profit</td><td class="py-3 text-right text-base font-bold {% if pnl.net_profit >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ pnl.net_profit|floatformat:2|intcomma }}</td></tr>
+        <tr><td class="pb-1 text-xs text-slate-500">Net margin</td><td class="pb-1 text-right text-xs text-slate-500">{{ pnl.net_margin_pct|floatformat:1 }}%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card mt-5 p-5">
+    <h3 class="text-sm font-semibold text-white">Revenue vs Net Profit</h3>
+    <div class="mt-4 h-56"><canvas id="chartPnl"></canvas></div>
+  </div>
+</section>
+
+<!-- Balance Sheet -->
+<section id="tab-bs" class="mt-6 hidden">
+  <div class="card p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-semibold text-white">Balance Sheet</h2>
+        <p class="text-xs text-slate-500">As of {{ balance_sheet.as_of|date:"d M Y" }} · simplified, cash-basis</p>
+      </div>
+      <a href="{% url 'finance:balance_sheet_pdf' %}?period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
+    </div>
+    <div class="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Assets</p>
+        <table class="mt-2 w-full text-sm">
+          <tbody class="divide-y divide-white/5">
+            <tr><td class="py-2 text-slate-300">Cash in hand</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ balance_sheet.cash|floatformat:2|intcomma }}</td></tr>
+            <tr><td class="py-2 text-slate-300">Bank balance</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ balance_sheet.bank|floatformat:2|intcomma }}</td></tr>
+            <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Assets</td><td class="py-2 text-right font-semibold text-white">{{ organization.currency }} {{ balance_sheet.total_assets|floatformat:2|intcomma }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Liabilities &amp; Equity</p>
+        <table class="mt-2 w-full text-sm">
+          <tbody class="divide-y divide-white/5">
+            <tr><td class="py-2 text-slate-300">Total Liabilities</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ balance_sheet.total_liabilities|floatformat:2|intcomma }}</td></tr>
+            <tr><td class="py-2 text-slate-300">Opening Capital</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ balance_sheet.opening_balance|floatformat:2|intcomma }}</td></tr>
+            <tr><td class="py-2 text-slate-300">Retained Earnings</td><td class="py-2 text-right {% if balance_sheet.retained_earnings >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ balance_sheet.retained_earnings|floatformat:2|intcomma }}</td></tr>
+            <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Equity</td><td class="py-2 text-right font-semibold text-white">{{ organization.currency }} {{ balance_sheet.total_equity|floatformat:2|intcomma }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="mt-5 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-slate-500">
+      This is a simplified, cash-basis balance sheet derived from your daily sales, expenses and purchases —
+      it assumes the business started with opening capital equal to opening cash and tracks no separate
+      inventory. Outstanding receivables and payables are tracked separately on the
+      <a href="{% url 'finance:cash_position' %}" class="text-brand-400 hover:text-brand-300">Cash Position</a> page,
+      not as assets/liabilities here. Assets ({{ organization.currency }} {{ balance_sheet.total_assets|floatformat:2|intcomma }})
+      {% if balance_sheet.balances %}balance exactly{% else %}should balance{% endif %} against Liabilities + Equity.
+    </p>
+  </div>
+</section>
+
+<!-- Cash Flow -->
+<section id="tab-cf" class="mt-6 hidden">
+  <div class="card p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-semibold text-white">Cash Flow Statement</h2>
+        <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }} · operating activities</p>
+      </div>
+      <a href="{% url 'finance:cash_flow_pdf' %}?period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
+    </div>
+    <table class="mt-5 w-full text-sm">
+      <tbody class="divide-y divide-white/5">
+        <tr><td class="py-2.5 text-slate-400" colspan="2">Opening cash balance</td></tr>
+        <tr><td class="py-1 pl-4 text-slate-300">As of {{ period.start|date:"d M Y" }}</td><td class="py-1 text-right text-white">{{ organization.currency }} {{ cash_flow.opening_cash|floatformat:2|intcomma }}</td></tr>
+
+        <tr><td class="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500" colspan="2">Operating activities</td></tr>
+        <tr><td class="py-2 pl-4 text-slate-300">Cash received from sales</td><td class="py-2 text-right text-mint-400">+{{ organization.currency }} {{ cash_flow.cash_in_from_sales|floatformat:2|intcomma }}</td></tr>
+        <tr><td class="py-2 pl-4 text-slate-300">Cash paid for purchases</td><td class="py-2 text-right text-red-400">-{{ organization.currency }} {{ cash_flow.cash_out_purchases|floatformat:2|intcomma }}</td></tr>
+        <tr><td class="py-2 pl-4 text-slate-300">Cash paid for expenses</td><td class="py-2 text-right text-red-400">-{{ organization.currency }} {{ cash_flow.cash_out_expenses|floatformat:2|intcomma }}</td></tr>
+        <tr class="border-t border-white/10"><td class="py-2.5 font-medium text-slate-300">Net change in cash</td><td class="py-2.5 text-right font-medium {% if cash_flow.net_change_in_cash >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ cash_flow.net_change_in_cash|floatformat:2|intcomma }}</td></tr>
+
+        <tr class="border-t-2 border-white/20"><td class="py-3 text-base font-bold text-white">Closing cash balance</td><td class="py-3 text-right text-base font-bold text-white">{{ organization.currency }} {{ cash_flow.closing_cash|floatformat:2|intcomma }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card mt-5 p-5">
+    <h3 class="text-sm font-semibold text-white">Cash in vs cash out</h3>
+    <div class="mt-4 h-56"><canvas id="chartCashFlow"></canvas></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  Chart.defaults.color = "#9aa4bd";
+  Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
+
+  new Chart(document.getElementById("chartPnl"), {
+    type: "bar",
+    data: {
+      labels: ["Revenue", "COGS", "Operating expenses", "Net profit"],
+      datasets: [{
+        data: [{{ pnl.revenue }}, -{{ pnl.cogs }}, -{{ pnl.total_opex }}, {{ pnl.net_profit }}],
+        backgroundColor: ["#34d9b8", "#f87171", "#f87171", {{ pnl.net_profit }} >= 0 ? "#5b7cfa" : "#f87171"],
+        borderRadius: 6,
+      }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+  });
+
+  new Chart(document.getElementById("chartCashFlow"), {
+    type: "bar",
+    data: {
+      labels: ["Cash in (sales)", "Cash out (purchases)", "Cash out (expenses)", "Net change"],
+      datasets: [{
+        data: [{{ cash_flow.cash_in_from_sales }}, -{{ cash_flow.cash_out_purchases }}, -{{ cash_flow.cash_out_expenses }}, {{ cash_flow.net_change_in_cash }}],
+        backgroundColor: ["#34d9b8", "#f87171", "#f87171", {{ cash_flow.net_change_in_cash }} >= 0 ? "#5b7cfa" : "#f87171"],
+        borderRadius: 6,
+      }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+  });
+
+  window.bai = window.bai || {};
+  bai.showTab = (tab) => {
+    ["pnl", "bs", "cf"].forEach((t) => {
+      document.getElementById("tab-" + t).classList.toggle("hidden", t !== tab);
+      document.getElementById("tab-btn-" + t).classList.toggle("report-tab--active", t === tab);
+    });
+  };
+</script>
+<style>
+  .report-tab { padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500; color: #6b7488; border-bottom: 2px solid transparent; }
+  .report-tab--active { color: #fff; border-color: #5b7cfa; }
+</style>
+{% endblock %}

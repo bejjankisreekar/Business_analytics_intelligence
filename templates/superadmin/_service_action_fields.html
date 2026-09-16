@@ -1,0 +1,19 @@
+{% if reason_required %}
+<div>
+  <label class="sa-field-label">Reason (required)</label>
+  <select name="reason" class="sa-input" required>
+    <option value="">Select a reason…</option>
+    {% for value, label in form.reason.field.choices %}
+    {% if value %}<option value="{{ value }}">{{ label }}</option>{% endif %}
+    {% endfor %}
+  </select>
+</div>
+{% endif %}
+<div>
+  <label class="sa-field-label">Notes</label>
+  <textarea name="notes" rows="2" class="sa-input"></textarea>
+</div>
+<label class="flex items-start gap-2 text-xs text-slate-300">
+  <input type="checkbox" name="confirm" required class="mt-0.5">
+  I confirm this action.
+</label>

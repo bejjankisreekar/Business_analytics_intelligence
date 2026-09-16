@@ -1,0 +1,58 @@
+<div id="modal-edit-{{ entry.pk }}" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-edit-{{ entry.pk }}')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">
+        Edit {% if entry_type == 'sale' %}sale{% elif entry_type == 'expense' %}expense{% elif entry_type == 'purchase' %}purchase{% else %}transfer{% endif %}
+      </h3>
+      <button onclick="bai.closeModal('modal-edit-{{ entry.pk }}')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <form method="post" action="{% url 'finance:edit_entry' entry_type entry.pk %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+
+      <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ entry.edit_form.date }}</div>
+
+      {% if entry_type == 'transfer' %}
+      <div><label class="block text-xs font-medium text-slate-400">Direction</label>{{ entry.edit_form.direction }}</div>
+      {% elif entry_type == 'sale' %}
+      <div><label class="block text-xs font-medium text-slate-400">Channel</label>{{ entry.edit_form.channel }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">{{ entry.edit_form.subcategory.label }}</label>{{ entry.edit_form.subcategory }}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">{{ entry.edit_form.product_category.label }}</label>{{ entry.edit_form.product_category }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">Customer</label>{{ entry.edit_form.customer }}</div>
+      </div>
+      {% else %}
+      <div><label class="block text-xs font-medium text-slate-400">Category</label>{{ entry.edit_form.category }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">{{ entry.edit_form.subcategory.label }}</label>{{ entry.edit_form.subcategory }}</div>
+      {% endif %}
+
+      {% if entry_type == 'purchase' %}
+      <div><label class="block text-xs font-medium text-slate-400">{{ entry.edit_form.product_category.label }}</label>{{ entry.edit_form.product_category }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Vendor</label>{{ entry.edit_form.vendor }}</div>
+      {% endif %}
+
+      <div class="grid {% if entry_type == 'sale' or entry_type == 'purchase' %}grid-cols-3{% elif entry_type != 'transfer' %}grid-cols-2{% else %}grid-cols-1{% endif %} gap-3">
+        {% if entry_type == 'sale' or entry_type == 'purchase' %}
+        <div><label class="block text-xs font-medium text-slate-400">{{ entry.edit_form.quantity.label }}</label>{{ entry.edit_form.quantity }}</div>
+        {% endif %}
+        <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ entry.edit_form.amount }}</div>
+        {% if entry_type != 'transfer' %}
+        <div><label class="block text-xs font-medium text-slate-400">Payment mode</label>{{ entry.edit_form.payment_mode }}</div>
+        {% endif %}
+      </div>
+
+      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ entry.edit_form.note }}</div>
+
+      <button type="submit" class="btn-primary w-full">Save changes</button>
+    </form>
+  </div>
+</div>
+
+{% if entry_type != 'transfer' %}
+<script>
+  bai.wireSubcategory(
+    "id_edit_{{ entry.pk }}_{% if entry_type == 'sale' %}channel{% else %}category{% endif %}",
+    "id_edit_{{ entry.pk }}_subcategory"
+  );
+</script>
+{% endif %}

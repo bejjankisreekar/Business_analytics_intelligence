@@ -1,0 +1,161 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Dashboard · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Dashboard</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · showing <span class="text-slate-300">{{ period.label }}</span></p>
+  </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <a href="{% url 'finance:analytics' %}" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Analytics Intelligence →</a>
+    <a href="{% url 'finance:reports' %}" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Financial reports →</a>
+  </div>
+</div>
+
+<!-- Quick add -->
+<div class="mt-6 flex flex-wrap gap-3">
+  <a href="{% url 'finance:daily_bulk_entry' %}" class="btn-primary"><span>+</span> Bulk Entry (Sales / Expenses / Purchases)</a>
+  <button onclick="bai.openModal('modal-transfer')" class="btn-primary" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">⇄ Cash / Bank transfer</button>
+</div>
+
+<!-- KPI cards -->
+<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+  <div class="card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Sales</p>
+    <p class="mt-1.5 text-xl font-bold text-white">{{ organization.currency }} {{ kpis.sales|floatformat:0|intcomma }}</p>
+    {% if kpis.sales_growth_pct is not None %}
+    <p class="mt-1 text-xs font-medium {% if kpis.sales_growth_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">
+      {% if kpis.sales_growth_pct >= 0 %}▲{% else %}▼{% endif %} {{ kpis.sales_growth_pct|floatformat:1 }}% vs prior period
+    </p>
+    {% endif %}
+  </div>
+  <div class="card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Expenses</p>
+    <p class="mt-1.5 text-xl font-bold text-white">{{ organization.currency }} {{ kpis.expenses|floatformat:0|intcomma }}</p>
+    <p class="mt-1 text-xs text-slate-500">Operating costs</p>
+  </div>
+  <div class="card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Purchases</p>
+    <p class="mt-1.5 text-xl font-bold text-white">{{ organization.currency }} {{ kpis.purchases|floatformat:0|intcomma }}</p>
+    <p class="mt-1 text-xs text-slate-500">Stock &amp; supplies</p>
+  </div>
+  <div class="card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Net profit</p>
+    <p class="mt-1.5 text-xl font-bold {% if kpis.net_profit >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ kpis.net_profit|floatformat:0|intcomma }}</p>
+    {% if kpis.net_growth_pct is not None %}
+    <p class="mt-1 text-xs font-medium {% if kpis.net_growth_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">
+      {% if kpis.net_growth_pct >= 0 %}▲{% else %}▼{% endif %} {{ kpis.net_growth_pct|floatformat:1 }}% vs prior period
+    </p>
+    {% endif %}
+  </div>
+  <div class="card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Margin</p>
+    <p class="mt-1.5 text-xl font-bold text-white">{{ kpis.margin_pct|floatformat:1 }}%</p>
+    <p class="mt-1 text-xs text-slate-500">Net profit / sales</p>
+  </div>
+  <div class="card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Cash &amp; bank</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ kpis.cash_balance|floatformat:0|intcomma }}</p>
+    <p class="mt-1 text-xs text-slate-500">
+      <span class="text-slate-400">Cash</span> {{ organization.currency }} {{ cash_in_hand|floatformat:0|intcomma }}
+      · <span class="text-slate-400">Bank</span> {{ organization.currency }} {{ bank_balance|floatformat:0|intcomma }}
+    </p>
+  </div>
+</div>
+
+<!-- Headline charts -->
+<div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <div class="card p-5 xl:col-span-2">
+    <h3 class="text-sm font-semibold text-white">Sales vs expenses vs purchases</h3>
+    <p class="text-xs text-slate-500">Daily totals for {{ period.label }}</p>
+    <div class="mt-4 h-72"><canvas id="chartDaily"></canvas></div>
+  </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Expense breakdown</h3>
+    <p class="text-xs text-slate-500">By category</p>
+    <div class="mt-4 h-72"><canvas id="chartExpenseBreakdown"></canvas></div>
+  </div>
+</div>
+
+<!-- Recent entries -->
+<div class="card mt-5 p-5">
+  <div class="flex items-center justify-between">
+    <h3 class="text-sm font-semibold text-white">Recent entries</h3>
+    <a href="{% url 'finance:entries' %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">View all →</a>
+  </div>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+          <th class="pb-2 pr-4 font-medium">Date</th>
+          <th class="pb-2 pr-4 font-medium">Type</th>
+          <th class="pb-2 pr-4 font-medium">Category</th>
+          <th class="pb-2 pr-4 font-medium">Note</th>
+          <th class="pb-2 text-right font-medium">Amount ({{ organization.currency }})</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for e in recent_entries %}
+        <tr>
+          <td class="py-2.5 pr-4 text-slate-300">{{ e.date|date:"d M Y" }}</td>
+          <td class="py-2.5 pr-4">
+            <span class="rounded-full px-2 py-0.5 text-[11px] font-medium
+              {% if e.type == 'Sale' %}bg-mint-500/10 text-mint-400
+              {% elif e.type == 'Expense' %}bg-red-500/10 text-red-400
+              {% else %}bg-brand-500/10 text-brand-400{% endif %}">{{ e.type }}</span>
+          </td>
+          <td class="py-2.5 pr-4 text-slate-400">{{ e.label }}</td>
+          <td class="py-2.5 pr-4 text-slate-500">{{ e.note|default:"—" }}</td>
+          <td class="py-2.5 text-right font-medium text-white">{{ e.amount|floatformat:0|intcomma }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="py-6 text-center text-slate-500">No entries yet — use Bulk Entry above to log your first sale, expense or purchase.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "finance/_transfer_modal.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  Chart.defaults.color = "#9aa4bd";
+  Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
+  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+
+  const palette = { brand: "#5b7cfa", brandFill: "rgba(91,124,250,0.15)", mint: "#34d9b8", mintFill: "rgba(52,217,184,0.15)", red: "#f87171", redFill: "rgba(248,113,113,0.15)" };
+
+  new Chart(document.getElementById("chartDaily"), {
+    type: "line",
+    data: {
+      labels: {{ chart_daily_labels|safe }},
+      datasets: [
+        { label: "Sales", data: {{ chart_daily_sales|safe }}, borderColor: palette.mint, backgroundColor: palette.mintFill, tension: .35, fill: true, pointRadius: 0 },
+        { label: "Expenses", data: {{ chart_daily_expenses|safe }}, borderColor: palette.red, backgroundColor: palette.redFill, tension: .35, fill: true, pointRadius: 0 },
+        { label: "Purchases", data: {{ chart_daily_purchases|safe }}, borderColor: palette.brand, backgroundColor: palette.brandFill, tension: .35, fill: true, pointRadius: 0 },
+      ],
+    },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+  });
+
+  new Chart(document.getElementById("chartExpenseBreakdown"), {
+    type: "doughnut",
+    data: {
+      labels: {{ chart_expense_labels|safe }},
+      datasets: [{ data: {{ chart_expense_values|safe }}, backgroundColor: ["#5b7cfa","#34d9b8","#f87171","#fbbf24","#a78bfa","#38bdf8","#fb923c","#f472b6"], borderWidth: 0 }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } },
+  });
+
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+</script>
+{% endblock %}

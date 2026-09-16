@@ -1,0 +1,222 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Bulk Entry · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<a href="{% url 'finance:daily_report' %}?date={{ selected_date|date:'Y-m-d' }}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Daily Report</a>
+
+<div class="mt-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Bulk Entry</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · enter every line for the day at once — like a spreadsheet — then save. Fill only the rows you need; blank rows are ignored.</p>
+  </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <a href="?date={{ prev_date|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">‹</a>
+    <form method="get" class="flex items-center">
+      <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" {% if min_date %}min="{{ min_date|date:'Y-m-d' }}"{% endif %} onchange="this.form.submit()" class="!mt-0 !w-auto">
+    </form>
+    <a href="?date={{ next_date|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">›</a>
+    {% if selected_date != today %}
+    <a href="?date={{ today|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Today</a>
+    {% endif %}
+  </div>
+</div>
+
+<p class="mt-4 text-sm font-medium text-slate-300">{{ selected_date|date:"l, d F Y" }} · so far: {{ organization.currency }} {{ report.total_sales|floatformat:0|intcomma }} in, {{ organization.currency }} {{ report.total_outgoing|floatformat:0|intcomma }} out</p>
+<a href="{% url 'finance:entries' %}?type=sale&date={{ selected_date|date:'Y-m-d' }}" class="mt-1 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">Made a mistake? View / edit what you've entered today →</a>
+
+{% if min_date and selected_date < min_date %}
+<div class="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+  <p class="text-sm font-semibold text-red-300">Historical data limit exceeded</p>
+  <p class="mt-1 text-xs text-red-200/80">Your plan only allows entries from {{ min_date|date:"d M Y" }} onward — {{ selected_date|date:"d M Y" }} is too far back. Rows saved for this date will be rejected. Pick a more recent date, or upgrade your plan for a longer history.</p>
+</div>
+{% endif %}
+
+<div class="card mt-4 p-5">
+  <div class="flex gap-2 border-b border-white/5">
+    <button type="button" onclick="bai.showBulkTab('sale')" id="bulk-tab-btn-sale" class="report-tab {% if active_bulk_tab == 'sale' %}report-tab--active{% endif %}">Sales</button>
+    <button type="button" onclick="bai.showBulkTab('expense')" id="bulk-tab-btn-expense" class="report-tab {% if active_bulk_tab == 'expense' %}report-tab--active{% endif %}">Expenses</button>
+    <button type="button" onclick="bai.showBulkTab('purchase')" id="bulk-tab-btn-purchase" class="report-tab {% if active_bulk_tab == 'purchase' %}report-tab--active{% endif %}">Purchases</button>
+  </div>
+
+  <!-- Sales bulk entry -->
+  <section id="bulk-tab-sale" class="mt-4 {% if active_bulk_tab != 'sale' %}hidden{% endif %}">
+    <form method="post" action="{% url 'finance:bulk_add_sales' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'finance:daily_bulk_entry' %}?date={{ selected_date|date:'Y-m-d' }}">
+      <input type="hidden" name="selected_date" value="{{ selected_date|date:'Y-m-d' }}">
+      {% if sale_formset.non_form_errors %}
+      <div class="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-200">
+        {% for error in sale_formset.non_form_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+      {% endif %}
+      {{ sale_formset.management_form }}
+      <div class="overflow-x-auto">
+        <table class="bulk-table w-full text-left text-sm">
+          <thead>
+            <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+              <th class="px-1 pb-1.5 font-medium">Channel</th>
+              <th class="px-1 pb-1.5 font-medium">Brand / product</th>
+              <th class="px-1 pb-1.5 font-medium">Product category</th>
+              <th class="px-1 pb-1.5 font-medium">Customer</th>
+              <th class="px-1 pb-1.5 font-medium">Qty</th>
+              <th class="px-1 pb-1.5 font-medium">Amount</th>
+              <th class="px-1 pb-1.5 font-medium">Via</th>
+              <th class="px-1 pb-1.5 font-medium">Note</th>
+            </tr>
+          </thead>
+          <tbody id="sale-formset-body">
+            {% for form in sale_formset %}
+            <tr>{% include "finance/_bulk_sale_row.html" %}</tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <template id="sale-empty-row"><tr>{% include "finance/_bulk_sale_row.html" with form=sale_formset.empty_form %}</tr></template>
+      <div class="mt-3 flex items-center gap-3">
+        <button type="button" onclick="bai.addFormsetRow('sale')" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">+ Add row</button>
+        <button type="submit" class="btn-primary">Save sales</button>
+      </div>
+    </form>
+    {% if just_saved_type == "sale" and just_saved_entries %}{% include "finance/_bulk_saved_recap.html" %}{% endif %}
+  </section>
+
+  <!-- Expenses bulk entry -->
+  <section id="bulk-tab-expense" class="mt-4 {% if active_bulk_tab != 'expense' %}hidden{% endif %}">
+    <form method="post" action="{% url 'finance:bulk_add_expenses' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'finance:daily_bulk_entry' %}?date={{ selected_date|date:'Y-m-d' }}">
+      <input type="hidden" name="selected_date" value="{{ selected_date|date:'Y-m-d' }}">
+      {% if expense_formset.non_form_errors %}
+      <div class="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-200">
+        {% for error in expense_formset.non_form_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+      {% endif %}
+      {{ expense_formset.management_form }}
+      <div class="overflow-x-auto">
+        <table class="bulk-table w-full text-left text-sm">
+          <thead>
+            <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+              <th class="px-1 pb-1.5 font-medium">Category</th>
+              <th class="px-1 pb-1.5 font-medium">Detail</th>
+              <th class="px-1 pb-1.5 font-medium">Amount</th>
+              <th class="px-1 pb-1.5 font-medium">Via</th>
+              <th class="px-1 pb-1.5 font-medium">Note</th>
+            </tr>
+          </thead>
+          <tbody id="expense-formset-body">
+            {% for form in expense_formset %}
+            <tr>{% include "finance/_bulk_expense_row.html" %}</tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <template id="expense-empty-row"><tr>{% include "finance/_bulk_expense_row.html" with form=expense_formset.empty_form %}</tr></template>
+      <div class="mt-3 flex items-center gap-3">
+        <button type="button" onclick="bai.addFormsetRow('expense')" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">+ Add row</button>
+        <button type="submit" class="btn-primary" style="background:linear-gradient(90deg,#f87171,#ef4444)">Save expenses</button>
+      </div>
+    </form>
+    {% if just_saved_type == "expense" and just_saved_entries %}{% include "finance/_bulk_saved_recap.html" %}{% endif %}
+  </section>
+
+  <!-- Purchases bulk entry -->
+  <section id="bulk-tab-purchase" class="mt-4 {% if active_bulk_tab != 'purchase' %}hidden{% endif %}">
+    <form method="post" action="{% url 'finance:bulk_add_purchases' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'finance:daily_bulk_entry' %}?date={{ selected_date|date:'Y-m-d' }}">
+      <input type="hidden" name="selected_date" value="{{ selected_date|date:'Y-m-d' }}">
+      {% if purchase_formset.non_form_errors %}
+      <div class="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-200">
+        {% for error in purchase_formset.non_form_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+      {% endif %}
+      {{ purchase_formset.management_form }}
+      <div class="overflow-x-auto">
+        <table class="bulk-table w-full text-left text-sm">
+          <thead>
+            <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+              <th class="px-1 pb-1.5 font-medium">Category</th>
+              <th class="px-1 pb-1.5 font-medium">Item / detail</th>
+              <th class="px-1 pb-1.5 font-medium">Product category</th>
+              <th class="px-1 pb-1.5 font-medium">Vendor</th>
+              <th class="px-1 pb-1.5 font-medium">Qty</th>
+              <th class="px-1 pb-1.5 font-medium">Amount</th>
+              <th class="px-1 pb-1.5 font-medium">Via</th>
+              <th class="px-1 pb-1.5 font-medium">Note</th>
+            </tr>
+          </thead>
+          <tbody id="purchase-formset-body">
+            {% for form in purchase_formset %}
+            <tr>{% include "finance/_bulk_purchase_row.html" %}</tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <template id="purchase-empty-row"><tr>{% include "finance/_bulk_purchase_row.html" with form=purchase_formset.empty_form %}</tr></template>
+      <div class="mt-3 flex items-center gap-3">
+        <button type="button" onclick="bai.addFormsetRow('purchase')" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">+ Add row</button>
+        <button type="submit" class="btn-primary" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">Save purchases</button>
+      </div>
+    </form>
+    {% if just_saved_type == "purchase" and just_saved_entries %}{% include "finance/_bulk_saved_recap.html" %}{% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.SUBCATEGORY_MAP = {{ subcategory_map_json|default:"{}"|safe }};
+
+  bai.wireSubcategory = function (mainId, subId) {
+    const mainEl = document.getElementById(mainId);
+    const subEl = document.getElementById(subId);
+    if (!mainEl || !subEl) return;
+    const refresh = (preserve) => {
+      const options = bai.SUBCATEGORY_MAP[mainEl.value] || [];
+      subEl.innerHTML = '<option value="">---------</option>' +
+        options.map((o) => `<option value="${o.id}">${o.name}</option>`).join("");
+      if (preserve && options.some((o) => o.id === preserve)) subEl.value = preserve;
+    };
+    refresh(subEl.value);
+    mainEl.addEventListener("change", () => refresh(null));
+  };
+
+  bai.showBulkTab = (type) => {
+    ["sale", "expense", "purchase"].forEach((t) => {
+      document.getElementById("bulk-tab-" + t).classList.toggle("hidden", t !== type);
+      document.getElementById("bulk-tab-btn-" + t).classList.toggle("report-tab--active", t === type);
+    });
+  };
+
+  bai.addFormsetRow = (prefix) => {
+    const totalInput = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+    const index = parseInt(totalInput.value, 10);
+    const tpl = document.getElementById(`${prefix}-empty-row`);
+    const html = tpl.innerHTML.replace(/__prefix__/g, index);
+    document.getElementById(`${prefix}-formset-body`).insertAdjacentHTML("beforeend", html);
+    totalInput.value = index + 1;
+    const mainField = prefix === "sale" ? "channel" : "category";
+    bai.wireSubcategory(`id_${prefix}-${index}-${mainField}`, `id_${prefix}-${index}-subcategory`);
+  };
+
+  bai.wireBulkFormset = (prefix, mainField) => {
+    const totalInput = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+    const total = totalInput ? parseInt(totalInput.value, 10) : 0;
+    for (let i = 0; i < total; i++) {
+      bai.wireSubcategory(`id_${prefix}-${i}-${mainField}`, `id_${prefix}-${i}-subcategory`);
+    }
+  };
+
+  bai.wireBulkFormset("sale", "channel");
+  bai.wireBulkFormset("expense", "category");
+  bai.wireBulkFormset("purchase", "category");
+</script>
+<style>
+  .report-tab { padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500; color: #6b7488; border-bottom: 2px solid transparent; }
+  .report-tab--active { color: #fff; border-color: #5b7cfa; }
+  .bulk-table input, .bulk-table select { margin-top: 0; padding: 0.35rem 0.5rem; font-size: 0.78rem; min-width: 6.5rem; }
+  .bulk-table input[type=text] { min-width: 8rem; }
+</style>
+{% endblock %}

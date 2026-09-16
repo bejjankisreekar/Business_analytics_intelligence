@@ -1,0 +1,88 @@
+{% extends "superadmin/_base.html" %}
+{% load humanize %}
+{% block title %}Superadmin console{% endblock %}
+
+{% block sa_content %}
+<h1 class="text-xl font-bold text-slate-100">Business overview</h1>
+<p class="mt-1 text-sm text-slate-500">Production is the real business; development is test data. Use the top nav to browse a specific environment's clients, plans, invoices or payments.</p>
+
+<!-- KPI cards: Production primary, Development secondary -->
+<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+  <div class="sa-card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Clients</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-100">{{ stats.prod.total_clients }}</p>
+    <p class="mt-1 text-[11px] text-slate-600">Dev: {{ stats.dev.total_clients }}</p>
+  </div>
+  <div class="sa-card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Active services</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ stats.prod.active_services }}</p>
+    <p class="mt-1 text-[11px] text-slate-600">Dev: {{ stats.dev.active_services }}</p>
+  </div>
+  <div class="sa-card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">New this month</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-100">{{ stats.prod.new_this_month }}</p>
+    <p class="mt-1 text-[11px] text-slate-600">Dev: {{ stats.dev.new_this_month }}</p>
+  </div>
+  <div class="sa-card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total revenue</p>
+    <p class="mt-1.5 sa-mono text-xl font-bold text-slate-100">₹{{ stats.prod.total_revenue|floatformat:0|intcomma }}</p>
+    <p class="mt-1 text-[11px] text-slate-600">Dev: ₹{{ stats.dev.total_revenue|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="sa-card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Outstanding</p>
+    <p class="mt-1.5 sa-mono text-xl font-bold {% if stats.prod.outstanding > 0 %}text-red-400{% else %}text-slate-100{% endif %}">₹{{ stats.prod.outstanding|floatformat:0|intcomma }}</p>
+    <p class="mt-1 text-[11px] text-slate-600">Dev: ₹{{ stats.dev.outstanding|floatformat:0|intcomma }}</p>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <div class="sa-card p-5 xl:col-span-2">
+    <h3 class="text-sm font-semibold text-slate-100">Revenue — last 6 months</h3>
+    <p class="text-xs text-slate-500">Successful payments, by environment</p>
+    <div class="mt-4 h-72"><canvas id="chartRevenue"></canvas></div>
+  </div>
+  <div class="sa-card p-5">
+    <h3 class="text-sm font-semibold text-slate-100">Payment status</h3>
+    <p class="text-xs text-slate-500">Production, all-time</p>
+    <div class="mt-4 h-72"><canvas id="chartPaymentStatus"></canvas></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  Chart.defaults.color = "#9aa4bd";
+  Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
+  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+
+  const revenueData = {{ revenue_chart|safe }};
+  const paymentStatusData = {{ payment_status_chart|safe }};
+
+  new Chart(document.getElementById("chartRevenue"), {
+    type: "bar",
+    data: {
+      labels: revenueData.labels,
+      datasets: [
+        { label: "Production", data: revenueData.prod, backgroundColor: "#f59e0b", borderRadius: 4 },
+        { label: "Development", data: revenueData.dev, backgroundColor: "rgba(148,163,184,0.35)", borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true } },
+    },
+  });
+
+  new Chart(document.getElementById("chartPaymentStatus"), {
+    type: "doughnut",
+    data: {
+      labels: paymentStatusData.labels,
+      datasets: [{ data: paymentStatusData.values, backgroundColor: ["#34d9b8", "#f59e0b", "#f87171", "#94a3b8", "#a78bfa"], borderWidth: 0 }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } },
+  });
+</script>
+{% endblock %}

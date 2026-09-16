@@ -1,0 +1,102 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}{{ tab_label }} · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Categories</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · organize how sales, expenses and purchases are grouped</p>
+  </div>
+  <button onclick="bai.openModal('modal-category')" class="btn-primary">+ Add Category</button>
+</div>
+
+<div class="mt-6 flex gap-2 border-b border-white/5">
+  {% for k, label, name_ph, sub_ph in tabs %}
+  <a href="?kind={{ k }}" class="border-b-2 px-4 py-2.5 text-sm font-medium {% if kind == k %}border-brand-500 text-white{% else %}border-transparent text-slate-500 hover:text-slate-300{% endif %}">{{ label }}</a>
+  {% endfor %}
+</div>
+{% if kind == "PRODUCT" %}
+<p class="mt-3 text-xs text-slate-500">Tag both a sale and a purchase with the same product category to see profit by category on Analytics/Sales Intelligence.</p>
+{% endif %}
+
+<div class="mt-5 space-y-3">
+  {% for c in categories %}
+  <div class="card p-5">
+    <div class="flex items-center justify-between">
+      <span class="text-sm font-medium {% if not c.is_active %}text-slate-600 line-through{% else %}text-slate-200{% endif %}">{{ c.name }}</span>
+      <div class="flex items-center gap-3">
+        <a href="{% url 'finance:edit_category' c.pk %}?next={{ request.get_full_path|urlencode }}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Edit</a>
+        <form method="post" action="{% url 'finance:toggle_category' c.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="text-xs font-medium text-slate-500 hover:text-white">{% if c.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+        </form>
+        <form method="post" action="{% url 'finance:delete_category' c.pk %}" onsubmit="return confirm('Delete this category? Entries already logged under it will show as Uncategorized.');">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
+        </form>
+      </div>
+    </div>
+
+    {% if c.subcategories.all %}
+    <div class="mt-3 flex flex-wrap gap-1.5">
+      {% for s in c.subcategories.all %}
+      <span class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] {% if s.is_active %}border-white/10 text-slate-300{% else %}border-white/5 text-slate-600 line-through{% endif %}">
+        <form method="post" action="{% url 'finance:toggle_subcategory' s.pk %}" class="inline">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" title="{% if s.is_active %}Deactivate{% else %}Activate{% endif %}">{{ s.name }}</button>
+        </form>
+        <form method="post" action="{% url 'finance:delete_subcategory' s.pk %}" class="inline" onsubmit="return confirm('Delete this sub-category?');">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="text-slate-500 hover:text-red-300">✕</button>
+        </form>
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'finance:add_subcategory' %}" class="mt-3 flex items-center gap-2">
+      {% csrf_token %}
+      <input type="hidden" name="category" value="{{ c.pk }}">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <input type="text" name="name" placeholder="+ Add sub-category ({{ sub_placeholder }})" class="!mt-0 flex-1 !py-1.5 !text-xs">
+      <button type="submit" class="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 hover:bg-white/5">Add</button>
+    </form>
+  </div>
+  {% empty %}
+  <div class="card p-8 text-center text-sm text-slate-500">No {{ tab_label|lower }} yet — add one above.</div>
+  {% endfor %}
+</div>
+
+<!-- Modal: Add category -->
+<div id="modal-category" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-category')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Add to {{ tab_label }}</h3>
+      <button onclick="bai.closeModal('modal-category')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <form method="post" action="{% url 'finance:add_category' %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <input type="hidden" name="kind" value="{{ kind }}">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div>
+        <label class="block text-xs font-medium text-slate-400">New category</label>
+        <input type="text" name="name" placeholder="{{ name_placeholder }}" required>
+      </div>
+      <button type="submit" class="btn-primary w-full">Add category</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+</script>
+{% endblock %}

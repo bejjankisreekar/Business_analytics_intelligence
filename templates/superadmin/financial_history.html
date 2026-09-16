@@ -1,0 +1,101 @@
+{% extends "superadmin/_base.html" %}
+{% block title %}{{ org.name }} financial history{% endblock %}
+
+{% block sa_content %}
+<a href="{% url 'superadmin:org_detail' env_key org.pk %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ org.name }}</a>
+<h1 class="mt-4 text-xl font-bold text-slate-100">{{ org.name }} — financial history</h1>
+
+<div class="mt-6 sa-card overflow-x-auto p-5">
+  <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Invoices ({{ invoices|length }})</h2>
+  <table class="sa-table mt-3 w-full">
+    <thead>
+      <tr><th>Invoice #</th><th>Date</th><th>Due</th><th>Total</th><th>Paid</th><th>Due amount</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td class="sa-mono">{{ inv.invoice_number }}</td>
+        <td>{{ inv.invoice_date|date:"d M Y" }}</td>
+        <td>{{ inv.due_date|date:"d M Y" }}</td>
+        <td class="sa-mono">{{ inv.currency }} {{ inv.total }}</td>
+        <td class="sa-mono">{{ inv.currency }} {{ inv.amount_paid }}</td>
+        <td class="sa-mono">{{ inv.currency }} {{ inv.amount_due }}</td>
+        <td>
+          {% with s=inv.status %}
+          <span class="sa-badge {% if s == "PAID" %}sa-badge--active{% elif s == "PARTIALLY_PAID" or s == "ISSUED" %}sa-badge--warn{% elif s == "OVERDUE" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">{{ inv.get_status_display }}</span>
+          {% endwith %}
+        </td>
+        <td class="text-right"><a href="{% url 'superadmin:invoice_detail' env_key inv.pk %}" class="text-xs font-semibold text-amber-400 hover:text-amber-300">View →</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="text-center text-slate-600">No invoices yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="mt-6 sa-card overflow-x-auto p-5">
+  <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Payments ({{ payments|length }})</h2>
+  <table class="sa-table mt-3 w-full">
+    <thead>
+      <tr><th>Payment ID</th><th>Amount</th><th>Method</th><th>Gateway</th><th>Date</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for p in payments %}
+      <tr>
+        <td class="sa-mono">{{ p.payment_id }}</td>
+        <td class="sa-mono">{{ p.currency }} {{ p.amount }}</td>
+        <td>{{ p.get_payment_method_display }}</td>
+        <td>{{ p.get_gateway_display }}</td>
+        <td>{{ p.payment_date|date:"d M Y, H:i" }}</td>
+        <td>
+          {% with s=p.status %}
+          <span class="sa-badge {% if s == "SUCCESS" %}sa-badge--active{% elif s == "PENDING" %}sa-badge--warn{% elif s == "FAILED" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">{{ p.get_status_display }}</span>
+          {% endwith %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="text-center text-slate-600">No payments yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="mt-6 sa-card p-5">
+  <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Create invoice</h2>
+  <p class="mt-1 text-[11px] text-slate-600">Appears immediately as a pending amount on this client's own Billing page.</p>
+  <form method="post" action="{% url 'superadmin:invoice_create' env_key org.pk %}" class="mt-4 grid gap-4 sm:grid-cols-3">
+    {% csrf_token %}
+    {% for field in create_invoice_form %}
+    <div>
+      <label class="sa-field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<p class="mt-1 text-[11px] text-slate-600">{{ field.help_text }}</p>{% endif %}
+      {% for e in field.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    {% endfor %}
+    <div class="sm:col-span-3">
+      <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Create invoice</button>
+    </div>
+  </form>
+</div>
+
+<div class="mt-6 sa-card p-5">
+  <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Record a payment</h2>
+  <p class="mt-1 text-[11px] text-slate-600">For off-platform payments (bank transfer, cash, cheque). A real gateway payment arrives automatically via webhook.</p>
+  <form method="post" action="{% url 'superadmin:record_payment' env_key org.pk %}" class="mt-4 grid gap-4 sm:grid-cols-3">
+    {% csrf_token %}
+    {% for field in record_payment_form %}
+    <div class="{% if field.name == 'notes' %}sm:col-span-3{% endif %}">
+      <label class="sa-field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<p class="mt-1 text-[11px] text-slate-600">{{ field.help_text }}</p>{% endif %}
+      {% for e in field.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    {% endfor %}
+    <div class="sm:col-span-3">
+      <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Record payment</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

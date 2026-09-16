@@ -1,0 +1,8 @@
+Django==5.2.14
+djangorestframework==3.17.1
+psycopg2-binary==2.9.12
+python-decouple==3.8
+whitenoise==6.8.2
+gunicorn==23.0.0
+xhtml2pdf==0.2.17
+razorpay==2.0.1

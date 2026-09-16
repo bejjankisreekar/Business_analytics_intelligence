@@ -1,0 +1,92 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Vendors · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Vendors</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · supplier directory — contact details, opening balance &amp; current outstanding</p>
+  </div>
+  <button onclick="bai.openModal('modal-vendor')" class="btn-primary">+ Add Vendor</button>
+</div>
+
+<div class="card mt-6 overflow-x-auto p-5">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Name</th>
+        <th class="pb-2 pr-4 font-medium">Mobile</th>
+        <th class="pb-2 pr-4 font-medium">Details</th>
+        <th class="pb-2 pr-4 text-right font-medium">Opening Balance</th>
+        <th class="pb-2 pr-4 font-medium">As On</th>
+        <th class="pb-2 pr-4 text-right font-medium">Outstanding</th>
+        <th class="pb-2 pr-4 font-medium">Status</th>
+        <th class="pb-2 text-right font-medium"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for v in vendors %}
+      <tr>
+        <td class="py-2.5 pr-4 {% if not v.is_active %}text-slate-600 line-through{% else %}text-slate-200{% endif %}">{{ v.name }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ v.phone|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-slate-500">{{ v.details|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-300">{{ organization.currency }} {{ v.opening_balance|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{% if v.opening_balance %}{{ v.opening_balance_as_on|date:"d M Y" }}{% else %}—{% endif %}</td>
+        <td class="py-2.5 pr-4 text-right font-medium {% if v.outstanding %}text-amber-400{% else %}text-slate-400{% endif %}">{{ organization.currency }} {{ v.outstanding|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4">
+          <span class="rounded-full px-2 py-0.5 text-[11px] font-medium {% if v.is_active %}bg-mint-500/10 text-mint-400{% else %}bg-white/5 text-slate-500{% endif %}">
+            {% if v.is_active %}Active{% else %}Inactive{% endif %}
+          </span>
+        </td>
+        <td class="py-2.5 text-right">
+          <div class="flex items-center justify-end gap-3">
+            <a href="{% url 'finance:edit_vendor' v.pk %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Edit</a>
+            <form method="post" action="{% url 'finance:toggle_vendor' v.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="text-xs font-medium text-slate-500 hover:text-white">{% if v.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+            </form>
+            <form method="post" action="{% url 'finance:delete_vendor' v.pk %}" onsubmit="return confirm('Delete this vendor? This won\'t remove past purchases or payables logged under this name.');">
+              {% csrf_token %}
+              <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="py-8 text-center text-slate-500">No vendors yet — add one above.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal: Add vendor -->
+<div id="modal-vendor" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-vendor')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Add a vendor</h3>
+      <button onclick="bai.closeModal('modal-vendor')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p class="mt-1 text-xs text-slate-500">An opening balance logs what you already owed this vendor as an outstanding payable.</p>
+    <form method="post" action="{% url 'finance:add_vendor' %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <div><label class="block text-xs font-medium text-slate-400">Name</label>{{ vendor_form.name }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">{{ vendor_form.phone.label }}</label>{{ vendor_form.phone }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Details</label>{{ vendor_form.details }}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">{{ vendor_form.opening_balance.label }}</label>{{ vendor_form.opening_balance }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">{{ vendor_form.opening_balance_as_on.label }}</label>{{ vendor_form.opening_balance_as_on }}</div>
+      </div>
+      <button type="submit" class="btn-primary w-full">Save vendor</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+</script>
+{% endblock %}

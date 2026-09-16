@@ -1,0 +1,71 @@
+{% extends "superadmin/_base.html" %}
+{% block title %}{% if mode == "create" %}New coupon{% else %}Edit {{ coupon.code }}{% endif %}{% endblock %}
+
+{% block sa_content %}
+<a href="{% url 'superadmin:coupon_list' env_key %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ env_label }} coupons</a>
+<h1 class="mt-4 text-xl font-bold text-slate-100">{% if mode == "create" %}New coupon{% else %}Edit {{ coupon.code }}{% endif %}</h1>
+
+{% if form.non_field_errors %}
+<div class="mt-4 rounded border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+  {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+</div>
+{% endif %}
+
+<form method="post" class="sa-card mt-6 max-w-2xl p-6">
+  {% csrf_token %}
+  <div class="grid gap-4 sm:grid-cols-2">
+    <div>
+      <label class="sa-field-label" for="{{ form.code.id_for_label }}">Coupon code</label>
+      {{ form.code }}
+      {% for e in form.code.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.description.id_for_label }}">Description (optional)</label>
+      {{ form.description }}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.discount_type.id_for_label }}">Discount type</label>
+      {{ form.discount_type }}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.discount_value.id_for_label }}">Discount value</label>
+      {{ form.discount_value }}
+      <p class="mt-1 text-[11px] text-slate-600">A percentage (0–100) or a flat ₹ amount, depending on Discount type.</p>
+      {% for e in form.discount_value.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.valid_from.id_for_label }}">Valid from</label>
+      {{ form.valid_from }}
+      <p class="mt-1 text-[11px] text-slate-600">Leave blank to allow immediately.</p>
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.valid_until.id_for_label }}">Valid until</label>
+      {{ form.valid_until }}
+      <p class="mt-1 text-[11px] text-slate-600">Leave blank to never expire.</p>
+      {% for e in form.valid_until.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.max_redemptions.id_for_label }}">Max total redemptions</label>
+      {{ form.max_redemptions }}
+      <p class="mt-1 text-[11px] text-slate-600">Leave blank for unlimited, across all organizations.</p>
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.max_redemptions_per_org.id_for_label }}">Max uses per organization</label>
+      {{ form.max_redemptions_per_org }}
+    </div>
+  </div>
+
+  <div class="mt-6 flex flex-col gap-3 border-t border-white/5 pt-5 sm:flex-row sm:items-center">
+    <label class="flex items-center gap-2 text-sm text-slate-300">
+      {{ form.is_active }} Active (redeemable now)
+    </label>
+  </div>
+
+  <div class="mt-6 flex gap-3">
+    <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">
+      {% if mode == "create" %}Create coupon{% else %}Save changes{% endif %}
+    </button>
+    <a href="{% url 'superadmin:coupon_list' env_key %}" class="sa-btn-ghost rounded px-4 py-2 text-xs font-semibold">Cancel</a>
+  </div>
+</form>
+{% endblock %}

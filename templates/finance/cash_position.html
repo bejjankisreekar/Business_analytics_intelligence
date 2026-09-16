@@ -1,0 +1,285 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Cash Position · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Cash Position</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · what's owed to you, what you owe, and what's coming due</p>
+  </div>
+  <div class="flex flex-wrap gap-3">
+    <button onclick="bai.openModal('modal-receivable')" class="btn-primary">+ Receivable</button>
+    <button onclick="bai.openModal('modal-payable')" class="btn-primary" style="background:linear-gradient(90deg,#f87171,#ef4444)">+ Payable</button>
+  </div>
+</div>
+
+<!-- KPI row -->
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Receivable</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ total_receivable|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">{{ receivables|length }} open invoice{{ receivables|length|pluralize }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Payable</p>
+    <p class="mt-1.5 text-xl font-bold text-red-400">{{ organization.currency }} {{ total_payable|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">{{ payables|length }} open bill{{ payables|length|pluralize }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Net Position</p>
+    <p class="mt-1.5 text-xl font-bold {% if net_position >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ net_position|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Receivable − Payable</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Upcoming Obligations</p>
+    <p class="mt-1.5 text-xl font-bold text-amber-400">{{ upcoming_obligations|length }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Payable{{ upcoming_obligations|length|pluralize }} due in the next 30 days</p>
+  </div>
+</div>
+
+<!-- Cash flow snapshot -->
+<div class="card mt-6 p-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="text-base font-semibold text-white">Cash Flow Snapshot</h2>
+      <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}</p>
+    </div>
+    <form method="get" class="flex items-center gap-2">
+      <select name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
+        {% for value, label in period_choices %}
+        <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <div>
+      <p class="text-xs text-slate-500">Opening cash</p>
+      <p class="mt-1 text-sm font-semibold text-white">{{ organization.currency }} {{ cash_flow.opening_cash|floatformat:0|intcomma }}</p>
+    </div>
+    <div>
+      <p class="text-xs text-slate-500">Cash in (sales)</p>
+      <p class="mt-1 text-sm font-semibold text-mint-400">+{{ organization.currency }} {{ cash_flow.cash_in_from_sales|floatformat:0|intcomma }}</p>
+    </div>
+    <div>
+      <p class="text-xs text-slate-500">Cash out (purchases + expenses)</p>
+      <p class="mt-1 text-sm font-semibold text-red-400">-{{ organization.currency }} {{ cash_flow.cash_out_purchases|add:cash_flow.cash_out_expenses|floatformat:0|intcomma }}</p>
+    </div>
+    <div>
+      <p class="text-xs text-slate-500">Closing cash</p>
+      <p class="mt-1 text-sm font-semibold text-white">{{ organization.currency }} {{ cash_flow.closing_cash|floatformat:0|intcomma }}</p>
+    </div>
+  </div>
+  <a href="{% url 'finance:reports' %}?period={{ period.key }}" class="mt-4 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">View full Cash Flow statement →</a>
+</div>
+
+<!-- Upcoming obligations -->
+<div class="card mt-6 p-6">
+  <h2 class="text-base font-semibold text-white">Upcoming Obligations</h2>
+  <p class="text-xs text-slate-500">Unpaid bills due in the next 30 days</p>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+          <th class="pb-2 pr-4 font-medium">Vendor</th>
+          <th class="pb-2 pr-4 font-medium">Due date</th>
+          <th class="pb-2 pr-4 text-right font-medium">Balance</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for p in upcoming_obligations %}
+        <tr>
+          <td class="py-2 pr-4 text-slate-300">{{ p.vendor }}</td>
+          <td class="py-2 pr-4 text-slate-400">{{ p.due_date|date:"d M Y" }}</td>
+          <td class="py-2 pr-4 text-right font-medium text-amber-400">{{ organization.currency }} {{ p.balance|floatformat:0|intcomma }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="py-6 text-center text-slate-500">Nothing due in the next 30 days.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Receivables -->
+<div class="card mt-6 p-6">
+  <h2 class="text-base font-semibold text-white">Receivables</h2>
+  <p class="text-xs text-slate-500">Money customers owe you</p>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+          <th class="pb-2 pr-4 font-medium">Customer</th>
+          <th class="pb-2 pr-4 font-medium">Due date</th>
+          <th class="pb-2 pr-4 text-right font-medium">Amount</th>
+          <th class="pb-2 pr-4 text-right font-medium">Received</th>
+          <th class="pb-2 pr-4 text-right font-medium">Balance</th>
+          <th class="pb-2 pr-4 font-medium">Status</th>
+          <th class="pb-2 text-right font-medium"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for r in receivables %}
+        <tr>
+          <td class="py-2.5 pr-4 text-slate-300">{{ r.customer.name }}{% if r.note %} <span class="text-slate-500">· {{ r.note }}</span>{% endif %}</td>
+          <td class="py-2.5 pr-4 text-slate-400">{{ r.due_date|date:"d M Y" }}</td>
+          <td class="py-2.5 pr-4 text-right text-slate-300">{{ organization.currency }} {{ r.amount|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 pr-4 text-right text-slate-400">{{ organization.currency }} {{ r.amount_received|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 pr-4 text-right font-medium text-white">{{ organization.currency }} {{ r.balance|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 pr-4">
+            <span class="rounded-full px-2 py-0.5 text-[11px] font-medium
+              {% if r.status == 'OVERDUE' %}bg-red-500/10 text-red-400
+              {% elif r.status == 'PARTIAL' %}bg-amber-500/10 text-amber-400
+              {% else %}bg-white/5 text-slate-400{% endif %}">{{ r.status }}</span>
+          </td>
+          <td class="py-2.5 text-right">
+            <div class="flex items-center justify-end gap-3">
+              <button type="button" onclick="bai.openPaymentModal('{% url 'finance:pay_receivable' r.pk %}', '{{ r.balance }}', 'receivable')" class="text-xs font-medium text-brand-400 hover:text-brand-300">Record payment</button>
+              {% if r.amount_received == 0 %}
+              <form method="post" action="{% url 'finance:delete_receivable' r.pk %}" onsubmit="return confirm('Delete this receivable?');">
+                {% csrf_token %}
+                <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="py-6 text-center text-slate-500">No open receivables — everything's collected.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Payables -->
+<div class="card mt-6 p-6">
+  <h2 class="text-base font-semibold text-white">Payables</h2>
+  <p class="text-xs text-slate-500">Money you owe vendors</p>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+          <th class="pb-2 pr-4 font-medium">Vendor</th>
+          <th class="pb-2 pr-4 font-medium">Due date</th>
+          <th class="pb-2 pr-4 text-right font-medium">Amount</th>
+          <th class="pb-2 pr-4 text-right font-medium">Paid</th>
+          <th class="pb-2 pr-4 text-right font-medium">Balance</th>
+          <th class="pb-2 pr-4 font-medium">Status</th>
+          <th class="pb-2 text-right font-medium"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for p in payables %}
+        <tr>
+          <td class="py-2.5 pr-4 text-slate-300">{{ p.vendor }}{% if p.note %} <span class="text-slate-500">· {{ p.note }}</span>{% endif %}</td>
+          <td class="py-2.5 pr-4 text-slate-400">{{ p.due_date|date:"d M Y" }}</td>
+          <td class="py-2.5 pr-4 text-right text-slate-300">{{ organization.currency }} {{ p.amount|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 pr-4 text-right text-slate-400">{{ organization.currency }} {{ p.amount_paid|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 pr-4 text-right font-medium text-white">{{ organization.currency }} {{ p.balance|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 pr-4">
+            <span class="rounded-full px-2 py-0.5 text-[11px] font-medium
+              {% if p.status == 'OVERDUE' %}bg-red-500/10 text-red-400
+              {% elif p.status == 'PARTIAL' %}bg-amber-500/10 text-amber-400
+              {% else %}bg-white/5 text-slate-400{% endif %}">{{ p.status }}</span>
+          </td>
+          <td class="py-2.5 text-right">
+            <div class="flex items-center justify-end gap-3">
+              <button type="button" onclick="bai.openPaymentModal('{% url 'finance:pay_payable' p.pk %}', '{{ p.balance }}', 'payable')" class="text-xs font-medium text-brand-400 hover:text-brand-300">Record payment</button>
+              {% if p.amount_paid == 0 %}
+              <form method="post" action="{% url 'finance:delete_payable' p.pk %}" onsubmit="return confirm('Delete this payable?');">
+                {% csrf_token %}
+                <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="py-6 text-center text-slate-500">No open payables — nothing owed.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Add receivable -->
+<div id="modal-receivable" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-receivable')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Add a receivable</h3>
+      <button onclick="bai.closeModal('modal-receivable')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <form method="post" action="{% url 'finance:add_receivable' %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <div><label class="block text-xs font-medium text-slate-400">Customer</label>{{ receivable_form.customer }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">{{ receivable_form.product_category.label }}</label>{{ receivable_form.product_category }}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">Invoice date</label>{{ receivable_form.invoice_date }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">Due date</label>{{ receivable_form.due_date }}</div>
+      </div>
+      <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ receivable_form.amount }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ receivable_form.note }}</div>
+      <button type="submit" class="btn-primary w-full">Save receivable</button>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Add payable -->
+<div id="modal-payable" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-payable')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Add a payable</h3>
+      <button onclick="bai.closeModal('modal-payable')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <form method="post" action="{% url 'finance:add_payable' %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <div><label class="block text-xs font-medium text-slate-400">Vendor</label>{{ payable_form.vendor }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">{{ payable_form.product_category.label }}</label>{{ payable_form.product_category }}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">Bill date</label>{{ payable_form.bill_date }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">Due date</label>{{ payable_form.due_date }}</div>
+      </div>
+      <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ payable_form.amount }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ payable_form.note }}</div>
+      <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#f87171,#ef4444)">Save payable</button>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Record payment (shared by receivables & payables) -->
+<div id="modal-payment" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-payment')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Record a payment</h3>
+      <button onclick="bai.closeModal('modal-payment')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p id="payment-balance-hint" class="mt-1 text-xs text-slate-500"></p>
+    <form id="payment-form" method="post" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ payment_form.date }}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ payment_form.amount }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">Via</label>{{ payment_form.payment_mode }}</div>
+      </div>
+      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ payment_form.note }}</div>
+      <button type="submit" class="btn-primary w-full">Save payment</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+  bai.openPaymentModal = (url, balance, kind) => {
+    document.getElementById("payment-form").action = url;
+    document.getElementById("payment-balance-hint").textContent =
+      "Outstanding balance: {{ organization.currency }} " + Number(balance).toLocaleString();
+    bai.openModal("modal-payment");
+  };
+</script>
+{% endblock %}

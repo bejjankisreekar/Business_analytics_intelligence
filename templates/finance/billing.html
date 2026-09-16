@@ -1,0 +1,280 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Billing · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+{% csrf_token %}
+<h1 class="text-2xl font-bold text-white">Billing</h1>
+<p class="mt-1 text-sm text-slate-400">Your subscription, invoices, and payment history.</p>
+
+{% if locked %}
+<div class="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+  <p class="text-sm font-semibold text-red-300">Your service is on hold — trial or paid period has ended</p>
+  <p class="mt-1 text-xs text-red-200/80">This is a prepaid plan, so access is paused until the invoice below is paid. Every other page will bring you back here until then — pay now to restore access immediately.</p>
+</div>
+{% elif outstanding > 0 %}
+<div class="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+  <p class="text-sm font-semibold text-amber-300">Outstanding balance: {{ organization.currency }} {{ outstanding|floatformat:0|intcomma }}</p>
+  <p class="mt-1 text-xs text-amber-200/80">Please arrange payment to keep your service active.</p>
+</div>
+{% endif %}
+
+<div class="card mt-6 p-5">
+  <h2 class="text-sm font-semibold text-white">Current plan</h2>
+  {% if subscription %}
+  <dl class="mt-3 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+    <div><dt class="text-xs text-slate-500">Plan</dt><dd class="mt-0.5 font-medium text-white">{{ subscription.plan.name }}</dd></div>
+    <div><dt class="text-xs text-slate-500">Status</dt><dd class="mt-0.5 text-slate-200">{{ subscription.get_status_display }}</dd></div>
+    <div><dt class="text-xs text-slate-500">Billing cycle</dt><dd class="mt-0.5 text-slate-200">{{ subscription.get_billing_cycle_display }}</dd></div>
+    <div><dt class="text-xs text-slate-500">{% if subscription.status == "TRIAL" %}Trial ends{% else %}Renews / ends{% endif %}</dt><dd class="mt-0.5 text-slate-200">{{ subscription.trial_end_date|default:subscription.end_date|date:"d M Y"|default:"—" }}</dd></div>
+  </dl>
+  {% else %}
+  <p class="mt-3 text-sm text-slate-500">No subscription on file — contact support.</p>
+  {% endif %}
+</div>
+
+{% if subscription %}
+<div class="card mt-5 p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="text-sm font-semibold text-white">Autopay</h2>
+      <p class="mt-1 text-xs text-slate-500">
+        {% if subscription.autopay_enabled %}
+        On — your subscription renews automatically every billing cycle until you or support turns it off.
+        {% else %}
+        Off — you'll need to pay each invoice manually when it's due.
+        {% endif %}
+      </p>
+    </div>
+    {% if subscription.autopay_enabled %}
+    <form method="post" action="{% url 'finance:cancel_autopay' %}">
+      {% csrf_token %}
+      <button type="submit" class="rounded-lg border border-white/10 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Turn off autopay</button>
+    </form>
+    {% elif razorpay_configured %}
+    <button type="button" onclick="bai.enableAutopay(this)" class="btn-primary !px-4 !py-2 text-xs">Turn on autopay</button>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card mt-5 overflow-x-auto p-5">
+  <h2 class="text-sm font-semibold text-white">Invoices</h2>
+  <table class="mt-3 w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Invoice #</th>
+        <th class="pb-2 pr-4 font-medium">Date</th>
+        <th class="pb-2 pr-4 font-medium">Due</th>
+        <th class="pb-2 pr-4 font-medium">Total</th>
+        <th class="pb-2 pr-4 font-medium">Due amount</th>
+        <th class="pb-2 pr-4 font-medium">Status</th>
+        <th class="pb-2 pr-4 font-medium">Coupon</th>
+        <th class="pb-2 text-right font-medium"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for inv in invoices %}
+      <tr>
+        <td class="py-2.5 pr-4 text-slate-300">{{ inv.invoice_number }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ inv.invoice_date|date:"d M Y" }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ inv.due_date|date:"d M Y" }}</td>
+        <td class="py-2.5 pr-4 font-medium text-white">{{ organization.currency }} {{ inv.total|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 {% if inv.amount_due > 0 %}font-medium text-red-400{% else %}text-slate-400{% endif %}">{{ organization.currency }} {{ inv.amount_due|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4">
+          <span class="rounded-full px-2 py-0.5 text-[11px] font-medium
+            {% if inv.status == "PAID" %}bg-mint-500/10 text-mint-400
+            {% elif inv.status == "OVERDUE" %}bg-red-500/10 text-red-400
+            {% elif inv.status == "PARTIALLY_PAID" or inv.status == "ISSUED" %}bg-brand-500/10 text-brand-400
+            {% else %}bg-white/5 text-slate-400{% endif %}">{{ inv.get_status_display }}</span>
+        </td>
+        <td class="py-2.5 pr-4">
+          {% if inv.coupon_redemption %}
+          <span class="rounded-full bg-mint-500/10 px-2 py-0.5 text-[11px] font-medium text-mint-400" title="{{ organization.currency }} {{ inv.coupon_redemption.discount_amount|floatformat:0|intcomma }} off">{{ inv.coupon_redemption.coupon.code }} ✓</span>
+          {% elif inv.amount_due > 0 and inv.amount_paid == 0 and inv.status != "PAID" and inv.status != "CANCELLED" %}
+          <form method="post" action="{% url 'finance:apply_coupon' inv.pk %}" class="flex items-center gap-1.5">
+            {% csrf_token %}
+            <input type="text" name="code" placeholder="Code" class="!mt-0 !w-24 !py-1 !text-xs uppercase">
+            <button type="submit" class="whitespace-nowrap rounded-lg border border-white/10 px-2 py-1 text-[11px] font-medium text-slate-300 hover:bg-white/5">Apply</button>
+          </form>
+          {% else %}
+          <span class="text-xs text-slate-600">—</span>
+          {% endif %}
+        </td>
+        <td class="py-2.5 text-right">
+          {% if inv.amount_due > 0 and inv.status != "CANCELLED" and razorpay_configured %}
+          <button type="button" onclick="bai.payInvoice('{{ inv.pk }}', this)" class="btn-primary !px-3 !py-1.5 text-xs">Pay Now</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="py-6 text-center text-slate-500">No invoices yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card mt-5 overflow-x-auto p-5">
+  <h2 class="text-sm font-semibold text-white">Recent payments</h2>
+  <table class="mt-3 w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Date</th>
+        <th class="pb-2 pr-4 font-medium">Amount</th>
+        <th class="pb-2 pr-4 font-medium">Method</th>
+        <th class="pb-2 font-medium">Status</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for p in payments %}
+      <tr>
+        <td class="py-2.5 pr-4 text-slate-300">{{ p.payment_date|date:"d M Y" }}</td>
+        <td class="py-2.5 pr-4 font-medium text-white">{{ organization.currency }} {{ p.amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ p.get_payment_method_display }}</td>
+        <td class="py-2.5 text-slate-400">{{ p.get_status_display }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="py-6 text-center text-slate-500">No payments yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if razorpay_configured %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+  window.bai = window.bai || {};
+
+  function baiCsrfToken() {
+    // CSRF_COOKIE_HTTPONLY is on in this app, so the cookie itself isn't
+    // readable from JS — {% csrf_token %} above renders a hidden input
+    // with the same token instead.
+    return document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+  }
+
+  bai.payInvoice = async (invoiceId, btn) => {
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Please wait…";
+
+    const reset = () => { btn.disabled = false; btn.textContent = originalLabel; };
+
+    try {
+      const orderRes = await fetch(`/app/billing/invoices/${invoiceId}/pay/order/`, {
+        method: "POST",
+        headers: { "X-CSRFToken": baiCsrfToken() },
+      });
+      const order = await orderRes.json();
+      if (!orderRes.ok) {
+        alert(order.error || "Couldn't start payment.");
+        reset();
+        return;
+      }
+
+      const rzp = new Razorpay({
+        key: order.key_id,
+        amount: order.amount,
+        currency: order.currency,
+        name: order.organization_name,
+        description: `Invoice ${order.invoice_number}`,
+        order_id: order.order_id,
+        prefill: { email: order.prefill_email },
+        theme: { color: "#5b7cfa" },
+        modal: { ondismiss: reset },
+        handler: async (response) => {
+          const form = new FormData();
+          form.append("razorpay_order_id", response.razorpay_order_id);
+          form.append("razorpay_payment_id", response.razorpay_payment_id);
+          form.append("razorpay_signature", response.razorpay_signature);
+          try {
+            const verifyRes = await fetch(`/app/billing/invoices/${invoiceId}/pay/verify/`, {
+              method: "POST",
+              headers: { "X-CSRFToken": baiCsrfToken() },
+              body: form,
+            });
+            if (verifyRes.ok) {
+              window.location.reload();
+            } else {
+              alert("Payment succeeded but couldn't be confirmed automatically — contact support with payment ID " + response.razorpay_payment_id + ". Your service will resume once we confirm it.");
+              reset();
+            }
+          } catch (err) {
+            alert("Payment succeeded but the confirmation request failed — contact support with payment ID " + response.razorpay_payment_id + ".");
+            reset();
+          }
+        },
+      });
+      rzp.on("payment.failed", (resp) => {
+        alert("Payment failed: " + resp.error.description);
+        reset();
+      });
+      rzp.open();
+    } catch (err) {
+      alert("Something went wrong starting the payment.");
+      reset();
+    }
+  };
+
+  bai.enableAutopay = async (btn) => {
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Please wait…";
+    const reset = () => { btn.disabled = false; btn.textContent = originalLabel; };
+
+    try {
+      const subRes = await fetch("/app/billing/autopay/create/", {
+        method: "POST",
+        headers: { "X-CSRFToken": baiCsrfToken() },
+      });
+      const sub = await subRes.json();
+      if (!subRes.ok) {
+        alert(sub.error || "Couldn't start autopay setup.");
+        reset();
+        return;
+      }
+
+      const rzp = new Razorpay({
+        key: sub.key_id,
+        subscription_id: sub.subscription_id,
+        name: sub.organization_name,
+        description: `Autopay — ${sub.plan_name}`,
+        theme: { color: "#5b7cfa" },
+        modal: { ondismiss: reset },
+        handler: async (response) => {
+          const form = new FormData();
+          form.append("razorpay_subscription_id", response.razorpay_subscription_id);
+          form.append("razorpay_payment_id", response.razorpay_payment_id);
+          form.append("razorpay_signature", response.razorpay_signature);
+          try {
+            const verifyRes = await fetch("/app/billing/autopay/verify/", {
+              method: "POST",
+              headers: { "X-CSRFToken": baiCsrfToken() },
+              body: form,
+            });
+            if (verifyRes.ok) {
+              window.location.reload();
+            } else {
+              alert("Autopay authorization succeeded but couldn't be confirmed automatically — contact support.");
+              reset();
+            }
+          } catch (err) {
+            alert("Autopay authorization succeeded but the confirmation request failed — contact support.");
+            reset();
+          }
+        },
+      });
+      rzp.on("payment.failed", (resp) => {
+        alert("Autopay setup failed: " + resp.error.description);
+        reset();
+      });
+      rzp.open();
+    } catch (err) {
+      alert("Something went wrong setting up autopay.");
+      reset();
+    }
+  };
+</script>
+{% endif %}
+{% endblock %}

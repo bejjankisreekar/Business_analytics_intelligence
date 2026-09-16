@@ -1,0 +1,249 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Purchase &amp; Expense Intelligence · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Purchase &amp; Expense Intelligence</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · everything about where your money goes · <span class="text-slate-300">{{ period.label }}</span></p>
+  </div>
+  <form method="get" class="flex items-center gap-2">
+    <select name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
+      {% for value, label in period_choices %}
+      <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<!-- KPI row -->
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Purchases</p>
+    <p class="mt-1.5 text-xl font-bold text-brand-400">{{ organization.currency }} {{ kpis.purchases|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Cost of goods, {{ period.label }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Expenses</p>
+    <p class="mt-1.5 text-xl font-bold text-red-400">{{ organization.currency }} {{ kpis.expenses|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Operating costs, {{ period.label }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Outflow</p>
+    <p class="mt-1.5 text-xl font-bold text-white">{{ organization.currency }} {{ total_outflow|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Purchases + expenses</p>
+  </div>
+</div>
+
+<!-- Expense Analysis -->
+<div class="card mt-5 p-5">
+  <h3 class="text-sm font-semibold text-white">Expense Analysis</h3>
+  <p class="text-xs text-slate-500">{{ expense_analysis.this_month_label }} vs {{ expense_analysis.last_month_label }}, by category</p>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+          <th class="pb-2 pr-4 font-medium">Category</th>
+          <th class="pb-2 pr-4 text-right font-medium">This Month</th>
+          <th class="pb-2 pr-4 text-right font-medium">Last Month</th>
+          <th class="pb-2 text-right font-medium">Change</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for row in expense_analysis.rows %}
+        <tr>
+          <td class="py-2.5 pr-4 text-slate-200">{{ row.name }}</td>
+          <td class="py-2.5 pr-4 text-right text-slate-300">{{ organization.currency }} {{ row.this_month|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 pr-4 text-right text-slate-500">{{ organization.currency }} {{ row.last_month|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 text-right font-medium {% if row.change_pct == None %}text-slate-500{% elif row.change_pct > 0 %}text-red-400{% elif row.change_pct < 0 %}text-mint-400{% else %}text-slate-400{% endif %}">
+            {% if row.change_pct == None %}New{% else %}{% if row.change_pct > 0 %}+{% endif %}{{ row.change_pct|floatformat:0 }}%{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="py-8 text-center text-slate-500">No expenses logged in either month yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if expense_analysis.insight %}
+  <div class="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+    <p class="text-sm font-semibold text-amber-300">⚠️ {{ expense_analysis.insight }}</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Expenses this month, ascending -->
+<div class="card mt-5 p-5">
+  <h3 class="text-sm font-semibold text-white">This month's expenses — low to high</h3>
+  <p class="text-xs text-slate-500">{{ expense_analysis.this_month_label }}, by category, smallest first</p>
+  {% if chart_expense_asc_labels != "[]" %}
+  <div class="mt-4 h-64"><canvas id="chartExpensesAscending"></canvas></div>
+  {% else %}
+  <p class="mt-8 py-6 text-center text-sm text-slate-500">No expenses logged this month yet.</p>
+  {% endif %}
+</div>
+
+<!-- Trend -->
+<div class="card mt-6 p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Purchases &amp; expenses trend</h3>
+      <p class="text-xs text-slate-500">Switch between daily, weekly and monthly views</p>
+    </div>
+    <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+      <button type="button" onclick="bai.setGranularity('daily')" id="gran-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
+      <button type="button" onclick="bai.setGranularity('weekly')" id="gran-btn-weekly" class="granularity-btn">Weekly</button>
+      <button type="button" onclick="bai.setGranularity('monthly')" id="gran-btn-monthly" class="granularity-btn">Monthly</button>
+    </div>
+  </div>
+  <div class="mt-4 h-72"><canvas id="chartTrend"></canvas></div>
+</div>
+
+<!-- Charts row 2 -->
+<div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Purchases by category</h3>
+    <p class="text-xs text-slate-500">{{ period.label }}</p>
+    <div class="mt-4 h-64"><canvas id="chartPurchaseBreakdown"></canvas></div>
+  </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Top expense categories</h3>
+    <p class="text-xs text-slate-500">{{ period.label }}</p>
+    <div class="mt-4 h-64"><canvas id="chartTopExpenses"></canvas></div>
+  </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Cost by product category</h3>
+    <p class="text-xs text-slate-500">{{ period.label }} · purchases tagged with a product category</p>
+    {% if chart_product_category_labels != "[]" %}
+    <div class="mt-4 h-64"><canvas id="chartProductCategory"></canvas></div>
+    {% else %}
+    <p class="mt-8 py-6 text-center text-sm text-slate-500">No purchases tagged with a product category yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Charts row 3 -->
+<div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <div class="card p-5 xl:col-span-2">
+    <h3 class="text-sm font-semibold text-white">Top vendors by spend</h3>
+    <p class="text-xs text-slate-500">{{ period.label }} · top 10</p>
+    {% if vendor_breakdown %}
+    <div class="mt-4 h-64"><canvas id="chartVendors"></canvas></div>
+    {% else %}
+    <p class="mt-8 py-6 text-center text-sm text-slate-500">No purchases logged yet.</p>
+    {% endif %}
+  </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">How outflow is paid</h3>
+    <p class="text-xs text-slate-500">Cash vs bank, {{ period.label }}</p>
+    <div class="mt-4 h-64"><canvas id="chartPaymentMode"></canvas></div>
+  </div>
+</div>
+
+<!-- 6-month trend -->
+<div class="card mt-5 p-5">
+  <h3 class="text-sm font-semibold text-white">6-month trend</h3>
+  <p class="text-xs text-slate-500">Purchases &amp; expenses by month</p>
+  <div class="mt-4 h-72"><canvas id="chartMonthly"></canvas></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  Chart.defaults.color = "#9aa4bd";
+  Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
+  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+
+  const palette = { brand: "#5b7cfa", brandFill: "rgba(91,124,250,0.15)", mint: "#34d9b8", mintFill: "rgba(52,217,184,0.15)", red: "#f87171", redFill: "rgba(248,113,113,0.15)" };
+  const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } };
+  const donutColors = ["#5b7cfa","#34d9b8","#f87171","#fbbf24","#a78bfa","#38bdf8","#fb923c","#f472b6"];
+
+  const granularityData = {
+    daily: { labels: {{ chart_daily_labels|safe }}, expenses: {{ chart_daily_expenses|safe }}, purchases: {{ chart_daily_purchases|safe }} },
+    weekly: { labels: {{ chart_weekly_labels|safe }}, expenses: {{ chart_weekly_expenses|safe }}, purchases: {{ chart_weekly_purchases|safe }} },
+    monthly: { labels: {{ chart_monthly_labels|safe }}, expenses: {{ chart_monthly_expenses|safe }}, purchases: {{ chart_monthly_purchases|safe }} },
+  };
+
+  const trendChart = new Chart(document.getElementById("chartTrend"), {
+    type: "bar",
+    data: {
+      labels: granularityData.daily.labels,
+      datasets: [
+        { label: "Expenses", data: granularityData.daily.expenses, backgroundColor: palette.red, borderRadius: 4 },
+        { label: "Purchases", data: granularityData.daily.purchases, backgroundColor: palette.brand, borderRadius: 4 },
+      ],
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+  });
+
+  new Chart(document.getElementById("chartPurchaseBreakdown"), {
+    type: "doughnut",
+    data: { labels: {{ chart_purchase_labels|safe }}, datasets: [{ data: {{ chart_purchase_values|safe }}, backgroundColor: donutColors, borderWidth: 0 }] },
+    options: donutOpts,
+  });
+
+  new Chart(document.getElementById("chartTopExpenses"), {
+    type: "bar",
+    data: { labels: {{ chart_expense_labels|safe }}, datasets: [{ data: {{ chart_expense_values|safe }}, backgroundColor: palette.red, borderRadius: 4 }] },
+    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
+  });
+
+  {% if chart_expense_asc_labels != "[]" %}
+  new Chart(document.getElementById("chartExpensesAscending"), {
+    type: "bar",
+    data: { labels: {{ chart_expense_asc_labels|safe }}, datasets: [{ data: {{ chart_expense_asc_values|safe }}, backgroundColor: palette.red, borderRadius: 4 }] },
+    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
+  });
+  {% endif %}
+
+  {% if chart_product_category_labels != "[]" %}
+  new Chart(document.getElementById("chartProductCategory"), {
+    type: "doughnut",
+    data: { labels: {{ chart_product_category_labels|safe }}, datasets: [{ data: {{ chart_product_category_values|safe }}, backgroundColor: donutColors, borderWidth: 0 }] },
+    options: donutOpts,
+  });
+  {% endif %}
+
+  {% if vendor_breakdown %}
+  new Chart(document.getElementById("chartVendors"), {
+    type: "bar",
+    data: { labels: {{ chart_vendor_labels|safe }}, datasets: [{ data: {{ chart_vendor_values|safe }}, backgroundColor: palette.brand, borderRadius: 4 }] },
+    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
+  });
+  {% endif %}
+
+  new Chart(document.getElementById("chartPaymentMode"), {
+    type: "pie",
+    data: { labels: {{ chart_payment_labels|safe }}, datasets: [{ data: {{ chart_payment_values|safe }}, backgroundColor: [palette.mint, palette.brand], borderWidth: 0 }] },
+    options: donutOpts,
+  });
+
+  new Chart(document.getElementById("chartMonthly"), {
+    type: "bar",
+    data: { labels: {{ chart_monthly_labels|safe }}, datasets: [
+      { label: "Expenses", data: {{ chart_monthly_expenses|safe }}, backgroundColor: palette.red, borderRadius: 4 },
+      { label: "Purchases", data: {{ chart_monthly_purchases|safe }}, backgroundColor: palette.brand, borderRadius: 4 },
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+  });
+
+  window.bai = window.bai || {};
+  bai.setGranularity = (key) => {
+    const g = granularityData[key];
+    trendChart.data.labels = g.labels;
+    trendChart.data.datasets[0].data = g.expenses;
+    trendChart.data.datasets[1].data = g.purchases;
+    trendChart.update();
+    ["daily", "weekly", "monthly"].forEach((k) => {
+      document.getElementById("gran-btn-" + k).classList.toggle("granularity-btn--active", k === key);
+    });
+  };
+</script>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% load static %}
+<div id="modal-transfer" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-transfer')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Cash ⇄ Bank transfer</h3>
+      <button onclick="bai.closeModal('modal-transfer')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p class="mt-1 text-xs text-slate-500">Record a deposit (cash into the bank) or a withdrawal (bank to cash-in-hand).</p>
+    <form method="post" action="{% url 'finance:add_transfer' %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ transfer_form.date }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Direction</label>{{ transfer_form.direction }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ transfer_form.amount }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ transfer_form.note }}</div>
+      <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">Save transfer</button>
+    </form>
+  </div>
+</div>
+
+<style>
+  #modal-transfer.hidden { display: none; }
+  #modal-transfer:not(.hidden) { display: flex; }
+</style>

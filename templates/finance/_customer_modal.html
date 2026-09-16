@@ -1,0 +1,44 @@
+{% load static %}
+<div id="modal-customers" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-customers')">
+  <div class="w-full max-w-lg rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Customers</h3>
+      <button type="button" onclick="bai.closeModal('modal-customers')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p class="mt-1 text-xs text-slate-500">Used to tag sales and receivables so you can see revenue by customer.</p>
+
+    <div class="mt-4 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
+      {% for c in customers %}
+      <div class="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5">
+        <div>
+          <span class="text-sm {% if not c.is_active %}text-slate-600 line-through{% else %}text-slate-200{% endif %}">{{ c.name }}</span>
+          {% if c.phone or c.email %}
+          <p class="mt-0.5 text-xs text-slate-500">{{ c.phone }}{% if c.phone and c.email %} · {% endif %}{{ c.email }}</p>
+          {% endif %}
+        </div>
+        <form method="post" action="{% url 'finance:toggle_customer' c.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="text-xs font-medium text-slate-500 hover:text-white">{% if c.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+        </form>
+      </div>
+      {% empty %}
+      <p class="py-4 text-center text-sm text-slate-500">No customers yet — add one below.</p>
+      {% endfor %}
+    </div>
+
+    <div class="mt-4 border-t border-white/10 pt-4">
+      <button type="button" onclick="bai.toggleForm('modal-customers-add-form')" class="flex items-center gap-1.5 text-sm font-medium text-brand-400 hover:text-brand-300">
+        <span class="text-base leading-none">+</span> Add customer
+      </button>
+      <form id="modal-customers-add-form" method="post" action="{% url 'finance:add_customer' %}" class="mt-3 hidden space-y-3">
+        {% csrf_token %}
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-xs font-medium text-slate-400">Name</label>{{ customer_form.name }}</div>
+          <div><label class="block text-xs font-medium text-slate-400">Phone</label>{{ customer_form.phone }}</div>
+        </div>
+        <div><label class="block text-xs font-medium text-slate-400">Email</label>{{ customer_form.email }}</div>
+        <button type="submit" class="btn-primary w-full">Add customer</button>
+      </form>
+    </div>
+  </div>
+</div>

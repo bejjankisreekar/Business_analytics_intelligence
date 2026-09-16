@@ -1,0 +1,102 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Ledgers · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Ledgers</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · every account's ledger — cash, bank, customers and vendors</p>
+  </div>
+</div>
+
+<!-- Cash & Bank -->
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+  <a href="{% url 'finance:cash_ledger' %}" class="card card-link p-5">
+    <p class="text-xs font-medium text-slate-500">Cash in Hand</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ cash_balance|floatformat:0|intcomma }}</p>
+    <p class="mt-1 text-xs font-medium text-brand-400">View ledger →</p>
+  </a>
+  <a href="{% url 'finance:bank_ledger' %}" class="card card-link p-5">
+    <p class="text-xs font-medium text-slate-500">Bank</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ bank_balance|floatformat:0|intcomma }}</p>
+    <p class="mt-1 text-xs font-medium text-brand-400">View ledger →</p>
+  </a>
+</div>
+
+<!-- Customers -->
+<div class="mt-8 flex items-center justify-between">
+  <h2 class="text-sm font-semibold text-white">Customer Ledgers <span class="font-normal text-slate-500">(Accounts Receivable)</span></h2>
+  <a href="{% url 'finance:settings' %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">+ Add Customer</a>
+</div>
+<div class="card mt-3 overflow-x-auto p-5">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Customer</th>
+        <th class="pb-2 pr-4 font-medium">Contact</th>
+        <th class="pb-2 pr-4 text-right font-medium">Outstanding Balance</th>
+        <th class="pb-2 pr-4 font-medium">Status</th>
+        <th class="pb-2 text-right font-medium"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for c in customers %}
+      <tr>
+        <td class="py-2.5 pr-4 {% if not c.is_active %}text-slate-600 line-through{% else %}text-slate-200{% endif %}">{{ c.name }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ c.phone|default:"—" }}{% if c.phone and c.email %} · {% endif %}{{ c.email|default:"" }}{% if not c.phone and not c.email %}—{% endif %}</td>
+        <td class="py-2.5 pr-4 text-right font-medium {% if c.outstanding %}text-amber-400{% else %}text-slate-400{% endif %}">{{ organization.currency }} {{ c.outstanding|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4">
+          <span class="rounded-full px-2 py-0.5 text-[11px] font-medium {% if c.is_active %}bg-mint-500/10 text-mint-400{% else %}bg-white/5 text-slate-500{% endif %}">
+            {% if c.is_active %}Active{% else %}Inactive{% endif %}
+          </span>
+        </td>
+        <td class="py-2.5 text-right">
+          <a href="{% url 'finance:customer_ledger' c.pk %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">View Ledger →</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="py-8 text-center text-slate-500">No customers yet — add one to start a ledger.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Vendors -->
+<div class="mt-8 flex items-center justify-between">
+  <h2 class="text-sm font-semibold text-white">Vendor Ledgers <span class="font-normal text-slate-500">(Accounts Payable)</span></h2>
+  <a href="{% url 'finance:vendors' %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">+ Add Vendor</a>
+</div>
+<div class="card mt-3 overflow-x-auto p-5">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Vendor</th>
+        <th class="pb-2 pr-4 font-medium">Contact</th>
+        <th class="pb-2 pr-4 text-right font-medium">Outstanding Balance</th>
+        <th class="pb-2 pr-4 font-medium">Status</th>
+        <th class="pb-2 text-right font-medium"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for v in vendors %}
+      <tr>
+        <td class="py-2.5 pr-4 {% if not v.is_active %}text-slate-600 line-through{% else %}text-slate-200{% endif %}">{{ v.name }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ v.phone|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-right font-medium {% if v.outstanding %}text-amber-400{% else %}text-slate-400{% endif %}">{{ organization.currency }} {{ v.outstanding|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4">
+          <span class="rounded-full px-2 py-0.5 text-[11px] font-medium {% if v.is_active %}bg-mint-500/10 text-mint-400{% else %}bg-white/5 text-slate-500{% endif %}">
+            {% if v.is_active %}Active{% else %}Inactive{% endif %}
+          </span>
+        </td>
+        <td class="py-2.5 text-right">
+          <a href="{% url 'finance:vendor_ledger' v.pk %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">View Ledger →</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="py-8 text-center text-slate-500">No vendors yet — add one to start a ledger.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

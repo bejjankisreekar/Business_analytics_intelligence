@@ -1,0 +1,113 @@
+{% extends "finance/_app_base.html" %}
+{% block title %}Settings · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<h1 class="text-2xl font-bold text-white">Finance Settings</h1>
+<p class="mt-1 text-sm text-slate-400">Controls how {{ organization.name }}'s reports and financial year are calculated. Click a card to edit it.</p>
+
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  <button type="button" onclick="bai.openModal('modal-fy')" class="card card-link p-5 text-left">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold text-white">Financial Year &amp; Opening Balance</h3>
+    <p class="mt-1.5 text-xs text-slate-500">Starts in {{ fy_start_month_name }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Cash {{ organization.currency }} {{ fs.opening_balance|floatformat:0 }} · Bank {{ organization.currency }} {{ fs.opening_bank_balance|floatformat:0 }}</p>
+  </button>
+
+  <a href="{% url 'finance:categories' %}?kind=SALES" class="card card-link p-5 text-left">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold text-white">Sales Categories</h3>
+    <p class="mt-1.5 text-xs text-slate-500">{{ sales_categories|length }} channel{{ sales_categories|length|pluralize }}</p>
+  </a>
+
+  <a href="{% url 'finance:categories' %}?kind=EXPENSE" class="card card-link p-5 text-left">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-red-400">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold text-white">Expense Categories</h3>
+    <p class="mt-1.5 text-xs text-slate-500">{{ expense_categories|length }} categor{{ expense_categories|length|pluralize:"y,ies" }}</p>
+  </a>
+
+  <a href="{% url 'finance:categories' %}?kind=PURCHASE" class="card card-link p-5 text-left">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold text-white">Purchase Categories</h3>
+    <p class="mt-1.5 text-xs text-slate-500">{{ purchase_categories|length }} categor{{ purchase_categories|length|pluralize:"y,ies" }}</p>
+  </a>
+
+  <a href="{% url 'finance:categories' %}?kind=PRODUCT" class="card card-link p-5 text-left">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold text-white">Product Categories</h3>
+    <p class="mt-1.5 text-xs text-slate-500">{{ product_categories|length }} categor{{ product_categories|length|pluralize:"y,ies" }}</p>
+    <p class="mt-0.5 text-xs text-slate-600">Links sales &amp; purchases to compute profit by category</p>
+  </a>
+
+  <button type="button" onclick="bai.openModal('modal-customers')" class="card card-link p-5 text-left">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-red-400">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0112.75 0zM15.75 8.25a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM19.5 8.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/></svg>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold text-white">Customers</h3>
+    <p class="mt-1.5 text-xs text-slate-500">{{ customers|length }} customer{{ customers|length|pluralize }}</p>
+  </button>
+
+  <a href="{% url 'finance:vendors' %}" class="card card-link p-5 text-left">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21M3 9.75l9-6.75 9 6.75M4.5 9.75V21a.75.75 0 00.75.75h13.5a.75.75 0 00.75-.75V9.75"/></svg>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold text-white">Vendors</h3>
+    <p class="mt-1.5 text-xs text-slate-500">{{ vendors|length }} vendor{{ vendors|length|pluralize }}</p>
+    <p class="mt-0.5 text-xs text-slate-600">Manage details, mobile &amp; opening balance →</p>
+  </a>
+</div>
+
+<!-- Modal: Financial Year & Opening Balance -->
+<div id="modal-fy" class="modal-overlay {% if not form.errors %}hidden{% endif %} fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-fy')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Financial year &amp; opening balance</h3>
+      <button type="button" onclick="bai.closeModal('modal-fy')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p class="mt-1 text-xs text-slate-500">Pick when your financial year starts, and the balances your business opened with — every report is built from these.</p>
+    <form method="post" class="mt-5 space-y-4">
+      {% csrf_token %}
+      <div>
+        <label class="block text-xs font-medium text-slate-400">Financial year starts in</label>
+        {{ form.fy_start_month }}
+        {% for error in form.fy_start_month.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400">Opening cash-in-hand</label>
+          {{ form.opening_balance }}
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400">Opening bank balance</label>
+          {{ form.opening_bank_balance }}
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">Opening date</label>
+        {{ form.opening_date }}
+      </div>
+      <button type="submit" class="btn-primary w-full">Save</button>
+    </form>
+  </div>
+</div>
+
+{% include "finance/_customer_modal.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+  bai.toggleForm = (id) => document.getElementById(id).classList.toggle("hidden");
+</script>
+{% endblock %}

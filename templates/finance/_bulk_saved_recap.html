@@ -1,0 +1,28 @@
+{% load humanize %}
+<div class="mt-5 rounded-xl border border-mint-500/30 bg-mint-500/10 p-4">
+  <p class="text-sm font-semibold text-mint-300">✓ Just saved — {{ just_saved_entries|length }} row{{ just_saved_entries|length|pluralize }}</p>
+  <div class="mt-3 overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+          <th class="pb-1.5 pr-4 font-medium">Date</th>
+          <th class="pb-1.5 pr-4 font-medium">Category</th>
+          <th class="pb-1.5 pr-4 font-medium">Note</th>
+          <th class="pb-1.5 pr-4 font-medium">Via</th>
+          <th class="pb-1.5 text-right font-medium">Amount</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/10">
+        {% for row in just_saved_entries %}
+        <tr>
+          <td class="py-1.5 pr-4 text-slate-300">{{ row.date|date:"d M Y" }}</td>
+          <td class="py-1.5 pr-4 text-slate-200">{{ row.label }}</td>
+          <td class="py-1.5 pr-4 text-slate-500">{{ row.note|default:"—" }}</td>
+          <td class="py-1.5 pr-4 text-slate-400">{{ row.payment_mode }}</td>
+          <td class="py-1.5 text-right font-medium text-white">{{ organization.currency }} {{ row.amount|floatformat:0|intcomma }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

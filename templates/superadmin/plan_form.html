@@ -1,0 +1,82 @@
+{% extends "superadmin/_base.html" %}
+{% block title %}{% if mode == "create" %}New plan{% else %}Edit {{ plan.name }}{% endif %}{% endblock %}
+
+{% block sa_content %}
+<a href="{% url 'superadmin:plan_list' env_key %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ env_label }} plans</a>
+<h1 class="mt-4 text-xl font-bold text-slate-100">{% if mode == "create" %}New plan{% else %}Edit {{ plan.name }}{% endif %}</h1>
+
+{% if form.non_field_errors %}
+<div class="mt-4 rounded border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+  {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+</div>
+{% endif %}
+
+<form method="post" class="sa-card mt-6 max-w-2xl p-6">
+  {% csrf_token %}
+  <div class="grid gap-4 sm:grid-cols-2">
+    <div>
+      <label class="sa-field-label" for="{{ form.name.id_for_label }}">Plan name</label>
+      {{ form.name }}
+      {% for e in form.name.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.monthly_price.id_for_label }}">Monthly price (₹)</label>
+      {{ form.monthly_price }}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.monthly_discount_percent.id_for_label }}">Monthly discount (%)</label>
+      {{ form.monthly_discount_percent }}
+      <p class="mt-1 text-[11px] text-slate-600">Shown on the public pricing section.</p>
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.yearly_price.id_for_label }}">Yearly price (₹)</label>
+      {{ form.yearly_price }}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.yearly_discount_percent.id_for_label }}">Yearly discount (%)</label>
+      {{ form.yearly_discount_percent }}
+      <p class="mt-1 text-[11px] text-slate-600">Shown on the public pricing section.</p>
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.trial_days.id_for_label }}">Trial period (days)</label>
+      {{ form.trial_days }}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.user_limit.id_for_label }}">User limit</label>
+      {{ form.user_limit }}
+      <p class="mt-1 text-[11px] text-slate-600">Leave blank for unlimited.</p>
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.business_limit.id_for_label }}">Business limit</label>
+      {{ form.business_limit }}
+      <p class="mt-1 text-[11px] text-slate-600">Leave blank for unlimited.</p>
+    </div>
+  </div>
+
+  <h2 class="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Feature access</h2>
+  <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+    {% for checkbox in form.features %}
+    <label class="flex items-center gap-2 rounded border border-white/5 bg-white/[0.02] px-3 py-2 text-xs text-slate-300">
+      {{ checkbox.tag }} {{ checkbox.choice_label }}
+    </label>
+    {% endfor %}
+  </div>
+  <p class="mt-3 text-[11px] text-slate-600">Not yet enforced anywhere in the app — this records which features a plan grants; gating access by feature is a follow-up.</p>
+
+  <div class="mt-6 flex flex-col gap-3 border-t border-white/5 pt-5 sm:flex-row sm:items-center">
+    <label class="flex items-center gap-2 text-sm text-slate-300">
+      {{ form.is_active }} Active (visible for new subscriptions)
+    </label>
+    <label class="flex items-center gap-2 text-sm text-slate-300">
+      {{ form.show_on_landing_page }} Show on landing page
+    </label>
+  </div>
+
+  <div class="mt-6 flex gap-3">
+    <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">
+      {% if mode == "create" %}Create plan{% else %}Save changes{% endif %}
+    </button>
+    <a href="{% url 'superadmin:plan_list' env_key %}" class="sa-btn-ghost rounded px-4 py-2 text-xs font-semibold">Cancel</a>
+  </div>
+</form>
+{% endblock %}

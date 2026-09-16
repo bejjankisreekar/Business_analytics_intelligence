@@ -1,0 +1,64 @@
+{% extends "superadmin/_base.html" %}
+{% block title %}{{ env_label }} coupons{% endblock %}
+
+{% block sa_content %}
+<a href="{% url 'superadmin:org_list' env_key %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ env_label }} organizations</a>
+
+<div class="mt-4 flex items-center justify-between">
+  <h1 class="text-xl font-bold text-slate-100">{{ env_label }} coupons</h1>
+  <a href="{% url 'superadmin:coupon_create' env_key %}" class="sa-btn-primary rounded px-3 py-1.5 text-xs font-semibold">+ New coupon</a>
+</div>
+
+<div class="sa-card mt-6 overflow-x-auto">
+  <table class="sa-table w-full">
+    <thead>
+      <tr>
+        <th>Code</th>
+        <th>Discount</th>
+        <th>Valid</th>
+        <th>Redemptions</th>
+        <th>Per-org limit</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for coupon in coupons %}
+      <tr>
+        <td class="font-medium text-slate-100 sa-mono">{{ coupon.code }}{% if coupon.description %}<p class="mt-0.5 text-xs font-normal text-slate-500">{{ coupon.description }}</p>{% endif %}</td>
+        <td class="sa-mono">
+          {% if coupon.discount_type == "PERCENT" %}{{ coupon.discount_value }}%{% else %}₹{{ coupon.discount_value }}{% endif %}
+        </td>
+        <td class="text-xs text-slate-400">
+          {% if coupon.valid_from or coupon.valid_until %}
+          {{ coupon.valid_from|date:"d M Y"|default:"Any time" }} – {{ coupon.valid_until|date:"d M Y"|default:"No expiry" }}
+          {% else %}
+          Always
+          {% endif %}
+        </td>
+        <td>{{ coupon.redemption_count }}{% if coupon.max_redemptions %} / {{ coupon.max_redemptions }}{% endif %}</td>
+        <td>{{ coupon.max_redemptions_per_org }}</td>
+        <td>
+          {% if coupon.is_active %}
+          <span class="sa-badge sa-badge--active">Active</span>
+          {% else %}
+          <span class="sa-badge sa-badge--neutral">Inactive</span>
+          {% endif %}
+        </td>
+        <td class="text-right whitespace-nowrap">
+          <a href="{% url 'superadmin:coupon_edit' env_key coupon.pk %}" class="text-xs font-semibold text-amber-400 hover:text-amber-300">Edit</a>
+          <form method="post" action="{% url 'superadmin:coupon_toggle' env_key coupon.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="ml-3 text-xs font-semibold {% if coupon.is_active %}text-red-400 hover:text-red-300{% else %}text-mint-400 hover:text-mint-300{% endif %}">
+              {% if coupon.is_active %}Deactivate{% else %}Activate{% endif %}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="text-center text-slate-600">No coupons yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "finance/pdf/_base_pdf.html" %}
+{% load humanize %}
+{% block subtitle %}Profit &amp; Loss Statement · {{ pnl.period.start|date:"d M Y" }} – {{ pnl.period.end|date:"d M Y" }}{% endblock %}
+{% block statement %}
+<table>
+  <tr><td>Revenue (Sales)</td><td class="right">{{ organization.currency }} {{ pnl.revenue|floatformat:2|intcomma }}</td></tr>
+  <tr><td>Cost of Goods / Purchases</td><td class="right neg">({{ organization.currency }} {{ pnl.cogs|floatformat:2|intcomma }})</td></tr>
+  <tr class="divider thick"><td>Gross Profit</td><td class="right">{{ organization.currency }} {{ pnl.gross_profit|floatformat:2|intcomma }}</td></tr>
+  <tr><td class="section-label" colspan="2">Operating expenses</td></tr>
+  {% for row in pnl.opex_rows %}
+  <tr><td style="padding-left:14px;">{{ row.name }}</td><td class="right">({{ organization.currency }} {{ row.amount|floatformat:2|intcomma }})</td></tr>
+  {% endfor %}
+  <tr class="divider"><td>Total operating expenses</td><td class="right neg">({{ organization.currency }} {{ pnl.total_opex|floatformat:2|intcomma }})</td></tr>
+  <tr class="thick"><td>Net Profit</td><td class="right {% if pnl.net_profit >= 0 %}pos{% else %}neg{% endif %}">{{ organization.currency }} {{ pnl.net_profit|floatformat:2|intcomma }}</td></tr>
+  <tr><td class="muted">Net margin</td><td class="right muted">{{ pnl.net_margin_pct|floatformat:1 }}%</td></tr>
+</table>
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block body %}
+{# Work out where each environment's toggle should land: same section, other env. #}
+{% if request.resolver_match.url_name in "plan_list,plan_create,plan_edit,plan_toggle" %}
+  {% url 'superadmin:plan_list' 'dev' as dev_href %}
+  {% url 'superadmin:plan_list' 'prod' as prod_href %}
+{% elif request.resolver_match.url_name in "coupon_list,coupon_create,coupon_edit,coupon_toggle" %}
+  {% url 'superadmin:coupon_list' 'dev' as dev_href %}
+  {% url 'superadmin:coupon_list' 'prod' as prod_href %}
+{% elif request.resolver_match.url_name in "invoice_list,invoice_detail,invoice_download" %}
+  {% url 'superadmin:invoice_list' 'dev' as dev_href %}
+  {% url 'superadmin:invoice_list' 'prod' as prod_href %}
+{% elif request.resolver_match.url_name == "payment_list" %}
+  {% url 'superadmin:payment_list' 'dev' as dev_href %}
+  {% url 'superadmin:payment_list' 'prod' as prod_href %}
+{% elif request.resolver_match.url_name in "org_list,org_detail,org_create,org_edit,financial_history" %}
+  {% url 'superadmin:org_list' 'dev' as dev_href %}
+  {% url 'superadmin:org_list' 'prod' as prod_href %}
+{% else %}
+  {% url 'superadmin:org_list' 'dev' as dev_href %}
+  {% url 'superadmin:org_list' 'prod' as prod_href %}
+{% endif %}
+
+<div class="min-h-screen" style="background:#0a0c10;">
+  <div class="border-b border-amber-500/20 bg-amber-500/[0.06] px-6 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-amber-400">
+    Internal — Operations Console — Not a client account
+  </div>
+
+  <!-- Top nav: environment switch + account -->
+  <header class="sticky top-0 z-20 flex items-center justify-between border-b border-white/5 bg-[#0f1115] px-4 py-2.5 sm:px-6">
+    <div class="flex items-center gap-2">
+      <a href="{{ dev_href }}" class="sa-env-pill {% if env_key == "dev" %}sa-env-pill--active{% endif %}">
+        <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span> Development
+      </a>
+      <a href="{{ prod_href }}" class="sa-env-pill {% if env_key == "prod" %}sa-env-pill--active{% endif %}">
+        <span class="h-1.5 w-1.5 rounded-full bg-red-400"></span> Production
+      </a>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="hidden font-mono text-xs text-slate-500 sm:inline">{{ request.user.email }}</span>
+      <form method="post" action="{% url 'accounts:logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="rounded border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-400 transition hover:border-white/20 hover:text-slate-200">Sign out</button>
+      </form>
+    </div>
+  </header>
+
+  <!-- Mobile section links (sidebar replacement below lg) -->
+  <div class="sticky top-[49px] z-20 flex items-center gap-4 overflow-x-auto border-b border-white/5 bg-[#0f1115] px-4 py-2.5 text-xs whitespace-nowrap lg:hidden">
+    <a href="{% url 'superadmin:overview' %}" class="text-slate-300">Overview</a>
+    <a href="{% url 'superadmin:org_list' env_key|default:'dev' %}" class="text-slate-300">Clients</a>
+    <a href="{% url 'superadmin:plan_list' env_key|default:'dev' %}" class="text-slate-300">Plans</a>
+    <a href="{% url 'superadmin:coupon_list' env_key|default:'dev' %}" class="text-slate-300">Coupons</a>
+    <a href="{% url 'superadmin:invoice_list' env_key|default:'dev' %}" class="text-slate-300">Invoices</a>
+    <a href="{% url 'superadmin:payment_list' env_key|default:'dev' %}" class="text-slate-300">Payments</a>
+  </div>
+
+  <div class="flex">
+    <!-- Sidebar (desktop only) -->
+    <aside class="sticky top-[49px] hidden h-[calc(100vh-49px)] w-56 flex-col overflow-y-auto border-r border-white/5 bg-[#0f1115] lg:flex">
+      <a href="{% url 'superadmin:overview' %}" class="flex items-center gap-2.5 border-b border-white/5 px-5 py-5">
+        <span class="flex h-8 w-8 items-center justify-center rounded border border-amber-500/30 bg-black text-[11px] font-bold tracking-wide text-amber-400">OPS</span>
+        <span class="font-mono text-sm font-semibold text-slate-200">superadmin</span>
+      </a>
+
+      <nav class="flex-1 space-y-0.5 px-3 py-5">
+        <a href="{% url 'superadmin:overview' %}" class="sa-nav-link {% if request.resolver_match.url_name == 'overview' %}sa-nav-link--active{% endif %}">
+          Overview
+        </a>
+        <a href="{% url 'superadmin:org_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "org_list,org_detail,org_create,org_edit,financial_history" %}sa-nav-link--active{% endif %}">
+          Clients
+        </a>
+        <a href="{% url 'superadmin:plan_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "plan_list,plan_create,plan_edit" %}sa-nav-link--active{% endif %}">
+          Plans
+        </a>
+        <a href="{% url 'superadmin:coupon_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "coupon_list,coupon_create,coupon_edit" %}sa-nav-link--active{% endif %}">
+          Coupons
+        </a>
+        <a href="{% url 'superadmin:invoice_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "invoice_list,invoice_detail" %}sa-nav-link--active{% endif %}">
+          Invoices
+        </a>
+        <a href="{% url 'superadmin:payment_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name == "payment_list" %}sa-nav-link--active{% endif %}">
+          Payments
+        </a>
+      </nav>
+    </aside>
+
+    <main class="w-full flex-1 px-4 pb-16 pt-6 sm:px-8 lg:px-10">
+      {% block sa_content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  body { background: #0a0c10 !important; }
+  .sa-nav-link {
+    display: block; border-radius: 0.5rem; padding: 0.5rem 0.75rem;
+    font-size: 0.8rem; font-weight: 500; color: #94a3b8; transition: background .15s, color .15s;
+  }
+  .sa-nav-link:hover { background: rgba(255,255,255,0.04); color: #e2e8f0; }
+  .sa-nav-link--active { background: rgba(245,158,11,0.12); color: #f59e0b; }
+  .sa-env-pill {
+    display: inline-flex; align-items: center; gap: 0.4rem; border-radius: 9999px;
+    border: 1px solid rgba(255,255,255,0.1); padding: 0.35rem 0.85rem;
+    font-size: 0.75rem; font-weight: 600; color: #94a3b8; transition: border-color .15s, background .15s, color .15s;
+  }
+  .sa-env-pill:hover { border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+  .sa-env-pill--active { border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12); color: #f59e0b; }
+  .sa-card { border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); }
+  .sa-card-link { transition: border-color .15s, background .15s; cursor: pointer; }
+  .sa-card-link:hover { border-color: rgba(245,158,11,0.4); background: rgba(255,255,255,0.035); }
+  .sa-table th { text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; font-weight: 600; padding: 0.6rem 1rem; }
+  .sa-table td { padding: 0.7rem 1rem; font-size: 0.82rem; color: #cbd5e1; border-top: 1px solid rgba(255,255,255,0.06); }
+  .sa-table tr:hover td { background: rgba(255,255,255,0.015); }
+  .sa-badge { display: inline-flex; align-items: center; border-radius: 0.25rem; padding: 0.15rem 0.55rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
+  .sa-badge--active { background: rgba(52,217,184,0.1); color: #34d9b8; border: 1px solid rgba(52,217,184,0.25); }
+  .sa-badge--inactive { background: rgba(248,113,113,0.1); color: #f87171; border: 1px solid rgba(248,113,113,0.25); }
+  .sa-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .sa-btn-danger { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3); color: #f87171; }
+  .sa-btn-danger:hover { background: rgba(248,113,113,0.2); }
+  .sa-btn-mint { background: rgba(52,217,184,0.12); border: 1px solid rgba(52,217,184,0.3); color: #34d9b8; }
+  .sa-btn-mint:hover { background: rgba(52,217,184,0.2); }
+  .sa-btn-primary { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.35); color: #f59e0b; }
+  .sa-btn-primary:hover { background: rgba(245,158,11,0.25); }
+  .sa-btn-ghost { border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; }
+  .sa-btn-ghost:hover { border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+  .sa-badge--warn { background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+  .sa-badge--neutral { background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(148,163,184,0.25); }
+  .sa-input, .sa-select, select.sa-input, textarea.sa-input {
+    width: 100%; margin-top: 0.25rem; border-radius: 0.4rem;
+    border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
+    padding: 0.5rem 0.75rem; font-size: 0.83rem; color: #e2e8f0; outline: none;
+  }
+  .sa-input:focus { border-color: rgba(245,158,11,0.5); box-shadow: 0 0 0 3px rgba(245,158,11,0.12); }
+  /* Without this, the open dropdown list falls back to the browser's
+     native (light) popup styling — white text on white until hovered. */
+  select.sa-input option, .sa-input option { background: #111318; color: #e2e8f0; }
+  .sa-field-label { display: block; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #6b7280; margin-bottom: 0.15rem; }
+  .sa-errorlist { color: #f87171; font-size: 0.75rem; margin-top: 0.2rem; list-style: none; padding: 0; }
+</style>
+{% endblock %}

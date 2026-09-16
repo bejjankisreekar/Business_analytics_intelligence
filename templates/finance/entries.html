@@ -1,0 +1,96 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Daily Entries · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Daily Entries</h1>
+    <p class="mt-1 text-sm text-slate-400">Every sale, expense, purchase and transfer logged for {{ organization.name }}.</p>
+  </div>
+  <div class="flex flex-wrap gap-3">
+    <button onclick="bai.openModal('modal-sale')" class="btn-primary">+ Sale</button>
+    <button onclick="bai.openModal('modal-expense')" class="btn-primary" style="background:linear-gradient(90deg,#f87171,#ef4444)">+ Expense</button>
+    <button onclick="bai.openModal('modal-purchase')" class="btn-primary" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">+ Purchase</button>
+    <button onclick="bai.openModal('modal-transfer')" class="btn-primary" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">⇄ Transfer</button>
+  </div>
+</div>
+
+{% if date_filter %}
+<div class="mt-3 flex items-center gap-2 text-xs text-slate-400">
+  <span class="rounded-full bg-brand-500/10 px-2.5 py-1 font-medium text-brand-400">Filtered to {{ date_filter|date:"d M Y" }}</span>
+  <a href="?type={{ entry_type }}" class="text-slate-500 hover:text-slate-300">Clear filter ✕</a>
+</div>
+{% endif %}
+
+<div class="mt-6 flex gap-2 border-b border-white/5">
+  {% for t, label in tabs %}
+  <a href="?type={{ t }}{% if date_filter %}&date={{ date_filter|date:'Y-m-d' }}{% endif %}" class="border-b-2 px-4 py-2.5 text-sm font-medium {% if entry_type == t %}border-brand-500 text-white{% else %}border-transparent text-slate-500 hover:text-slate-300{% endif %}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+<div class="card mt-5 overflow-x-auto p-5">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Date</th>
+        {% if entry_type == 'sale' %}<th class="pb-2 pr-4 font-medium">Channel</th>{% endif %}
+        {% if entry_type == 'expense' %}<th class="pb-2 pr-4 font-medium">Category</th>{% endif %}
+        {% if entry_type == 'purchase' %}<th class="pb-2 pr-4 font-medium">Category</th><th class="pb-2 pr-4 font-medium">Vendor</th>{% endif %}
+        {% if entry_type == 'transfer' %}<th class="pb-2 pr-4 font-medium">Direction</th>{% endif %}
+        {% if entry_type in 'sale expense purchase' %}<th class="pb-2 pr-4 font-medium">Via</th>{% endif %}
+        <th class="pb-2 pr-4 font-medium">Note</th>
+        <th class="pb-2 pr-4 text-right font-medium">Amount ({{ organization.currency }})</th>
+        <th class="pb-2 text-right font-medium"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for entry in entries %}
+      <tr>
+        <td class="py-2.5 pr-4 text-slate-300">{{ entry.date|date:"d M Y" }}</td>
+        {% if entry_type == 'sale' %}<td class="py-2.5 pr-4 text-slate-400">{{ entry.channel.name|default:"—" }}{% if entry.subcategory %} <span class="text-slate-500">· {{ entry.subcategory.name }}</span>{% endif %}</td>{% endif %}
+        {% if entry_type == 'expense' %}<td class="py-2.5 pr-4 text-slate-400">{{ entry.category.name|default:"—" }}{% if entry.subcategory %} <span class="text-slate-500">· {{ entry.subcategory.name }}</span>{% endif %}</td>{% endif %}
+        {% if entry_type == 'purchase' %}<td class="py-2.5 pr-4 text-slate-400">{{ entry.category.name|default:"—" }}{% if entry.subcategory %} <span class="text-slate-500">· {{ entry.subcategory.name }}</span>{% endif %}</td><td class="py-2.5 pr-4 text-slate-400">{{ entry.vendor|default:"—" }}</td>{% endif %}
+        {% if entry_type == 'transfer' %}
+        <td class="py-2.5 pr-4">
+          <span class="rounded-full px-2 py-0.5 text-[11px] font-medium {% if entry.direction == 'CASH_TO_BANK' %}bg-brand-500/10 text-brand-400{% else %}bg-mint-500/10 text-mint-400{% endif %}">
+            {{ entry.get_direction_display }}
+          </span>
+        </td>
+        {% endif %}
+        {% if entry_type in 'sale expense purchase' %}
+        <td class="py-2.5 pr-4">
+          <span class="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-slate-400">{{ entry.get_payment_mode_display }}</span>
+        </td>
+        {% endif %}
+        <td class="py-2.5 pr-4 text-slate-500">{{ entry.note|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-right font-medium text-white">{{ entry.amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 text-right">
+          <div class="flex items-center justify-end gap-3">
+            <button type="button" onclick="bai.openModal('modal-edit-{{ entry.pk }}')" class="text-xs font-medium text-brand-400 hover:text-brand-300">Edit</button>
+            <form method="post" action="{% url 'finance:delete_entry' entry_type entry.pk %}" onsubmit="return confirm('Delete this entry?');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="py-8 text-center text-slate-500">No entries yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "finance/_quick_add_modals.html" %}
+{% for entry in entries %}{% include "finance/_edit_entry_modal.html" %}{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+</script>
+{% endblock %}

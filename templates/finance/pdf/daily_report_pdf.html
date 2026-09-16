@@ -1,0 +1,53 @@
+{% extends "finance/pdf/_base_pdf.html" %}
+{% load humanize %}
+{% block subtitle %}Daily Report · {{ report.date|date:"l, d F Y" }}{% endblock %}
+{% block statement %}
+<table>
+  <tr><td>Opening balance (cash {{ organization.currency }} {{ report.opening_cash|floatformat:2|intcomma }} + bank {{ organization.currency }} {{ report.opening_bank|floatformat:2|intcomma }})</td><td class="right">{{ organization.currency }} {{ report.opening_total|floatformat:2|intcomma }}</td></tr>
+</table>
+
+<table style="margin-top:18px;">
+  <tr>
+    <td style="width:50%; vertical-align:top; padding-right:10px;">
+      <table>
+        <tr><th style="text-align:left; border-bottom:1px solid #ccc;">Income (Sales)</th><th class="right" style="border-bottom:1px solid #ccc;">Amount</th></tr>
+        {% for e in report.sales %}
+        <tr><td>{{ e.channel.name|default:"Sale" }}{% if e.note %} — {{ e.note }}{% endif %}</td><td class="right">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td></tr>
+        {% empty %}
+        <tr><td colspan="2" class="muted">No sales logged.</td></tr>
+        {% endfor %}
+        <tr class="thick"><td>Total income</td><td class="right pos">{{ organization.currency }} {{ report.total_sales|floatformat:2|intcomma }}</td></tr>
+      </table>
+    </td>
+    <td style="width:50%; vertical-align:top; padding-left:10px;">
+      <table>
+        <tr><th style="text-align:left; border-bottom:1px solid #ccc;">Outgoing (Expenses &amp; Purchases)</th><th class="right" style="border-bottom:1px solid #ccc;">Amount</th></tr>
+        {% for e in report.expenses %}
+        <tr><td>[Expense] {{ e.category.name|default:"—" }}{% if e.note %} — {{ e.note }}{% endif %}</td><td class="right">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td></tr>
+        {% endfor %}
+        {% for e in report.purchases %}
+        <tr><td>[Purchase] {{ e.category.name|default:"—" }}{% if e.vendor %} ({{ e.vendor }}){% endif %}</td><td class="right">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td></tr>
+        {% endfor %}
+        {% if not report.expenses and not report.purchases %}
+        <tr><td colspan="2" class="muted">No expenses or purchases logged.</td></tr>
+        {% endif %}
+        <tr class="thick"><td>Total outgoing</td><td class="right neg">{{ organization.currency }} {{ report.total_outgoing|floatformat:2|intcomma }}</td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+{% if report.transfers %}
+<table style="margin-top:18px;">
+  <tr><th style="text-align:left; border-bottom:1px solid #ccc;">Cash ⇄ Bank transfers</th><th class="right" style="border-bottom:1px solid #ccc;">Amount</th></tr>
+  {% for t in report.transfers %}
+  <tr><td>{{ t.get_direction_display }}{% if t.note %} — {{ t.note }}{% endif %}</td><td class="right">{{ organization.currency }} {{ t.amount|floatformat:2|intcomma }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<table style="margin-top:18px;">
+  <tr><td>Net for the day</td><td class="right {% if report.net >= 0 %}pos{% else %}neg{% endif %}">{{ organization.currency }} {{ report.net|floatformat:2|intcomma }}</td></tr>
+  <tr class="thick"><td>Closing balance (cash {{ organization.currency }} {{ report.closing_cash|floatformat:2|intcomma }} + bank {{ organization.currency }} {{ report.closing_bank|floatformat:2|intcomma }})</td><td class="right">{{ organization.currency }} {{ report.closing_total|floatformat:2|intcomma }}</td></tr>
+</table>
+{% endblock %}

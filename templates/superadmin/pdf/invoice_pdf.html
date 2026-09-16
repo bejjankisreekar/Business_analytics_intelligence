@@ -1,0 +1,47 @@
+<html>
+<head>
+<style>
+  @page { size: A4; margin: 2.2cm 1.8cm; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #1a2036; font-size: 11px; }
+  h1 { font-size: 20px; margin: 0 0 2px 0; }
+  .muted { color: #666; font-size: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  td, th { padding: 6px 4px; font-size: 11px; }
+  .right { text-align: right; }
+  th { text-align: left; border-bottom: 1px solid #ccc; text-transform: uppercase; font-size: 9px; color: #888; }
+  .divider td { border-top: 1px solid #ccc; }
+  .thick td { border-top: 2px solid #333; font-weight: bold; font-size: 13px; }
+  .meta { margin-top: 14px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: bold; background: #eee; }
+  .footer { margin-top: 28px; font-size: 9px; color: #999; }
+</style>
+</head>
+<body>
+  <h1>Invoice {{ invoice.invoice_number }}</h1>
+  <p class="muted">Business Analytics Intelligence — internal billing record</p>
+
+  <table class="meta">
+    <tr>
+      <td><strong>Billed to</strong><br>{{ organization.name }}<br>{{ organization.address }}<br>{{ organization.city }}{% if organization.city and organization.state %}, {% endif %}{{ organization.state }}<br>{{ organization.country }}{% if organization.tax_id %}<br>GST/Tax: {{ organization.tax_id }}{% endif %}</td>
+      <td class="right">
+        <strong>Invoice date:</strong> {{ invoice.invoice_date|date:"d M Y" }}<br>
+        <strong>Due date:</strong> {{ invoice.due_date|date:"d M Y" }}<br>
+        <strong>Status:</strong> <span class="badge">{{ invoice.get_status_display }}</span><br>
+        {% if invoice.subscription %}<strong>Plan:</strong> {{ invoice.subscription.plan.name }}{% endif %}
+      </td>
+    </tr>
+  </table>
+
+  <table>
+    <tr><th>Description</th><th class="right">Amount</th></tr>
+    <tr><td>Subtotal</td><td class="right">{{ invoice.currency }} {{ invoice.subtotal }}</td></tr>
+    <tr><td>Discount</td><td class="right">-{{ invoice.currency }} {{ invoice.discount }}</td></tr>
+    <tr><td>Tax</td><td class="right">{{ invoice.currency }} {{ invoice.tax }}</td></tr>
+    <tr class="thick"><td>Total</td><td class="right">{{ invoice.currency }} {{ invoice.total }}</td></tr>
+    <tr class="divider"><td>Amount paid</td><td class="right">{{ invoice.currency }} {{ invoice.amount_paid }}</td></tr>
+    <tr class="thick"><td>Amount due</td><td class="right">{{ invoice.currency }} {{ invoice.amount_due }}</td></tr>
+  </table>
+
+  <p class="footer">Generated automatically from the superadmin operations console. No payment gateway is connected — this reflects manually or webhook-recorded transactions only.</p>
+</body>
+</html>

@@ -1,0 +1,128 @@
+{% extends "superadmin/_base.html" %}
+{% block title %}{{ org.name }} — service control{% endblock %}
+
+{% block sa_content %}
+<a href="{% url 'superadmin:org_detail' env_key org.pk %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ org.name }}</a>
+
+<div class="mt-4 flex items-center justify-between">
+  <h1 class="text-xl font-bold text-slate-100">{{ org.name }} — service control</h1>
+  {% if org.is_service_active %}
+  <span class="sa-badge sa-badge--active">Service Active</span>
+  {% else %}
+  <span class="sa-badge sa-badge--inactive">Service Suspended</span>
+  {% endif %}
+</div>
+<p class="mt-1 text-[11px] text-slate-600">
+  Service status is separate from account status and billing — suspending never deletes or touches the client's
+  data, users, subscription, or payment history. A client is never deleted for an overdue payment.
+</p>
+
+<div class="mt-6 grid gap-5 lg:grid-cols-2">
+  <!-- Status recap (shown before every action, especially resume) -->
+  <div class="sa-card p-5">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Before you act</h2>
+    <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+      <div>
+        <dt class="text-xs text-slate-500">Current service status</dt>
+        <dd class="mt-0.5">
+          {% if org.is_service_active %}<span class="sa-badge sa-badge--active">Active</span>{% else %}<span class="sa-badge sa-badge--inactive">Suspended</span>{% endif %}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-xs text-slate-500">Subscription status</dt>
+        <dd class="mt-0.5 text-slate-200">{{ subscription.get_status_display|default:"—" }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-slate-500">Autopay</dt>
+        <dd class="mt-0.5">
+          {% if subscription.autopay_enabled %}<span class="sa-badge sa-badge--active">On</span>{% else %}<span class="sa-badge sa-badge--neutral">Off</span>{% endif %}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-xs text-slate-500">Outstanding amount</dt>
+        <dd class="sa-mono mt-0.5 {% if outstanding_amount > 0 %}text-red-400{% else %}text-slate-200{% endif %}">₹{{ outstanding_amount }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-slate-500">Last payment</dt>
+        <dd class="mt-0.5 text-slate-200">
+          {% if last_payment %}₹{{ last_payment.amount }} on {{ last_payment.payment_date|date:"d M Y" }}{% else %}None{% endif %}
+        </dd>
+      </div>
+      <div class="col-span-2">
+        <dt class="text-xs text-slate-500">Suspension reason (most recent)</dt>
+        <dd class="mt-0.5 text-slate-200">
+          {% if last_suspension %}{{ last_suspension.get_reason_display }}{% if last_suspension.notes %} — {{ last_suspension.notes }}{% endif %} ({{ last_suspension.created_at|date:"d M Y, H:i" }} by {{ last_suspension.performed_by_email }}){% else %}—{% endif %}
+        </dd>
+      </div>
+    </dl>
+  </div>
+
+  <!-- Actions -->
+  <div class="sa-card p-5">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</h2>
+
+    {% if org.is_service_active %}
+    <form method="post" action="{% url 'superadmin:service_stop' env_key org.pk %}" class="mt-4 space-y-3" onsubmit="return confirm('Stop service for {{ org.name|escapejs }}? Users will be signed out immediately.');">
+      {% csrf_token %}
+      <p class="text-xs font-semibold text-slate-300">Stop service</p>
+      {% include "superadmin/_service_action_fields.html" with form=action_form reason_required=True %}
+      <button type="submit" class="sa-btn-danger w-full rounded px-3 py-2 text-xs font-semibold">Stop service</button>
+    </form>
+    <form method="post" action="{% url 'superadmin:service_suspend' env_key org.pk %}" class="mt-6 space-y-3 border-t border-white/5 pt-6" onsubmit="return confirm('Suspend service for {{ org.name|escapejs }}? Users will be signed out immediately.');">
+      {% csrf_token %}
+      <p class="text-xs font-semibold text-slate-300">Suspend service</p>
+      {% include "superadmin/_service_action_fields.html" with form=action_form reason_required=True %}
+      <button type="submit" class="sa-btn-danger w-full rounded px-3 py-2 text-xs font-semibold">Suspend service</button>
+    </form>
+    {% else %}
+    <form method="post" action="{% url 'superadmin:service_resume' env_key org.pk %}" class="mt-4 space-y-3" onsubmit="return confirm('Resume service for {{ org.name|escapejs }}?');">
+      {% csrf_token %}
+      <p class="text-xs font-semibold text-slate-300">Resume service</p>
+      {% include "superadmin/_service_action_fields.html" with form=action_form reason_required=False %}
+      <button type="submit" class="sa-btn-mint w-full rounded px-3 py-2 text-xs font-semibold">Resume service</button>
+    </form>
+    <form method="post" action="{% url 'superadmin:service_start' env_key org.pk %}" class="mt-6 space-y-3 border-t border-white/5 pt-6" onsubmit="return confirm('Start service for {{ org.name|escapejs }}?');">
+      {% csrf_token %}
+      <p class="text-xs font-semibold text-slate-300">Start service</p>
+      <p class="text-[11px] text-slate-600">For a client whose service was never started. Same effect as resume.</p>
+      {% include "superadmin/_service_action_fields.html" with form=action_form reason_required=False %}
+      <button type="submit" class="sa-btn-mint w-full rounded px-3 py-2 text-xs font-semibold">Start service</button>
+    </form>
+    {% endif %}
+
+    {% if subscription.autopay_enabled %}
+    <form method="post" action="{% url 'superadmin:cancel_autopay' env_key org.pk %}" class="mt-6 space-y-3 border-t border-white/5 pt-6" onsubmit="return confirm('Turn off autopay for {{ org.name|escapejs }}? Their subscription will no longer renew automatically.');">
+      {% csrf_token %}
+      <p class="text-xs font-semibold text-slate-300">Cancel autopay</p>
+      <p class="text-[11px] text-slate-600">Stops future automatic renewal charges on Razorpay's side. Doesn't affect the period they've already paid for.</p>
+      <button type="submit" class="sa-btn-danger w-full rounded px-3 py-2 text-xs font-semibold">Cancel autopay</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <!-- Audit history -->
+  <div class="sa-card overflow-x-auto p-5 lg:col-span-2">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Service status history ({{ history|length }})</h2>
+    <table class="sa-table mt-3 w-full">
+      <thead>
+        <tr><th>Admin</th><th>Action</th><th>Previous</th><th>New</th><th>Reason</th><th>Notes</th><th>Date/time</th></tr>
+      </thead>
+      <tbody>
+        {% for h in history %}
+        <tr>
+          <td class="sa-mono text-[11px]">{{ h.performed_by_email }}</td>
+          <td>{{ h.get_action_display }}</td>
+          <td>{{ h.previous_status }}</td>
+          <td>{{ h.new_status }}</td>
+          <td>{{ h.get_reason_display|default:"—" }}</td>
+          <td class="max-w-xs text-[11px] text-slate-500">{{ h.notes|default:"—" }}</td>
+          <td>{{ h.created_at|date:"d M Y, H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-slate-600">No service status changes yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

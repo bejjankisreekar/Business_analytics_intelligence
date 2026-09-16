@@ -1,0 +1,61 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}{{ account_label }} · Ledger · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <a href="{% url 'finance:ledgers' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← All Ledgers</a>
+    <h1 class="mt-1 text-2xl font-bold text-white">{{ account_label }} Ledger</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · every sale, expense, purchase and transfer touching this account</p>
+  </div>
+  <a href="{% url 'finance:daily_bulk_entry' %}" class="btn-primary">+ Bulk Entry</a>
+</div>
+
+<!-- Summary -->
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Debit</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ total_debit|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Money in</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Credit</p>
+    <p class="mt-1.5 text-xl font-bold text-red-400">{{ organization.currency }} {{ total_credit|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Money out</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Closing Balance</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ closing_balance|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">As of today</p>
+  </div>
+</div>
+
+<!-- Ledger table -->
+<div class="card mt-5 overflow-x-auto p-5">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Date</th>
+        <th class="pb-2 pr-4 font-medium">Particular</th>
+        <th class="pb-2 pr-4 text-right font-medium">Debit</th>
+        <th class="pb-2 pr-4 text-right font-medium">Credit</th>
+        <th class="pb-2 text-right font-medium">Balance</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for e in entries %}
+      <tr>
+        <td class="py-2.5 pr-4 text-slate-400">{{ e.date|date:"d M Y" }}</td>
+        <td class="py-2.5 pr-4 text-slate-200">{{ e.particular }}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-300">{% if e.debit %}{{ organization.currency }} {{ e.debit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+        <td class="py-2.5 pr-4 text-right text-red-300">{% if e.credit %}{{ organization.currency }} {{ e.credit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+        <td class="py-2.5 text-right font-medium text-slate-200">{{ organization.currency }} {{ e.balance|floatformat:0|intcomma }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="py-8 text-center text-slate-500">No transactions logged yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

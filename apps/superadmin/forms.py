@@ -1,0 +1,277 @@
+import secrets
+
+from django import forms
+from django.utils.text import slugify
+
+from apps.billing.models import Coupon, Invoice, Payment, Plan, Subscription
+from apps.organizations.models import Organization, ServiceStatusChange
+
+PROFILE_FIELDS = [
+    "name",
+    "business_type",
+    "industry",
+    "size",
+    "contact_person",
+    "contact_email",
+    "contact_phone",
+    "address",
+    "city",
+    "state",
+    "country",
+    "tax_id",
+    "website",
+]
+
+
+def _style(fields):
+    for field in fields.values():
+        field.widget.attrs.setdefault("class", "sa-input")
+
+
+class ClientProfileForm(forms.ModelForm):
+    class Meta:
+        model = Organization
+        fields = PROFILE_FIELDS
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self.fields)
+
+
+class ClientCreateForm(ClientProfileForm):
+    owner_first_name = forms.CharField(max_length=150, label="Owner first name")
+    owner_last_name = forms.CharField(max_length=150, required=False, label="Owner last name")
+    owner_email = forms.EmailField(label="Owner login email")
+    owner_password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput,
+        label="Owner temporary password",
+        help_text="Leave blank to auto-generate a random password.",
+    )
+
+    field_order = [
+        "name", "business_type", "industry", "size",
+        "contact_person", "contact_email", "contact_phone",
+        "address", "city", "state", "country", "tax_id", "website",
+        "owner_first_name", "owner_last_name", "owner_email", "owner_password",
+    ]
+
+    def __init__(self, *args, using="default", **kwargs):
+        super().__init__(*args, **kwargs)
+        self._using = using
+
+    def clean_owner_email(self):
+        from apps.accounts.models import User
+
+        email = self.cleaned_data["owner_email"].strip().lower()
+        if User.objects.using(self._using).filter(email=email).exists():
+            raise forms.ValidationError("A user with this email already exists.")
+        return email
+
+    def generated_password(self):
+        return self.cleaned_data.get("owner_password") or secrets.token_urlsafe(9)
+
+
+class PlanForm(forms.ModelForm):
+    features = forms.MultipleChoiceField(
+        choices=Plan.FEATURE_CHOICES, required=False, widget=forms.CheckboxSelectMultiple
+    )
+
+    class Meta:
+        model = Plan
+        fields = [
+            "name", "is_active", "show_on_landing_page", "monthly_price", "yearly_price",
+            "monthly_discount_percent", "yearly_discount_percent",
+            "trial_days", "user_limit", "business_limit", "features",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self.fields)
+        # Checkbox lists shouldn't get the generic text-input styling.
+        self.fields["features"].widget.attrs.pop("class", None)
+        self.fields["is_active"].widget.attrs.pop("class", None)
+        self.fields["show_on_landing_page"].widget.attrs.pop("class", None)
+        if self.instance and self.instance.pk:
+            self.initial.setdefault("features", self.instance.features or [])
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if not instance.slug:
+            instance.slug = slugify(instance.name)
+        instance.features = self.cleaned_data.get("features", [])
+        if commit:
+            instance.save()
+        return instance
+
+
+class CouponForm(forms.ModelForm):
+    class Meta:
+        model = Coupon
+        fields = [
+            "code", "description", "discount_type", "discount_value", "is_active",
+            "valid_from", "valid_until", "max_redemptions", "max_redemptions_per_org",
+        ]
+        widgets = {
+            "valid_from": forms.DateInput(attrs={"type": "date"}),
+            "valid_until": forms.DateInput(attrs={"type": "date"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self.fields)
+        self.fields["is_active"].widget.attrs.pop("class", None)
+        self.fields["code"].widget.attrs["placeholder"] = "e.g. SUMMER25"
+
+    def clean_code(self):
+        return self.cleaned_data["code"].strip().upper()
+
+    def clean(self):
+        cleaned = super().clean()
+        discount_type = cleaned.get("discount_type")
+        discount_value = cleaned.get("discount_value")
+        if discount_type == Coupon.DiscountType.PERCENT and discount_value is not None:
+            if discount_value <= 0 or discount_value > 100:
+                self.add_error("discount_value", "A percentage discount must be between 0 and 100.")
+        valid_from = cleaned.get("valid_from")
+        valid_until = cleaned.get("valid_until")
+        if valid_from and valid_until and valid_from > valid_until:
+            self.add_error("valid_until", "Valid until can't be before valid from.")
+        return cleaned
+
+
+class SubscriptionActionForm(forms.Form):
+    """Creates a NEW subscription record for an org (a plan change, renewal,
+    or manual billing correction) — the current one is superseded, not
+    edited, so history is preserved."""
+
+    plan = forms.ModelChoiceField(queryset=Plan.objects.none())
+    billing_cycle = forms.ChoiceField(choices=Subscription.BillingCycle.choices)
+    start_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    price = forms.DecimalField(required=False, min_value=0, help_text="Leave blank to use the plan's price.")
+    discount = forms.DecimalField(required=False, min_value=0, initial=0)
+    tax = forms.DecimalField(required=False, min_value=0, initial=0)
+    status = forms.ChoiceField(choices=Subscription.Status.choices)
+    payment_status = forms.ChoiceField(choices=Subscription.PaymentStatus.choices)
+    auto_renewal = forms.BooleanField(required=False, initial=True)
+    notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, using="default", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["plan"].queryset = Plan.objects.using(using).filter(is_active=True)
+        _style(self.fields)
+        self.fields["auto_renewal"].widget.attrs.pop("class", None)
+
+
+class ExtendTrialForm(forms.Form):
+    new_trial_end_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}), label="New trial end date")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self.fields)
+
+
+class GrantComplimentaryForm(forms.Form):
+    DURATION_CHOICES = [
+        ("1_month", "1 month"),
+        ("1_year", "1 year"),
+        ("custom", "Custom date range"),
+    ]
+
+    duration = forms.ChoiceField(choices=DURATION_CHOICES)
+    start_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    end_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    plan = forms.ModelChoiceField(queryset=Plan.objects.none(), required=False, help_text="Leave blank to keep the current plan.")
+    notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, using="default", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["plan"].queryset = Plan.objects.using(using).filter(is_active=True)
+        _style(self.fields)
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("duration") == "custom" and not cleaned.get("end_date"):
+            raise forms.ValidationError("An end date is required for a custom date range.")
+        return cleaned
+
+
+class RecordPaymentForm(forms.Form):
+    """Manually record an off-platform payment (bank transfer, cash,
+    cheque) — gateway is always MANUAL here; a real Razorpay/Stripe payment
+    arrives through the webhook instead."""
+
+    invoice = forms.ModelChoiceField(
+        queryset=Invoice.objects.none(), required=False,
+        help_text="Optional — leave blank for a payment not tied to a specific invoice.",
+    )
+    amount = forms.DecimalField(min_value=0.01, max_digits=10, decimal_places=2)
+    currency = forms.CharField(max_length=8, initial="INR")
+    payment_method = forms.ChoiceField(choices=Payment.Method.choices, initial=Payment.Method.BANK_TRANSFER)
+    transaction_id = forms.CharField(
+        required=False, max_length=100, label="Reference / transaction ID",
+        help_text="Optional — cheque number, UTR, receipt number, etc.",
+    )
+    payment_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    status = forms.ChoiceField(choices=Payment.Status.choices, initial=Payment.Status.SUCCESS)
+    notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}), label="Notes / failure reason")
+
+    def __init__(self, *args, using="default", organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["invoice"].queryset = (
+            Invoice.objects.using(using)
+            .filter(organization_id=organization.id)
+            .exclude(status=Invoice.Status.CANCELLED)
+            .order_by("-invoice_date")
+        )
+        _style(self.fields)
+
+
+class ServiceActionForm(forms.Form):
+    """Backs every start/stop/suspend/resume action. `confirm` and (for
+    stop/suspend) `reason` are enforced here — server-side — not just via a
+    JS confirm() dialog, so the requirement can't be bypassed by posting
+    directly to the endpoint.
+    """
+
+    reason = forms.ChoiceField(choices=[("", "—")] + ServiceStatusChange.Reason.choices, required=False)
+    notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+    confirm = forms.BooleanField(
+        required=True, label="I confirm this action",
+        error_messages={"required": "You must confirm this action before it takes effect."},
+    )
+
+    def __init__(self, *args, reason_required=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._reason_required = reason_required
+        _style(self.fields)
+        self.fields["confirm"].widget.attrs.pop("class", None)
+
+    def clean_reason(self):
+        reason = self.cleaned_data.get("reason", "")
+        if self._reason_required and not reason:
+            raise forms.ValidationError("A reason is required for this action.")
+        return reason
+
+
+class CreateInvoiceForm(forms.Form):
+    """Manually generate an invoice for a client. It shows up as pending
+    (ISSUED) on the client's own Billing page as soon as it's created."""
+
+    subscription = forms.ModelChoiceField(
+        queryset=Subscription.objects.none(), required=False,
+        help_text="Optional — link this invoice to a specific subscription period.",
+    )
+    subtotal = forms.DecimalField(min_value=0, max_digits=10, decimal_places=2)
+    discount = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0)
+    tax = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0)
+    invoice_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    due_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    status = forms.ChoiceField(choices=Invoice.Status.choices, initial=Invoice.Status.ISSUED)
+
+    def __init__(self, *args, using="default", organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["subscription"].queryset = (
+            Subscription.objects.using(using).filter(organization_id=organization.id).order_by("-created_at")
+        )
+        _style(self.fields)

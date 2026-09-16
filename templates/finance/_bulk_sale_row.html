@@ -1,0 +1,10 @@
+{{ form.id }}
+{{ form.date.as_hidden }}
+<td class="px-1 py-1 {% if form.channel.errors %}bg-red-500/10{% endif %}">{{ form.channel }}{% for error in form.channel.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td class="px-1 py-1 {% if form.subcategory.errors %}bg-red-500/10{% endif %}">{{ form.subcategory }}{% for error in form.subcategory.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td class="px-1 py-1 {% if form.product_category.errors %}bg-red-500/10{% endif %}">{{ form.product_category }}{% for error in form.product_category.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td class="px-1 py-1 {% if form.customer.errors %}bg-red-500/10{% endif %}">{{ form.customer }}{% for error in form.customer.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td class="px-1 py-1 w-16 {% if form.quantity.errors %}bg-red-500/10{% endif %}">{{ form.quantity }}{% for error in form.quantity.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td class="px-1 py-1 w-24 {% if form.amount.errors %}bg-red-500/10{% endif %}">{{ form.amount }}{% for error in form.amount.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td class="px-1 py-1 {% if form.payment_mode.errors %}bg-red-500/10{% endif %}">{{ form.payment_mode }}{% for error in form.payment_mode.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td class="px-1 py-1 {% if form.note.errors %}bg-red-500/10{% endif %}">{{ form.note }}{% for error in form.note.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
