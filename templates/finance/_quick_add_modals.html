@@ -68,6 +68,10 @@
         <div><label class="block text-xs font-medium text-slate-400">Paid via</label>{{ purchase_form.payment_mode }}</div>
       </div>
       <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ purchase_form.note }}</div>
+      <label class="flex items-start gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-xs text-slate-300">
+        {{ purchase_form.on_credit }}
+        <span>{{ purchase_form.on_credit.label }}<br><span class="text-slate-500">{{ purchase_form.on_credit.help_text }}</span></span>
+      </label>
       <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">Save purchase</button>
     </form>
   </div>

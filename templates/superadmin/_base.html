@@ -134,10 +134,21 @@
     border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
     padding: 0.5rem 0.75rem; font-size: 0.83rem; color: #e2e8f0; outline: none;
   }
+  select.sa-input, .sa-select {
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    padding: 0.65rem 2.25rem 0.65rem 0.85rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.8rem center;
+    background-size: 1rem;
+    cursor: pointer;
+    transition: border-color .15s, background-color .15s, box-shadow .15s;
+  }
+  select.sa-input:hover, .sa-select:hover { border-color: rgba(245,158,11,0.35); background-color: rgba(255,255,255,0.05); }
   .sa-input:focus { border-color: rgba(245,158,11,0.5); box-shadow: 0 0 0 3px rgba(245,158,11,0.12); }
   /* Without this, the open dropdown list falls back to the browser's
      native (light) popup styling — white text on white until hovered. */
-  select.sa-input option, .sa-input option { background: #111318; color: #e2e8f0; }
+  select.sa-input option, .sa-input option { background: #111318; color: #e2e8f0; padding: 0.5rem; }
   .sa-field-label { display: block; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #6b7280; margin-bottom: 0.15rem; }
   .sa-errorlist { color: #f87171; font-size: 0.75rem; margin-top: 0.2rem; list-style: none; padding: 0; }
 </style>

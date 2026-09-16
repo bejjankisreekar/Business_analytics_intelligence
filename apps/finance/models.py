@@ -308,6 +308,58 @@ class CashTransfer(models.Model):
         return f"{self.get_direction_display()} {self.date} — {self.amount}"
 
 
+class Partner(models.Model):
+    """A capital partner / co-owner who can put money into the business or
+    take money out of it — distinct from a Vendor (money the business owes)
+    or Customer (money owed to the business): this is equity, not a
+    payable or receivable."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=30, blank=True)
+    opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    opening_balance_as_on = models.DateField(default=datetime.date.today)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["name"], name="finance_partner_name_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class PartnerTransaction(models.Model):
+    """A partner investing capital into the business or withdrawing their
+    capital from it. Real cash/bank movement — unlike CashTransfer (moves
+    money between cash and bank, nets to zero) this changes the total
+    cash+bank position — but it never touches the P&L, since it's an
+    equity movement rather than revenue or an expense."""
+
+    class Kind(models.TextChoices):
+        INVESTMENT = "INVESTMENT", "Investment"
+        WITHDRAWAL = "WITHDRAWAL", "Withdrawal"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    partner = models.ForeignKey(Partner, on_delete=models.PROTECT, related_name="transactions")
+    date = models.DateField(default=datetime.date.today, db_index=True)
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    payment_mode = models.CharField(max_length=10, choices=PaymentMode.choices, default=PaymentMode.CASH)
+    note = models.CharField(max_length=255, blank=True)
+    created_by_email = models.CharField(max_length=254, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-date", "-created_at"]
+        indexes = [models.Index(fields=["date"])]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} {self.date} — {self.partner} — {self.amount}"
+
+
 class FinanceSettings(models.Model):
     """Singleton row (per tenant schema) holding report configuration and
     the opening balances the P&L / Balance Sheet / Cash Flow build on top of.

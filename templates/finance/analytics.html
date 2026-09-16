@@ -94,14 +94,42 @@
   </div>
 </div>
 
-<div class="mt-4 card p-5">
-  <h3 class="text-sm font-semibold text-white">Revenue by product</h3>
-  <p class="text-xs text-slate-500">{{ period.label }}</p>
-  {% if product_revenue %}
-  <div class="mt-4 h-64"><canvas id="chartProductRevenue"></canvas></div>
-  {% else %}
-  <p class="mt-4 py-6 text-center text-sm text-slate-500">No sales tagged with a brand/product yet.</p>
-  {% endif %}
+<div class="mt-4 grid grid-cols-1 gap-5 xl:grid-cols-2">
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Revenue by product</h3>
+    <p class="text-xs text-slate-500">{{ period.label }}</p>
+    {% if product_revenue %}
+    <div class="mt-4 h-64"><canvas id="chartProductRevenue"></canvas></div>
+    {% else %}
+    <p class="mt-4 py-6 text-center text-sm text-slate-500">No sales tagged with a brand/product yet.</p>
+    {% endif %}
+  </div>
+  <div class="card p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 class="text-sm font-semibold text-white">Units sold by product</h3>
+        <p class="text-xs text-slate-500">{{ period.label }} · quantity, not revenue</p>
+      </div>
+      {% if product_quantity %}
+      <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+        <button type="button" onclick="bai.setProductQtyView('top')" id="pq-btn-top" class="granularity-btn granularity-btn--active">Top 12</button>
+        <button type="button" onclick="bai.setProductQtyView('all')" id="pq-btn-all" class="granularity-btn">All (bar)</button>
+      </div>
+      {% endif %}
+    </div>
+    {% if product_quantity %}
+    <div class="mt-4 h-64" id="chartProductQuantityWrap"><canvas id="chartProductQuantity"></canvas></div>
+    {% else %}
+    <p class="mt-4 py-6 text-center text-sm text-slate-500">No sales with a quantity recorded yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Sales, expenses & purchases trend (full breakdown) -->
+<div class="card mt-5 p-5">
+  <h3 class="text-sm font-semibold text-white">Sales, expenses &amp; purchases trend</h3>
+  <p class="text-xs text-slate-500">Same period as above · daily, weekly and monthly views</p>
+  <div class="mt-4 h-[50vh]"><canvas id="chartSalesTrendFull"></canvas></div>
 </div>
 {% endblock %}
 
@@ -122,6 +150,18 @@
   };
 
   const salesTrendChart = new Chart(document.getElementById("chartSalesTrend"), {
+    type: "bar",
+    data: {
+      labels: granularityData.daily.labels,
+      datasets: [
+        { label: "Sales", data: granularityData.daily.sales, backgroundColor: palette.mint, borderRadius: 4 },
+      ],
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+  });
+
+  const salesTrendFullChart = new Chart(document.getElementById("chartSalesTrendFull"), {
     type: "bar",
     data: {
       labels: granularityData.daily.labels,
@@ -151,12 +191,13 @@
       scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
   });
 
-  const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } };
+  const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } },
+    transitions: { active: { animation: { duration: 250, easing: "easeOutQuart" } } } };
   const donutColors = ["#5b7cfa","#34d9b8","#f87171","#fbbf24","#a78bfa","#38bdf8","#fb923c","#f472b6"];
 
   new Chart(document.getElementById("chartPurchaseBreakdown"), {
     type: "doughnut",
-    data: { labels: {{ chart_purchase_labels|safe }}, datasets: [{ data: {{ chart_purchase_values|safe }}, backgroundColor: donutColors, borderWidth: 0 }] },
+    data: { labels: {{ chart_purchase_labels|safe }}, datasets: [{ data: {{ chart_purchase_values|safe }}, backgroundColor: donutColors, borderWidth: 0, hoverOffset: 14, hoverBorderWidth: 0 }] },
     options: donutOpts,
   });
 
@@ -172,11 +213,11 @@
   });
 
   new Chart(document.getElementById("chartWeekday"), {
-    type: "radar",
+    type: "bar",
     data: { labels: {{ chart_weekday_labels|safe }}, datasets: [{ label: "Avg sales", data: {{ chart_weekday_avg|safe }},
-      borderColor: palette.mint, backgroundColor: palette.mintFill, pointBackgroundColor: palette.mint }] },
+      backgroundColor: palette.mint, borderRadius: 4 }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { r: { grid: { color: "rgba(255,255,255,0.08)" }, angleLines: { color: "rgba(255,255,255,0.08)" }, pointLabels: { color: "#9aa4bd" }, ticks: { display: false } } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
   });
 
   new Chart(document.getElementById("chartChannelBreakdown"), {
@@ -188,7 +229,7 @@
 
   new Chart(document.getElementById("chartPaymentMode"), {
     type: "pie",
-    data: { labels: {{ chart_payment_labels|safe }}, datasets: [{ data: {{ chart_payment_values|safe }}, backgroundColor: [palette.mint, palette.brand], borderWidth: 0 }] },
+    data: { labels: {{ chart_payment_labels|safe }}, datasets: [{ data: {{ chart_payment_values|safe }}, backgroundColor: [palette.mint, palette.brand], borderWidth: 0, hoverOffset: 14, hoverBorderWidth: 0 }] },
     options: donutOpts,
   });
 
@@ -208,17 +249,97 @@
   });
   {% endif %}
 
+  {% if product_quantity %}
+  const pqLabelsFull = {{ chart_product_quantity_labels|safe }};
+  const pqValuesFull = {{ chart_product_quantity_values|safe }};
+  const PQ_TOP_N = 12;
+  let productQtyChart = null;
+
+  function renderProductQtyChart(view) {
+    const isTop = view === "top";
+    const labels = isTop ? pqLabelsFull.slice(0, PQ_TOP_N) : pqLabelsFull;
+    const values = isTop ? pqValuesFull.slice(0, PQ_TOP_N) : pqValuesFull;
+    const colors = labels.map((_, i) => donutColors[i % donutColors.length]);
+
+    if (productQtyChart) productQtyChart.destroy();
+
+    const wrap = document.getElementById("chartProductQuantityWrap");
+    wrap.style.height = isTop ? "20rem" : Math.max(256, labels.length * 32) + "px";
+    wrap.innerHTML = '<canvas id="chartProductQuantity"></canvas>';
+    const ctx = document.getElementById("chartProductQuantity");
+
+    if (isTop) {
+      productQtyChart = new Chart(ctx, {
+        type: "doughnut",
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverOffset: 14, hoverBorderWidth: 0 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: "right",
+              labels: {
+                boxWidth: 14, boxHeight: 14, padding: 18, usePointStyle: true, color: "#cbd5e1", font: { size: 15 },
+                generateLabels: (chart) => {
+                  const { labels, datasets } = chart.data;
+                  const ds = datasets[0];
+                  return labels.map((label, i) => ({
+                    text: `${label}: ${ds.data[i]}`,
+                    fillStyle: ds.backgroundColor[i],
+                    strokeStyle: ds.backgroundColor[i],
+                    fontColor: "#cbd5e1",
+                    color: "#cbd5e1",
+                    pointStyle: "circle",
+                    index: i,
+                  }));
+                },
+              },
+            },
+          },
+          transitions: { active: { animation: { duration: 250, easing: "easeOutQuart" } } },
+        },
+      });
+    } else {
+      productQtyChart = new Chart(ctx, {
+        type: "bar",
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 4 }] },
+        options: {
+          indexAxis: "y", responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 } },
+            y: { grid: { display: false }, ticks: { font: { size: 13 } } } },
+        },
+      });
+    }
+  }
+
+  renderProductQtyChart("top");
+  {% endif %}
+
   window.bai = window.bai || {};
   bai.setGranularity = (key) => {
     const g = granularityData[key];
     salesTrendChart.data.labels = g.labels;
     salesTrendChart.data.datasets[0].data = g.sales;
-    salesTrendChart.data.datasets[1].data = g.expenses;
-    salesTrendChart.data.datasets[2].data = g.purchases;
     salesTrendChart.update();
+
+    salesTrendFullChart.data.labels = g.labels;
+    salesTrendFullChart.data.datasets[0].data = g.sales;
+    salesTrendFullChart.data.datasets[1].data = g.expenses;
+    salesTrendFullChart.data.datasets[2].data = g.purchases;
+    salesTrendFullChart.update();
+
     ["daily", "weekly", "monthly"].forEach((k) => {
       document.getElementById("gran-btn-" + k).classList.toggle("granularity-btn--active", k === key);
     });
   };
+
+  {% if product_quantity %}
+  bai.setProductQtyView = (view) => {
+    renderProductQtyChart(view);
+    ["top", "all"].forEach((k) => {
+      document.getElementById("pq-btn-" + k).classList.toggle("granularity-btn--active", k === view);
+    });
+  };
+  {% endif %}
 </script>
 {% endblock %}

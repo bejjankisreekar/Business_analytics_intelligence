@@ -204,6 +204,59 @@
   </div>
 </div>
 
+<!-- Partners -->
+<div class="card mt-6 p-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="text-base font-semibold text-white">Partners</h2>
+      <p class="text-xs text-slate-500">Capital partners investing in or withdrawing from the business — never counted as revenue or expense</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button onclick="bai.openModal('modal-partner')" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">+ Add partner</button>
+      <button onclick="bai.openModal('modal-partner-transaction')" class="btn-primary" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">+ Investment / Withdrawal</button>
+    </div>
+  </div>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+          <th class="pb-2 pr-4 font-medium">Partner</th>
+          <th class="pb-2 pr-4 text-right font-medium">Invested</th>
+          <th class="pb-2 pr-4 text-right font-medium">Withdrawn</th>
+          <th class="pb-2 pr-4 text-right font-medium">Net capital</th>
+          <th class="pb-2 text-right font-medium"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for row in partner_rows %}
+        <tr>
+          <td class="py-2.5 pr-4 {% if not row.partner.is_active %}text-slate-600 line-through{% else %}text-slate-200{% endif %}">{{ row.partner.name }}</td>
+          <td class="py-2.5 pr-4 text-right text-mint-400">{{ organization.currency }} {{ row.invested|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 pr-4 text-right text-red-400">{{ organization.currency }} {{ row.withdrawn|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 pr-4 text-right font-medium {% if row.net_capital >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ row.net_capital|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 text-right">
+            <a href="{% url 'finance:partner_ledger' row.partner.pk %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">View Ledger →</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="py-6 text-center text-slate-500">No partners yet.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if partner_rows %}
+      <tfoot>
+        <tr class="border-t border-white/10">
+          <td class="pt-2.5 pr-4 text-xs font-medium text-slate-400">Total</td>
+          <td class="pt-2.5"></td>
+          <td class="pt-2.5"></td>
+          <td class="pt-2.5 pr-4 text-right text-sm font-semibold {% if total_partner_net_capital >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ total_partner_net_capital|floatformat:0|intcomma }}</td>
+          <td class="pt-2.5"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
 <!-- Modal: Add receivable -->
 <div id="modal-receivable" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-receivable')">
   <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
@@ -245,6 +298,55 @@
       <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ payable_form.note }}</div>
       <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#f87171,#ef4444)">Save payable</button>
     </form>
+  </div>
+</div>
+
+<!-- Modal: Add partner -->
+<div id="modal-partner" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-partner')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Add a partner</h3>
+      <button onclick="bai.closeModal('modal-partner')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <form method="post" action="{% url 'finance:add_partner' %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <div><label class="block text-xs font-medium text-slate-400">Name</label>{{ partner_form.name }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Phone</label>{{ partner_form.phone }}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">{{ partner_form.opening_balance.label }}</label>{{ partner_form.opening_balance }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">{{ partner_form.opening_balance_as_on.label }}</label>{{ partner_form.opening_balance_as_on }}</div>
+      </div>
+      <p class="text-xs text-slate-500">Defaults to the start of this financial year — change it to any date already invested capital should be counted from.</p>
+      <button type="submit" class="btn-primary w-full">Save partner</button>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Add partner investment/withdrawal -->
+<div id="modal-partner-transaction" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-partner-transaction')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Investment / Withdrawal</h3>
+      <button onclick="bai.closeModal('modal-partner-transaction')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    {% if partner_rows %}
+    <form method="post" action="{% url 'finance:add_partner_transaction' %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <div><label class="block text-xs font-medium text-slate-400">Partner</label>{{ partner_transaction_form.partner }}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">Type</label>{{ partner_transaction_form.kind }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ partner_transaction_form.date }}</div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ partner_transaction_form.amount }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">Via</label>{{ partner_transaction_form.payment_mode }}</div>
+      </div>
+      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ partner_transaction_form.note }}</div>
+      <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">Save</button>
+    </form>
+    {% else %}
+    <p class="mt-4 text-sm text-slate-400">Add a partner first before logging an investment or withdrawal.</p>
+    {% endif %}
   </div>
 </div>
 

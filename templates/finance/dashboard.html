@@ -9,15 +9,8 @@
     <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · showing <span class="text-slate-300">{{ period.label }}</span></p>
   </div>
   <div class="flex flex-wrap items-center gap-2">
-    <a href="{% url 'finance:analytics' %}" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Analytics Intelligence →</a>
-    <a href="{% url 'finance:reports' %}" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Financial reports →</a>
+    <a href="{% url 'finance:analytics' %}" class="glow-btn inline-flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-sm font-medium text-brand-300" style="--glow-color: rgba(91,124,250,0.55)">Analytics Intelligence →</a>
   </div>
-</div>
-
-<!-- Quick add -->
-<div class="mt-6 flex flex-wrap gap-3">
-  <a href="{% url 'finance:daily_bulk_entry' %}" class="btn-primary"><span>+</span> Bulk Entry (Sales / Expenses / Purchases)</a>
-  <button onclick="bai.openModal('modal-transfer')" class="btn-primary" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">⇄ Cash / Bank transfer</button>
 </div>
 
 <!-- KPI cards -->
@@ -111,7 +104,7 @@
           <td class="py-2.5 text-right font-medium text-white">{{ e.amount|floatformat:0|intcomma }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="py-6 text-center text-slate-500">No entries yet — use Bulk Entry above to log your first sale, expense or purchase.</td></tr>
+        <tr><td colspan="5" class="py-6 text-center text-slate-500">No entries yet — head to Daily Entries to log your first sale, expense or purchase.</td></tr>
         {% endfor %}
       </tbody>
     </table>

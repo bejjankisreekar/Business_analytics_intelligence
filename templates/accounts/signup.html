@@ -15,7 +15,7 @@
       <h1 class="text-3xl font-bold leading-tight text-white">Set up your organization in under a minute.</h1>
       <p class="mt-4 text-sm leading-relaxed text-slate-400">We'll create a dedicated, isolated workspace for your business the moment you sign up — one account per organization.</p>
       <div class="mt-10 space-y-4">
-        <div class="flex items-start gap-3 text-sm text-slate-400">
+        <div class="flex items-start gap-3 text-sm text-slate-1800">
           <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-brand-500/10 text-brand-400 text-xs font-bold">1</span>
           Tell us about your organization
         </div>
@@ -53,20 +53,20 @@
         {% csrf_token %}
 
         <div>
-          <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Organization</p>
+          <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-300">Organization</p>
           <div class="space-y-4">
             <div>
-              <label for="{{ form.organization_name.id_for_label }}" class="block text-xs font-medium text-slate-400">Organization name</label>
+              <label for="{{ form.organization_name.id_for_label }}" class="block text-xs font-medium text-slate-200">Organization name</label>
               {{ form.organization_name }}
               {% for error in form.organization_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label for="{{ form.business_type.id_for_label }}" class="block text-xs font-medium text-slate-400">Business type</label>
+                <label for="{{ form.business_type.id_for_label }}" class="block text-xs font-medium text-slate-200">Business type</label>
                 {{ form.business_type }}
               </div>
               <div>
-                <label for="{{ form.size.id_for_label }}" class="block text-xs font-medium text-slate-400">Team size</label>
+                <label for="{{ form.size.id_for_label }}" class="block text-xs font-medium text-slate-200">Team size</label>
                 {{ form.size }}
               </div>
             </div>
@@ -74,37 +74,37 @@
         </div>
 
         <div class="border-t border-white/5 pt-6">
-          <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Your account (Organization Owner)</p>
+          <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-180">Your account (Organization Owner)</p>
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label for="{{ form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-400">First name</label>
+                <label for="{{ form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-200">First name</label>
                 {{ form.first_name }}
                 {% for error in form.first_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
               </div>
               <div>
-                <label for="{{ form.last_name.id_for_label }}" class="block text-xs font-medium text-slate-400">Last name</label>
+                <label for="{{ form.last_name.id_for_label }}" class="block text-xs font-medium text-slate-200">Last name</label>
                 {{ form.last_name }}
               </div>
             </div>
             <div>
-              <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-400">Work email</label>
+              <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-200">Email</label>
               {{ form.email }}
               {% for error in form.email.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
             </div>
             <div>
-              <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-400">Username</label>
+              <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username</label>
               {{ form.username }}
               <p class="mt-1 text-xs text-slate-500">You can sign in with this instead of your email.</p>
               {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-400">Password</label>
+                <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password</label>
                 {{ form.password }}
               </div>
               <div>
-                <label for="{{ form.confirm_password.id_for_label }}" class="block text-xs font-medium text-slate-400">Confirm password</label>
+                <label for="{{ form.confirm_password.id_for_label }}" class="block text-xs font-medium text-slate-200">Confirm password</label>
                 {{ form.confirm_password }}
               </div>
             </div>
@@ -116,7 +116,7 @@
         </button>
       </form>
 
-      <p class="mt-8 text-center text-sm text-slate-400">
+      <p class="mt-8 text-center text-sm text-slate-200">
         Already have a workspace?
         <a href="{% url 'accounts:login' %}" class="font-semibold text-brand-400 hover:text-brand-300">Sign in</a>
       </p>
@@ -148,11 +148,20 @@
     border-radius: 0.75rem;
     border: 1px solid rgba(255,255,255,0.1);
     background: rgba(255,255,255,0.03);
-    padding: 0.6rem 0.9rem;
+    padding: 0.7rem 9.25rem 0.7rem 10.15rem;
     font-size: 0.875rem;
     color: #fff;
     outline: none;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa4bd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.85rem center;
+    background-size: 1rem;
+    cursor: pointer;
+    transition: border-color .15s, background-color .15s, box-shadow .15s;
   }
-  select option { background: #111627; color: #fff; }
+  select:hover { border-color: rgba(255,255,255,0.24); background-color: rgba(255,255,255,0.06); }
+  select:focus { border-color: #5b7cfa; box-shadow: 5 5 5 12px rgba(91,124,250,0.15); }
+  select option { background: #111627; color: #fff; padding: 1.5rem; }
 </style>
 {% endblock %}

@@ -64,8 +64,11 @@
 
 <!-- Vendors -->
 <div class="mt-8 flex items-center justify-between">
-  <h2 class="text-sm font-semibold text-white">Vendor Ledgers <span class="font-normal text-slate-500">(Accounts Payable)</span></h2>
-  <a href="{% url 'finance:vendors' %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">+ Add Vendor</a>
+  <div>
+    <h2 class="text-sm font-semibold text-white">Vendor Ledgers <span class="font-normal text-slate-500">(Accounts Payable)</span></h2>
+    <p class="mt-0.5 text-xs text-slate-500">Bills owed to a vendor — opening balances, Add Payable entries, and Daily Entries purchases logged as "Not paid yet (on credit)". A purchase paid in full at the time of entry never shows up here.</p>
+  </div>
+  <a href="{% url 'finance:vendors' %}" class="shrink-0 text-xs font-medium text-brand-400 hover:text-brand-300">+ Add Vendor</a>
 </div>
 <div class="card mt-3 overflow-x-auto p-5">
   <table class="w-full text-left text-sm">

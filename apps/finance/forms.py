@@ -9,6 +9,8 @@ from .models import (
     Customer,
     ExpenseEntry,
     FinanceSettings,
+    Partner,
+    PartnerTransaction,
     Payable,
     PaymentMode,
     PurchaseEntry,
@@ -114,6 +116,13 @@ class ExpenseEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
 
 
 class PurchaseEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
+    on_credit = forms.BooleanField(
+        required=False,
+        label="Not paid yet (on credit)",
+        help_text="Adds this to the vendor's payable balance instead of logging an immediate purchase — "
+                   "it becomes a purchase entry once paid off from Vendor Ledgers.",
+    )
+
     class Meta:
         model = PurchaseEntry
         fields = [
@@ -147,6 +156,12 @@ class PurchaseEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
         self.fields["quantity"].required = False
         self.fields["quantity"].widget.attrs["placeholder"] = "Qty"
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("on_credit") and not cleaned_data.get("vendor"):
+            self.add_error("vendor", "Required to log this as on credit — a payable needs a vendor.")
+        return cleaned_data
 
 
 SalesEntryFormSet = forms.modelformset_factory(SalesEntry, form=SalesEntryForm, extra=5)
@@ -319,3 +334,39 @@ class RecordPaymentForm(forms.Form):
     amount = forms.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"))
     payment_mode = forms.ChoiceField(choices=PaymentMode.choices, initial=PaymentMode.CASH)
     note = forms.CharField(max_length=255, required=False, widget=forms.TextInput(attrs={"placeholder": "Optional note"}))
+
+
+class PartnerForm(forms.ModelForm):
+    class Meta:
+        model = Partner
+        fields = ["name", "phone", "opening_balance", "opening_balance_as_on"]
+        labels = {
+            "opening_balance": "Opening balance invested (optional)",
+            "opening_balance_as_on": "Opening balance as on",
+        }
+        widgets = {
+            "phone": forms.TextInput(attrs={"placeholder": "Mobile number (optional)"}),
+            "opening_balance_as_on": DateInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["phone"].required = False
+        self.fields["opening_balance"].required = False
+        self.fields["opening_balance"].widget.attrs["placeholder"] = "0.00"
+
+
+class PartnerTransactionForm(HistoricalWindowFormMixin, forms.ModelForm):
+    class Meta:
+        model = PartnerTransaction
+        fields = ["partner", "date", "kind", "amount", "payment_mode", "note"]
+        widgets = {
+            "date": DateInput(),
+            "note": forms.TextInput(attrs={"placeholder": "Optional note"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["date"].initial = self.initial.get("date", datetime.date.today())
+        self.fields["partner"].queryset = Partner.objects.filter(is_active=True)
+        self.fields["amount"].widget.attrs["placeholder"] = "0.00"

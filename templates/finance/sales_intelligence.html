@@ -43,28 +43,27 @@
   </div>
 </div>
 
-<!-- Sales trend with granularity toggle -->
-<div class="card mt-6 p-5">
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h3 class="text-sm font-semibold text-white">Sales trend</h3>
-      <p class="text-xs text-slate-500">Switch between daily, weekly and monthly views</p>
-    </div>
-    <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
-      <button type="button" onclick="bai.setGranularity('daily')" id="gran-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
-      <button type="button" onclick="bai.setGranularity('weekly')" id="gran-btn-weekly" class="granularity-btn">Weekly</button>
-      <button type="button" onclick="bai.setGranularity('monthly')" id="gran-btn-monthly" class="granularity-btn">Monthly</button>
-    </div>
-  </div>
-  <div class="mt-4 h-72"><canvas id="chartSalesTrend"></canvas></div>
-</div>
-
+<p class="mt-8 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Trends</p>
 <!-- Period comparison + Revenue vs Profit -->
 <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
   <div class="card p-5">
-    <h3 class="text-sm font-semibold text-white">Sales vs previous period</h3>
-    <p class="text-xs text-slate-500">{{ vs_prev.prev_label }} vs {{ vs_prev.current_label }}</p>
-    <div class="mt-4 h-64"><canvas id="chartVsPrev"></canvas></div>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 class="text-sm font-semibold text-white">Sales vs previous period</h3>
+        <p class="text-xs text-slate-500" id="vsprev-subtitle-week">{{ vs_prev_week.prev_label }} vs {{ vs_prev_week.current_label }}</p>
+        <p class="hidden text-xs text-slate-500" id="vsprev-subtitle-month">{{ vs_prev_month.prev_label }} vs {{ vs_prev_month.current_label }}</p>
+      </div>
+      <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+        <button type="button" onclick="bai.setVsPrevView('week')" id="vsprev-btn-week" class="granularity-btn granularity-btn--active">Week</button>
+        <button type="button" onclick="bai.setVsPrevView('month')" id="vsprev-btn-month" class="granularity-btn">Month</button>
+      </div>
+    </div>
+    <div class="mt-5" id="vsprev-panel-week">
+      {% include "finance/_vs_prev_panel.html" with data=vs_prev_week %}
+    </div>
+    <div class="mt-5 hidden" id="vsprev-panel-month">
+      {% include "finance/_vs_prev_panel.html" with data=vs_prev_month %}
+    </div>
   </div>
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Revenue vs profit</h3>
@@ -73,30 +72,7 @@
   </div>
 </div>
 
-<!-- Charts row 2 -->
-<div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
-  <div class="card p-5">
-    <h3 class="text-sm font-semibold text-white">Sales by channel</h3>
-    <p class="text-xs text-slate-500">{{ period.label }}</p>
-    <div class="mt-4 h-64"><canvas id="chartChannel"></canvas></div>
-  </div>
-  <div class="card p-5">
-    <h3 class="text-sm font-semibold text-white">Sales by category</h3>
-    <p class="text-xs text-slate-500">{{ period.label }} · product category</p>
-    {% if chart_product_category_labels != "[]" %}
-    <div class="mt-4 h-64"><canvas id="chartProductCategory"></canvas></div>
-    {% else %}
-    <p class="mt-8 py-6 text-center text-sm text-slate-500">No sales tagged with a product category yet.</p>
-    {% endif %}
-  </div>
-  <div class="card p-5">
-    <h3 class="text-sm font-semibold text-white">Best days to sell</h3>
-    <p class="text-xs text-slate-500">Average sales by weekday</p>
-    <div class="mt-4 h-64"><canvas id="chartWeekday"></canvas></div>
-  </div>
-</div>
-
-<!-- Performance trend -->
+<p class="mt-8 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Performance over time</p>
 <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Orders trend</h3>
@@ -158,15 +134,15 @@
   </div>
 </div>
 
-<!-- Charts row 3 -->
-<div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
-  <div class="card p-5 xl:col-span-2">
-    <h3 class="text-sm font-semibold text-white">Top 10 products</h3>
-    <p class="text-xs text-slate-500">{{ period.label }} · by revenue</p>
-    {% if product_revenue %}
-    <div class="mt-4 h-96"><canvas id="chartProductRevenue"></canvas></div>
+<p class="mt-8 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Breakdowns</p>
+<div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Sales by category</h3>
+    <p class="text-xs text-slate-500">{{ period.label }} · product category</p>
+    {% if chart_product_category_labels != "[]" %}
+    <div class="mt-4 h-64"><canvas id="chartProductCategory"></canvas></div>
     {% else %}
-    <p class="mt-8 py-6 text-center text-sm text-slate-500">No sales tagged with a brand/product yet.</p>
+    <p class="mt-8 py-6 text-center text-sm text-slate-500">No sales tagged with a product category yet.</p>
     {% endif %}
   </div>
   <div class="card p-5">
@@ -189,26 +165,6 @@
   const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } };
   const donutColors = ["#5b7cfa","#34d9b8","#f87171","#fbbf24","#a78bfa","#38bdf8","#fb923c","#f472b6"];
 
-  const granularityData = {
-    daily: { labels: {{ chart_daily_labels|safe }}, sales: {{ chart_daily_sales|safe }} },
-    weekly: { labels: {{ chart_weekly_labels|safe }}, sales: {{ chart_weekly_sales|safe }} },
-    monthly: { labels: {{ chart_monthly_labels|safe }}, sales: {{ chart_monthly_sales|safe }} },
-  };
-
-  const salesTrendChart = new Chart(document.getElementById("chartSalesTrend"), {
-    type: "bar",
-    data: { labels: granularityData.daily.labels, datasets: [{ label: "Sales", data: granularityData.daily.sales, backgroundColor: palette.mint, borderRadius: 4 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
-
-  new Chart(document.getElementById("chartVsPrev"), {
-    type: "bar",
-    data: { labels: {{ chart_vs_prev_labels|safe }}, datasets: [{ label: "Sales", data: {{ chart_vs_prev_values|safe }}, backgroundColor: [palette.brand, palette.mint], borderRadius: 4 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
-
   new Chart(document.getElementById("chartRevenueProfit"), {
     type: "line",
     data: { labels: {{ chart_perf_labels|safe }}, datasets: [
@@ -220,13 +176,6 @@
       scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
   });
 
-  new Chart(document.getElementById("chartChannel"), {
-    type: "bar",
-    data: { labels: {{ chart_channel_labels|safe }}, datasets: [{ data: {{ chart_channel_values|safe }}, backgroundColor: donutColors, borderRadius: 4 }] },
-    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
-  });
-
   {% if chart_product_category_labels != "[]" %}
   new Chart(document.getElementById("chartProductCategory"), {
     type: "bar",
@@ -235,13 +184,6 @@
       scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
   });
   {% endif %}
-
-  new Chart(document.getElementById("chartWeekday"), {
-    type: "bar",
-    data: { labels: {{ chart_weekday_labels|safe }}, datasets: [{ label: "Avg sales", data: {{ chart_weekday_avg|safe }}, backgroundColor: palette.mint, borderRadius: 4 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
 
   new Chart(document.getElementById("chartOrders"), {
     type: "line",
@@ -264,15 +206,6 @@
       scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { callback: (v) => v + "%" } } } },
   });
 
-  {% if product_revenue %}
-  new Chart(document.getElementById("chartProductRevenue"), {
-    type: "bar",
-    data: { labels: {{ chart_product_revenue_labels|safe }}, datasets: [{ data: {{ chart_product_revenue_values|safe }}, backgroundColor: donutColors, borderRadius: 4 }] },
-    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
-  });
-  {% endif %}
-
   new Chart(document.getElementById("chartPaymentMode"), {
     type: "pie",
     data: { labels: {{ chart_payment_labels|safe }}, datasets: [{ data: {{ chart_payment_values|safe }}, backgroundColor: [palette.mint, palette.brand], borderWidth: 0 }] },
@@ -280,13 +213,11 @@
   });
 
   window.bai = window.bai || {};
-  bai.setGranularity = (key) => {
-    const g = granularityData[key];
-    salesTrendChart.data.labels = g.labels;
-    salesTrendChart.data.datasets[0].data = g.sales;
-    salesTrendChart.update();
-    ["daily", "weekly", "monthly"].forEach((k) => {
-      document.getElementById("gran-btn-" + k).classList.toggle("granularity-btn--active", k === key);
+  bai.setVsPrevView = (view) => {
+    ["week", "month"].forEach((k) => {
+      document.getElementById("vsprev-btn-" + k).classList.toggle("granularity-btn--active", k === view);
+      document.getElementById("vsprev-panel-" + k).classList.toggle("hidden", k !== view);
+      document.getElementById("vsprev-subtitle-" + k).classList.toggle("hidden", k !== view);
     });
   };
 </script>

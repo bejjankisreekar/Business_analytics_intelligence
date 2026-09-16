@@ -46,10 +46,6 @@
         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5A2.5 2.5 0 0014.5 7H19M12 4.5A2.5 2.5 0 019.5 7H5m7-2.5V21m0 0H6.5A1.5 1.5 0 015 19.5v-15A1.5 1.5 0 016.5 3h7.379a1.5 1.5 0 011.06.44l3.622 3.62a1.5 1.5 0 01.439 1.061V19.5a1.5 1.5 0 01-1.5 1.5H12z"/></svg>
         Ledgers
       </a>
-      <a href="{% url 'finance:settings' %}" class="app-nav-link {% if active_nav == 'settings' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-        Settings
-      </a>
       <a href="{% url 'finance:billing' %}" class="app-nav-link {% if active_nav == 'billing' %}app-nav-link--active{% endif %}">
         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3M3.75 6h16.5a1.5 1.5 0 011.5 1.5v9a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5v-9a1.5 1.5 0 011.5-1.5z"/></svg>
         Billing
@@ -60,10 +56,6 @@
         <p class="truncate text-xs font-semibold text-white">{{ request.user.organization.name }}</p>
         <p class="mt-0.5 truncate text-[11px] text-slate-500">{{ request.user.email }}</p>
       </div>
-      <form method="post" action="{% url 'accounts:logout' %}" class="mt-3">
-        {% csrf_token %}
-        <button type="submit" class="w-full rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-white/5">Sign out</button>
-      </form>
     </div>
   </aside>
 
@@ -87,42 +79,69 @@
     </div>
   </div>
 
-  <!-- Main -->
-  <main class="w-full flex-1 px-4 pb-16 pt-20 sm:px-8 lg:pl-72 lg:pr-10 lg:pt-6">
-    <!-- Desktop top bar: organization profile -->
-    <div class="mb-6 hidden items-center justify-between rounded-2xl border border-white/5 bg-white/[0.02] px-5 py-3 lg:flex">
-      <div class="flex items-center gap-3">
-        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-mint-500 text-xs font-bold text-white">
-          {{ request.user.organization.name|slice:":2"|upper }}
-        </span>
-        <div>
-          <p class="text-sm font-semibold leading-tight text-white">{{ request.user.organization.name }}</p>
-          <p class="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500">
-            <span>{{ request.user.organization.get_business_type_display }}</span>
-            <span class="text-slate-700">·</span>
-            <span class="font-mono">{{ request.user.organization.organization_code }}</span>
-            <span class="text-slate-700">·</span>
-            <span>{{ request.user.organization.currency }}</span>
-          </p>
-        </div>
-      </div>
-      <div class="flex items-center gap-3">
-        <div class="text-right">
-          <p class="text-xs font-medium text-slate-200">{{ request.user.get_full_name }}</p>
-          <p class="mt-0.5 text-[11px] text-slate-500">{{ request.user.email }}</p>
-        </div>
-        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-white">
-          {{ request.user.email|slice:":1"|upper }}
-        </span>
-        <span class="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
-          {{ request.user.get_role_display }}
-        </span>
+  <!-- Desktop top bar: organization profile (fixed) -->
+  <div class="fixed inset-x-0 top-0 z-20 hidden items-center justify-between border-b border-white/5 bg-ink-900/95 px-5 py-3 backdrop-blur lg:left-64 lg:flex">
+    <div class="flex items-center gap-3">
+      <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-mint-500 text-sm font-bold text-white">
+        {{ request.user.organization.name|slice:":2"|upper }}
+      </span>
+      <div>
+        <p class="text-base font-semibold leading-tight text-white">{{ request.user.organization.name }}</p>
+        <p class="mt-0.5 flex items-center gap-2 text-sm text-slate-500">
+          <span>{{ request.user.organization.get_business_type_display }}</span>
+          <span class="text-slate-700">·</span>
+          <span class="font-mono">{{ request.user.organization.organization_code }}</span>
+          <span class="text-slate-700">·</span>
+          <span>{{ request.user.organization.currency }}</span>
+        </p>
       </div>
     </div>
+    <div class="relative">
+      <button type="button" onclick="baiNav.toggleProfileMenu(event)" id="profile-menu-btn" class="flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-white/5">
+        <p class="text-sm font-medium text-slate-200">{{ request.user.get_full_name }}</p>
+        <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-sm font-semibold text-white">
+          {{ request.user.email|slice:":1"|upper }}
+        </span>
+        <span class="rounded-full border border-white/10 px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+          {{ request.user.get_role_display }}
+        </span>
+        <svg class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
+      </button>
+      <div id="profile-menu" class="hidden absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-xl border border-white/10 bg-ink-800 shadow-xl shadow-black/40">
+        <a href="{% url 'finance:settings' %}" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Settings
+        </a>
+        <form method="post" action="{% url 'accounts:logout' %}">
+          {% csrf_token %}
+          <button type="submit" class="flex w-full items-center gap-2.5 border-t border-white/5 px-4 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/></svg>
+            Sign out
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
 
+  <main class="w-full flex-1 px-4 pb-16 pt-20 sm:px-8 lg:pl-72 lg:pr-10 lg:pt-24">
     {% block app_content %}{% endblock %}
   </main>
 </div>
+
+<script>
+  window.baiNav = window.baiNav || {};
+  baiNav.toggleProfileMenu = (event) => {
+    event.stopPropagation();
+    document.getElementById("profile-menu").classList.toggle("hidden");
+  };
+  document.addEventListener("click", (event) => {
+    const menu = document.getElementById("profile-menu");
+    const btn = document.getElementById("profile-menu-btn");
+    if (menu && !menu.classList.contains("hidden") && !menu.contains(event.target) && event.target !== btn && !btn.contains(event.target)) {
+      menu.classList.add("hidden");
+    }
+  });
+</script>
 {% endblock %}
 
 {% block extra_head %}
@@ -155,8 +174,20 @@
     border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
     padding: 0.5rem 0.75rem; font-size: 0.83rem; color: #fff; outline: none;
   }
+  select {
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    padding: 0.65rem 2.25rem 0.65rem 0.85rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa4bd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.8rem center;
+    background-size: 1rem;
+    cursor: pointer;
+    transition: border-color .15s, background-color .15s, box-shadow .15s;
+  }
+  select:hover { border-color: rgba(255,255,255,0.24); background-color: rgba(255,255,255,0.06); }
+  select:disabled { opacity: .5; cursor: not-allowed; }
   input:focus, select:focus { border-color: #5b7cfa; box-shadow: 0 0 0 3px rgba(91,124,250,0.15); }
-  select option { background: #111627; }
+  select option { background: #111627; color: #fff; padding: 0.5rem; }
   .btn-primary {
     display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
     border-radius: 0.6rem; background: linear-gradient(90deg,#5b7cfa,#4361ee);
@@ -164,5 +195,16 @@
     box-shadow: 0 10px 25px -10px rgba(67,97,238,.6);
   }
   .btn-primary:hover { filter: brightness(1.1); }
+  .glow-btn {
+    --glow-color: rgba(91,124,250,0.55);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset, 0 0 16px -2px var(--glow-color);
+    animation: glow-pulse 2.4s ease-in-out infinite;
+    transition: background-color .15s, box-shadow .15s, transform .15s;
+  }
+  .glow-btn:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(255,255,255,0.03) inset, 0 0 26px 2px var(--glow-color); }
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset, 0 0 12px -3px var(--glow-color); }
+    50% { box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset, 0 0 20px 0px var(--glow-color); }
+  }
 </style>
 {% endblock %}

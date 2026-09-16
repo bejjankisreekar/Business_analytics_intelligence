@@ -1,8 +1,10 @@
 import datetime
+import hashlib
+import hmac
 import json
 from decimal import Decimal
 
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 
 from apps.organizations.models import Organization
 from apps.organizations.services import create_organization_with_tenant_schema_and_admin, delete_organization_and_tenant
@@ -159,10 +161,34 @@ class PaymentWebhookViewTests(TestCase):
     def tearDown(self):
         delete_organization_and_tenant(self.org)
 
-    def _post(self, gateway, payload):
+    def _post(self, gateway, payload, headers=None):
         return Client().post(
-            f"/billing/webhooks/{gateway}/", data=json.dumps(payload), content_type="application/json"
+            f"/billing/webhooks/{gateway}/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            **(headers or {}),
         )
+
+    def _razorpay_payload(self, event_id, transaction_id, amount_rupees, status="captured"):
+        return {
+            "event": "payment.captured",
+            "payload": {
+                "payment": {
+                    "entity": {
+                        "id": transaction_id,
+                        "amount": int(Decimal(amount_rupees) * 100),
+                        "currency": "INR",
+                        "status": status,
+                        "notes": {"organization_code": self.org.organization_code},
+                    }
+                }
+            },
+        }
+
+    def _signed_headers(self, raw_body: bytes):
+        secret = "test-webhook-secret"
+        signature = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+        return secret, {"HTTP_X_RAZORPAY_SIGNATURE": signature}
 
     def test_unknown_gateway_rejected(self):
         resp = self._post("unknown-gateway", {"event_id": "e1"})
@@ -172,22 +198,29 @@ class PaymentWebhookViewTests(TestCase):
         resp = self._post("razorpay", {"organization_code": self.org.organization_code})
         self.assertEqual(resp.status_code, 400)
 
-    def test_valid_webhook_creates_payment(self):
-        payload = {
-            "event_id": "evt_view_1", "organization_code": self.org.organization_code,
-            "transaction_id": "txn_view_1", "amount": "250.00", "status": "SUCCESS",
-        }
+    def test_unsigned_razorpay_webhook_rejected(self):
+        payload = self._razorpay_payload("evt_unsigned", "txn_unsigned", "250.00")
         resp = self._post("razorpay", payload)
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(Payment.objects.filter(transaction_id="txn_unsigned").count(), 0)
+
+    def test_valid_webhook_creates_payment(self):
+        payload = self._razorpay_payload("evt_view_1", "txn_view_1", "250.00")
+        raw_body = json.dumps(payload).encode("utf-8")
+        secret, headers = self._signed_headers(raw_body)
+        with override_settings(RAZORPAY_WEBHOOK_SECRET=secret):
+            resp = self._post("razorpay", payload, headers={**headers, "HTTP_X_RAZORPAY_EVENT_ID": "evt_view_1"})
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(Payment.objects.filter(transaction_id="txn_view_1").count(), 1)
 
     def test_duplicate_webhook_delivery_does_not_duplicate_payment(self):
-        payload = {
-            "event_id": "evt_view_dup", "organization_code": self.org.organization_code,
-            "transaction_id": "txn_view_dup", "amount": "300.00", "status": "SUCCESS",
-        }
-        resp1 = self._post("razorpay", payload)
-        resp2 = self._post("razorpay", payload)
+        payload = self._razorpay_payload("evt_view_dup", "txn_view_dup", "300.00")
+        raw_body = json.dumps(payload).encode("utf-8")
+        secret, headers = self._signed_headers(raw_body)
+        request_headers = {**headers, "HTTP_X_RAZORPAY_EVENT_ID": "evt_view_dup"}
+        with override_settings(RAZORPAY_WEBHOOK_SECRET=secret):
+            resp1 = self._post("razorpay", payload, headers=request_headers)
+            resp2 = self._post("razorpay", payload, headers=request_headers)
         self.assertEqual(resp1.status_code, 200)
         self.assertEqual(resp2.status_code, 200)
         self.assertEqual(Payment.objects.filter(transaction_id="txn_view_dup").count(), 1)

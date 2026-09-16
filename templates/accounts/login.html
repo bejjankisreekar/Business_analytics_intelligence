@@ -92,10 +92,20 @@
     border-radius: 0.75rem;
     border: 1px solid rgba(255,255,255,0.1);
     background: rgba(255,255,255,0.03);
-    padding: 0.65rem 0.9rem;
+    padding: 0.7rem 2.25rem 0.7rem 0.9rem;
     font-size: 0.875rem;
     color: #fff;
     outline: none;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa4bd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.85rem center;
+    background-size: 1rem;
+    cursor: pointer;
+    transition: border-color .15s, background-color .15s, box-shadow .15s;
   }
+  select:hover { border-color: rgba(255,255,255,0.24); background-color: rgba(255,255,255,0.06); }
+  select:focus { border-color: #5b7cfa; box-shadow: 0 0 0 3px rgba(91,124,250,0.15); }
+  select option { background: #111627; color: #fff; padding: 0.5rem; }
 </style>
 {% endblock %}

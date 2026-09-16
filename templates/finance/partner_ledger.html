@@ -1,0 +1,60 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}{{ partner.name }} · Ledger · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <a href="{% url 'finance:cash_position' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Cash Position</a>
+    <h1 class="mt-1 text-2xl font-bold text-white">{{ partner.name }}</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · partner ledger{% if partner.phone %} · {{ partner.phone }}{% endif %}</p>
+  </div>
+</div>
+
+<!-- Summary -->
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Invested</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ total_invested|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Capital put in</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Withdrawn</p>
+    <p class="mt-1.5 text-xl font-bold text-red-400">{{ organization.currency }} {{ total_withdrawn|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Capital taken out</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Net Capital</p>
+    <p class="mt-1.5 text-xl font-bold {% if net_capital >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ net_capital|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Invested − withdrawn</p>
+  </div>
+</div>
+
+<!-- Ledger table -->
+<div class="card mt-5 overflow-x-auto p-5">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Date</th>
+        <th class="pb-2 pr-4 font-medium">Particular</th>
+        <th class="pb-2 pr-4 text-right font-medium">Invested</th>
+        <th class="pb-2 pr-4 text-right font-medium">Withdrawn</th>
+        <th class="pb-2 text-right font-medium">Net Capital</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for e in entries %}
+      <tr>
+        <td class="py-2.5 pr-4 text-slate-400">{{ e.date|date:"d M Y" }}</td>
+        <td class="py-2.5 pr-4 text-slate-200">{{ e.particular }}</td>
+        <td class="py-2.5 pr-4 text-right text-mint-400">{% if e.debit %}{{ organization.currency }} {{ e.debit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+        <td class="py-2.5 pr-4 text-right text-red-400">{% if e.credit %}{{ organization.currency }} {{ e.credit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+        <td class="py-2.5 text-right font-medium {% if e.balance >= 0 %}text-slate-300{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ e.balance|floatformat:0|intcomma }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="py-8 text-center text-slate-500">No investments or withdrawals logged for this partner yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

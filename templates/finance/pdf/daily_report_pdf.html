@@ -10,7 +10,7 @@
   <tr>
     <td style="width:50%; vertical-align:top; padding-right:10px;">
       <table>
-        <tr><th style="text-align:left; border-bottom:1px solid #ccc;">Income (Sales)</th><th class="right" style="border-bottom:1px solid #ccc;">Amount</th></tr>
+        <tr><th style="text-align:left; border-bottom:1px solid #ccc;">Money In</th><th class="right" style="border-bottom:1px solid #ccc;">Amount</th></tr>
         {% for e in report.sales %}
         <tr><td>{{ e.channel.name|default:"Sale" }}{% if e.note %} — {{ e.note }}{% endif %}</td><td class="right">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td></tr>
         {% empty %}
@@ -21,7 +21,7 @@
     </td>
     <td style="width:50%; vertical-align:top; padding-left:10px;">
       <table>
-        <tr><th style="text-align:left; border-bottom:1px solid #ccc;">Outgoing (Expenses &amp; Purchases)</th><th class="right" style="border-bottom:1px solid #ccc;">Amount</th></tr>
+        <tr><th style="text-align:left; border-bottom:1px solid #ccc;">Money Out</th><th class="right" style="border-bottom:1px solid #ccc;">Amount</th></tr>
         {% for e in report.expenses %}
         <tr><td>[Expense] {{ e.category.name|default:"—" }}{% if e.note %} — {{ e.note }}{% endif %}</td><td class="right">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td></tr>
         {% endfor %}

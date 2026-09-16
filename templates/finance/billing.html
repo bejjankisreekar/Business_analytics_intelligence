@@ -11,6 +11,9 @@
 <div class="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
   <p class="text-sm font-semibold text-red-300">Your service is on hold — trial or paid period has ended</p>
   <p class="mt-1 text-xs text-red-200/80">This is a prepaid plan, so access is paused until the invoice below is paid. Every other page will bring you back here until then — pay now to restore access immediately.</p>
+  {% if outstanding > 0 %}
+  <p class="mt-2 text-sm font-semibold text-red-300">Outstanding balance: {{ organization.currency }} {{ outstanding|floatformat:0|intcomma }}</p>
+  {% endif %}
 </div>
 {% elif outstanding > 0 %}
 <div class="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">

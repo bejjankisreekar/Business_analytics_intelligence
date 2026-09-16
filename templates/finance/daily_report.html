@@ -23,17 +23,13 @@
 
 <p class="mt-4 text-sm font-medium text-slate-300">{{ report.date|date:"l, d F Y" }}</p>
 
-<!-- Bulk entry -->
-<div class="mt-4">
-  <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">▦ Bulk Entry — enter the whole day at once</a>
-</div>
-
-<!-- Quick add -->
-<div class="mt-4 flex flex-wrap gap-3">
-  <button onclick="bai.openModal('modal-sale')" class="btn-primary">+ Add sale</button>
-  <button onclick="bai.openModal('modal-expense')" class="btn-primary" style="background:linear-gradient(90deg,#f87171,#ef4444)">+ Add expense</button>
-  <button onclick="bai.openModal('modal-purchase')" class="btn-primary" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">+ Add purchase</button>
-  <button onclick="bai.openModal('modal-transfer')" class="btn-primary" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">⇄ Cash / Bank transfer</button>
+<!-- Bulk entry + quick add -->
+<div class="mt-4 flex flex-nowrap items-center gap-3 overflow-x-auto pb-1">
+  <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">▦ Bulk Entry — enter the whole day at once</a>
+  <button onclick="bai.openModal('modal-sale')" class="btn-primary shrink-0 whitespace-nowrap">+ Add sale</button>
+  <button onclick="bai.openModal('modal-expense')" class="btn-primary shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#f87171,#ef4444)">+ Add expense</button>
+  <button onclick="bai.openModal('modal-purchase')" class="btn-primary shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">+ Add purchase</button>
+  <button onclick="bai.openModal('modal-transfer')" class="btn-primary shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">⇄ Cash / Bank transfer</button>
 </div>
 
 <!-- Summary strip -->
@@ -66,7 +62,7 @@
 <div class="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
   <div class="card p-5">
     <div class="flex items-center justify-between">
-      <h3 class="text-sm font-semibold text-white">Income (Sales)</h3>
+      <h3 class="text-sm font-semibold text-white">Money In</h3>
       <span class="rounded-full bg-mint-500/10 px-2.5 py-1 text-[11px] font-medium text-mint-400">{{ report.sales|length }} entr{{ report.sales|length|pluralize:"y,ies" }}</span>
     </div>
 
@@ -107,7 +103,7 @@
 
   <div class="card p-5">
     <div class="flex items-center justify-between">
-      <h3 class="text-sm font-semibold text-white">Outgoing (Expenses &amp; Purchases)</h3>
+      <h3 class="text-sm font-semibold text-white">Money Out</h3>
       <span class="rounded-full bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-400">{{ report.outgoing_count }} entries</span>
     </div>
 

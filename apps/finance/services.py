@@ -18,6 +18,8 @@ from .models import (
     CashTransfer,
     ExpenseEntry,
     FinanceSettings,
+    Partner,
+    PartnerTransaction,
     Payable,
     PaymentMode,
     PurchaseEntry,
@@ -70,18 +72,30 @@ def net_profit_for(start: datetime.date, end: datetime.date) -> Decimal:
     return sales_total(start, end) - expenses_total(start, end) - purchases_total(start, end)
 
 
+def partner_flow(start: datetime.date, end: datetime.date) -> tuple[Decimal, Decimal]:
+    """(total invested, total withdrawn) by partners in the period — real
+    cash/bank movement, but never P&L (equity, not revenue or an expense)."""
+    invested = _sum(PartnerTransaction.objects.filter(
+        date__gte=start, date__lte=end, kind=PartnerTransaction.Kind.INVESTMENT))
+    withdrawn = _sum(PartnerTransaction.objects.filter(
+        date__gte=start, date__lte=end, kind=PartnerTransaction.Kind.WITHDRAWAL))
+    return invested, withdrawn
+
+
 def total_balance_as_of(as_of: datetime.date) -> Decimal:
     """Cash-in-hand + bank, combined — unaffected by transfers between the
     two, since those just move money from one pool to the other."""
     fs = get_finance_settings()
     if as_of < fs.opening_date:
         return fs.opening_balance + fs.opening_bank_balance
-    return fs.opening_balance + fs.opening_bank_balance + net_profit_for(fs.opening_date, as_of)
+    invested, withdrawn = partner_flow(fs.opening_date, as_of)
+    return fs.opening_balance + fs.opening_bank_balance + net_profit_for(fs.opening_date, as_of) + invested - withdrawn
 
 
 def cash_and_bank_as_of(as_of: datetime.date) -> tuple[Decimal, Decimal]:
     """(cash-in-hand, bank) balances as of `as_of`, accounting for each
-    entry's payment mode and every deposit/withdrawal transfer."""
+    entry's payment mode, every deposit/withdrawal transfer, and every
+    partner investment/withdrawal."""
     fs = get_finance_settings()
     if as_of < fs.opening_date:
         return fs.opening_balance, fs.opening_bank_balance
@@ -91,10 +105,16 @@ def cash_and_bank_as_of(as_of: datetime.date) -> tuple[Decimal, Decimal]:
     def by_mode(model, mode):
         return _sum(model.objects.filter(date__gte=start, date__lte=as_of, payment_mode=mode))
 
-    cash_in = by_mode(SalesEntry, PaymentMode.CASH)
-    cash_out = by_mode(ExpenseEntry, PaymentMode.CASH) + by_mode(PurchaseEntry, PaymentMode.CASH)
-    bank_in = by_mode(SalesEntry, PaymentMode.BANK)
-    bank_out = by_mode(ExpenseEntry, PaymentMode.BANK) + by_mode(PurchaseEntry, PaymentMode.BANK)
+    def partner_by_mode(kind, mode):
+        return _sum(PartnerTransaction.objects.filter(
+            date__gte=start, date__lte=as_of, kind=kind, payment_mode=mode))
+
+    cash_in = by_mode(SalesEntry, PaymentMode.CASH) + partner_by_mode(PartnerTransaction.Kind.INVESTMENT, PaymentMode.CASH)
+    cash_out = (by_mode(ExpenseEntry, PaymentMode.CASH) + by_mode(PurchaseEntry, PaymentMode.CASH)
+                + partner_by_mode(PartnerTransaction.Kind.WITHDRAWAL, PaymentMode.CASH))
+    bank_in = by_mode(SalesEntry, PaymentMode.BANK) + partner_by_mode(PartnerTransaction.Kind.INVESTMENT, PaymentMode.BANK)
+    bank_out = (by_mode(ExpenseEntry, PaymentMode.BANK) + by_mode(PurchaseEntry, PaymentMode.BANK)
+                + partner_by_mode(PartnerTransaction.Kind.WITHDRAWAL, PaymentMode.BANK))
 
     transfers = CashTransfer.objects.filter(date__gte=start, date__lte=as_of)
     to_bank = _sum(transfers.filter(direction=CashTransfer.Direction.CASH_TO_BANK))
@@ -103,6 +123,46 @@ def cash_and_bank_as_of(as_of: datetime.date) -> tuple[Decimal, Decimal]:
     cash = fs.opening_balance + cash_in - cash_out - to_bank + to_cash
     bank = fs.opening_bank_balance + bank_in - bank_out + to_bank - to_cash
     return cash, bank
+
+
+def partner_balance_rows() -> list[dict]:
+    """Every partner with their all-time invested/withdrawn/net capital,
+    for the Cash Position page's Partners table."""
+    rows = []
+    for p in Partner.objects.all():
+        invested = _sum(p.transactions.filter(kind=PartnerTransaction.Kind.INVESTMENT))
+        withdrawn = _sum(p.transactions.filter(kind=PartnerTransaction.Kind.WITHDRAWAL))
+        rows.append({
+            "partner": p,
+            "invested": invested,
+            "withdrawn": withdrawn,
+            "net_capital": invested - withdrawn,
+        })
+    return rows
+
+
+def partner_ledger_entries(partner: Partner) -> list[dict]:
+    """One partner's full investment/withdrawal history in date order with
+    a running balance — investments are debits (capital in), withdrawals
+    are credits (capital out), mirroring how vendor/customer ledgers read."""
+    entries = []
+    balance = ZERO
+    txns = partner.transactions.order_by("date", "created_at")
+    for t in txns:
+        if t.kind == PartnerTransaction.Kind.INVESTMENT:
+            balance += t.amount
+            debit, credit = t.amount, ZERO
+        else:
+            balance -= t.amount
+            debit, credit = ZERO, t.amount
+        entries.append({
+            "date": t.date,
+            "particular": t.note or t.get_kind_display(),
+            "debit": debit,
+            "credit": credit,
+            "balance": balance,
+        })
+    return entries
 
 
 def kpis_for_period(period: Period) -> dict:
@@ -189,6 +249,16 @@ def category_breakdown(model, start: datetime.date, end: datetime.date, field: s
     return [{"name": row[lookup] or "Uncategorized", "amount": row["total"]} for row in rows]
 
 
+def product_quantity_breakdown(start: datetime.date, end: datetime.date) -> list[dict]:
+    """Units sold per product (SalesEntry.subcategory) in the period, most
+    units first. Entries without a quantity recorded are excluded."""
+    rows = (
+        SalesEntry.objects.filter(date__gte=start, date__lte=end, quantity__isnull=False)
+        .values("subcategory__name").annotate(total=Sum("quantity")).order_by("-total")
+    )
+    return [{"name": row["subcategory__name"] or "Uncategorized", "quantity": row["total"]} for row in rows]
+
+
 def payment_mode_breakdown(start: datetime.date, end: datetime.date, models=None) -> list[dict]:
     """How much of the period's total money movement went through cash vs
     bank — across sales + expenses + purchases by default, or just the
@@ -211,6 +281,22 @@ def vendor_breakdown(start: datetime.date, end: datetime.date) -> list[dict]:
         .values("vendor").annotate(total=Sum("amount")).order_by("-total")
     )
     return [{"name": row["vendor"] or "Unspecified vendor", "amount": row["total"]} for row in rows]
+
+
+def weeks_since(start: datetime.date, end: datetime.date) -> int:
+    """How many weekly buckets weekly_trend needs to reach back to `start`."""
+    if start > end:
+        return 1
+    start_monday = start - datetime.timedelta(days=start.weekday())
+    end_monday = end - datetime.timedelta(days=end.weekday())
+    return ((end_monday - start_monday).days // 7) + 1
+
+
+def months_since(start: datetime.date, end: datetime.date) -> int:
+    """How many monthly buckets monthly_trend needs to reach back to `start`."""
+    if start > end:
+        return 1
+    return (end.year - start.year) * 12 + (end.month - start.month) + 1
 
 
 def weekly_trend(weeks: int = 12, *, end: datetime.date | None = None) -> list[dict]:
@@ -242,7 +328,7 @@ def weekly_trend(weeks: int = 12, *, end: datetime.date | None = None) -> list[d
 def monthly_trend(months: int = 6, *, end: datetime.date | None = None) -> list[dict]:
     """Last `months` calendar months of sales/expenses/purchases/net, oldest first."""
     end = end or datetime.date.today()
-    start = (end.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+    start = end.replace(day=1)
     for _ in range(months - 1):
         start = (start - datetime.timedelta(days=1)).replace(day=1)
 
@@ -395,6 +481,9 @@ def daily_report(day: datetime.date) -> dict:
         PurchaseEntry.objects.filter(date=day).select_related("category", "subcategory").order_by("created_at")
     )
     transfers = list(CashTransfer.objects.filter(date=day).order_by("created_at"))
+    partner_txns = list(
+        PartnerTransaction.objects.filter(date=day).select_related("partner").order_by("created_at")
+    )
 
     total_sales = sum((e.amount for e in sales), ZERO)
     total_expenses = sum((e.amount for e in expenses), ZERO)
@@ -405,17 +494,26 @@ def daily_report(day: datetime.date) -> dict:
     to_bank = sum((t.amount for t in transfers if t.direction == CashTransfer.Direction.CASH_TO_BANK), ZERO)
     to_cash = sum((t.amount for t in transfers if t.direction == CashTransfer.Direction.BANK_TO_CASH), ZERO)
 
-    cash_in = sum((e.amount for e in sales if e.payment_mode == PaymentMode.CASH), ZERO) + to_cash
+    invested = [t for t in partner_txns if t.kind == PartnerTransaction.Kind.INVESTMENT]
+    withdrawn = [t for t in partner_txns if t.kind == PartnerTransaction.Kind.WITHDRAWAL]
+    total_partner_invested = sum((t.amount for t in invested), ZERO)
+    total_partner_withdrawn = sum((t.amount for t in withdrawn), ZERO)
+
+    cash_in = (sum((e.amount for e in sales if e.payment_mode == PaymentMode.CASH), ZERO) + to_cash
+               + sum((t.amount for t in invested if t.payment_mode == PaymentMode.CASH), ZERO))
     cash_out = (
         sum((e.amount for e in expenses if e.payment_mode == PaymentMode.CASH), ZERO)
         + sum((e.amount for e in purchases if e.payment_mode == PaymentMode.CASH), ZERO)
         + to_bank
+        + sum((t.amount for t in withdrawn if t.payment_mode == PaymentMode.CASH), ZERO)
     )
-    bank_in = sum((e.amount for e in sales if e.payment_mode == PaymentMode.BANK), ZERO) + to_bank
+    bank_in = (sum((e.amount for e in sales if e.payment_mode == PaymentMode.BANK), ZERO) + to_bank
+               + sum((t.amount for t in invested if t.payment_mode == PaymentMode.BANK), ZERO))
     bank_out = (
         sum((e.amount for e in expenses if e.payment_mode == PaymentMode.BANK), ZERO)
         + sum((e.amount for e in purchases if e.payment_mode == PaymentMode.BANK), ZERO)
         + to_cash
+        + sum((t.amount for t in withdrawn if t.payment_mode == PaymentMode.BANK), ZERO)
     )
 
     closing_cash = opening_cash + cash_in - cash_out
@@ -435,17 +533,20 @@ def daily_report(day: datetime.date) -> dict:
         "expenses": expenses,
         "purchases": purchases,
         "transfers": transfers,
+        "partner_transactions": partner_txns,
         "total_sales": total_sales,
         "total_expenses": total_expenses,
         "total_purchases": total_purchases,
         "total_outgoing": total_outgoing,
         "total_to_bank": to_bank,
         "total_to_cash": to_cash,
+        "total_partner_invested": total_partner_invested,
+        "total_partner_withdrawn": total_partner_withdrawn,
         "net": net,
         "closing_cash": closing_cash,
         "closing_bank": closing_bank,
         "closing_total": closing_cash + closing_bank,
-        "entry_count": len(sales) + len(expenses) + len(purchases) + len(transfers),
+        "entry_count": len(sales) + len(expenses) + len(purchases) + len(transfers) + len(partner_txns),
         "outgoing_count": len(expenses) + len(purchases),
     }
 
@@ -734,17 +835,56 @@ def expense_month_comparison(fy_start_month: int) -> dict:
     }
 
 
-def sales_vs_previous_period(period: Period) -> dict:
-    """This period's total sales against the immediately preceding
-    same-length period — the plain two-bar comparison behind the
-    dashboard's growth badge."""
-    prev = previous_period(period)
+def _vs_comparison(*, current_start, current_end, current_label, prev_start, prev_end, prev_label) -> dict:
+    """Shared shape for a "this vs previous" sales comparison: totals, the
+    % change, and each side's share of the larger of the two (0-100) so a
+    template can size a two-bar visual without doing math itself."""
+    current_sales = sales_total(current_start, current_end)
+    prev_sales = sales_total(prev_start, prev_end)
+    change_pct = float((current_sales - prev_sales) / prev_sales * 100) if prev_sales else None
+    biggest = max(current_sales, prev_sales) or Decimal(1)
     return {
-        "current_label": period.label,
-        "current_sales": sales_total(period.start, period.end),
-        "prev_label": prev.label,
-        "prev_sales": sales_total(prev.start, prev.end),
+        "current_label": current_label,
+        "current_sales": current_sales,
+        "current_pct": float(current_sales / biggest * 100),
+        "prev_label": prev_label,
+        "prev_sales": prev_sales,
+        "prev_pct": float(prev_sales / biggest * 100),
+        "change_pct": change_pct,
     }
+
+
+def sales_vs_previous_week() -> dict:
+    """This calendar week so far (Mon-today) against the same span of
+    weekdays last week — apples-to-apples day counts on both sides."""
+    today = datetime.date.today()
+    week_start = today - datetime.timedelta(days=today.weekday())
+    prev_week_start = week_start - datetime.timedelta(days=7)
+    prev_week_end = today - datetime.timedelta(days=7)
+    return _vs_comparison(
+        current_start=week_start, current_end=today,
+        current_label=f"{week_start:%d %b} – {today:%d %b}",
+        prev_start=prev_week_start, prev_end=prev_week_end,
+        prev_label=f"{prev_week_start:%d %b} – {prev_week_end:%d %b}",
+    )
+
+
+def sales_vs_previous_month() -> dict:
+    """This calendar month, month-to-date, against the same number of days
+    into the previous month — apples-to-apples day counts on both sides
+    (unlike comparing a partial current month to a full previous one)."""
+    today = datetime.date.today()
+    month_start = today.replace(day=1)
+    days_elapsed = (today - month_start).days
+    prev_month_end_full = month_start - datetime.timedelta(days=1)
+    prev_month_start = prev_month_end_full.replace(day=1)
+    prev_month_end = min(prev_month_start + datetime.timedelta(days=days_elapsed), prev_month_end_full)
+    return _vs_comparison(
+        current_start=month_start, current_end=today,
+        current_label=f"{month_start:%d %b} – {today:%d %b}",
+        prev_start=prev_month_start, prev_end=prev_month_end,
+        prev_label=f"{prev_month_start:%d %b} – {prev_month_end:%d %b}",
+    )
 
 
 def sales_performance_trend(months: int = 6) -> list[dict]:
@@ -879,7 +1019,8 @@ def cash_flow_statement(period: Period) -> dict:
     inflow = sales_total(period.start, period.end)
     outflow_purchases = purchases_total(period.start, period.end)
     outflow_expenses = expenses_total(period.start, period.end)
-    net_change = inflow - outflow_purchases - outflow_expenses
+    partner_invested, partner_withdrawn = partner_flow(period.start, period.end)
+    net_change = inflow - outflow_purchases - outflow_expenses + partner_invested - partner_withdrawn
 
     opening_date = period.start - datetime.timedelta(days=1)
     opening = total_balance_as_of(opening_date)
@@ -890,6 +1031,8 @@ def cash_flow_statement(period: Period) -> dict:
         "cash_in_from_sales": inflow,
         "cash_out_purchases": outflow_purchases,
         "cash_out_expenses": outflow_expenses,
+        "partner_invested": partner_invested,
+        "partner_withdrawn": partner_withdrawn,
         "net_change_in_cash": net_change,
         "opening_cash": opening,
         "closing_cash": closing,
