@@ -1,9 +1,11 @@
 import calendar
 import datetime
 import json
+import logging
 from decimal import Decimal
 
 from django.contrib import messages
+from django.db import DatabaseError
 from django.db.models import Count, Max, Q, Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -32,6 +34,8 @@ from .forms import (
     ServiceActionForm,
     SubscriptionActionForm,
 )
+
+logger = logging.getLogger(__name__)
 
 ENVIRONMENTS = {
     "dev": "Development",
@@ -78,6 +82,18 @@ class EnvironmentOverviewView(SuperAdminRequiredMixin, TemplateView):
         return context
 
     def _env_stats(self, env):
+        # An environment's database may be unreachable (e.g. no DEV_DB_* on a
+        # production host); show zeros for it instead of failing the page.
+        try:
+            return self._compute_env_stats(env)
+        except DatabaseError:
+            logger.exception("Superadmin overview: %s database unavailable", env)
+            return {
+                "total_clients": 0, "active_services": 0, "new_this_month": 0,
+                "total_revenue": Decimal("0"), "outstanding": Decimal("0"),
+            }
+
+    def _compute_env_stats(self, env):
         month_start = timezone.localdate().replace(day=1)
         total_revenue = (
             Payment.objects.using(env).filter(status=Payment.Status.SUCCESS).aggregate(t=Sum("amount"))["t"]
@@ -105,9 +121,15 @@ class EnvironmentOverviewView(SuperAdminRequiredMixin, TemplateView):
         series = {}
         for env in ENVIRONMENTS:
             buckets = {k: Decimal("0") for k in keys}
-            payments = Payment.objects.using(env).filter(
-                status=Payment.Status.SUCCESS, payment_date__year__gte=keys[0][0]
-            )
+            try:
+                payments = list(
+                    Payment.objects.using(env).filter(
+                        status=Payment.Status.SUCCESS, payment_date__year__gte=keys[0][0]
+                    )
+                )
+            except DatabaseError:
+                logger.exception("Superadmin overview: %s database unavailable", env)
+                payments = []
             for p in payments:
                 k = (p.payment_date.year, p.payment_date.month)
                 if k in buckets:
@@ -116,7 +138,11 @@ class EnvironmentOverviewView(SuperAdminRequiredMixin, TemplateView):
         return {"labels": labels, "dev": series["dev"], "prod": series["prod"]}
 
     def _payment_status_chart_data(self, env):
-        counts = {row["status"]: row["c"] for row in Payment.objects.using(env).values("status").annotate(c=Count("id"))}
+        try:
+            counts = {row["status"]: row["c"] for row in Payment.objects.using(env).values("status").annotate(c=Count("id"))}
+        except DatabaseError:
+            logger.exception("Superadmin overview: %s database unavailable", env)
+            counts = {}
         labels = [label for _value, label in Payment.Status.choices]
         values = [counts.get(value, 0) for value, _label in Payment.Status.choices]
         return {"labels": labels, "values": values}
