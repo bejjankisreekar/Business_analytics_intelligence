@@ -130,3 +130,31 @@ class ChangePasswordForm(forms.Form):
         self.user.set_password(self.cleaned_data["new_password"])
         self.user.save(update_fields=["password"])
         return self.user
+
+
+class ProfileForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ["first_name", "last_name", "email", "username"]
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if User.objects.exclude(pk=self.instance.pk).filter(email__iexact=email).exists():
+            raise forms.ValidationError("This email is already in use.")
+        return email
+
+    def clean_username(self):
+        username = (self.cleaned_data.get("username") or "").strip() or None
+        if username and User.objects.exclude(pk=self.instance.pk).filter(username__iexact=username).exists():
+            raise forms.ValidationError("This username is already taken.")
+        return username
+
+
+class OrganizationProfileForm(forms.ModelForm):
+    class Meta:
+        model = Organization
+        fields = [
+            "name", "business_type", "size", "industry", "contact_person",
+            "contact_email", "contact_phone", "address", "city", "state",
+            "country", "tax_id", "website",
+        ]

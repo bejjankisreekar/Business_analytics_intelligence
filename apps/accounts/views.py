@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import FormView, View
 
@@ -12,7 +12,13 @@ from apps.organizations.services import (
     create_organization_with_tenant_schema_and_admin,
 )
 
-from .forms import ChangePasswordForm, LoginForm, OrganizationSignupForm
+from .forms import (
+    ChangePasswordForm,
+    LoginForm,
+    OrganizationProfileForm,
+    OrganizationSignupForm,
+    ProfileForm,
+)
 from .models import User
 
 
@@ -94,6 +100,35 @@ class ChangePasswordView(LoginRequiredMixin, FormView):
         update_session_auth_hash(self.request, user)
         messages.success(self.request, "Your password has been updated.")
         return super().form_valid(form)
+
+
+class ProfileView(LoginRequiredMixin, View):
+    template_name = "accounts/profile.html"
+
+    def _can_edit_org(self, user):
+        return bool(user.organization_id) and user.role in (User.Role.OWNER, User.Role.ADMIN)
+
+    def _forms(self, request, data=None):
+        user = request.user
+        user_form = ProfileForm(data, instance=user, prefix="user")
+        org_form = None
+        if self._can_edit_org(user):
+            org_form = OrganizationProfileForm(data, instance=user.organization, prefix="org")
+        return user_form, org_form
+
+    def get(self, request, *args, **kwargs):
+        user_form, org_form = self._forms(request)
+        return render(request, self.template_name, {"user_form": user_form, "org_form": org_form})
+
+    def post(self, request, *args, **kwargs):
+        user_form, org_form = self._forms(request, request.POST)
+        if user_form.is_valid() and (org_form is None or org_form.is_valid()):
+            user_form.save()
+            if org_form is not None:
+                org_form.save()
+            messages.success(request, "Your profile has been updated.")
+            return redirect("accounts:profile")
+        return render(request, self.template_name, {"user_form": user_form, "org_form": org_form})
 
 
 class LogoutView(LoginRequiredMixin, View):
