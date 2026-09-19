@@ -206,6 +206,26 @@
     });
   }
 
+  document.querySelectorAll("input[type=password]").forEach((input) => {
+    const wrap = document.createElement("div");
+    wrap.className = "pw-wrap";
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pw-toggle";
+    btn.textContent = "Show";
+    btn.setAttribute("aria-label", "Show password");
+    btn.addEventListener("click", () => {
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.textContent = show ? "Hide" : "Show";
+      btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    });
+    wrap.appendChild(btn);
+  });
+
   initCombobox("{{ form.business_type.id_for_label }}", "business-type-combobox", "business-type-search", "business-type-options");
   initCombobox("{{ form.size.id_for_label }}", "size-combobox", "size-search", "size-options");
 </script>
@@ -228,6 +248,15 @@
     border-color: #5b7cfa;
     box-shadow: 0 0 0 3px rgba(91,124,250,0.15);
   }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 3.5rem; }
+  .pw-toggle {
+    position: absolute; top: 0.375rem; bottom: 0; right: 0.75rem;
+    display: flex; align-items: center;
+    background: none; border: 0; cursor: pointer;
+    font-size: 0.75rem; font-weight: 500; color: #9aa4bd;
+  }
+  .pw-toggle:hover { color: #fff; }
   select {
     width: 100%;
     margin-top: 0.375rem;
