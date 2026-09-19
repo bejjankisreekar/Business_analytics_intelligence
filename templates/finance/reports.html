@@ -3,13 +3,16 @@
 {% block title %}Financial Reports · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
+<style>
+  #period-select + .bai-select-trigger { min-width: 12rem; }
+</style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold text-white">Financial Reports</h1>
     <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · {{ period.label }}</p>
   </div>
   <form method="get" class="flex items-center gap-2">
-    <select name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
+    <select id="period-select" name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
       {% for value, label in period_choices %}
       <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
@@ -21,6 +24,7 @@
   <button onclick="bai.showTab('pnl')" id="tab-btn-pnl" class="report-tab report-tab--active">Profit &amp; Loss</button>
   <button onclick="bai.showTab('bs')" id="tab-btn-bs" class="report-tab">Balance Sheet</button>
   <button onclick="bai.showTab('cf')" id="tab-btn-cf" class="report-tab">Cash Flow</button>
+  <button onclick="bai.showTab('gst')" id="tab-btn-gst" class="report-tab">GST Summary</button>
 </div>
 
 <!-- P&L -->
@@ -35,7 +39,7 @@
     </div>
     <table class="mt-5 w-full text-sm">
       <tbody class="divide-y divide-white/5">
-        <tr><td class="py-2.5 text-slate-300">Revenue (Sales)</td><td class="py-2.5 text-right font-medium text-white">{{ organization.currency }} {{ pnl.revenue|floatformat:2|intcomma }}</td></tr>
+        <tr><td class="py-2.5 text-slate-300">Revenue</td><td class="py-2.5 text-right font-medium text-white">{{ organization.currency }} {{ pnl.revenue|floatformat:2|intcomma }}</td></tr>
         <tr><td class="py-2.5 text-slate-300">Cost of Goods / Purchases</td><td class="py-2.5 text-right font-medium text-red-400">({{ organization.currency }} {{ pnl.cogs|floatformat:2|intcomma }})</td></tr>
         <tr class="border-t border-white/10"><td class="py-2.5 font-semibold text-white">Gross Profit</td><td class="py-2.5 text-right font-semibold text-white">{{ organization.currency }} {{ pnl.gross_profit|floatformat:2|intcomma }}</td></tr>
 
@@ -87,13 +91,16 @@
             <tr><td class="py-2 text-slate-300">Total Liabilities</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ balance_sheet.total_liabilities|floatformat:2|intcomma }}</td></tr>
             <tr><td class="py-2 text-slate-300">Opening Capital</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ balance_sheet.opening_balance|floatformat:2|intcomma }}</td></tr>
             <tr><td class="py-2 text-slate-300">Retained Earnings</td><td class="py-2 text-right {% if balance_sheet.retained_earnings >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ balance_sheet.retained_earnings|floatformat:2|intcomma }}</td></tr>
+            {% if balance_sheet.partner_capital %}
+            <tr><td class="py-2 text-slate-300">Partner Capital</td><td class="py-2 text-right {% if balance_sheet.partner_capital >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ balance_sheet.partner_capital|floatformat:2|intcomma }}</td></tr>
+            {% endif %}
             <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Equity</td><td class="py-2 text-right font-semibold text-white">{{ organization.currency }} {{ balance_sheet.total_equity|floatformat:2|intcomma }}</td></tr>
           </tbody>
         </table>
       </div>
     </div>
     <p class="mt-5 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-slate-500">
-      This is a simplified, cash-basis balance sheet derived from your daily sales, expenses and purchases —
+      This is a simplified, cash-basis balance sheet derived from your daily revenue, expenses and purchases —
       it assumes the business started with opening capital equal to opening cash and tracks no separate
       inventory. Outstanding receivables and payables are tracked separately on the
       <a href="{% url 'finance:cash_position' %}" class="text-brand-400 hover:text-brand-300">Cash Position</a> page,
@@ -119,7 +126,7 @@
         <tr><td class="py-1 pl-4 text-slate-300">As of {{ period.start|date:"d M Y" }}</td><td class="py-1 text-right text-white">{{ organization.currency }} {{ cash_flow.opening_cash|floatformat:2|intcomma }}</td></tr>
 
         <tr><td class="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500" colspan="2">Operating activities</td></tr>
-        <tr><td class="py-2 pl-4 text-slate-300">Cash received from sales</td><td class="py-2 text-right text-mint-400">+{{ organization.currency }} {{ cash_flow.cash_in_from_sales|floatformat:2|intcomma }}</td></tr>
+        <tr><td class="py-2 pl-4 text-slate-300">Cash received from revenue</td><td class="py-2 text-right text-mint-400">+{{ organization.currency }} {{ cash_flow.cash_in_from_sales|floatformat:2|intcomma }}</td></tr>
         <tr><td class="py-2 pl-4 text-slate-300">Cash paid for purchases</td><td class="py-2 text-right text-red-400">-{{ organization.currency }} {{ cash_flow.cash_out_purchases|floatformat:2|intcomma }}</td></tr>
         <tr><td class="py-2 pl-4 text-slate-300">Cash paid for expenses</td><td class="py-2 text-right text-red-400">-{{ organization.currency }} {{ cash_flow.cash_out_expenses|floatformat:2|intcomma }}</td></tr>
         <tr class="border-t border-white/10"><td class="py-2.5 font-medium text-slate-300">Net change in cash</td><td class="py-2.5 text-right font-medium {% if cash_flow.net_change_in_cash >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ cash_flow.net_change_in_cash|floatformat:2|intcomma }}</td></tr>
@@ -132,6 +139,58 @@
   <div class="card mt-5 p-5">
     <h3 class="text-sm font-semibold text-white">Cash in vs cash out</h3>
     <div class="mt-4 h-56"><canvas id="chartCashFlow"></canvas></div>
+  </div>
+</section>
+
+<!-- GST Summary -->
+<section id="tab-gst" class="mt-6 hidden">
+  <div class="card p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-semibold text-white">GST Summary</h2>
+        <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}{% if organization.tax_id %} · GSTIN {{ organization.tax_id }}{% endif %}</p>
+      </div>
+      <a href="{% url 'finance:gst_pdf' %}?period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
+    </div>
+    <div class="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Output tax (on revenue)</p>
+        <table class="mt-2 w-full text-sm">
+          <tbody class="divide-y divide-white/5">
+            {% for row in gst.sales_rows %}
+            <tr><td class="py-2 text-slate-300">{{ row.rate|floatformat:-2 }}% · {{ organization.currency }} {{ row.taxable_value|floatformat:0|intcomma }}</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ row.tax|floatformat:2|intcomma }}</td></tr>
+            {% empty %}
+            <tr><td colspan="2" class="py-2 text-slate-500">No GST-rated revenue categories in this period.</td></tr>
+            {% endfor %}
+            <tr><td class="py-2 text-slate-500">Untaxed / uncategorized revenue</td><td class="py-2 text-right text-slate-500">{{ organization.currency }} {{ gst.untaxed_sales|floatformat:0|intcomma }}</td></tr>
+            <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Output Tax</td><td class="py-2 text-right font-semibold text-white">{{ organization.currency }} {{ gst.output_tax|floatformat:2|intcomma }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Input tax credit (on purchases)</p>
+        <table class="mt-2 w-full text-sm">
+          <tbody class="divide-y divide-white/5">
+            {% for row in gst.purchase_rows %}
+            <tr><td class="py-2 text-slate-300">{{ row.rate|floatformat:-2 }}% · {{ organization.currency }} {{ row.taxable_value|floatformat:0|intcomma }}</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ row.tax|floatformat:2|intcomma }}</td></tr>
+            {% empty %}
+            <tr><td colspan="2" class="py-2 text-slate-500">No GST-rated purchase categories in this period.</td></tr>
+            {% endfor %}
+            <tr><td class="py-2 text-slate-500">Untaxed / uncategorized purchases</td><td class="py-2 text-right text-slate-500">{{ organization.currency }} {{ gst.untaxed_purchases|floatformat:0|intcomma }}</td></tr>
+            <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Input Tax Credit</td><td class="py-2 text-right font-semibold text-white">{{ organization.currency }} {{ gst.input_tax|floatformat:2|intcomma }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="mt-5 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center justify-between">
+      <span class="text-sm font-semibold text-white">Net GST Payable</span>
+      <span class="text-base font-bold {% if gst.net_gst_payable >= 0 %}text-red-400{% else %}text-mint-400{% endif %}">{{ organization.currency }} {{ gst.net_gst_payable|floatformat:2|intcomma }}</span>
+    </div>
+    <p class="mt-4 text-xs text-slate-500">
+      Computed from the GST rate assigned to each revenue channel / purchase category under
+      <a href="{% url 'finance:categories' %}" class="text-brand-400 hover:text-brand-300">Settings → Categories</a>.
+      Entries with no category, or a 0% rate, are shown separately as untaxed rather than included in the tax totals.
+    </p>
   </div>
 </section>
 {% endblock %}
@@ -159,7 +218,7 @@
   new Chart(document.getElementById("chartCashFlow"), {
     type: "bar",
     data: {
-      labels: ["Cash in (sales)", "Cash out (purchases)", "Cash out (expenses)", "Net change"],
+      labels: ["Cash in (revenue)", "Cash out (purchases)", "Cash out (expenses)", "Net change"],
       datasets: [{
         data: [{{ cash_flow.cash_in_from_sales }}, -{{ cash_flow.cash_out_purchases }}, -{{ cash_flow.cash_out_expenses }}, {{ cash_flow.net_change_in_cash }}],
         backgroundColor: ["#34d9b8", "#f87171", "#f87171", {{ cash_flow.net_change_in_cash }} >= 0 ? "#5b7cfa" : "#f87171"],
@@ -172,7 +231,7 @@
 
   window.bai = window.bai || {};
   bai.showTab = (tab) => {
-    ["pnl", "bs", "cf"].forEach((t) => {
+    ["pnl", "bs", "cf", "gst"].forEach((t) => {
       document.getElementById("tab-" + t).classList.toggle("hidden", t !== tab);
       document.getElementById("tab-btn-" + t).classList.toggle("report-tab--active", t === tab);
     });

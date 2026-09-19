@@ -13,12 +13,25 @@ class Organization(models.Model):
         SUSPENDED = "SUSPENDED", "Suspended"
 
     class BusinessType(models.TextChoices):
-        RETAIL = "RETAIL", "Retail / Store"
-        RESTAURANT = "RESTAURANT", "Restaurant / Food Service"
-        ECOMMERCE = "ECOMMERCE", "E-commerce"
-        SERVICES = "SERVICES", "Professional Services"
+        RETAIL_ECOMMERCE = "RETAIL_ECOMMERCE", "Retail & E-commerce"
         MANUFACTURING = "MANUFACTURING", "Manufacturing"
-        WHOLESALE = "WHOLESALE", "Wholesale / Distribution"
+        HEALTHCARE = "HEALTHCARE", "Healthcare & Medical"
+        TECHNOLOGY = "TECHNOLOGY", "Technology & Software"
+        PROFESSIONAL_SERVICES = "PROFESSIONAL_SERVICES", "Professional Services"
+        FINANCIAL_SERVICES = "FINANCIAL_SERVICES", "Financial Services"
+        REAL_ESTATE = "REAL_ESTATE", "Real Estate"
+        CONSTRUCTION = "CONSTRUCTION", "Construction & Engineering"
+        EDUCATION = "EDUCATION", "Education & Training"
+        RESTAURANTS_FOOD = "RESTAURANTS_FOOD", "Restaurants & Food Services"
+        HOSPITALITY_TRAVEL = "HOSPITALITY_TRAVEL", "Hospitality & Travel"
+        LOGISTICS_TRANSPORT = "LOGISTICS_TRANSPORT", "Logistics & Transportation"
+        WHOLESALE_DISTRIBUTION = "WHOLESALE_DISTRIBUTION", "Wholesale & Distribution"
+        AUTOMOTIVE = "AUTOMOTIVE", "Automotive"
+        MEDIA_ENTERTAINMENT = "MEDIA_ENTERTAINMENT", "Media & Entertainment"
+        MARKETING_ADVERTISING = "MARKETING_ADVERTISING", "Marketing & Advertising"
+        AGRICULTURE = "AGRICULTURE", "Agriculture & Farming"
+        PHARMA_LIFE_SCIENCES = "PHARMA_LIFE_SCIENCES", "Pharmaceuticals & Life Sciences"
+        ENERGY_UTILITIES = "ENERGY_UTILITIES", "Energy & Utilities"
         OTHER = "OTHER", "Other"
 
     class OrganizationSize(models.TextChoices):
@@ -38,7 +51,7 @@ class Organization(models.Model):
     schema_name = models.CharField(max_length=63, unique=True)
 
     business_type = models.CharField(
-        max_length=20, choices=BusinessType.choices, default=BusinessType.OTHER
+        max_length=30, choices=BusinessType.choices, default=BusinessType.OTHER
     )
     size = models.CharField(
         max_length=20, choices=OrganizationSize.choices, default=OrganizationSize.SOLO

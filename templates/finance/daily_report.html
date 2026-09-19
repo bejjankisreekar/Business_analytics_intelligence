@@ -5,136 +5,153 @@
 {% block app_content %}
 <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-white">Daily Report</h1>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · a cashier-style sheet of everything logged for the day.</p>
+    <div class="flex items-center gap-2">
+      <h1 class="text-2xl font-bold text-white">Daily Report</h1>
+      <span class="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-semibold tracking-wide text-slate-400">{{ organization.currency }}</span>
+    </div>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · a cashier-style sheet of everything logged for the day. All amounts in {{ organization.currency }}.</p>
   </div>
   <div class="flex flex-wrap items-center gap-2">
-    <a href="?date={{ prev_date|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">‹</a>
+    <a href="?date={{ prev_date|date:'Y-m-d' }}&mode={{ selected_mode }}" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">‹</a>
     <form method="get" class="flex items-center">
+      <input type="hidden" name="mode" value="{{ selected_mode }}">
       <input type="date" name="date" value="{{ report.date|date:'Y-m-d' }}" onchange="this.form.submit()" class="!mt-0 !w-auto">
     </form>
-    <a href="?date={{ next_date|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">›</a>
+    <a href="?date={{ next_date|date:'Y-m-d' }}&mode={{ selected_mode }}" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">›</a>
     {% if report.date != today %}
-    <a href="?date={{ today|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Today</a>
+    <a href="?date={{ today|date:'Y-m-d' }}&mode={{ selected_mode }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Today</a>
     {% endif %}
     <a href="{% url 'finance:daily_report_pdf' %}?date={{ report.date|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
   </div>
 </div>
 
-<p class="mt-4 text-sm font-medium text-slate-300">{{ report.date|date:"l, d F Y" }}</p>
+<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+  <p class="text-sm font-medium text-slate-300">{{ report.date|date:"l, d F Y" }}</p>
+  <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=all" class="granularity-btn {% if selected_mode == 'all' %}granularity-btn--active{% endif %}">Both</a>
+    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=cash" class="granularity-btn {% if selected_mode == 'cash' %}granularity-btn--active{% endif %}">Cash</a>
+    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=bank" class="granularity-btn {% if selected_mode == 'bank' %}granularity-btn--active{% endif %}">Bank</a>
+  </div>
+</div>
 
-<!-- Bulk entry + quick add -->
+<!-- Bulk entry -->
 <div class="mt-4 flex flex-nowrap items-center gap-3 overflow-x-auto pb-1">
   <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">▦ Bulk Entry — enter the whole day at once</a>
-  <button onclick="bai.openModal('modal-sale')" class="btn-primary shrink-0 whitespace-nowrap">+ Add sale</button>
-  <button onclick="bai.openModal('modal-expense')" class="btn-primary shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#f87171,#ef4444)">+ Add expense</button>
-  <button onclick="bai.openModal('modal-purchase')" class="btn-primary shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">+ Add purchase</button>
   <button onclick="bai.openModal('modal-transfer')" class="btn-primary shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">⇄ Cash / Bank transfer</button>
 </div>
 
 <!-- Summary strip -->
 <div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
   <div class="card p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Opening balance</p>
-    <p class="mt-1.5 text-xl font-bold text-white">{{ organization.currency }} {{ report.opening_total|floatformat:0|intcomma }}</p>
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Opening balance{% if selected_mode == 'cash' %} · Cash{% elif selected_mode == 'bank' %} · Bank{% endif %}</p>
+    {% if selected_mode == 'cash' %}
+    <p class="mt-1.5 text-xl font-bold text-white">{{ report.opening_cash|floatformat:0|intcomma }}</p>
+    {% elif selected_mode == 'bank' %}
+    <p class="mt-1.5 text-xl font-bold text-white">{{ report.opening_bank|floatformat:0|intcomma }}</p>
+    {% else %}
+    <p class="mt-1.5 text-xl font-bold text-white">{{ report.opening_total|floatformat:0|intcomma }}</p>
     <p class="mt-1 text-xs text-slate-500">
-      Cash {{ organization.currency }} {{ report.opening_cash|floatformat:0|intcomma }} · Bank {{ organization.currency }} {{ report.opening_bank|floatformat:0|intcomma }}
+      Cash {{ report.opening_cash|floatformat:0|intcomma }} · Bank {{ report.opening_bank|floatformat:0|intcomma }}
     </p>
+    {% endif %}
   </div>
   <div class="card p-4">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total income</p>
-    <p class="mt-1.5 text-xl font-bold text-mint-400">+{{ organization.currency }} {{ report.total_sales|floatformat:0|intcomma }}</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">+{{ report.total_sales|floatformat:0|intcomma }}</p>
   </div>
   <div class="card p-4">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total outgoing</p>
-    <p class="mt-1.5 text-xl font-bold text-red-400">-{{ organization.currency }} {{ report.total_outgoing|floatformat:0|intcomma }}</p>
+    <p class="mt-1.5 text-xl font-bold text-red-400">-{{ report.total_outgoing|floatformat:0|intcomma }}</p>
   </div>
   <div class="card p-4" style="border-color:rgba(91,124,250,0.35);">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Closing balance</p>
-    <p class="mt-1.5 text-xl font-bold text-white">{{ organization.currency }} {{ report.closing_total|floatformat:0|intcomma }}</p>
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Closing balance{% if selected_mode == 'cash' %} · Cash{% elif selected_mode == 'bank' %} · Bank{% endif %}</p>
+    {% if selected_mode == 'cash' %}
+    <p class="mt-1.5 text-xl font-bold text-white">{{ report.closing_cash|floatformat:0|intcomma }}</p>
+    {% elif selected_mode == 'bank' %}
+    <p class="mt-1.5 text-xl font-bold text-white">{{ report.closing_bank|floatformat:0|intcomma }}</p>
+    {% else %}
+    <p class="mt-1.5 text-xl font-bold text-white">{{ report.closing_total|floatformat:0|intcomma }}</p>
     <p class="mt-1 text-xs text-slate-500">
-      Cash {{ organization.currency }} {{ report.closing_cash|floatformat:0|intcomma }} · Bank {{ organization.currency }} {{ report.closing_bank|floatformat:0|intcomma }}
+      Cash {{ report.closing_cash|floatformat:0|intcomma }} · Bank {{ report.closing_bank|floatformat:0|intcomma }}
     </p>
+    {% endif %}
   </div>
 </div>
 
 <!-- Left (income) / right (outgoing) ledger -->
 <div class="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-  <div class="card p-5">
+  <div class="card flex flex-col p-5">
     <div class="flex items-center justify-between">
       <h3 class="text-sm font-semibold text-white">Money In</h3>
       <span class="rounded-full bg-mint-500/10 px-2.5 py-1 text-[11px] font-medium text-mint-400">{{ report.sales|length }} entr{{ report.sales|length|pluralize:"y,ies" }}</span>
     </div>
 
-    {% if report.sales_split %}
-    <p class="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">By product — cash vs bank split</p>
-    <table class="mt-2 w-full text-left text-sm">
-      <thead>
-        <tr class="text-[11px] uppercase tracking-wide text-slate-500">
-          <th class="pb-1.5 pr-3 font-medium">Product</th>
-          <th class="pb-1.5 pr-3 text-right font-medium">Cash</th>
-          <th class="pb-1.5 pr-3 text-right font-medium">Bank</th>
-          <th class="pb-1.5 text-right font-medium">Total</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-white/5">
-        {% for row in report.sales_split %}
-        <tr class="{% if row.cash and row.bank %}bg-brand-500/[0.04]{% endif %}">
-          <td class="py-1.5 pr-3 text-slate-300">{{ row.label }}</td>
-          <td class="py-1.5 pr-3 text-right {% if row.cash %}text-slate-200{% else %}text-slate-600{% endif %}">{{ organization.currency }} {{ row.cash|floatformat:0|intcomma }}</td>
-          <td class="py-1.5 pr-3 text-right {% if row.bank %}text-slate-200{% else %}text-slate-600{% endif %}">{{ organization.currency }} {{ row.bank|floatformat:0|intcomma }}</td>
-          <td class="py-1.5 text-right font-medium text-white">{{ organization.currency }} {{ row.total|floatformat:0|intcomma }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-      <tfoot>
-        <tr class="border-t-2 border-white/15">
-          <td class="pt-2 font-semibold text-white">Total income</td>
-          <td class="pt-2 text-right font-semibold text-mint-400" colspan="3">{{ organization.currency }} {{ report.total_sales|floatformat:0|intcomma }}</td>
-        </tr>
-      </tfoot>
-    </table>
+    {% if report.sales_by_category %}
+    {% for group in report.sales_by_category %}
+    <div class="mt-4 flex items-center justify-between gap-3 border-t border-white/15 pt-2{% if group.has_detail %} cursor-pointer select-none{% endif %}"{% if group.has_detail %} onclick="bai.toggleSub(this)"{% endif %}>
+      <p class="text-sm font-semibold text-white">{% if group.has_detail %}<span class="sub-chevron mr-1.5 inline-block rotate-90 text-[10px] text-slate-500 transition-transform">▸</span>{% endif %}Total {{ group.name }}</p>
+      <p class="shrink-0 text-base font-bold text-mint-400">{{ group.total|floatformat:0|intcomma }}</p>
+    </div>
+    {% if group.has_detail %}{% include "finance/_daily_group_detail.html" %}{% endif %}
+    {% endfor %}
+    <div class="mt-auto pt-4">
+    <div class="flex items-center justify-between gap-3 border-t-2 border-white/15 pt-3">
+      <p class="text-sm font-semibold text-white">Total income</p>
+      <p class="shrink-0 text-lg font-bold text-mint-400">{{ report.total_sales|floatformat:0|intcomma }}</p>
+    </div>
+    </div>
     {% else %}
-    <p class="mt-6 py-6 text-center text-sm text-slate-500">No sales logged for this day.</p>
+    <p class="mt-6 py-6 text-center text-sm text-slate-500">No revenue logged for this day.</p>
     {% endif %}
 
-    <a href="{% url 'finance:entries' %}?type=sale&date={{ report.date|date:'Y-m-d' }}" class="mt-4 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">View / edit each sale →</a>
+    <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="mt-4 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">Edit in Bulk Entry →</a>
   </div>
 
-  <div class="card p-5">
+  <div class="card flex flex-col p-5">
     <div class="flex items-center justify-between">
       <h3 class="text-sm font-semibold text-white">Money Out</h3>
       <span class="rounded-full bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-400">{{ report.outgoing_count }} entries</span>
     </div>
 
     {% if report.outgoing_count %}
-    <div class="mt-4 grid grid-cols-2 gap-4">
-      <div>
-        <p class="text-xs text-slate-500">Expenses ({{ report.expenses|length }})</p>
-        <p class="mt-1 text-lg font-semibold text-white">{{ organization.currency }} {{ report.total_expenses|floatformat:0|intcomma }}</p>
-      </div>
-      <div>
-        <p class="text-xs text-slate-500">Purchases ({{ report.purchases|length }})</p>
-        <p class="mt-1 text-lg font-semibold text-white">{{ organization.currency }} {{ report.total_purchases|floatformat:0|intcomma }}</p>
-      </div>
+    {% if report.expenses_by_category %}
+    <p class="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Expenses</p>
+    {% for group in report.expenses_by_category %}
+    <div class="mt-2 flex items-center justify-between gap-3 border-t border-white/15 pt-2{% if group.has_detail %} cursor-pointer select-none{% endif %}"{% if group.has_detail %} onclick="bai.toggleSub(this)"{% endif %}>
+      <p class="text-sm font-semibold text-white">{% if group.has_detail %}<span class="sub-chevron mr-1.5 inline-block rotate-90 text-[10px] text-slate-500 transition-transform">▸</span>{% endif %}Total {{ group.name }}</p>
+      <p class="shrink-0 text-base font-bold text-red-400">{{ group.total|floatformat:0|intcomma }}</p>
     </div>
-    <div class="mt-3 flex items-center justify-between border-t-2 border-white/15 pt-3">
-      <span class="text-sm font-semibold text-white">Total outgoing</span>
-      <span class="text-sm font-semibold text-red-400">{{ organization.currency }} {{ report.total_outgoing|floatformat:0|intcomma }}</span>
+    {% if group.has_detail %}{% include "finance/_daily_group_detail.html" %}{% endif %}
+    {% endfor %}
+    {% endif %}
+
+    {% if report.purchases_by_category %}
+    <p class="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Purchases</p>
+    {% for group in report.purchases_by_category %}
+    <div class="mt-2 flex items-center justify-between gap-3 border-t border-white/15 pt-2{% if group.has_detail %} cursor-pointer select-none{% endif %}"{% if group.has_detail %} onclick="bai.toggleSub(this)"{% endif %}>
+      <p class="text-sm font-semibold text-white">{% if group.has_detail %}<span class="sub-chevron mr-1.5 inline-block rotate-90 text-[10px] text-slate-500 transition-transform">▸</span>{% endif %}Total {{ group.name }}</p>
+      <p class="shrink-0 text-base font-bold text-red-400">{{ group.total|floatformat:0|intcomma }}</p>
+    </div>
+    {% if group.has_detail %}{% include "finance/_daily_group_detail.html" %}{% endif %}
+    {% endfor %}
+    {% endif %}
+
+    <div class="mt-auto pt-4">
+    <div class="flex items-center justify-between gap-3 border-t-2 border-white/15 pt-3">
+      <p class="text-sm font-semibold text-white">Total outgoing</p>
+      <p class="shrink-0 text-lg font-bold text-red-400">{{ report.total_outgoing|floatformat:0|intcomma }}</p>
+    </div>
     </div>
     {% else %}
     <p class="mt-6 py-6 text-center text-sm text-slate-500">No expenses or purchases logged for this day.</p>
     {% endif %}
 
-    <div class="mt-4 flex gap-4">
-      <a href="{% url 'finance:entries' %}?type=expense&date={{ report.date|date:'Y-m-d' }}" class="text-xs font-medium text-brand-400 hover:text-brand-300">View / edit expenses →</a>
-      <a href="{% url 'finance:entries' %}?type=purchase&date={{ report.date|date:'Y-m-d' }}" class="text-xs font-medium text-brand-400 hover:text-brand-300">View / edit purchases →</a>
-    </div>
+    <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="mt-4 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">Edit in Bulk Entry →</a>
   </div>
 </div>
 
 <!-- Cash / Bank transfers -->
-<div class="card mt-5 p-5">
+<div id="transfers" class="card mt-5 p-5">
   <div class="flex items-center justify-between">
     <h3 class="text-sm font-semibold text-white">Cash ⇄ Bank transfers</h3>
     <span class="rounded-full bg-white/5 px-2.5 py-1 text-[11px] font-medium text-slate-400">{{ report.transfers|length }} entr{{ report.transfers|length|pluralize:"y,ies" }}</span>
@@ -144,7 +161,8 @@
       <tr class="text-[11px] uppercase tracking-wide text-slate-500">
         <th class="pb-2 pr-3 font-medium">Direction</th>
         <th class="pb-2 pr-3 font-medium">Note</th>
-        <th class="pb-2 text-right font-medium">Amount</th>
+        <th class="pb-2 pr-3 text-right font-medium">Amount</th>
+        <th class="pb-2 text-right font-medium"></th>
       </tr>
     </thead>
     <tbody class="divide-y divide-white/5">
@@ -156,16 +174,46 @@
           </span>
         </td>
         <td class="py-2 pr-3 text-slate-500">{{ t.note|default:"—" }}</td>
-        <td class="py-2 text-right font-medium text-white">{{ organization.currency }} {{ t.amount|floatformat:0|intcomma }}</td>
+        <td class="py-2 pr-3 text-right font-medium text-white">{{ t.amount|floatformat:0|intcomma }}</td>
+        <td class="py-2 text-right">
+          <div class="flex items-center justify-end gap-3">
+            <button type="button" onclick="bai.openModal('modal-edit-transfer-{{ t.pk }}')" class="text-xs font-medium text-brand-400 hover:text-brand-300">Edit</button>
+            <form method="post" action="{% url 'finance:delete_transfer' t.pk %}" onsubmit="return confirm('Delete this transfer?');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
+            </form>
+          </div>
+        </td>
       </tr>
       {% empty %}
-      <tr><td colspan="3" class="py-6 text-center text-slate-500">No transfers logged for this day.</td></tr>
+      <tr><td colspan="4" class="py-6 text-center text-slate-500">No transfers logged for this day.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 
 {% include "finance/_quick_add_modals.html" %}
+
+{% for t in report.transfers %}
+<div id="modal-edit-transfer-{{ t.pk }}" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-edit-transfer-{{ t.pk }}')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Edit transfer</h3>
+      <button type="button" onclick="bai.closeModal('modal-edit-transfer-{{ t.pk }}')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <form method="post" action="{% url 'finance:edit_transfer' t.pk %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ t.edit_form.date }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Direction</label>{{ t.edit_form.direction }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ t.edit_form.amount }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ t.edit_form.note }}</div>
+      <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">Save changes</button>
+    </form>
+  </div>
+</div>
+{% endfor %}
 {% endblock %}
 
 {% block extra_js %}
@@ -173,5 +221,12 @@
   window.bai = window.bai || {};
   bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
   bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+
+  bai.toggleSub = (head) => {
+    const detail = head.nextElementSibling;
+    if (!detail || !detail.classList.contains("sub-detail")) return;
+    const open = detail.classList.toggle("hidden") === false;
+    head.querySelector(".sub-chevron").classList.toggle("rotate-90", open);
+  };
 </script>
 {% endblock %}

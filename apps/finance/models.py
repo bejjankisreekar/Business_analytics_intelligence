@@ -24,7 +24,7 @@ class PaymentMode(models.TextChoices):
 
 class Category(models.Model):
     class Kind(models.TextChoices):
-        SALES = "SALES", "Sales channel"
+        SALES = "SALES", "Revenue channel"
         EXPENSE = "EXPENSE", "Expense category"
         PURCHASE = "PURCHASE", "Purchase category"
         PRODUCT = "PRODUCT", "Product category"
@@ -33,6 +33,10 @@ class Category(models.Model):
     kind = models.CharField(max_length=10, choices=Kind.choices)
     name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
+    gst_rate = models.DecimalField(
+        "GST rate %", max_digits=5, decimal_places=2, default=0,
+        help_text="Applied to every sale/purchase logged under this category, for the GST Summary report.",
+    )
 
     class Meta:
         ordering = ["kind", "name"]
@@ -49,10 +53,18 @@ class Subcategory(models.Model):
     Wages', a brand under 'New Phone Sales', a vendor under a purchase
     category. Optional on every entry: pick a Category alone for a quick
     entry, or drill into a Subcategory when the extra detail is worth it.
+
+    `parent` lets a Subcategory itself have children — e.g. Category "OPD
+    Consultation" → Subcategory "Cardiology" → child Subcategory "Dr. Rao"
+    — for cases where a single level of detail isn't enough. Left null for
+    an ordinary (single-level) Subcategory.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="subcategories")
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True, related_name="children"
+    )
     name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
 
@@ -60,10 +72,14 @@ class Subcategory(models.Model):
         ordering = ["category", "name"]
         verbose_name_plural = "Subcategories"
         constraints = [
-            models.UniqueConstraint(fields=["category", "name"], name="finance_subcategory_category_name_uniq"),
+            models.UniqueConstraint(
+                fields=["category", "parent", "name"], name="finance_subcategory_category_parent_name_uniq"
+            ),
         ]
 
     def __str__(self) -> str:
+        if self.parent_id:
+            return f"{self.category.name} → {self.parent.name} → {self.name}"
         return f"{self.category.name} → {self.name}"
 
 

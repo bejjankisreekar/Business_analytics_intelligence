@@ -16,7 +16,7 @@ from .models import Invoice, Payment, PaymentWebhookEvent
 
 def _make_org(env="default", name="Billing Test Org"):
     org, _owner = create_organization_with_tenant_schema_and_admin(
-        org_data={"name": name, "business_type": Organization.BusinessType.RETAIL},
+        org_data={"name": name, "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
         admin_data={"email": f"owner-{name.lower().replace(' ', '-')}@billingtest.example", "password": "pw12345678"},
         using=env,
     )

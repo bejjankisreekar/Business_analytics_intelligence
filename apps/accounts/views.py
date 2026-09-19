@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.contrib.auth import login, logout
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
@@ -12,7 +12,7 @@ from apps.organizations.services import (
     create_organization_with_tenant_schema_and_admin,
 )
 
-from .forms import LoginForm, OrganizationSignupForm
+from .forms import ChangePasswordForm, LoginForm, OrganizationSignupForm
 from .models import User
 
 
@@ -77,6 +77,23 @@ class SignupView(FormView):
             f"Welcome to Business Analytics Intelligence, {org.name}! Your workspace is ready.",
         )
         return redirect("finance:dashboard")
+
+
+class ChangePasswordView(LoginRequiredMixin, FormView):
+    template_name = "accounts/change_password.html"
+    form_class = ChangePasswordForm
+    success_url = reverse_lazy("accounts:change_password")
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        user = form.save()
+        update_session_auth_hash(self.request, user)
+        messages.success(self.request, "Your password has been updated.")
+        return super().form_valid(form)
 
 
 class LogoutView(LoginRequiredMixin, View):

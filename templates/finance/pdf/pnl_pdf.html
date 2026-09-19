@@ -3,7 +3,7 @@
 {% block subtitle %}Profit &amp; Loss Statement · {{ pnl.period.start|date:"d M Y" }} – {{ pnl.period.end|date:"d M Y" }}{% endblock %}
 {% block statement %}
 <table>
-  <tr><td>Revenue (Sales)</td><td class="right">{{ organization.currency }} {{ pnl.revenue|floatformat:2|intcomma }}</td></tr>
+  <tr><td>Revenue</td><td class="right">{{ organization.currency }} {{ pnl.revenue|floatformat:2|intcomma }}</td></tr>
   <tr><td>Cost of Goods / Purchases</td><td class="right neg">({{ organization.currency }} {{ pnl.cogs|floatformat:2|intcomma }})</td></tr>
   <tr class="divider thick"><td>Gross Profit</td><td class="right">{{ organization.currency }} {{ pnl.gross_profit|floatformat:2|intcomma }}</td></tr>
   <tr><td class="section-label" colspan="2">Operating expenses</td></tr>

@@ -3,12 +3,16 @@
 {% block title %}Cash Position · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
+<style>
+  #period-select + .bai-select-trigger { min-width: 12rem; }
+</style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold text-white">Cash Position</h1>
     <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · what's owed to you, what you owe, and what's coming due</p>
   </div>
   <div class="flex flex-wrap gap-3">
+    <a href="{% url 'finance:aging_report' %}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Aging Report →</a>
     <button onclick="bai.openModal('modal-receivable')" class="btn-primary">+ Receivable</button>
     <button onclick="bai.openModal('modal-payable')" class="btn-primary" style="background:linear-gradient(90deg,#f87171,#ef4444)">+ Payable</button>
   </div>
@@ -46,7 +50,7 @@
       <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}</p>
     </div>
     <form method="get" class="flex items-center gap-2">
-      <select name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
+      <select id="period-select" name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
         {% for value, label in period_choices %}
         <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
@@ -59,7 +63,7 @@
       <p class="mt-1 text-sm font-semibold text-white">{{ organization.currency }} {{ cash_flow.opening_cash|floatformat:0|intcomma }}</p>
     </div>
     <div>
-      <p class="text-xs text-slate-500">Cash in (sales)</p>
+      <p class="text-xs text-slate-500">Cash in (revenue)</p>
       <p class="mt-1 text-sm font-semibold text-mint-400">+{{ organization.currency }} {{ cash_flow.cash_in_from_sales|floatformat:0|intcomma }}</p>
     </div>
     <div>
@@ -267,7 +271,6 @@
     <form method="post" action="{% url 'finance:add_receivable' %}" class="mt-4 space-y-3">
       {% csrf_token %}
       <div><label class="block text-xs font-medium text-slate-400">Customer</label>{{ receivable_form.customer }}</div>
-      <div><label class="block text-xs font-medium text-slate-400">{{ receivable_form.product_category.label }}</label>{{ receivable_form.product_category }}</div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-medium text-slate-400">Invoice date</label>{{ receivable_form.invoice_date }}</div>
         <div><label class="block text-xs font-medium text-slate-400">Due date</label>{{ receivable_form.due_date }}</div>
@@ -289,7 +292,6 @@
     <form method="post" action="{% url 'finance:add_payable' %}" class="mt-4 space-y-3">
       {% csrf_token %}
       <div><label class="block text-xs font-medium text-slate-400">Vendor</label>{{ payable_form.vendor }}</div>
-      <div><label class="block text-xs font-medium text-slate-400">{{ payable_form.product_category.label }}</label>{{ payable_form.product_category }}</div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-medium text-slate-400">Bill date</label>{{ payable_form.bill_date }}</div>
         <div><label class="block text-xs font-medium text-slate-400">Due date</label>{{ payable_form.due_date }}</div>

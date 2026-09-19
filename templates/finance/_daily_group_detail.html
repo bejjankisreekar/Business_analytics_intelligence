@@ -1,0 +1,39 @@
+{% load humanize %}
+{% comment %}
+One category's entries on the Daily Report, itemized. A sub-category whose
+entries are tagged a level deeper (OPD Consultation > Orthopedics > Dr. Khan)
+gets its own subtotal line, with those entries listed under it.
+{% endcomment %}
+<div class="sub-detail divide-y divide-white/5 pl-4">
+  {% for sub in group.subgroups %}
+  {% if sub.nested %}
+  <div class="flex items-center justify-between gap-3 py-1.5 text-sm">
+    <p class="min-w-0 truncate font-medium text-slate-200">{{ sub.name }}</p>
+    <p class="shrink-0 pr-12 font-semibold text-slate-200">{{ sub.total|floatformat:0|intcomma }}</p>
+  </div>
+  {% for e in sub.entries %}
+  <div class="flex items-center justify-between gap-3 py-1.5 pl-5 text-sm">
+    <div class="min-w-0 text-slate-400">
+      <span class="text-slate-300">{{ e.subcategory.name }}</span>
+      {% if e.vendor %}<span class="text-slate-600"> · {{ e.vendor }}</span>{% endif %}
+      {% if e.note %}<span class="text-slate-600"> · {{ e.note }}</span>{% endif %}
+      <span class="ml-1.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">{{ e.get_payment_mode_display }}</span>
+    </div>
+    <div class="shrink-0 pr-12 font-medium text-slate-200">{{ e.amount|floatformat:0|intcomma }}</div>
+  </div>
+  {% endfor %}
+  {% else %}
+  {% for e in sub.entries %}
+  <div class="flex items-center justify-between gap-3 py-1.5 text-sm">
+    <div class="min-w-0 text-slate-400">
+      <span class="text-slate-300">{% if e.subcategory %}{{ e.subcategory.name }}{% else %}—{% endif %}</span>
+      {% if e.vendor %}<span class="text-slate-600"> · {{ e.vendor }}</span>{% endif %}
+      {% if e.note %}<span class="text-slate-600"> · {{ e.note }}</span>{% endif %}
+      <span class="ml-1.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">{{ e.get_payment_mode_display }}</span>
+    </div>
+    <div class="shrink-0 pr-12 font-medium text-slate-200">{{ e.amount|floatformat:0|intcomma }}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+  {% endfor %}
+</div>

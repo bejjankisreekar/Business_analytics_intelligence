@@ -1,11 +1,11 @@
 {% extends "finance/_app_base.html" %}
-{% block title %}Edit category · {{ SITE_NAME }}{% endblock %}
+{% block title %}Edit sub-category · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
 <div class="mx-auto max-w-lg">
   <a href="{{ next }}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to categories</a>
-  <h1 class="mt-2 text-2xl font-bold text-white">Edit category</h1>
-  <p class="mt-1 text-sm text-slate-400">Rename "{{ category.name }}". Its type ({{ category.get_kind_display }}) can't be changed.</p>
+  <h1 class="mt-2 text-2xl font-bold text-white">Edit sub-category</h1>
+  <p class="mt-1 text-sm text-slate-400">Rename "{{ subcategory.name }}", under {{ subcategory.category.name }}. Its category can't be changed.</p>
 
   {% if form.non_field_errors %}
   <div class="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
@@ -22,15 +22,6 @@
       {{ form.name }}
       {% for error in form.name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
     </div>
-
-    {% if category.kind == "SALES" or category.kind == "PURCHASE" %}
-    <div>
-      <label class="block text-xs font-medium text-slate-400">{{ form.gst_rate.label }}</label>
-      {{ form.gst_rate }}
-      <p class="mt-1 text-xs text-slate-500">{{ form.gst_rate.help_text }}</p>
-      {% for error in form.gst_rate.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
-    </div>
-    {% endif %}
 
     <div class="flex gap-3 pt-2">
       <button type="submit" class="btn-primary flex-1">Save changes</button>

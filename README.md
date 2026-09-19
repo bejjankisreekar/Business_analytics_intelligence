@@ -16,7 +16,7 @@ PDF: xhtml2pdf for statement export
 - Every organization gets its **own PostgreSQL schema**, generated at signup:
   an 8-char random `organization_code` (e.g. `A1F93B2C`) becomes the schema
   name `org_a1f93b2c`. One account (one owner login) per organization.
-- `apps.finance` (Sales/Expense/Purchase entries, Categories, FinanceSettings)
+- `apps.finance` (Revenue/Expense/Purchase entries, Categories, FinanceSettings)
   is the tenant-scoped app: its tables are migrated once into `public` as a
   template, then cloned into every organization's own schema at signup —
   see [`apps/organizations/tenant.py`](apps/organizations/tenant.py).

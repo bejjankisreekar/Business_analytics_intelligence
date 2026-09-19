@@ -1,0 +1,34 @@
+{% load humanize %}
+{% comment %}
+One category's rows for the Daily Report PDF, mirroring the levels shown on
+screen: category total, then a sub-category subtotal where entries are tagged
+a level deeper (OPD Consultation > Orthopedics > Dr. Khan), then each entry.
+Expects `group`, `organization`, and an optional `tag` prefix.
+{% endcomment %}
+<tr>
+  <td style="border-top:1px solid #ddd;"><b>{{ tag }}{{ group.name }}</b></td>
+  <td class="right" style="border-top:1px solid #ddd;"><b>{{ organization.currency }} {{ group.total|floatformat:2|intcomma }}</b></td>
+</tr>
+{% if group.has_detail %}
+{% for sub in group.subgroups %}
+{% if sub.nested %}
+<tr>
+  <td style="padding-left:14px;">{{ sub.name }}</td>
+  <td class="right">{{ organization.currency }} {{ sub.total|floatformat:2|intcomma }}</td>
+</tr>
+{% for e in sub.entries %}
+<tr>
+  <td style="padding-left:30px; color:#555;">{{ e.subcategory.name }}{% if e.vendor %} ({{ e.vendor }}){% endif %}{% if e.note %} — {{ e.note }}{% endif %} · {{ e.get_payment_mode_display }}</td>
+  <td class="right" style="color:#555;">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td>
+</tr>
+{% endfor %}
+{% else %}
+{% for e in sub.entries %}
+<tr>
+  <td style="padding-left:14px; color:#555;">{% if e.subcategory %}{{ e.subcategory.name }}{% else %}—{% endif %}{% if e.vendor %} ({{ e.vendor }}){% endif %}{% if e.note %} — {{ e.note }}{% endif %} · {{ e.get_payment_mode_display }}</td>
+  <td class="right" style="color:#555;">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td>
+</tr>
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}

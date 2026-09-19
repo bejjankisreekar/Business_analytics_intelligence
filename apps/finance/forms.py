@@ -59,12 +59,11 @@ class SalesEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
     class Meta:
         model = SalesEntry
         fields = [
-            "date", "channel", "subcategory", "product_category", "customer", "quantity", "amount",
+            "date", "channel", "subcategory", "customer", "quantity", "amount",
             "payment_mode", "note",
         ]
         labels = {
-            "subcategory": "Brand / product (optional)",
-            "product_category": "Product category (optional)",
+            "subcategory": "Sub-category (optional)",
             "quantity": "Qty (optional)",
         }
         widgets = {
@@ -82,10 +81,6 @@ class SalesEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
         )
         self.fields["subcategory"].required = False
         self.fields["subcategory"].widget.attrs["data-subcategory-for"] = "channel"
-        self.fields["product_category"].queryset = Category.objects.filter(
-            kind=Category.Kind.PRODUCT, is_active=True
-        )
-        self.fields["product_category"].required = False
         self.fields["customer"].queryset = Customer.objects.filter(is_active=True)
         self.fields["customer"].required = False
         self.fields["quantity"].required = False
@@ -126,33 +121,38 @@ class PurchaseEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
     class Meta:
         model = PurchaseEntry
         fields = [
-            "date", "category", "subcategory", "product_category", "vendor", "quantity", "amount",
+            "date", "category", "subcategory", "vendor", "quantity", "amount",
             "payment_mode", "note",
         ]
         labels = {
             "subcategory": "Item / detail (optional)",
-            "product_category": "Product category (optional)",
             "quantity": "Qty (optional)",
         }
         widgets = {
             "date": DateInput(),
-            "vendor": forms.TextInput(attrs={"placeholder": "Vendor / supplier"}),
             "note": forms.TextInput(attrs={"placeholder": "Optional note"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["date"].initial = self.initial.get("date", datetime.date.today())
+
+        vendor_names = list(Vendor.objects.filter(is_active=True).order_by("name").values_list("name", flat=True))
+        current_vendor = getattr(self.instance, "vendor", "") or self.initial.get("vendor")
+        if current_vendor and current_vendor not in vendor_names:
+            vendor_names.append(current_vendor)
+        self.fields["vendor"] = forms.ChoiceField(
+            choices=[("", "---------")] + [(name, name) for name in vendor_names],
+            required=False,
+            label="Vendor",
+        )
+
         self.fields["category"].queryset = Category.objects.filter(kind=Category.Kind.PURCHASE, is_active=True)
         self.fields["subcategory"].queryset = Subcategory.objects.filter(
             is_active=True, category__kind=Category.Kind.PURCHASE
         )
         self.fields["subcategory"].required = False
         self.fields["subcategory"].widget.attrs["data-subcategory-for"] = "category"
-        self.fields["product_category"].queryset = Category.objects.filter(
-            kind=Category.Kind.PRODUCT, is_active=True
-        )
-        self.fields["product_category"].required = False
         self.fields["quantity"].required = False
         self.fields["quantity"].widget.attrs["placeholder"] = "Qty"
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
@@ -164,9 +164,9 @@ class PurchaseEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
         return cleaned_data
 
 
-SalesEntryFormSet = forms.modelformset_factory(SalesEntry, form=SalesEntryForm, extra=5)
-ExpenseEntryFormSet = forms.modelformset_factory(ExpenseEntry, form=ExpenseEntryForm, extra=3)
-PurchaseEntryFormSet = forms.modelformset_factory(PurchaseEntry, form=PurchaseEntryForm, extra=3)
+SalesEntryFormSet = forms.modelformset_factory(SalesEntry, form=SalesEntryForm, extra=5, can_delete=True)
+ExpenseEntryFormSet = forms.modelformset_factory(ExpenseEntry, form=ExpenseEntryForm, extra=3, can_delete=True)
+PurchaseEntryFormSet = forms.modelformset_factory(PurchaseEntry, form=PurchaseEntryForm, extra=3, can_delete=True)
 
 
 class CashTransferForm(HistoricalWindowFormMixin, forms.ModelForm):
@@ -204,29 +204,68 @@ class FinanceSettingsForm(forms.ModelForm):
         }
 
 
+GST_RATE_CHOICES = [
+    (Decimal("0"), "0% (none)"),
+    (Decimal("5"), "5%"),
+    (Decimal("12"), "12%"),
+    (Decimal("18"), "18%"),
+    (Decimal("28"), "28%"),
+]
+
+
 class CategoryForm(forms.ModelForm):
+    # Only rendered for SALES/PURCHASE categories (see categories.html) —
+    # Expense/Product submissions carry no `gst_rate` at all, so empty_value
+    # has to be a real Decimal, not TypedChoiceField's default '', or
+    # full_clean() would reject Category.gst_rate (a DecimalField) with
+    # "Enter a number" and silently fail to save those categories.
+    gst_rate = forms.TypedChoiceField(
+        choices=GST_RATE_CHOICES, coerce=Decimal, required=False, initial=Decimal("0"),
+        empty_value=Decimal("0"),
+        label="GST rate", help_text="Used by the GST Summary report — leave at 0% if this category isn't taxed.",
+    )
+
     class Meta:
         model = Category
-        fields = ["kind", "name"]
+        fields = ["kind", "name", "gst_rate"]
 
 
 class CategoryEditForm(forms.ModelForm):
-    """Rename only — kind isn't editable after creation since it decides
-    which forms/dropdowns a category shows up in."""
+    """Rename + GST rate — kind isn't editable after creation since it
+    decides which forms/dropdowns a category shows up in."""
+
+    # Same empty_value fix as CategoryForm — only rendered for SALES/
+    # PURCHASE categories in edit_category.html.
+    gst_rate = forms.TypedChoiceField(
+        choices=GST_RATE_CHOICES, coerce=Decimal, required=False, initial=Decimal("0"),
+        empty_value=Decimal("0"),
+        label="GST rate", help_text="Used by the GST Summary report — leave at 0% if this category isn't taxed.",
+    )
 
     class Meta:
         model = Category
-        fields = ["name"]
+        fields = ["name", "gst_rate"]
 
 
 class SubcategoryForm(forms.ModelForm):
     class Meta:
         model = Subcategory
-        fields = ["category", "name"]
+        fields = ["category", "parent", "name"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["category"].queryset = Category.objects.filter(is_active=True)
+        self.fields["parent"].queryset = Subcategory.objects.filter(is_active=True, parent__isnull=True)
+        self.fields["parent"].required = False
+
+
+class SubcategoryEditForm(forms.ModelForm):
+    """Rename only — which category it belongs to isn't editable after
+    creation, matching CategoryEditForm."""
+
+    class Meta:
+        model = Subcategory
+        fields = ["name"]
 
 
 class CustomerForm(forms.ModelForm):
@@ -288,8 +327,7 @@ class VendorEditForm(forms.ModelForm):
 class ReceivableForm(forms.ModelForm):
     class Meta:
         model = Receivable
-        fields = ["customer", "product_category", "invoice_date", "due_date", "amount", "note"]
-        labels = {"product_category": "Product category (optional)"}
+        fields = ["customer", "invoice_date", "due_date", "amount", "note"]
         widgets = {
             "invoice_date": DateInput(),
             "due_date": DateInput(),
@@ -300,18 +338,13 @@ class ReceivableForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["invoice_date"].initial = datetime.date.today()
         self.fields["customer"].queryset = Customer.objects.filter(is_active=True)
-        self.fields["product_category"].queryset = Category.objects.filter(
-            kind=Category.Kind.PRODUCT, is_active=True
-        )
-        self.fields["product_category"].required = False
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
 
 
 class PayableForm(forms.ModelForm):
     class Meta:
         model = Payable
-        fields = ["vendor", "product_category", "bill_date", "due_date", "amount", "note"]
-        labels = {"product_category": "Product category (optional)"}
+        fields = ["vendor", "bill_date", "due_date", "amount", "note"]
         widgets = {
             "vendor": forms.TextInput(attrs={"placeholder": "Vendor / supplier"}),
             "bill_date": DateInput(),
@@ -322,11 +355,53 @@ class PayableForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["bill_date"].initial = datetime.date.today()
-        self.fields["product_category"].queryset = Category.objects.filter(
-            kind=Category.Kind.PRODUCT, is_active=True
-        )
-        self.fields["product_category"].required = False
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
+
+
+class _PaidInvoiceEditMixin:
+    """Edit rules for a receivable/payable that may already have payments.
+
+    Recording a payment also books a real sale/purchase entry and bumps a
+    counter on the invoice, so a few things must stay put once money has
+    moved: the counterparty (payments are tied to it), and the invoice total
+    can't drop below what has already been settled."""
+
+    paid_field = ""        # amount_received / amount_paid
+    party_field = ""       # customer / vendor
+
+    def _lock_when_paid(self):
+        if self.instance.pk and getattr(self.instance, self.paid_field) > 0:
+            self.fields[self.party_field].disabled = True
+            self.fields[self.party_field].help_text = "Locked — payments are already recorded against this."
+
+    def clean_amount(self):
+        amount = self.cleaned_data["amount"]
+        settled = getattr(self.instance, self.paid_field, 0) or 0
+        if amount < settled:
+            raise forms.ValidationError(
+                f"Can't be less than the {settled} already settled against it."
+            )
+        return amount
+
+
+class ReceivableEditForm(_PaidInvoiceEditMixin, ReceivableForm):
+    paid_field = "amount_received"
+    party_field = "customer"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Keep the current customer selectable even if they've since been paused.
+        self.fields["customer"].queryset = Customer.objects.all()
+        self._lock_when_paid()
+
+
+class PayableEditForm(_PaidInvoiceEditMixin, PayableForm):
+    paid_field = "amount_paid"
+    party_field = "vendor"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._lock_when_paid()
 
 
 class RecordPaymentForm(forms.Form):
@@ -370,3 +445,4 @@ class PartnerTransactionForm(HistoricalWindowFormMixin, forms.ModelForm):
         self.fields["date"].initial = self.initial.get("date", datetime.date.today())
         self.fields["partner"].queryset = Partner.objects.filter(is_active=True)
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
+

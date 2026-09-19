@@ -1,3 +1,4 @@
+import csv
 import datetime
 import json
 from decimal import Decimal
@@ -6,7 +7,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q, Sum
+from django.db.models import Prefetch, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -28,13 +29,16 @@ from .forms import (
     FinanceSettingsForm,
     PartnerForm,
     PartnerTransactionForm,
+    PayableEditForm,
     PayableForm,
     PurchaseEntryForm,
     PurchaseEntryFormSet,
+    ReceivableEditForm,
     ReceivableForm,
     RecordPaymentForm,
     SalesEntryForm,
     SalesEntryFormSet,
+    SubcategoryEditForm,
     SubcategoryForm,
     VendorEditForm,
     VendorForm,
@@ -47,6 +51,7 @@ from .models import (
     Partner,
     PartnerTransaction,
     Payable,
+    PaymentMode,
     PurchaseEntry,
     Receivable,
     SalesEntry,
@@ -65,7 +70,18 @@ def _decimal_default(obj):
 
 
 def to_json(data) -> str:
-    return json.dumps(data, default=_decimal_default)
+    """JSON for embedding inside a <script> block via `|safe`. Names in the
+    data are user-typed (category, sub-category, vendor), so anything that
+    could close the script element or open an HTML comment is escaped —
+    all still valid JSON, and JS reads them back as the original text."""
+    return (
+        json.dumps(data, default=_decimal_default)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
 
 
 def _pad_daily_series(series: list[dict], min_days: int) -> list[dict]:
@@ -82,6 +98,31 @@ def _pad_daily_series(series: list[dict], min_days: int) -> list[dict]:
         next_day = next_day + datetime.timedelta(days=1)
         padded.append({"date": next_day, "sales": None, "expenses": None, "purchases": None, "net": None})
     return padded
+
+
+def _product_quantity_groups(product_quantity: list[dict]) -> list[dict]:
+    """`product_quantity_breakdown()`'s flat rows, split into one group per
+    sales channel (e.g. New Mobiles, Accessories) so the Analytics page can
+    render a dedicated small chart per category instead of one combined
+    chart mixing every category together."""
+    groups: dict[str, list[dict]] = {}
+    for row in product_quantity:
+        groups.setdefault(row["category"], []).append(row)
+
+    result = []
+    for category, rows in groups.items():
+        if len(rows) <= 1:
+            continue
+        total = sum(r["quantity"] for r in rows)
+        result.append({
+            "category": category,
+            "total": total,
+            "chart_height": max(240, len(rows) * 22),
+            "labels_json": to_json([r["name"] for r in rows]),
+            "values_json": to_json([r["quantity"] for r in rows]),
+        })
+    result.sort(key=lambda g: -g["total"])
+    return result
 
 
 def _historical_min_date(request):
@@ -171,6 +212,7 @@ class DashboardView(TenantLoginRequiredMixin, TemplateView):
             "chart_daily_purchases": to_json([r["purchases"] for r in series]),
             "chart_expense_labels": to_json([r["name"] for r in expense_breakdown]),
             "chart_expense_values": to_json([r["amount"] for r in expense_breakdown]),
+            "expense_breakdown": expense_breakdown,
         })
         return context
 
@@ -389,8 +431,16 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
         purchase_breakdown = services.category_breakdown(PurchaseEntry, period.start, period.end)
         channel_breakdown = services.category_breakdown(SalesEntry, period.start, period.end, field="channel")
         payment_breakdown = services.payment_mode_breakdown(period.start, period.end)
-        product_revenue = services.category_breakdown(SalesEntry, period.start, period.end, field="subcategory")
         product_quantity = services.product_quantity_breakdown(period.start, period.end)
+
+        subcategory_categories = services.subcategory_revenue_categories(period.start, period.end)
+        category_ids = {str(c.id) for c in subcategory_categories}
+        selected_subcategory_category = self.request.GET.get("subcat_category")
+        if selected_subcategory_category not in category_ids:
+            selected_subcategory_category = next(iter(category_ids), None)
+        product_revenue = services.subcategory_revenue_breakdown(
+            period.start, period.end, category_id=selected_subcategory_category
+        )
 
         cash_running = []
         running = services.total_balance_as_of(period.start - datetime.timedelta(days=1))
@@ -437,12 +487,14 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
             "chart_payment_values": to_json([r["amount"] for r in payment_breakdown]),
             "expense_breakdown": expense_breakdown,
             "purchase_breakdown": purchase_breakdown,
+            "channel_breakdown": channel_breakdown,
             "product_revenue": product_revenue,
             "chart_product_revenue_labels": to_json([r["name"] for r in product_revenue]),
             "chart_product_revenue_values": to_json([r["amount"] for r in product_revenue]),
+            "subcategory_categories": subcategory_categories,
+            "selected_subcategory_category": selected_subcategory_category,
             "product_quantity": product_quantity,
-            "chart_product_quantity_labels": to_json([r["name"] for r in product_quantity]),
-            "chart_product_quantity_values": to_json([r["quantity"] for r in product_quantity]),
+            "product_quantity_groups": _product_quantity_groups(product_quantity),
         })
         return context
 
@@ -462,15 +514,20 @@ class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView)
         kpis = services.kpis_for_period(period)
         weekday = services.weekday_averages(period.start, period.end)
         channel_breakdown = services.category_breakdown(SalesEntry, period.start, period.end, field="channel")
-        product_category_breakdown = services.category_breakdown(
-            SalesEntry, period.start, period.end, field="product_category"
-        )
         product_revenue = services.category_breakdown(SalesEntry, period.start, period.end, field="subcategory")[:10]
         payment_breakdown = services.payment_mode_breakdown(period.start, period.end, models=(SalesEntry,))
         sales_insights = services.sales_insights(fs.fy_start_month, weekday)
         vs_prev_week = services.sales_vs_previous_week()
         vs_prev_month = services.sales_vs_previous_month()
         perf_trend = services.sales_performance_trend(6)
+
+        subcategory_groups = services.subcategory_groups_with_children()
+        group_ids = {str(g.id) for g in subcategory_groups}
+        selected_group_id = self.request.GET.get("doctor_group")
+        if selected_group_id not in group_ids:
+            selected_group_id = next(iter(group_ids), None)
+        drilldown = services.subcategory_children_trend(selected_group_id, period) if selected_group_id else None
+        selected_group = next((g for g in subcategory_groups if str(g.id) == selected_group_id), None)
 
         context.update({
             "active_nav": "sales_intelligence",
@@ -482,8 +539,6 @@ class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView)
             "chart_weekday_avg": to_json([r["average"] for r in weekday]),
             "chart_channel_labels": to_json([r["name"] for r in channel_breakdown]),
             "chart_channel_values": to_json([r["amount"] for r in channel_breakdown]),
-            "chart_product_category_labels": to_json([r["name"] for r in product_category_breakdown]),
-            "chart_product_category_values": to_json([r["amount"] for r in product_category_breakdown]),
             "chart_product_revenue_labels": to_json([r["name"] for r in product_revenue]),
             "chart_product_revenue_values": to_json([r["amount"] for r in product_revenue]),
             "chart_payment_labels": to_json([r["name"] for r in payment_breakdown]),
@@ -496,8 +551,21 @@ class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView)
             "chart_perf_margin": to_json([r["gross_margin_pct"] for r in perf_trend]),
             "product_revenue": product_revenue,
             "sales_insights": sales_insights,
+            "chart_insights_labels": to_json([r["name"] for r in sales_insights["rows"]]),
+            "chart_insights_this_month": to_json([r["this_month"] for r in sales_insights["rows"]]),
+            "chart_insights_last_month": to_json([r["last_month"] for r in sales_insights["rows"]]),
             "vs_prev_week": vs_prev_week,
             "vs_prev_month": vs_prev_month,
+            "subcategory_groups": subcategory_groups,
+            "selected_group_id": selected_group_id,
+            "selected_group": selected_group,
+            "drilldown_totals": drilldown["totals"] if drilldown else [],
+            "drilldown_chart_height": max(180, len(drilldown["totals"]) * 44 + 60) if drilldown else 180,
+            "chart_drilldown_total_labels": to_json([r["name"] for r in drilldown["totals"]] if drilldown else []),
+            "chart_drilldown_total_values": to_json([r["amount"] for r in drilldown["totals"]] if drilldown else []),
+            "chart_drilldown_daily": to_json(drilldown["daily"] if drilldown else {"labels": [], "series": []}),
+            "chart_drilldown_weekly": to_json(drilldown["weekly"] if drilldown else {"labels": [], "series": []}),
+            "chart_drilldown_monthly": to_json(drilldown["monthly"] if drilldown else {"labels": [], "series": []}),
         })
         return context
 
@@ -518,19 +586,28 @@ class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, Tem
         series = services.daily_series(period.start, period.end)
         weekly = services.weekly_trend(12)
         trend = services.monthly_trend(6)
+        # The cost trend (daily / weekly / monthly) mirrors the revenue trend on
+        # Analytics — same windows, same daily padding — so the two read alike.
+        today = datetime.date.today()
+        trend_weekly = services.weekly_trend(max(18, services.weeks_since(fs.opening_date, today)))
+        trend_monthly = services.monthly_trend(max(18, services.months_since(fs.opening_date, today)))
+        trend_daily = _pad_daily_series(series, 30)
         purchase_breakdown = services.category_breakdown(PurchaseEntry, period.start, period.end)
         expense_breakdown = services.category_breakdown(ExpenseEntry, period.start, period.end)
-        product_category_breakdown = services.category_breakdown(
-            PurchaseEntry, period.start, period.end, field="product_category"
-        )
         vendor_breakdown = services.vendor_breakdown(period.start, period.end)
         payment_breakdown = services.payment_mode_breakdown(
             period.start, period.end, models=(ExpenseEntry, PurchaseEntry)
         )
         expense_analysis = services.expense_month_comparison(fs.fy_start_month)
         expense_asc = sorted(expense_analysis["rows"], key=lambda r: r["this_month"])
+        cost_trees = {
+            "expense": services.cost_tree(ExpenseEntry, period.start, period.end),
+            "purchase": services.cost_tree(PurchaseEntry, period.start, period.end),
+        }
 
         context.update({
+            "cost_trees_json": to_json(cost_trees),
+            "cost_tree_has_data": {k: bool(v) for k, v in cost_trees.items()},
             "active_nav": "purchase_expense_intelligence",
             "organization": self.request.user.organization,
             "period": period,
@@ -540,6 +617,23 @@ class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, Tem
             "chart_daily_labels": to_json([r["date"].strftime("%d %b") for r in series]),
             "chart_daily_expenses": to_json([r["expenses"] for r in series]),
             "chart_daily_purchases": to_json([r["purchases"] for r in series]),
+            "cost_trend_json": to_json({
+                "daily": {
+                    "labels": [r["date"].strftime("%d %b") for r in trend_daily],
+                    "expenses": [r["expenses"] for r in trend_daily],
+                    "purchases": [r["purchases"] for r in trend_daily],
+                },
+                "weekly": {
+                    "labels": [r["label"] for r in trend_weekly],
+                    "expenses": [r["expenses"] for r in trend_weekly],
+                    "purchases": [r["purchases"] for r in trend_weekly],
+                },
+                "monthly": {
+                    "labels": [r["month"] for r in trend_monthly],
+                    "expenses": [r["expenses"] for r in trend_monthly],
+                    "purchases": [r["purchases"] for r in trend_monthly],
+                },
+            }),
             "chart_weekly_labels": to_json([r["label"] for r in weekly]),
             "chart_weekly_expenses": to_json([r["expenses"] for r in weekly]),
             "chart_weekly_purchases": to_json([r["purchases"] for r in weekly]),
@@ -550,8 +644,6 @@ class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, Tem
             "chart_purchase_values": to_json([r["amount"] for r in purchase_breakdown]),
             "chart_expense_labels": to_json([r["name"] for r in expense_breakdown]),
             "chart_expense_values": to_json([r["amount"] for r in expense_breakdown]),
-            "chart_product_category_labels": to_json([r["name"] for r in product_category_breakdown]),
-            "chart_product_category_values": to_json([r["amount"] for r in product_category_breakdown]),
             "chart_vendor_labels": to_json([r["name"] for r in vendor_breakdown[:10]]),
             "chart_vendor_values": to_json([r["amount"] for r in vendor_breakdown[:10]]),
             "chart_payment_labels": to_json([r["name"] for r in payment_breakdown]),
@@ -560,6 +652,7 @@ class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, Tem
             "expense_breakdown": expense_breakdown,
             "vendor_breakdown": vendor_breakdown[:10],
             "expense_analysis": expense_analysis,
+            "expense_asc": expense_asc,
             "chart_expense_asc_labels": to_json([r["name"] for r in expense_asc]),
             "chart_expense_asc_values": to_json([r["this_month"] for r in expense_asc]),
         })
@@ -578,31 +671,33 @@ class DailyReportView(TenantLoginRequiredMixin, TemplateView):
                 pass
         return datetime.date.today()
 
+    def _selected_mode(self):
+        mode = self.request.GET.get("mode", "all")
+        return mode if mode in ("cash", "bank", "all") else "all"
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         selected_date = self._selected_date()
-        report = services.daily_report(selected_date)
+        selected_mode = self._selected_mode()
+        payment_mode_filter = {"cash": PaymentMode.CASH, "bank": PaymentMode.BANK}.get(selected_mode)
+        report = services.daily_report(selected_date, payment_mode=payment_mode_filter)
+        min_date = _historical_min_date(self.request)
+        for transfer in report["transfers"]:
+            transfer.edit_form = CashTransferForm(
+                instance=transfer, auto_id=f"id_edit_transfer_{transfer.pk}_%s", min_date=min_date
+            )
 
         context.update({
             "active_nav": "daily_report",
             "organization": self.request.user.organization,
             "report": report,
+            "selected_mode": selected_mode,
             "today": datetime.date.today(),
             "prev_date": selected_date - datetime.timedelta(days=1),
             "next_date": selected_date + datetime.timedelta(days=1),
-            "sale_form": SalesEntryForm(
-                initial={"date": selected_date}, auto_id="id_sale_%s", min_date=_historical_min_date(self.request)
-            ),
-            "expense_form": ExpenseEntryForm(
-                initial={"date": selected_date}, auto_id="id_expense_%s", min_date=_historical_min_date(self.request)
-            ),
-            "purchase_form": PurchaseEntryForm(
-                initial={"date": selected_date}, auto_id="id_purchase_%s", min_date=_historical_min_date(self.request)
-            ),
             "transfer_form": CashTransferForm(
                 initial={"date": selected_date}, auto_id="id_transfer_%s", min_date=_historical_min_date(self.request)
             ),
-            "subcategory_map_json": to_json(services.subcategory_map()),
         })
         return context
 
@@ -636,17 +731,17 @@ def _bulk_entry_context(request, selected_date, *, active_bulk_tab="sale", sale_
         "active_bulk_tab": active_bulk_tab,
         "min_date": min_date,
         "sale_formset": sale_formset or SalesEntryFormSet(
-            queryset=SalesEntry.objects.none(), prefix="sale",
+            queryset=SalesEntry.objects.filter(date=selected_date).order_by("created_at"), prefix="sale",
             initial=[{"date": selected_date}] * SalesEntryFormSet.extra,
             form_kwargs={"min_date": min_date},
         ),
         "expense_formset": expense_formset or ExpenseEntryFormSet(
-            queryset=ExpenseEntry.objects.none(), prefix="expense",
+            queryset=ExpenseEntry.objects.filter(date=selected_date).order_by("created_at"), prefix="expense",
             initial=[{"date": selected_date}] * ExpenseEntryFormSet.extra,
             form_kwargs={"min_date": min_date},
         ),
         "purchase_formset": purchase_formset or PurchaseEntryFormSet(
-            queryset=PurchaseEntry.objects.none(), prefix="purchase",
+            queryset=PurchaseEntry.objects.filter(date=selected_date).order_by("created_at"), prefix="purchase",
             initial=[{"date": selected_date}] * PurchaseEntryFormSet.extra,
             form_kwargs={"min_date": min_date},
         ),
@@ -663,7 +758,9 @@ class DailyBulkEntryView(TenantLoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         selected_date = _parse_date(self.request.GET.get("date"))
-        context.update(_bulk_entry_context(self.request, selected_date))
+        tab = self.request.GET.get("tab")
+        active_tab = tab if tab in ("sale", "expense", "purchase") else "sale"
+        context.update(_bulk_entry_context(self.request, selected_date, active_bulk_tab=active_tab))
         return context
 
 
@@ -692,26 +789,33 @@ def _bound_bulk_formset(FormSetClass, model, request, prefix, selected_date):
     and surfacing "required" errors on rows the user never touched."""
     total = int(request.POST.get(f"{prefix}-TOTAL_FORMS") or FormSetClass.extra)
     return FormSetClass(
-        request.POST, queryset=model.objects.none(), prefix=prefix,
+        request.POST, queryset=model.objects.filter(date=selected_date).order_by("created_at"), prefix=prefix,
         initial=[{"date": selected_date}] * total,
         form_kwargs={"min_date": _historical_min_date(request)},
     )
 
 
 def _save_bulk_formset(formset, request) -> tuple[int, list]:
-    """Save every non-empty row in a validated formset, tagging
-    created_by_email — mirrors what the single-entry Add*View classes do
-    per row. Fully-blank extra rows are already excluded by Django's
-    empty_permitted handling before this is called. Returns the count and
-    the saved model instances, so the caller can show a detailed recap of
-    exactly what was just logged."""
+    """Save/update every changed row in a validated formset and delete any
+    row checked for removal. New rows get created_by_email tagged; editing
+    an existing row (the formset's queryset now includes the day's already-
+    logged entries, not just blank ones) leaves its original creator
+    untouched, matching EditEntryView. Fully-blank extra rows are already
+    excluded by Django's empty_permitted handling before this is called.
+    Returns the count of rows saved (created or updated) and the saved
+    model instances, so the caller can show a detailed recap."""
     count = 0
     saved = []
     for form in formset:
         if not form.cleaned_data:
             continue
+        if form.cleaned_data.get("DELETE"):
+            if form.instance.pk:
+                form.instance.delete()
+            continue
         entry = form.save(commit=False)
-        entry.created_by_email = request.user.email
+        if entry._state.adding:
+            entry.created_by_email = request.user.email
         entry.save()
         saved.append(entry)
         count += 1
@@ -723,19 +827,30 @@ def _save_purchase_formset(formset, request) -> tuple[int, int, list]:
     Payable (see _create_payable_from_purchase) instead of an immediate
     PurchaseEntry. Returns (purchases saved, on-credit rows saved, the
     PurchaseEntry instances) — the on-credit count is separate since those
-    rows have no PurchaseEntry to show in the "just saved" recap."""
+    rows have no PurchaseEntry to show in the "just saved" recap.
+
+    "On credit" only applies to a genuinely new row: for an existing
+    PurchaseEntry (now editable here too), checking it is a no-op rather
+    than spinning up a second, disconnected Payable for money that's
+    already been logged as paid."""
     count = 0
     credit_count = 0
     saved = []
     for form in formset:
         if not form.cleaned_data:
             continue
-        if form.cleaned_data.get("on_credit"):
+        if form.cleaned_data.get("DELETE"):
+            if form.instance.pk:
+                form.instance.delete()
+            continue
+        is_new = form.instance._state.adding
+        if is_new and form.cleaned_data.get("on_credit"):
             _create_payable_from_purchase(form.cleaned_data, request)
             credit_count += 1
             continue
         entry = form.save(commit=False)
-        entry.created_by_email = request.user.email
+        if is_new:
+            entry.created_by_email = request.user.email
         entry.save()
         saved.append(entry)
         count += 1
@@ -761,7 +876,6 @@ def _create_payable_from_purchase(cleaned_data: dict, request) -> Payable:
         note = f"{detail} — {note}" if note else detail
     return Payable.objects.create(
         vendor=cleaned_data["vendor"],
-        product_category=cleaned_data.get("product_category"),
         bill_date=cleaned_data["date"],
         due_date=cleaned_data["date"] + datetime.timedelta(days=30),
         amount=cleaned_data["amount"],
@@ -777,7 +891,7 @@ def _describe_saved(entries, kind: str) -> list[dict]:
     rows = []
     for e in entries:
         if kind == "sale":
-            label = e.channel.name if e.channel else "Sales"
+            label = e.channel.name if e.channel else "Revenue"
         else:
             label = e.category.name if e.category else kind.capitalize()
         if e.subcategory:
@@ -850,57 +964,26 @@ class BulkAddPurchasesView(TenantLoginRequiredMixin, View):
         return render(request, "finance/daily_bulk_entry.html", context)
 
 
-class AddSaleView(TenantLoginRequiredMixin, View):
-    def post(self, request, *args, **kwargs):
-        form = SalesEntryForm(request.POST, min_date=_historical_min_date(request))
+class EditTransferView(TenantLoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        transfer = get_object_or_404(CashTransfer, pk=pk)
+        form = CashTransferForm(request.POST, instance=transfer, min_date=_historical_min_date(request))
         if form.is_valid():
-            entry = form.save(commit=False)
-            entry.created_by_email = request.user.email
-            entry.save()
-            messages.success(request, f"Logged sale of {entry.amount} on {entry.date:%d %b %Y}.")
+            form.save()
+            messages.success(request, f"Updated transfer of {transfer.amount} on {transfer.date:%d %b %Y}.")
         else:
-            messages.error(request, "Couldn't save that sale: " + "; ".join(
+            messages.error(request, "Couldn't save that transfer: " + "; ".join(
                 f"{f}: {', '.join(e)}" for f, e in form.errors.items()
             ))
-        return redirect(request.POST.get("next") or "finance:dashboard")
+        return redirect(request.POST.get("next") or "finance:daily_report")
 
 
-class AddExpenseView(TenantLoginRequiredMixin, View):
-    def post(self, request, *args, **kwargs):
-        form = ExpenseEntryForm(request.POST, min_date=_historical_min_date(request))
-        if form.is_valid():
-            entry = form.save(commit=False)
-            entry.created_by_email = request.user.email
-            entry.save()
-            messages.success(request, f"Logged expense of {entry.amount} on {entry.date:%d %b %Y}.")
-        else:
-            messages.error(request, "Couldn't save that expense: " + "; ".join(
-                f"{f}: {', '.join(e)}" for f, e in form.errors.items()
-            ))
-        return redirect(request.POST.get("next") or "finance:dashboard")
-
-
-class AddPurchaseView(TenantLoginRequiredMixin, View):
-    def post(self, request, *args, **kwargs):
-        form = PurchaseEntryForm(request.POST, min_date=_historical_min_date(request))
-        if form.is_valid():
-            if form.cleaned_data.get("on_credit"):
-                payable = _create_payable_from_purchase(form.cleaned_data, request)
-                messages.success(
-                    request,
-                    f"Logged {payable.amount} as owed to {payable.vendor} — it'll show as a purchase "
-                    f"once paid off from Vendor Ledgers.",
-                )
-            else:
-                entry = form.save(commit=False)
-                entry.created_by_email = request.user.email
-                entry.save()
-                messages.success(request, f"Logged purchase of {entry.amount} on {entry.date:%d %b %Y}.")
-        else:
-            messages.error(request, "Couldn't save that purchase: " + "; ".join(
-                f"{f}: {', '.join(e)}" for f, e in form.errors.items()
-            ))
-        return redirect(request.POST.get("next") or "finance:dashboard")
+class DeleteTransferView(TenantLoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        transfer = get_object_or_404(CashTransfer, pk=pk)
+        transfer.delete()
+        messages.success(request, "Transfer deleted.")
+        return redirect(request.POST.get("next") or "finance:daily_report")
 
 
 class AddTransferView(TenantLoginRequiredMixin, View):
@@ -920,163 +1003,6 @@ class AddTransferView(TenantLoginRequiredMixin, View):
         return redirect(request.POST.get("next") or "finance:dashboard")
 
 
-ENTRY_MODELS = {"sale": SalesEntry, "expense": ExpenseEntry, "purchase": PurchaseEntry, "transfer": CashTransfer}
-ENTRY_FORMS = {
-    "sale": SalesEntryForm, "expense": ExpenseEntryForm, "purchase": PurchaseEntryForm,
-    "transfer": CashTransferForm,
-}
-ENTRY_LABELS = {"sale": "sale", "expense": "expense", "purchase": "purchase", "transfer": "transfer"}
-
-
-class DeleteEntryView(TenantLoginRequiredMixin, View):
-    def post(self, request, entry_type, pk, *args, **kwargs):
-        model = ENTRY_MODELS.get(entry_type)
-        if model is None:
-            messages.error(request, "Unknown entry type.")
-            return redirect("finance:entries")
-        entry = get_object_or_404(model, pk=pk)
-        entry.delete()
-        messages.success(request, "Entry deleted.")
-        return redirect(request.POST.get("next") or "finance:entries")
-
-
-class EditEntryView(TenantLoginRequiredMixin, TemplateView):
-    template_name = "finance/edit_entry.html"
-
-    def _get_entry(self, entry_type, pk):
-        model = ENTRY_MODELS.get(entry_type)
-        if model is None:
-            return None, None
-        return model, get_object_or_404(model, pk=pk)
-
-    def get(self, request, entry_type, pk, *args, **kwargs):
-        model, entry = self._get_entry(entry_type, pk)
-        if model is None:
-            messages.error(request, "Unknown entry type.")
-            return redirect("finance:entries")
-        form_class = ENTRY_FORMS[entry_type]
-        form = form_class(instance=entry, min_date=_historical_min_date(request))
-        return self.render(request, entry_type, entry, form)
-
-    def post(self, request, entry_type, pk, *args, **kwargs):
-        model, entry = self._get_entry(entry_type, pk)
-        next_url = request.POST.get("next") or "finance:entries"
-        if model is None:
-            messages.error(request, "Unknown entry type.")
-            return redirect(next_url)
-        form_class = ENTRY_FORMS[entry_type]
-        form = form_class(request.POST, instance=entry, min_date=_historical_min_date(request))
-        if form.is_valid():
-            form.save()
-            messages.success(request, f"Updated {ENTRY_LABELS[entry_type]} on {entry.date:%d %b %Y}.")
-        else:
-            messages.error(request, "Couldn't save that entry: " + "; ".join(
-                f"{f}: {', '.join(e)}" for f, e in form.errors.items()
-            ))
-        return redirect(next_url)
-
-    def render(self, request, entry_type, entry, form):
-        context = {
-            "active_nav": "entries",
-            "organization": request.user.organization,
-            "entry_type": entry_type,
-            "entry": entry,
-            "form": form,
-            "next": request.GET.get("next") or request.POST.get("next") or "",
-            "subcategory_map_json": to_json(services.subcategory_map()),
-        }
-        return self.render_to_response(context)
-
-
-def _parse_optional_date(raw):
-    if raw:
-        try:
-            return datetime.date.fromisoformat(raw)
-        except ValueError:
-            pass
-    return None
-
-
-class EntriesView(TenantLoginRequiredMixin, TemplateView):
-    template_name = "finance/entries.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        request = self.request
-        entry_type = request.GET.get("type", "sale")
-
-        raw_date = request.GET.get("date")
-        raw_from = request.GET.get("date_from") or (raw_date if raw_date else None)
-        raw_to = request.GET.get("date_to") or (raw_date if raw_date else None)
-        date_from = _parse_optional_date(raw_from)
-        date_to = _parse_optional_date(raw_to)
-        payment_mode = request.GET.get("payment_mode") or ""
-        category_id = request.GET.get("category") or ""
-        search = request.GET.get("q", "").strip()
-
-        model = ENTRY_MODELS.get(entry_type, SalesEntry)
-        qs = model.objects.all()
-        if entry_type == "sale":
-            qs = qs.select_related("channel", "subcategory")
-        elif entry_type in ("expense", "purchase"):
-            qs = qs.select_related("category", "subcategory")
-
-        if date_from:
-            qs = qs.filter(date__gte=date_from)
-        if date_to:
-            qs = qs.filter(date__lte=date_to)
-        if entry_type != "transfer":
-            if payment_mode:
-                qs = qs.filter(payment_mode=payment_mode)
-            if category_id:
-                field = "channel_id" if entry_type == "sale" else "category_id"
-                qs = qs.filter(**{field: category_id})
-        if search:
-            note_q = Q(note__icontains=search)
-            if entry_type == "purchase":
-                note_q |= Q(vendor__icontains=search)
-            qs = qs.filter(note_q)
-
-        qs = qs.order_by("-date", "-created_at")[:200]
-        edit_form_class = ENTRY_FORMS[entry_type]
-        min_date = _historical_min_date(request)
-        entries = list(qs)
-        for e in entries:
-            e.edit_form = edit_form_class(instance=e, auto_id=f"id_edit_{e.pk}_%s", min_date=min_date)
-
-        if entry_type == "sale":
-            category_choices = Category.objects.filter(kind=Category.Kind.SALES, is_active=True)
-        elif entry_type in ("expense", "purchase"):
-            kind = Category.Kind.EXPENSE if entry_type == "expense" else Category.Kind.PURCHASE
-            category_choices = Category.objects.filter(kind=kind, is_active=True)
-        else:
-            category_choices = Category.objects.none()
-
-        context.update({
-            "active_nav": "entries",
-            "organization": self.request.user.organization,
-            "entry_type": entry_type,
-            "date_from": date_from,
-            "date_to": date_to,
-            "payment_mode": payment_mode,
-            "category_id": category_id,
-            "search": search,
-            "category_choices": category_choices,
-            "has_filters": bool(date_from or date_to or payment_mode or category_id or search),
-            "tabs": [
-                ("sale", "Sales"), ("expense", "Expenses"), ("purchase", "Purchases"),
-                ("transfer", "Cash ⇄ Bank"),
-            ],
-            "entries": entries,
-            "sale_form": SalesEntryForm(auto_id="id_sale_%s", min_date=min_date),
-            "expense_form": ExpenseEntryForm(auto_id="id_expense_%s", min_date=min_date),
-            "purchase_form": PurchaseEntryForm(auto_id="id_purchase_%s", min_date=min_date),
-            "transfer_form": CashTransferForm(auto_id="id_transfer_%s", min_date=min_date),
-            "subcategory_map_json": to_json(services.subcategory_map()),
-        })
-        return context
-
-
 class ReportsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     template_name = "finance/reports.html"
 
@@ -1093,6 +1019,7 @@ class ReportsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
             "pnl": services.profit_and_loss(period),
             "balance_sheet": services.balance_sheet(period.end),
             "cash_flow": services.cash_flow_statement(period),
+            "gst": services.gst_summary(period),
         })
         return context
 
@@ -1132,6 +1059,10 @@ class StatementPdfView(TenantLoginRequiredMixin, PeriodMixin, View):
             context = {"organization": org, "balance_sheet": services.balance_sheet(period.end)}
             template = "finance/pdf/balance_sheet_pdf.html"
             filename = f"balance-sheet-{period.end}.pdf"
+        elif self.statement == "gst":
+            context = {"organization": org, "gst": services.gst_summary(period)}
+            template = "finance/pdf/gst_pdf.html"
+            filename = f"gst-summary-{period.start}-{period.end}.pdf"
         else:
             context = {"organization": org, "cash_flow": services.cash_flow_statement(period)}
             template = "finance/pdf/cash_flow_pdf.html"
@@ -1178,7 +1109,7 @@ class FinanceSettingsView(TenantLoginRequiredMixin, TemplateView):
 
 
 CATEGORY_TABS = [
-    (Category.Kind.SALES, "Sales Categories", "e.g. In-store, Online", "e.g. a brand"),
+    (Category.Kind.SALES, "Revenue Categories", "e.g. In-store, Online", "e.g. a brand"),
     (Category.Kind.EXPENSE, "Expense Categories", "e.g. Rent, Marketing", "e.g. an employee name"),
     (Category.Kind.PURCHASE, "Purchase Categories", "e.g. Inventory / Stock", "e.g. a vendor"),
     (Category.Kind.PRODUCT, "Product Categories", "e.g. Medicines, Electronics", "e.g. a sub-line"),
@@ -1201,7 +1132,12 @@ class CategoriesView(TenantLoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         kind = _category_kind(self.request)
-        categories = Category.objects.filter(kind=kind).prefetch_related("subcategories")
+        categories = Category.objects.filter(kind=kind).prefetch_related(
+            Prefetch(
+                "subcategories",
+                queryset=Subcategory.objects.filter(parent__isnull=True).prefetch_related("children"),
+            )
+        )
         tab = next(t for t in CATEGORY_TABS if t[0] == kind)
         context.update({
             "active_nav": "categories",
@@ -1287,6 +1223,38 @@ class AddSubcategoryView(TenantLoginRequiredMixin, View):
         else:
             messages.error(request, "Couldn't add that sub-category — it may already exist.")
         return redirect(request.POST.get("next") or "finance:categories")
+
+
+class EditSubcategoryView(TenantLoginRequiredMixin, TemplateView):
+    template_name = "finance/edit_subcategory.html"
+
+    def get(self, request, pk, *args, **kwargs):
+        subcategory = get_object_or_404(Subcategory, pk=pk)
+        form = SubcategoryEditForm(instance=subcategory)
+        return self.render(request, subcategory, form)
+
+    def post(self, request, pk, *args, **kwargs):
+        subcategory = get_object_or_404(Subcategory, pk=pk)
+        form = SubcategoryEditForm(request.POST, instance=subcategory)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Sub-category updated.")
+            next_url = request.POST.get("next") or f"{reverse('finance:categories')}?kind={subcategory.category.kind}"
+            return redirect(next_url)
+        return self.render(request, subcategory, form)
+
+    def render(self, request, subcategory, form):
+        next_url = request.GET.get("next") or request.POST.get("next") or (
+            f"{reverse('finance:categories')}?kind={subcategory.category.kind}"
+        )
+        context = {
+            "active_nav": "categories",
+            "organization": request.user.organization,
+            "subcategory": subcategory,
+            "form": form,
+            "next": next_url,
+        }
+        return self.render_to_response(context)
 
 
 class DeleteSubcategoryView(TenantLoginRequiredMixin, View):
@@ -1390,6 +1358,12 @@ class CustomerLedgerView(TenantLoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         customer = get_object_or_404(Customer, pk=kwargs["pk"])
         entries = services.customer_ledger_entries(customer)
+        invoices = {r.pk: r for r in Receivable.objects.filter(customer=customer)}
+        for row in entries:
+            if row["source"]["role"] == "invoice":
+                row["edit_form"] = ReceivableEditForm(
+                    instance=invoices[row["source"]["pk"]], auto_id=f"id_edit_inv_{row['source']['pk']}_%s"
+                )
         total_debit = sum((e["debit"] for e in entries), services.ZERO)
         total_credit = sum((e["credit"] for e in entries), services.ZERO)
         context.update({
@@ -1414,6 +1388,12 @@ class VendorLedgerView(TenantLoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         vendor = get_object_or_404(Vendor, pk=kwargs["pk"])
         entries = services.vendor_ledger_entries(vendor.name)
+        bills = {p.pk: p for p in Payable.objects.filter(vendor=vendor.name)}
+        for row in entries:
+            if row["source"]["role"] == "invoice":
+                row["edit_form"] = PayableEditForm(
+                    instance=bills[row["source"]["pk"]], auto_id=f"id_edit_bill_{row['source']['pk']}_%s"
+                )
         total_debit = sum((e["debit"] for e in entries), services.ZERO)
         total_credit = sum((e["credit"] for e in entries), services.ZERO)
         context.update({
@@ -1561,6 +1541,26 @@ class ToggleVendorView(TenantLoginRequiredMixin, View):
         return redirect("finance:vendors")
 
 
+class AgingReportView(TenantLoginRequiredMixin, TemplateView):
+    """Who owes what and how overdue it is, one row per customer/vendor —
+    the standard aging matrix, built from the same open receivables/
+    payables Cash Position already tracks."""
+
+    template_name = "finance/aging_report.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        today = datetime.date.today()
+        context.update({
+            "active_nav": "cash_position",
+            "organization": self.request.user.organization,
+            "as_of": today,
+            "receivables_aging": services.receivables_aging(today),
+            "payables_aging": services.payables_aging(today),
+        })
+        return context
+
+
 class CashPositionView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     """Receivables, payables, upcoming obligations and a cash-flow snapshot
     — everything the org is owed, everything it owes, and what's due soon."""
@@ -1616,11 +1616,11 @@ class DeleteReceivableView(TenantLoginRequiredMixin, View):
     def post(self, request, pk, *args, **kwargs):
         receivable = get_object_or_404(Receivable, pk=pk)
         if receivable.amount_received > 0:
-            messages.error(request, "Can't delete a receivable that already has payments recorded against it.")
+            messages.error(request, "Can't delete an invoice that already has payments recorded against it.")
         else:
             receivable.delete()
             messages.success(request, "Receivable deleted.")
-        return redirect("finance:cash_position")
+        return redirect(request.POST.get("next") or "finance:cash_position")
 
 
 class RecordReceivablePaymentView(TenantLoginRequiredMixin, View):
@@ -1635,7 +1635,6 @@ class RecordReceivablePaymentView(TenantLoginRequiredMixin, View):
                 SalesEntry.objects.create(
                     date=form.cleaned_data["date"],
                     customer=receivable.customer,
-                    product_category=receivable.product_category,
                     amount=amount,
                     payment_mode=form.cleaned_data["payment_mode"],
                     note=form.cleaned_data["note"] or f"Payment received for invoice — {receivable.customer}",
@@ -1670,11 +1669,11 @@ class DeletePayableView(TenantLoginRequiredMixin, View):
     def post(self, request, pk, *args, **kwargs):
         payable = get_object_or_404(Payable, pk=pk)
         if payable.amount_paid > 0:
-            messages.error(request, "Can't delete a payable that already has payments recorded against it.")
+            messages.error(request, "Can't delete a bill that already has payments recorded against it.")
         else:
             payable.delete()
             messages.success(request, "Payable deleted.")
-        return redirect("finance:cash_position")
+        return redirect(request.POST.get("next") or "finance:cash_position")
 
 
 class RecordPayablePaymentView(TenantLoginRequiredMixin, View):
@@ -1689,7 +1688,6 @@ class RecordPayablePaymentView(TenantLoginRequiredMixin, View):
                 PurchaseEntry.objects.create(
                     date=form.cleaned_data["date"],
                     vendor=payable.vendor,
-                    product_category=payable.product_category,
                     amount=amount,
                     payment_mode=form.cleaned_data["payment_mode"],
                     note=form.cleaned_data["note"] or f"Payment to {payable.vendor} for bill",
@@ -1741,12 +1739,54 @@ class AddPartnerTransactionView(TenantLoginRequiredMixin, View):
         return redirect("finance:cash_position")
 
 
+class EditPartnerTransactionView(TenantLoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        txn = get_object_or_404(PartnerTransaction, pk=pk)
+        form = PartnerTransactionForm(request.POST, instance=txn, min_date=_historical_min_date(request))
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Updated {txn.partner}'s transaction on {txn.date:%d %b %Y}.")
+        else:
+            messages.error(request, "Couldn't save that transaction: " + "; ".join(
+                f"{f}: {', '.join(e)}" for f, e in form.errors.items()
+            ))
+        return redirect(request.POST.get("next") or "finance:cash_position")
+
+
+class EditReceivableView(TenantLoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        receivable = get_object_or_404(Receivable, pk=pk)
+        form = ReceivableEditForm(request.POST, instance=receivable)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Invoice updated.")
+        else:
+            messages.error(request, "Couldn't save that invoice: " + "; ".join(
+                f"{f}: {', '.join(e)}" for f, e in form.errors.items()
+            ))
+        return redirect(request.POST.get("next") or "finance:cash_position")
+
+
+class EditPayableView(TenantLoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        payable = get_object_or_404(Payable, pk=pk)
+        form = PayableEditForm(request.POST, instance=payable)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Bill updated.")
+        else:
+            messages.error(request, "Couldn't save that bill: " + "; ".join(
+                f"{f}: {', '.join(e)}" for f, e in form.errors.items()
+            ))
+        return redirect(request.POST.get("next") or "finance:cash_position")
+
+
 class DeletePartnerTransactionView(TenantLoginRequiredMixin, View):
     def post(self, request, pk, *args, **kwargs):
         txn = get_object_or_404(PartnerTransaction, pk=pk)
         txn.delete()
         messages.success(request, "Partner transaction deleted.")
-        return redirect("finance:cash_position")
+        return redirect(request.POST.get("next") or "finance:cash_position")
 
 
 class PartnerLedgerView(TenantLoginRequiredMixin, TemplateView):
@@ -1759,6 +1799,14 @@ class PartnerLedgerView(TenantLoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         partner = get_object_or_404(Partner, pk=kwargs["pk"])
         entries = services.partner_ledger_entries(partner)
+        min_date = _historical_min_date(self.request)
+        txns = {t.pk: t for t in partner.transactions.all()}
+        for row in entries:
+            txn = txns.get(row["source"]["pk"])
+            row["edit_form"] = PartnerTransactionForm(
+                instance=txn, auto_id=f"id_edit_ptxn_{txn.pk}_%s", min_date=min_date
+            )
+            row["txn"] = txn
         total_debit = sum((e["debit"] for e in entries), services.ZERO)
         total_credit = sum((e["credit"] for e in entries), services.ZERO)
         context.update({
@@ -1771,3 +1819,4 @@ class PartnerLedgerView(TenantLoginRequiredMixin, TemplateView):
             "net_capital": entries[-1]["balance"] if entries else services.ZERO,
         })
         return context
+

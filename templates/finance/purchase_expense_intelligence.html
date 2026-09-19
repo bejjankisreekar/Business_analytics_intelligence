@@ -1,15 +1,18 @@
 {% extends "finance/_app_base.html" %}
 {% load humanize %}
-{% block title %}Purchase &amp; Expense Intelligence · {{ SITE_NAME }}{% endblock %}
+{% block title %}Cost Intelligence · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
+<style>
+  #period-select + .bai-select-trigger { min-width: 12rem; }
+</style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-white">Purchase &amp; Expense Intelligence</h1>
+    <h1 class="text-2xl font-bold text-white">Cost Intelligence</h1>
     <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · everything about where your money goes · <span class="text-slate-300">{{ period.label }}</span></p>
   </div>
   <form method="get" class="flex items-center gap-2">
-    <select name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
+    <select id="period-select" name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
       {% for value, label in period_choices %}
       <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
@@ -34,6 +37,22 @@
     <p class="mt-1.5 text-xl font-bold text-white">{{ organization.currency }} {{ total_outflow|floatformat:0|intcomma }}</p>
     <p class="mt-0.5 text-xs text-slate-500">Purchases + expenses</p>
   </div>
+</div>
+
+<!-- Cost trend with granularity toggle -->
+<div class="card mt-6 p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Cost trend</h3>
+      <p class="text-xs text-slate-500">Expenses and purchases · switch between daily, weekly and monthly views</p>
+    </div>
+    <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+      <button type="button" onclick="bai.setCostTrend('daily')" id="ctrend-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
+      <button type="button" onclick="bai.setCostTrend('weekly')" id="ctrend-btn-weekly" class="granularity-btn">Weekly</button>
+      <button type="button" onclick="bai.setCostTrend('monthly')" id="ctrend-btn-monthly" class="granularity-btn">Monthly</button>
+    </div>
+  </div>
+  <div class="mt-4 h-72 chart-box"><canvas id="chartCostTrend"></canvas></div>
 </div>
 
 <!-- Expense Analysis -->
@@ -77,24 +96,36 @@
 <div class="card mt-5 p-5">
   <h3 class="text-sm font-semibold text-white">This month's expenses — low to high</h3>
   <p class="text-xs text-slate-500">{{ expense_analysis.this_month_label }}, by category, smallest first</p>
-  {% if chart_expense_asc_labels != "[]" %}
+  {% if expense_asc|length > 1 %}
   <div class="mt-4 h-64"><canvas id="chartExpensesAscending"></canvas></div>
   {% else %}
   <p class="mt-8 py-6 text-center text-sm text-slate-500">No expenses logged this month yet.</p>
   {% endif %}
 </div>
 
+<!-- Where the money goes: every category, sub-category and named item, all shown -->
+<div class="card mt-6 p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Where the money goes</h3>
+      <p class="text-xs text-slate-500">{{ period.label }} · every category, with its sub-categories and the people or items under them</p>
+    </div>
+    <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+      <button type="button" id="cost-btn-expense" onclick="bai.setCostKind('expense')" class="granularity-btn granularity-btn--active">Expenses</button>
+      <button type="button" id="cost-btn-purchase" onclick="bai.setCostKind('purchase')" class="granularity-btn">Purchases</button>
+    </div>
+  </div>
+  <p id="cost-empty" class="hidden py-8 text-center text-sm text-slate-500"></p>
+  <div id="cost-top" class="mt-4">
+    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500" id="cost-top-title"></p>
+    <div id="cost-top-box" class="mt-2 chart-box"><canvas id="chartCost"></canvas></div>
+  </div>
+</div>
+
+<div id="cost-groups" class="mt-5 space-y-6"></div>
+
 <p class="mt-8 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Breakdowns</p>
 <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
-  <div class="card p-5">
-    <h3 class="text-sm font-semibold text-white">Cost by product category</h3>
-    <p class="text-xs text-slate-500">{{ period.label }} · purchases tagged with a product category</p>
-    {% if chart_product_category_labels != "[]" %}
-    <div class="mt-4 h-64"><canvas id="chartProductCategory"></canvas></div>
-    {% else %}
-    <p class="mt-8 py-6 text-center text-sm text-slate-500">No purchases tagged with a product category yet.</p>
-    {% endif %}
-  </div>
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">How outflow is paid</h3>
     <p class="text-xs text-slate-500">Cash vs bank, {{ period.label }}</p>
@@ -106,7 +137,7 @@
 <div class="card mt-5 p-5">
   <h3 class="text-sm font-semibold text-white">Top vendors by spend</h3>
   <p class="text-xs text-slate-500">{{ period.label }} · top 10</p>
-  {% if vendor_breakdown %}
+  {% if vendor_breakdown|length > 1 %}
   <div class="mt-4 h-64"><canvas id="chartVendors"></canvas></div>
   {% else %}
   <p class="mt-8 py-6 text-center text-sm text-slate-500">No purchases logged yet.</p>
@@ -132,7 +163,146 @@
   const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } };
   const donutColors = ["#5b7cfa","#34d9b8","#f87171","#fbbf24","#a78bfa","#38bdf8","#fb923c","#f472b6"];
 
-  {% if chart_expense_asc_labels != "[]" %}
+  // ---- Where the money goes: every level charted by default ---------------------
+  const costTrees = {{ cost_trees_json|safe }};
+  const costCharts = [];
+  const fmt = (n) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const sumOf = (nodes) => nodes.reduce((a, n) => a + Number(n.amount), 0);
+
+  function barChart(canvas, nodes) {
+    const total = sumOf(nodes);
+    const chart = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: nodes.map((n) => n.name),
+        datasets: [{
+          data: nodes.map((n) => Number(n.amount)),
+          backgroundColor: nodes.map((_, i) => donutColors[i % donutColors.length]),
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: "y", responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (c) => ` ${fmt(c.raw)} (${total ? ((c.raw / total) * 100).toFixed(1) : 0}%)` } },
+        },
+        scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } },
+      },
+    });
+    costCharts.push(chart);
+    return chart;
+  }
+  const chartHeight = (nodes) => Math.max(160, nodes.length * 32 + 60) + "px";
+
+  function makeCard(title, subtitle, nodes) {
+    const card = document.createElement("div");
+    card.className = "rounded-xl border border-white/5 bg-white/[0.02] p-4";
+    const h = document.createElement("h5");
+    h.className = "text-sm font-semibold text-white";
+    h.textContent = title;
+    const s = document.createElement("p");
+    s.className = "text-xs text-slate-500";
+    s.textContent = subtitle;
+    const box = document.createElement("div");
+    box.className = "mt-3 chart-box";
+    box.style.height = chartHeight(nodes);
+    const canvas = document.createElement("canvas");
+    box.appendChild(canvas);
+    card.append(h, s, box);
+    return { card, canvas };
+  }
+
+  function renderCost() {
+    costCharts.splice(0).forEach((c) => c.destroy());
+    const kind = costState.kind;
+    const roots = costTrees[kind];
+    const word = kind === "expense" ? "expenses" : "purchases";
+    const groups = document.getElementById("cost-groups");
+    groups.replaceChildren();
+    const empty = document.getElementById("cost-empty");
+    const top = document.getElementById("cost-top");
+
+    if (!roots.length) {
+      top.classList.add("hidden");
+      empty.classList.remove("hidden");
+      empty.textContent = `No ${word} logged in this period.`;
+      return;
+    }
+    empty.classList.add("hidden");
+    top.classList.remove("hidden");
+    document.getElementById("cost-top-title").textContent = `All ${word} by category · ${fmt(sumOf(roots))} total`;
+    document.getElementById("cost-top-box").style.height = chartHeight(roots);
+    barChart(document.getElementById("chartCost"), roots);
+
+    // One section per category that has anything beneath it: its sub-categories,
+    // then a chart for each sub-category that itself has named people/items.
+    roots.filter((r) => r.children.length).forEach((cat) => {
+      const section = document.createElement("section");
+      const head = document.createElement("div");
+      head.className = "flex items-baseline justify-between gap-3 border-b border-white/5 pb-2";
+      const name = document.createElement("h4");
+      name.className = "text-base font-semibold text-white";
+      name.textContent = cat.name;
+      const amt = document.createElement("span");
+      amt.className = "text-sm font-medium text-slate-400";
+      amt.textContent = fmt(cat.amount);
+      head.append(name, amt);
+
+      const grid = document.createElement("div");
+      grid.className = "mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2";
+      const first = makeCard("By sub-category", `${cat.name} · ${fmt(cat.amount)}`, cat.children);
+      grid.appendChild(first.card);
+      barChart(first.canvas, cat.children);
+      cat.children.filter((s) => s.children.length).forEach((sub) => {
+        const c = makeCard(sub.name, `${cat.name} › ${sub.name} · ${fmt(sub.amount)}`, sub.children);
+        grid.appendChild(c.card);
+        barChart(c.canvas, sub.children);
+      });
+      section.append(head, grid);
+      groups.appendChild(section);
+    });
+  }
+
+  const costState = { kind: "expense" };
+  bai.setCostKind = (kind) => {
+    costState.kind = kind;
+    document.getElementById("cost-btn-expense").classList.toggle("granularity-btn--active", kind === "expense");
+    document.getElementById("cost-btn-purchase").classList.toggle("granularity-btn--active", kind === "purchase");
+    renderCost();
+  };
+  renderCost();
+
+  // ---- Cost trend: daily / weekly / monthly, same shape as the revenue trend ----
+  const costTrend = {{ cost_trend_json|safe }};
+  const costTrendChart = new Chart(document.getElementById("chartCostTrend"), {
+    type: "bar",
+    data: {
+      labels: costTrend.daily.labels,
+      datasets: [
+        { label: "Expenses", data: costTrend.daily.expenses, backgroundColor: palette.red, borderRadius: 4 },
+        { label: "Purchases", data: costTrend.daily.purchases, backgroundColor: palette.brand, borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { color: "rgba(255,255,255,0.05)" } } },
+    },
+  });
+  bai.setCostTrend = (key) => {
+    const g = costTrend[key];
+    costTrendChart.data.labels = g.labels;
+    costTrendChart.data.datasets[0].data = g.expenses;
+    costTrendChart.data.datasets[1].data = g.purchases;
+    costTrendChart.update();
+    ["daily", "weekly", "monthly"].forEach((k) => {
+      document.getElementById("ctrend-btn-" + k).classList.toggle("granularity-btn--active", k === key);
+    });
+  };
+
+  {% if expense_asc|length > 1 %}
   new Chart(document.getElementById("chartExpensesAscending"), {
     type: "bar",
     data: { labels: {{ chart_expense_asc_labels|safe }}, datasets: [{ data: {{ chart_expense_asc_values|safe }}, backgroundColor: palette.red, borderRadius: 4 }] },
@@ -141,15 +311,8 @@
   });
   {% endif %}
 
-  {% if chart_product_category_labels != "[]" %}
-  new Chart(document.getElementById("chartProductCategory"), {
-    type: "doughnut",
-    data: { labels: {{ chart_product_category_labels|safe }}, datasets: [{ data: {{ chart_product_category_values|safe }}, backgroundColor: donutColors, borderWidth: 0 }] },
-    options: donutOpts,
-  });
-  {% endif %}
 
-  {% if vendor_breakdown %}
+  {% if vendor_breakdown|length > 1 %}
   new Chart(document.getElementById("chartVendors"), {
     type: "bar",
     data: { labels: {{ chart_vendor_labels|safe }}, datasets: [{ data: {{ chart_vendor_values|safe }}, backgroundColor: palette.brand, borderRadius: 4 }] },

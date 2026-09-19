@@ -1,7 +1,6 @@
 {% extends "finance/_app_base.html" %}
 {% load humanize %}
 {% block title %}{{ partner.name }} · Ledger · {{ SITE_NAME }}{% endblock %}
-
 {% block app_content %}
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
@@ -39,7 +38,8 @@
         <th class="pb-2 pr-4 font-medium">Particular</th>
         <th class="pb-2 pr-4 text-right font-medium">Invested</th>
         <th class="pb-2 pr-4 text-right font-medium">Withdrawn</th>
-        <th class="pb-2 text-right font-medium">Net Capital</th>
+        <th class="pb-2 pr-4 text-right font-medium">Net Capital</th>
+        <th class="pb-2 text-right font-medium"></th>
       </tr>
     </thead>
     <tbody class="divide-y divide-white/5">
@@ -49,12 +49,56 @@
         <td class="py-2.5 pr-4 text-slate-200">{{ e.particular }}</td>
         <td class="py-2.5 pr-4 text-right text-mint-400">{% if e.debit %}{{ organization.currency }} {{ e.debit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
         <td class="py-2.5 pr-4 text-right text-red-400">{% if e.credit %}{{ organization.currency }} {{ e.credit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
-        <td class="py-2.5 text-right font-medium {% if e.balance >= 0 %}text-slate-300{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ e.balance|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right font-medium {% if e.balance >= 0 %}text-slate-300{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ e.balance|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 text-right">
+          <div class="flex items-center justify-end gap-3">
+            <button type="button" onclick="bai.openModal('modal-edit-ptxn-{{ e.txn.pk }}')" class="text-xs font-medium text-brand-400 hover:text-brand-300">Edit</button>
+            <form method="post" action="{% url 'finance:delete_partner_transaction' e.txn.pk %}" onsubmit="return confirm('Delete this transaction?');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
+            </form>
+          </div>
+        </td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" class="py-8 text-center text-slate-500">No investments or withdrawals logged for this partner yet.</td></tr>
+      <tr><td colspan="6" class="py-8 text-center text-slate-500">No investments or withdrawals logged for this partner yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+{% for e in entries %}
+<div id="modal-edit-ptxn-{{ e.txn.pk }}" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-edit-ptxn-{{ e.txn.pk }}')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Edit transaction</h3>
+      <button type="button" onclick="bai.closeModal('modal-edit-ptxn-{{ e.txn.pk }}')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <form method="post" action="{% url 'finance:edit_partner_transaction' e.txn.pk %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div><label class="block text-xs font-medium text-slate-400">Partner</label>{{ e.edit_form.partner }}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ e.edit_form.date }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">Type</label>{{ e.edit_form.kind }}</div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ e.edit_form.amount }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">Via</label>{{ e.edit_form.payment_mode }}</div>
+      </div>
+      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ e.edit_form.note }}</div>
+      <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">Save changes</button>
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+</script>
 {% endblock %}

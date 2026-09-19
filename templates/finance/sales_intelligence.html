@@ -1,15 +1,18 @@
 {% extends "finance/_app_base.html" %}
 {% load humanize %}
-{% block title %}Sales Intelligence · {{ SITE_NAME }}{% endblock %}
+{% block title %}Revenue Intelligence · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
+<style>
+  #period-select + .bai-select-trigger { min-width: 12rem; }
+</style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-white">Sales Intelligence</h1>
+    <h1 class="text-2xl font-bold text-white">Revenue Intelligence</h1>
     <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · everything about where your revenue comes from · <span class="text-slate-300">{{ period.label }}</span></p>
   </div>
   <form method="get" class="flex items-center gap-2">
-    <select name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
+    <select id="period-select" name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
       {% for value, label in period_choices %}
       <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
@@ -20,7 +23,7 @@
 <!-- KPI row -->
 <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
   <div class="card p-5">
-    <p class="text-xs font-medium text-slate-500">Total Sales</p>
+    <p class="text-xs font-medium text-slate-500">Total Revenue</p>
     <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ kpis.sales|floatformat:0|intcomma }}</p>
     {% if kpis.sales_growth_pct is not None %}
     <p class="mt-0.5 text-xs {% if kpis.sales_growth_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">{{ kpis.sales_growth_pct|floatformat:1 }}% vs prior period</p>
@@ -29,12 +32,12 @@
   <div class="card p-5">
     <p class="text-xs font-medium text-slate-500">Net Profit</p>
     <p class="mt-1.5 text-xl font-bold {% if kpis.net_profit >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ kpis.net_profit|floatformat:0|intcomma }}</p>
-    <p class="mt-0.5 text-xs text-slate-500">Sales − purchases − expenses</p>
+    <p class="mt-0.5 text-xs text-slate-500">Revenue − purchases − expenses</p>
   </div>
   <div class="card p-5">
     <p class="text-xs font-medium text-slate-500">Margin</p>
     <p class="mt-1.5 text-xl font-bold text-white">{{ kpis.margin_pct|floatformat:1 }}%</p>
-    <p class="mt-0.5 text-xs text-slate-500">Net profit / sales</p>
+    <p class="mt-0.5 text-xs text-slate-500">Net profit / revenue</p>
   </div>
   <div class="card p-5">
     <p class="text-xs font-medium text-slate-500">Cash &amp; Bank</p>
@@ -49,7 +52,7 @@
   <div class="card p-5">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h3 class="text-sm font-semibold text-white">Sales vs previous period</h3>
+        <h3 class="text-sm font-semibold text-white">Revenue vs previous period</h3>
         <p class="text-xs text-slate-500" id="vsprev-subtitle-week">{{ vs_prev_week.prev_label }} vs {{ vs_prev_week.current_label }}</p>
         <p class="hidden text-xs text-slate-500" id="vsprev-subtitle-month">{{ vs_prev_month.prev_label }} vs {{ vs_prev_month.current_label }}</p>
       </div>
@@ -76,7 +79,7 @@
 <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Orders trend</h3>
-    <p class="text-xs text-slate-500">Sale transactions logged per month, last 6 months</p>
+    <p class="text-xs text-slate-500">Revenue transactions logged per month, last 6 months</p>
     <div class="mt-4 h-56"><canvas id="chartOrders"></canvas></div>
   </div>
   <div class="card p-5">
@@ -86,14 +89,14 @@
   </div>
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Gross margin % trend</h3>
-    <p class="text-xs text-slate-500">(Sales − purchases) / sales, last 6 months</p>
+    <p class="text-xs text-slate-500">(Revenue − purchases) / revenue, last 6 months</p>
     <div class="mt-4 h-56"><canvas id="chartMargin"></canvas></div>
   </div>
 </div>
 
-<!-- Sales Insights -->
+<!-- Revenue Insights -->
 <div class="card mt-5 p-5">
-  <h3 class="text-sm font-semibold text-white">Sales Insights</h3>
+  <h3 class="text-sm font-semibold text-white">Revenue Insights</h3>
   <p class="text-xs text-slate-500">{{ sales_insights.this_month_label }} vs {{ sales_insights.last_month_label }}, by channel</p>
 
   {% if sales_insights.notes %}
@@ -104,6 +107,10 @@
     </div>
     {% endfor %}
   </div>
+  {% endif %}
+
+  {% if sales_insights.rows|length > 1 %}
+  <div class="mt-5 h-72"><canvas id="chartInsights"></canvas></div>
   {% endif %}
 
   <div class="mt-4 overflow-x-auto">
@@ -127,7 +134,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="4" class="py-8 text-center text-slate-500">No sales logged in either month yet.</td></tr>
+        <tr><td colspan="4" class="py-8 text-center text-slate-500">No revenue logged in either month yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -137,20 +144,54 @@
 <p class="mt-8 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Breakdowns</p>
 <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
   <div class="card p-5">
-    <h3 class="text-sm font-semibold text-white">Sales by category</h3>
-    <p class="text-xs text-slate-500">{{ period.label }} · product category</p>
-    {% if chart_product_category_labels != "[]" %}
-    <div class="mt-4 h-64"><canvas id="chartProductCategory"></canvas></div>
-    {% else %}
-    <p class="mt-8 py-6 text-center text-sm text-slate-500">No sales tagged with a product category yet.</p>
-    {% endif %}
-  </div>
-  <div class="card p-5">
-    <h3 class="text-sm font-semibold text-white">How sales are received</h3>
+    <h3 class="text-sm font-semibold text-white">How revenue is received</h3>
     <p class="text-xs text-slate-500">Cash vs bank, {{ period.label }}</p>
     <div class="mt-4 h-64"><canvas id="chartPaymentMode"></canvas></div>
   </div>
 </div>
+
+{% if subcategory_groups %}
+<p class="mt-8 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Drill-down</p>
+<div class="card mt-5 p-5" id="drilldown-section">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Revenue by sub-category</h3>
+      <p class="text-xs text-slate-500">e.g. each doctor under a specialty · {{ period.label }} — pick a group below</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <form method="get" action="#drilldown-section">
+        <input type="hidden" name="period" value="{{ period.key }}">
+        <select name="doctor_group" onchange="this.form.submit()" class="!mt-0 !w-auto">
+          {% for g in subcategory_groups %}
+          <option value="{{ g.id }}" {% if selected_group_id == g.id|stringformat:"s" %}selected{% endif %}>{{ g.category.name }} → {{ g.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+        <button type="button" onclick="bai.setDrilldownGranularity('daily')" id="dd-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
+        <button type="button" onclick="bai.setDrilldownGranularity('weekly')" id="dd-btn-weekly" class="granularity-btn">Weekly</button>
+        <button type="button" onclick="bai.setDrilldownGranularity('monthly')" id="dd-btn-monthly" class="granularity-btn">Monthly</button>
+      </div>
+    </div>
+  </div>
+  <!-- Who earns most, ranked -->
+  <div class="mt-5 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+    <h4 class="text-sm font-semibold text-white">Ranked by revenue{% if selected_group %} · {{ selected_group.name }}{% endif %}</h4>
+    <p class="text-xs text-slate-500">{{ period.label }} · highest earner first</p>
+    {% if drilldown_totals %}
+    <div class="mt-3 chart-box" style="height: {{ drilldown_chart_height }}px;">
+      <canvas id="chartDrilldownRanked"></canvas>
+    </div>
+    {% else %}
+    <p class="mt-6 py-6 text-center text-sm text-slate-500">Nothing tagged under this group yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="mt-5 h-72"><canvas id="chartDrilldown"></canvas></div>
+</div>
+
+<div id="drilldownChildCharts" class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3"></div>
+{% endif %}
 
 {% endblock %}
 
@@ -176,14 +217,6 @@
       scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
   });
 
-  {% if chart_product_category_labels != "[]" %}
-  new Chart(document.getElementById("chartProductCategory"), {
-    type: "bar",
-    data: { labels: {{ chart_product_category_labels|safe }}, datasets: [{ data: {{ chart_product_category_values|safe }}, backgroundColor: donutColors, borderRadius: 4 }] },
-    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
-  });
-  {% endif %}
 
   new Chart(document.getElementById("chartOrders"), {
     type: "line",
@@ -206,11 +239,114 @@
       scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { callback: (v) => v + "%" } } } },
   });
 
+  {% if sales_insights.rows|length > 1 %}
+  new Chart(document.getElementById("chartInsights"), {
+    type: "bar",
+    data: { labels: {{ chart_insights_labels|safe }}, datasets: [
+      { label: "{{ sales_insights.last_month_label }}", data: {{ chart_insights_last_month|safe }}, backgroundColor: "rgba(154,164,189,0.35)", borderRadius: 4 },
+      { label: "{{ sales_insights.this_month_label }}", data: {{ chart_insights_this_month|safe }}, backgroundColor: palette.mint, borderRadius: 4 },
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+      scales: { x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 45, minRotation: 0 } }, y: { grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true } } },
+  });
+  {% endif %}
+
   new Chart(document.getElementById("chartPaymentMode"), {
     type: "pie",
     data: { labels: {{ chart_payment_labels|safe }}, datasets: [{ data: {{ chart_payment_values|safe }}, backgroundColor: [palette.mint, palette.brand], borderWidth: 0 }] },
     options: donutOpts,
   });
+
+  {% if subcategory_groups %}
+  const drilldownData = {
+    daily: {{ chart_drilldown_daily|safe }},
+    weekly: {{ chart_drilldown_weekly|safe }},
+    monthly: {{ chart_drilldown_monthly|safe }},
+  };
+
+  {% if drilldown_totals %}
+  // Ranked totals for the picked group — who earns most, at a glance.
+  (function () {
+    const labels = {{ chart_drilldown_total_labels|safe }};
+    const values = {{ chart_drilldown_total_values|safe }};
+    new Chart(document.getElementById("chartDrilldownRanked"), {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: labels.map((_, i) => donutColors[i % donutColors.length]),
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const total = values.reduce((a, b) => a + Number(b), 0);
+                const share = total ? ((Number(ctx.raw) / total) * 100).toFixed(1) : "0.0";
+                return ` ${Number(ctx.raw).toLocaleString()} (${share}% of group)`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 } },
+          y: { grid: { display: false } },
+        },
+      },
+    });
+  })();
+  {% endif %}
+  const drilldownChart = new Chart(document.getElementById("chartDrilldown"), {
+    type: "bar",
+    data: {
+      labels: drilldownData.daily.labels,
+      datasets: drilldownData.daily.series.map((s, i) => ({
+        label: s.name, data: s.data, backgroundColor: donutColors[i % donutColors.length], borderRadius: 4,
+      })),
+    },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+  });
+  const childChartsEl = document.getElementById("drilldownChildCharts");
+  const drilldownChildCharts = drilldownData.daily.series.map((s, i) => {
+    const card = document.createElement("div");
+    card.className = "card p-5";
+    card.innerHTML = `<h3 class="text-sm font-semibold text-white">${s.name}</h3>
+      <p class="text-xs text-slate-500">Revenue trend</p>
+      <div class="mt-4 h-56"><canvas></canvas></div>`;
+    childChartsEl.appendChild(card);
+    return new Chart(card.querySelector("canvas"), {
+      type: "bar",
+      data: { labels: drilldownData.daily.labels, datasets: [{ data: s.data, backgroundColor: donutColors[i % donutColors.length], borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+    });
+  });
+
+  window.bai = window.bai || {};
+  bai.setDrilldownGranularity = (key) => {
+    const g = drilldownData[key];
+    drilldownChart.data.labels = g.labels;
+    drilldownChart.data.datasets.forEach((ds, i) => { ds.data = g.series[i] ? g.series[i].data : []; });
+    drilldownChart.update();
+    drilldownChildCharts.forEach((chart, i) => {
+      chart.data.labels = g.labels;
+      chart.data.datasets[0].data = g.series[i] ? g.series[i].data : [];
+      chart.update();
+    });
+    ["daily", "weekly", "monthly"].forEach((k) => {
+      document.getElementById("dd-btn-" + k).classList.toggle("granularity-btn--active", k === key);
+    });
+  };
+  {% endif %}
 
   window.bai = window.bai || {};
   bai.setVsPrevView = (view) => {

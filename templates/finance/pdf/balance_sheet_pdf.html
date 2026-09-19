@@ -12,10 +12,13 @@
   <tr><td style="padding-left:14px;">Total Liabilities</td><td class="right">{{ organization.currency }} {{ balance_sheet.total_liabilities|floatformat:2|intcomma }}</td></tr>
   <tr><td style="padding-left:14px;">Opening Capital</td><td class="right">{{ organization.currency }} {{ balance_sheet.opening_balance|floatformat:2|intcomma }}</td></tr>
   <tr><td style="padding-left:14px;">Retained Earnings</td><td class="right {% if balance_sheet.retained_earnings >= 0 %}pos{% else %}neg{% endif %}">{{ organization.currency }} {{ balance_sheet.retained_earnings|floatformat:2|intcomma }}</td></tr>
+  {% if balance_sheet.partner_capital %}
+  <tr><td style="padding-left:14px;">Partner Capital</td><td class="right {% if balance_sheet.partner_capital >= 0 %}pos{% else %}neg{% endif %}">{{ organization.currency }} {{ balance_sheet.partner_capital|floatformat:2|intcomma }}</td></tr>
+  {% endif %}
   <tr class="divider thick"><td>Total Equity</td><td class="right">{{ organization.currency }} {{ balance_sheet.total_equity|floatformat:2|intcomma }}</td></tr>
 </table>
 <p class="muted" style="margin-top:14px;">
-  Simplified, cash-basis statement derived from daily sales, expenses and purchases — assumes opening
+  Simplified, cash-basis statement derived from daily revenue, expenses and purchases — assumes opening
   capital equals opening cash and tracks no separate inventory, receivables or payables.
 </p>
 {% endblock %}

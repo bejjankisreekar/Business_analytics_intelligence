@@ -40,13 +40,45 @@
 <style>
   body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
   .bg-grid {
-    background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
-                       linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
-    background-size: 44px 44px;
   }
   .glow {
     background: radial-gradient(600px circle at var(--x,50%) var(--y,0%), rgba(91,124,250,0.18), transparent 60%);
   }
+
+  /* Custom dropdown: every <select> in the app renders through this instead
+     of the browser's native (unstyleable) option popup. */
+  .bai-select-wrap { position: relative; display: block; width: 100%; }
+  .bai-select-native { position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: -1; }
+  .bai-select-trigger {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    margin-top: 0.3rem; border-radius: 0.6rem; box-sizing: border-box;
+    border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
+    padding: 0.5rem 0.75rem; font-size: 0.83rem; color: #fff; text-align: left;
+    font-family: inherit; cursor: pointer; white-space: nowrap;
+    transition: border-color .15s, background-color .15s, box-shadow .15s;
+  }
+  /* Block-level flex containers fill their parent's width by default — no
+     explicit width needed. That default matters specifically when a wrap is
+     shrink-to-fit (e.g. `!w-auto` in a flex row): forcing width:100% here
+     would fight that sizing and collapse the trigger to near-nothing. */
+  .bai-select-trigger:hover { border-color: rgba(255,255,255,0.24); background-color: rgba(255,255,255,0.06); }
+  .bai-select-trigger:focus-visible { outline: none; border-color: #5b7cfa; box-shadow: 0 0 0 3px rgba(91,124,250,0.15); }
+  .bai-select-trigger[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .bai-select-trigger-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bai-select-trigger-chevron { flex: none; width: 1rem; height: 1rem; color: #9aa4bd; transition: transform .15s; }
+  .bai-select-trigger[aria-expanded="true"] .bai-select-trigger-chevron { transform: rotate(180deg); }
+  .bai-select-panel {
+    position: absolute; z-index: 50; top: 100%; left: 0; right: 0; margin-top: 0.375rem;
+    max-height: 14rem; overflow-y: auto; border-radius: 0.75rem;
+    border: 1px solid rgba(255,255,255,0.1); background: #111627;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  }
+  .bai-select-option {
+    display: block; width: 100%; text-align: left; padding: 0.55rem 0.9rem;
+    font-size: 0.83rem; color: #e2e8f0; background: transparent; border: none; cursor: pointer;
+  }
+  .bai-select-option:hover, .bai-select-option--active { background: rgba(91,124,250,0.18); color: #fff; }
+  .bai-select-option[disabled] { opacity: 0.4; cursor: not-allowed; }
 </style>
 {% block extra_head %}{% endblock %}
 </head>
@@ -64,6 +96,129 @@
 </div>
 {% endif %}
 {% block body %}{% endblock %}
+<script>
+  (function () {
+    window.bai = window.bai || {};
+
+    function enhanceSelect(select) {
+      if (select.dataset.baiEnhanced || select.multiple || select.hasAttribute("data-custom-combobox") || select.hasAttribute("data-plain")) return;
+      select.dataset.baiEnhanced = "true";
+
+      const wrap = document.createElement("span");
+      wrap.className = ("bai-select-wrap " + select.className).trim();
+      if (select.getAttribute("style")) wrap.setAttribute("style", select.getAttribute("style"));
+      select.parentNode.insertBefore(wrap, select);
+      wrap.appendChild(select);
+      select.className = "bai-select-native";
+      select.removeAttribute("style");
+      select.tabIndex = -1;
+
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.className = "bai-select-trigger";
+      trigger.setAttribute("aria-haspopup", "listbox");
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.innerHTML =
+        '<span class="bai-select-trigger-label"></span>' +
+        '<svg class="bai-select-trigger-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+      wrap.appendChild(trigger);
+
+      const panel = document.createElement("div");
+      panel.className = "bai-select-panel hidden";
+      panel.setAttribute("role", "listbox");
+      wrap.appendChild(panel);
+
+      const labelEl = trigger.querySelector(".bai-select-trigger-label");
+
+      function syncLabel() {
+        const opt = select.options[select.selectedIndex];
+        labelEl.textContent = opt ? opt.text : "";
+        trigger.disabled = select.disabled;
+      }
+
+      function renderPanel() {
+        panel.innerHTML = "";
+        Array.from(select.options).forEach((o, i) => {
+          if (o.hidden) return;
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.setAttribute("role", "option");
+          btn.className = "bai-select-option" + (i === select.selectedIndex ? " bai-select-option--active" : "");
+          btn.textContent = o.text;
+          btn.disabled = o.disabled;
+          btn.addEventListener("click", () => {
+            select.value = o.value;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            closePanel();
+            trigger.focus();
+          });
+          panel.appendChild(btn);
+        });
+      }
+
+      function openPanel() {
+        if (select.disabled) return;
+        renderPanel();
+        panel.classList.remove("hidden");
+        trigger.setAttribute("aria-expanded", "true");
+        const active = panel.querySelector(".bai-select-option--active");
+        if (active) active.scrollIntoView({ block: "nearest" });
+      }
+
+      function closePanel() {
+        panel.classList.add("hidden");
+        trigger.setAttribute("aria-expanded", "false");
+      }
+
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (panel.classList.contains("hidden")) openPanel();
+        else closePanel();
+      });
+      trigger.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openPanel();
+        } else if (e.key === "Escape") {
+          closePanel();
+        }
+      });
+      document.addEventListener("click", (e) => {
+        if (!wrap.contains(e.target)) closePanel();
+      });
+
+      select.addEventListener("change", syncLabel);
+
+      // Some pages set select.value (or repopulate its options) straight from
+      // JS without dispatching "change" (e.g. category -> subcategory
+      // cascades) — intercept that so the trigger label never goes stale.
+      const nativeDescriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
+      Object.defineProperty(select, "value", {
+        get() { return nativeDescriptor.get.call(select); },
+        set(v) { nativeDescriptor.set.call(select, v); syncLabel(); },
+        configurable: true,
+      });
+      new MutationObserver(syncLabel).observe(select, { childList: true, subtree: true, attributes: true, attributeFilter: ["selected"] });
+
+      syncLabel();
+    }
+
+    bai.enhanceSelects = (root) => {
+      (root || document).querySelectorAll("select").forEach(enhanceSelect);
+    };
+
+    bai.enhanceSelects(document);
+    new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        m.addedNodes.forEach((node) => {
+          if (node.nodeType !== 1) return;
+          if (node.tagName === "SELECT") enhanceSelect(node);
+          else if (node.querySelectorAll) bai.enhanceSelects(node);
+        });
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  })();
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

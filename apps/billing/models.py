@@ -13,7 +13,7 @@ class Plan(models.Model):
 
     FEATURE_CHOICES = [
         ("business_dashboard", "Business Dashboard"),
-        ("sales_analytics", "Sales Analytics"),
+        ("sales_analytics", "Revenue Analytics"),
         ("expense_analytics", "Expense Analytics"),
         ("purchase_analytics", "Purchase Analytics"),
         ("profit_loss", "Profit & Loss"),

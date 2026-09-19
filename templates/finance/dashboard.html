@@ -5,7 +5,7 @@
 {% block app_content %}
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-white">Dashboard</h1>
+    <h1 class="text-2xl font-bold text-white">Welcome back, {{ request.user.get_full_name|default:request.user.username }}</h1>
     <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · showing <span class="text-slate-300">{{ period.label }}</span></p>
   </div>
   <div class="flex flex-wrap items-center gap-2">
@@ -16,7 +16,7 @@
 <!-- KPI cards -->
 <div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
   <div class="card p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Sales</p>
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Revenue</p>
     <p class="mt-1.5 text-xl font-bold text-white">{{ organization.currency }} {{ kpis.sales|floatformat:0|intcomma }}</p>
     {% if kpis.sales_growth_pct is not None %}
     <p class="mt-1 text-xs font-medium {% if kpis.sales_growth_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">
@@ -46,7 +46,7 @@
   <div class="card p-4">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Margin</p>
     <p class="mt-1.5 text-xl font-bold text-white">{{ kpis.margin_pct|floatformat:1 }}%</p>
-    <p class="mt-1 text-xs text-slate-500">Net profit / sales</p>
+    <p class="mt-1 text-xs text-slate-500">Net profit / revenue</p>
   </div>
   <div class="card p-4">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Cash &amp; bank</p>
@@ -61,14 +61,18 @@
 <!-- Headline charts -->
 <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
   <div class="card p-5 xl:col-span-2">
-    <h3 class="text-sm font-semibold text-white">Sales vs expenses vs purchases</h3>
+    <h3 class="text-sm font-semibold text-white">Revenue vs expenses vs purchases</h3>
     <p class="text-xs text-slate-500">Daily totals for {{ period.label }}</p>
     <div class="mt-4 h-72"><canvas id="chartDaily"></canvas></div>
   </div>
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Expense breakdown</h3>
     <p class="text-xs text-slate-500">By category</p>
+    {% if expense_breakdown|length > 1 %}
     <div class="mt-4 h-72"><canvas id="chartExpenseBreakdown"></canvas></div>
+    {% else %}
+    <p class="mt-8 py-6 text-center text-sm text-slate-500">Not enough categories yet to compare.</p>
+    {% endif %}
   </div>
 </div>
 
@@ -76,7 +80,6 @@
 <div class="card mt-5 p-5">
   <div class="flex items-center justify-between">
     <h3 class="text-sm font-semibold text-white">Recent entries</h3>
-    <a href="{% url 'finance:entries' %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">View all →</a>
   </div>
   <div class="mt-4 overflow-x-auto">
     <table class="w-full text-left text-sm">
@@ -95,7 +98,7 @@
           <td class="py-2.5 pr-4 text-slate-300">{{ e.date|date:"d M Y" }}</td>
           <td class="py-2.5 pr-4">
             <span class="rounded-full px-2 py-0.5 text-[11px] font-medium
-              {% if e.type == 'Sale' %}bg-mint-500/10 text-mint-400
+              {% if e.type == 'Revenue' %}bg-mint-500/10 text-mint-400
               {% elif e.type == 'Expense' %}bg-red-500/10 text-red-400
               {% else %}bg-brand-500/10 text-brand-400{% endif %}">{{ e.type }}</span>
           </td>
@@ -104,7 +107,7 @@
           <td class="py-2.5 text-right font-medium text-white">{{ e.amount|floatformat:0|intcomma }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="py-6 text-center text-slate-500">No entries yet — head to Daily Entries to log your first sale, expense or purchase.</td></tr>
+        <tr><td colspan="5" class="py-6 text-center text-slate-500">No entries yet — head to Daily Report → Bulk Entry to log your first revenue entry, expense or purchase.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -128,7 +131,7 @@
     data: {
       labels: {{ chart_daily_labels|safe }},
       datasets: [
-        { label: "Sales", data: {{ chart_daily_sales|safe }}, borderColor: palette.mint, backgroundColor: palette.mintFill, tension: .35, fill: true, pointRadius: 0 },
+        { label: "Revenue", data: {{ chart_daily_sales|safe }}, borderColor: palette.mint, backgroundColor: palette.mintFill, tension: .35, fill: true, pointRadius: 0 },
         { label: "Expenses", data: {{ chart_daily_expenses|safe }}, borderColor: palette.red, backgroundColor: palette.redFill, tension: .35, fill: true, pointRadius: 0 },
         { label: "Purchases", data: {{ chart_daily_purchases|safe }}, borderColor: palette.brand, backgroundColor: palette.brandFill, tension: .35, fill: true, pointRadius: 0 },
       ],
@@ -138,6 +141,7 @@
       scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
   });
 
+  {% if expense_breakdown|length > 1 %}
   new Chart(document.getElementById("chartExpenseBreakdown"), {
     type: "doughnut",
     data: {
@@ -146,6 +150,7 @@
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } },
   });
+  {% endif %}
 
   window.bai = window.bai || {};
   bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");

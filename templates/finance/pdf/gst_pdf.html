@@ -1,0 +1,33 @@
+{% extends "finance/pdf/_base_pdf.html" %}
+{% load humanize %}
+{% block subtitle %}GST Summary · {{ gst.period.start|date:"d M Y" }} – {{ gst.period.end|date:"d M Y" }}{% if organization.tax_id %} · GSTIN {{ organization.tax_id }}{% endif %}{% endblock %}
+{% block statement %}
+<table>
+  <tr><td class="section-label" colspan="3">Output tax (on revenue)</td></tr>
+  <tr><td>Rate</td><td class="right">Taxable value</td><td class="right">Tax</td></tr>
+  {% for row in gst.sales_rows %}
+  <tr><td>{{ row.rate|floatformat:-2 }}%</td><td class="right">{{ organization.currency }} {{ row.taxable_value|floatformat:2|intcomma }}</td><td class="right">{{ organization.currency }} {{ row.tax|floatformat:2|intcomma }}</td></tr>
+  {% empty %}
+  <tr><td colspan="3" class="muted">No GST-rated revenue categories in this period.</td></tr>
+  {% endfor %}
+  <tr><td class="muted">Untaxed / uncategorized revenue</td><td class="right muted">{{ organization.currency }} {{ gst.untaxed_sales|floatformat:2|intcomma }}</td><td></td></tr>
+  <tr class="divider thick"><td>Total Output Tax</td><td></td><td class="right">{{ organization.currency }} {{ gst.output_tax|floatformat:2|intcomma }}</td></tr>
+
+  <tr><td class="section-label" colspan="3">Input tax credit (on purchases)</td></tr>
+  <tr><td>Rate</td><td class="right">Taxable value</td><td class="right">Tax</td></tr>
+  {% for row in gst.purchase_rows %}
+  <tr><td>{{ row.rate|floatformat:-2 }}%</td><td class="right">{{ organization.currency }} {{ row.taxable_value|floatformat:2|intcomma }}</td><td class="right">{{ organization.currency }} {{ row.tax|floatformat:2|intcomma }}</td></tr>
+  {% empty %}
+  <tr><td colspan="3" class="muted">No GST-rated purchase categories in this period.</td></tr>
+  {% endfor %}
+  <tr><td class="muted">Untaxed / uncategorized purchases</td><td class="right muted">{{ organization.currency }} {{ gst.untaxed_purchases|floatformat:2|intcomma }}</td><td></td></tr>
+  <tr class="divider thick"><td>Total Input Tax Credit</td><td></td><td class="right">{{ organization.currency }} {{ gst.input_tax|floatformat:2|intcomma }}</td></tr>
+
+  <tr class="thick"><td>Net GST Payable</td><td></td><td class="right {% if gst.net_gst_payable >= 0 %}neg{% else %}pos{% endif %}">{{ organization.currency }} {{ gst.net_gst_payable|floatformat:2|intcomma }}</td></tr>
+</table>
+<p class="muted" style="margin-top:14px;">
+  Output tax and input tax credit are computed from the GST rate assigned to each revenue channel / purchase
+  category under Settings → Categories. Entries with no category, or one with a 0% rate, are shown separately
+  as untaxed and excluded from the tax totals. Verify against your books before filing.
+</p>
+{% endblock %}

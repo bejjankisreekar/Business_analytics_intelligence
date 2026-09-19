@@ -5,7 +5,7 @@
 <table>
   <tr><td>Opening cash balance</td><td class="right">{{ organization.currency }} {{ cash_flow.opening_cash|floatformat:2|intcomma }}</td></tr>
   <tr><td class="section-label" colspan="2">Operating activities</td></tr>
-  <tr><td style="padding-left:14px;">Cash received from sales</td><td class="right pos">+{{ organization.currency }} {{ cash_flow.cash_in_from_sales|floatformat:2|intcomma }}</td></tr>
+  <tr><td style="padding-left:14px;">Cash received from revenue</td><td class="right pos">+{{ organization.currency }} {{ cash_flow.cash_in_from_sales|floatformat:2|intcomma }}</td></tr>
   <tr><td style="padding-left:14px;">Cash paid for purchases</td><td class="right neg">-{{ organization.currency }} {{ cash_flow.cash_out_purchases|floatformat:2|intcomma }}</td></tr>
   <tr><td style="padding-left:14px;">Cash paid for expenses</td><td class="right neg">-{{ organization.currency }} {{ cash_flow.cash_out_expenses|floatformat:2|intcomma }}</td></tr>
   <tr class="divider"><td>Net change in cash</td><td class="right {% if cash_flow.net_change_in_cash >= 0 %}pos{% else %}neg{% endif %}">{{ organization.currency }} {{ cash_flow.net_change_in_cash|floatformat:2|intcomma }}</td></tr>

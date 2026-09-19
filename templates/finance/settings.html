@@ -19,7 +19,7 @@
     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400">
       <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
     </div>
-    <h3 class="mt-3 text-sm font-semibold text-white">Sales Categories</h3>
+    <h3 class="mt-3 text-sm font-semibold text-white">Revenue Categories</h3>
     <p class="mt-1.5 text-xs text-slate-500">{{ sales_categories|length }} channel{{ sales_categories|length|pluralize }}</p>
   </a>
 
@@ -45,7 +45,7 @@
     </div>
     <h3 class="mt-3 text-sm font-semibold text-white">Product Categories</h3>
     <p class="mt-1.5 text-xs text-slate-500">{{ product_categories|length }} categor{{ product_categories|length|pluralize:"y,ies" }}</p>
-    <p class="mt-0.5 text-xs text-slate-600">Links sales &amp; purchases to compute profit by category</p>
+    <p class="mt-0.5 text-xs text-slate-600">Links revenue &amp; purchases to compute profit by category</p>
   </a>
 
   <button type="button" onclick="bai.openModal('modal-customers')" class="card card-link p-5 text-left">

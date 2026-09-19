@@ -40,7 +40,8 @@
         <th class="pb-2 pr-4 font-medium">Particular</th>
         <th class="pb-2 pr-4 text-right font-medium">Debit</th>
         <th class="pb-2 pr-4 text-right font-medium">Credit</th>
-        <th class="pb-2 text-right font-medium">Balance</th>
+        <th class="pb-2 pr-4 text-right font-medium">Balance</th>
+        <th class="pb-2 text-right font-medium"></th>
       </tr>
     </thead>
     <tbody class="divide-y divide-white/5">
@@ -50,12 +51,61 @@
         <td class="py-2.5 pr-4 text-slate-200">{{ e.particular }}</td>
         <td class="py-2.5 pr-4 text-right text-slate-300">{% if e.debit %}{{ organization.currency }} {{ e.debit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
         <td class="py-2.5 pr-4 text-right text-mint-400">{% if e.credit %}{{ organization.currency }} {{ e.credit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
-        <td class="py-2.5 text-right font-medium {% if e.balance > 0 %}text-amber-400{% else %}text-slate-300{% endif %}">{{ organization.currency }} {{ e.balance|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right font-medium {% if e.balance > 0 %}text-amber-400{% else %}text-slate-300{% endif %}">{{ organization.currency }} {{ e.balance|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 text-right">
+          {% if e.source.role == "invoice" %}
+          <div class="flex items-center justify-end gap-3">
+            <button type="button" onclick="bai.openModal('modal-edit-inv-{{ e.source.pk }}')" class="text-xs font-medium text-brand-400 hover:text-brand-300">Edit</button>
+            {% if e.source.paid %}
+            <span class="cursor-help text-xs text-slate-600" title="Payments are recorded against this, so it can't be deleted.">Delete</span>
+            {% else %}
+            <form method="post" action="{% url 'finance:delete_receivable' e.source.pk %}" onsubmit="return confirm('Delete this invoice?');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
+            </form>
+            {% endif %}
+          </div>
+          {% else %}
+          <span class="text-xs text-slate-600" title="A payment is recorded from Cash Position and settles the invoice above, so it isn't edited here.">Payment</span>
+          {% endif %}
+        </td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" class="py-8 text-center text-slate-500">No invoices or payments logged for this customer yet.</td></tr>
+      <tr><td colspan="6" class="py-8 text-center text-slate-500">No invoices or payments logged for this customer yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+{% for e in entries %}{% if e.source.role == "invoice" %}
+<div id="modal-edit-inv-{{ e.source.pk }}" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-edit-inv-{{ e.source.pk }}')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Edit invoice</h3>
+      <button type="button" onclick="bai.closeModal('modal-edit-inv-{{ e.source.pk }}')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <form method="post" action="{% url 'finance:edit_receivable' e.source.pk %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div><label class="block text-xs font-medium text-slate-400">Customer</label>{{ e.edit_form.customer }}{% if e.edit_form.customer.help_text %}<p class="mt-1 text-[11px] text-slate-500">{{ e.edit_form.customer.help_text }}</p>{% endif %}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-slate-400">Invoice date</label>{{ e.edit_form.invoice_date }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">Due date</label>{{ e.edit_form.due_date }}</div>
+      </div>
+      <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ e.edit_form.amount }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ e.edit_form.note }}</div>
+      <button type="submit" class="btn-primary w-full">Save changes</button>
+    </form>
+  </div>
+</div>
+{% endif %}{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+</script>
 {% endblock %}

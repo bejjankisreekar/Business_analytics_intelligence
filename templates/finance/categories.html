@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold text-white">Categories</h1>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · organize how sales, expenses and purchases are grouped</p>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · organize how revenue, expenses and purchases are grouped</p>
   </div>
   <button onclick="bai.openModal('modal-category')" class="btn-primary">+ Add Category</button>
 </div>
@@ -17,14 +17,17 @@
   {% endfor %}
 </div>
 {% if kind == "PRODUCT" %}
-<p class="mt-3 text-xs text-slate-500">Tag both a sale and a purchase with the same product category to see profit by category on Analytics/Sales Intelligence.</p>
+<p class="mt-3 text-xs text-slate-500">Tag both a revenue entry and a purchase with the same product category to see profit by category on Analytics/Revenue Intelligence.</p>
 {% endif %}
 
 <div class="mt-5 space-y-3">
   {% for c in categories %}
   <div class="card p-5">
     <div class="flex items-center justify-between">
-      <span class="text-sm font-medium {% if not c.is_active %}text-slate-600 line-through{% else %}text-slate-200{% endif %}">{{ c.name }}</span>
+      <span class="flex items-center gap-2">
+        <span class="text-sm font-medium {% if not c.is_active %}text-slate-600 line-through{% else %}text-slate-200{% endif %}">{{ c.name }}</span>
+        {% if c.gst_rate %}<span class="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-400">{{ c.gst_rate|floatformat:-2 }}% GST</span>{% endif %}
+      </span>
       <div class="flex items-center gap-3">
         <a href="{% url 'finance:edit_category' c.pk %}?next={{ request.get_full_path|urlencode }}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Edit</a>
         <form method="post" action="{% url 'finance:toggle_category' c.pk %}">
@@ -41,20 +44,52 @@
     </div>
 
     {% if c.subcategories.all %}
-    <div class="mt-3 flex flex-wrap gap-1.5">
+    <div class="mt-3 space-y-2.5">
       {% for s in c.subcategories.all %}
-      <span class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] {% if s.is_active %}border-white/10 text-slate-300{% else %}border-white/5 text-slate-600 line-through{% endif %}">
-        <form method="post" action="{% url 'finance:toggle_subcategory' s.pk %}" class="inline">
+      <div class="rounded-lg border border-white/5 bg-white/[0.015] p-2.5">
+        <span class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] {% if s.is_active %}border-white/10 text-slate-300{% else %}border-white/5 text-slate-600 line-through{% endif %}">
+          <form method="post" action="{% url 'finance:toggle_subcategory' s.pk %}" class="inline">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" title="{% if s.is_active %}Deactivate{% else %}Activate{% endif %}">{{ s.name }}</button>
+          </form>
+          <a href="{% url 'finance:edit_subcategory' s.pk %}?next={{ request.get_full_path|urlencode }}" class="text-slate-500 hover:text-brand-300" title="Rename">✎</a>
+          <form method="post" action="{% url 'finance:delete_subcategory' s.pk %}" class="inline" onsubmit="return confirm('Delete this sub-category?');">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="text-slate-500 hover:text-red-300">✕</button>
+          </form>
+        </span>
+
+        {% if s.children.all %}
+        <div class="mt-2 ml-4 flex flex-wrap gap-1.5">
+          {% for child in s.children.all %}
+          <span class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] {% if child.is_active %}border-white/10 bg-white/[0.02] text-slate-400{% else %}border-white/5 text-slate-600 line-through{% endif %}">
+            <form method="post" action="{% url 'finance:toggle_subcategory' child.pk %}" class="inline">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" title="{% if child.is_active %}Deactivate{% else %}Activate{% endif %}">{{ child.name }}</button>
+            </form>
+            <a href="{% url 'finance:edit_subcategory' child.pk %}?next={{ request.get_full_path|urlencode }}" class="text-slate-500 hover:text-brand-300" title="Rename">✎</a>
+            <form method="post" action="{% url 'finance:delete_subcategory' child.pk %}" class="inline" onsubmit="return confirm('Delete this?');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="text-slate-500 hover:text-red-300">✕</button>
+            </form>
+          </span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'finance:add_subcategory' %}" class="mt-2 ml-4 flex items-center gap-2">
           {% csrf_token %}
+          <input type="hidden" name="category" value="{{ c.pk }}">
+          <input type="hidden" name="parent" value="{{ s.pk }}">
           <input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <button type="submit" title="{% if s.is_active %}Deactivate{% else %}Activate{% endif %}">{{ s.name }}</button>
+          <input type="text" name="name" placeholder="+ Add under {{ s.name }} (e.g. a doctor)" class="!mt-0 flex-1 !py-1 !text-[11px]">
+          <button type="submit" class="rounded-lg border border-white/10 px-2 py-1 text-[10px] font-medium text-slate-300 hover:bg-white/5">Add</button>
         </form>
-        <form method="post" action="{% url 'finance:delete_subcategory' s.pk %}" class="inline" onsubmit="return confirm('Delete this sub-category?');">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <button type="submit" class="text-slate-500 hover:text-red-300">✕</button>
-        </form>
-      </span>
+      </div>
       {% endfor %}
     </div>
     {% endif %}
@@ -87,6 +122,19 @@
         <label class="block text-xs font-medium text-slate-400">New category</label>
         <input type="text" name="name" placeholder="{{ name_placeholder }}" required>
       </div>
+      {% if kind == "SALES" or kind == "PURCHASE" %}
+      <div>
+        <label class="block text-xs font-medium text-slate-400">GST rate</label>
+        <select name="gst_rate">
+          <option value="0">0% (none)</option>
+          <option value="5">5%</option>
+          <option value="12">12%</option>
+          <option value="18">18%</option>
+          <option value="28">28%</option>
+        </select>
+        <p class="mt-1 text-xs text-slate-500">Used by the GST Summary report — leave at 0% if this category isn't taxed.</p>
+      </div>
+      {% endif %}
       <button type="submit" class="btn-primary w-full">Add category</button>
     </form>
   </div>

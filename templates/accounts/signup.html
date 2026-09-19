@@ -62,12 +62,20 @@
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label for="{{ form.business_type.id_for_label }}" class="block text-xs font-medium text-slate-200">Business type</label>
-                {{ form.business_type }}
+                <label for="business-type-search" class="block text-xs font-medium text-slate-200">Business type</label>
+                <div class="relative" id="business-type-combobox">
+                  {{ form.business_type }}
+                  <input type="text" id="business-type-search" autocomplete="off" placeholder="Search business type…">
+                  <div id="business-type-options" class="combobox-options hidden"></div>
+                </div>
               </div>
               <div>
-                <label for="{{ form.size.id_for_label }}" class="block text-xs font-medium text-slate-200">Team size</label>
-                {{ form.size }}
+                <label for="size-search" class="block text-xs font-medium text-slate-200">Team size</label>
+                <div class="relative" id="size-combobox">
+                  {{ form.size }}
+                  <input type="text" id="size-search" autocomplete="off" placeholder="Search team size…">
+                  <div id="size-options" class="combobox-options hidden"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -123,6 +131,84 @@
     </div>
   </div>
 </div>
+
+<script>
+  function initCombobox(selectId, wrapId, searchId, optionsId) {
+    const select = document.getElementById(selectId);
+    const wrap = document.getElementById(wrapId);
+    const searchInput = document.getElementById(searchId);
+    const optionsList = document.getElementById(optionsId);
+    if (!select || !wrap) return;
+
+    const options = Array.from(select.options).map((o) => ({ value: o.value, label: o.text }));
+
+    function currentLabel() {
+      const opt = options.find((o) => o.value === select.value);
+      return opt ? opt.label : "";
+    }
+
+    function renderOptions(filter) {
+      const q = (filter || "").trim().toLowerCase();
+      const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+      optionsList.innerHTML = filtered.length
+        ? filtered.map((o) =>
+            `<button type="button" data-value="${o.value}" class="combobox-option${o.value === select.value ? " combobox-option--active" : ""}">${o.label}</button>`
+          ).join("")
+        : '<p class="combobox-empty">No matches</p>';
+    }
+
+    function openList() {
+      renderOptions(searchInput.value === currentLabel() ? "" : searchInput.value);
+      optionsList.classList.remove("hidden");
+    }
+
+    function closeList() {
+      optionsList.classList.add("hidden");
+    }
+
+    searchInput.value = currentLabel();
+
+    searchInput.addEventListener("focus", () => {
+      searchInput.select();
+      openList();
+    });
+    searchInput.addEventListener("input", () => {
+      renderOptions(searchInput.value);
+      optionsList.classList.remove("hidden");
+    });
+    optionsList.addEventListener("mousedown", (e) => {
+      const btn = e.target.closest("[data-value]");
+      if (!btn) return;
+      e.preventDefault();
+      select.value = btn.dataset.value;
+      searchInput.value = btn.textContent;
+      closeList();
+    });
+    document.addEventListener("click", (e) => {
+      if (!wrap.contains(e.target)) {
+        closeList();
+        searchInput.value = currentLabel();
+      }
+    });
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeList();
+        searchInput.blur();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const first = optionsList.querySelector("[data-value]");
+        if (first) {
+          select.value = first.dataset.value;
+          searchInput.value = first.textContent;
+          closeList();
+        }
+      }
+    });
+  }
+
+  initCombobox("{{ form.business_type.id_for_label }}", "business-type-combobox", "business-type-search", "business-type-options");
+  initCombobox("{{ form.size.id_for_label }}", "size-combobox", "size-search", "size-options");
+</script>
 {% endblock %}
 
 {% block extra_head %}
@@ -163,5 +249,17 @@
   select:hover { border-color: rgba(255,255,255,0.24); background-color: rgba(255,255,255,0.06); }
   select:focus { border-color: #5b7cfa; box-shadow: 5 5 5 12px rgba(91,124,250,0.15); }
   select option { background: #111627; color: #fff; padding: 1.5rem; }
+  .combobox-options {
+    position: absolute; z-index: 40; top: 100%; left: 0; right: 0; margin-top: 0.375rem;
+    max-height: 14rem; overflow-y: auto; border-radius: 0.75rem;
+    border: 1px solid rgba(255,255,255,0.1); background: #111627;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  }
+  .combobox-option {
+    display: block; width: 100%; text-align: left; padding: 0.55rem 0.9rem;
+    font-size: 0.83rem; color: #e2e8f0; background: transparent; border: none; cursor: pointer;
+  }
+  .combobox-option:hover, .combobox-option--active { background: rgba(91,124,250,0.18); color: #fff; }
+  .combobox-empty { padding: 0.6rem 0.9rem; font-size: 0.8rem; color: #64748b; }
 </style>
 {% endblock %}

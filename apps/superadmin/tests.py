@@ -46,7 +46,7 @@ def _make_client(env=ENV):
     org, owner = create_organization_with_tenant_schema_and_admin(
         org_data={
             "name": "Test Org",
-            "business_type": Organization.BusinessType.RETAIL,
+            "business_type": Organization.BusinessType.RETAIL_ECOMMERCE,
             "contact_person": "Alice Owner",
             "contact_email": "alice@testorg.example",
         },

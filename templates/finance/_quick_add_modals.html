@@ -1,82 +1,4 @@
 {% load static %}
-<div id="modal-sale" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-sale')">
-  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
-    <div class="flex items-center justify-between">
-      <h3 class="text-base font-semibold text-white">Add a sale</h3>
-      <button onclick="bai.closeModal('modal-sale')" class="text-slate-500 hover:text-white">✕</button>
-    </div>
-    <form method="post" action="{% url 'finance:add_sale' %}" class="mt-4 space-y-3">
-      {% csrf_token %}
-      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-      <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ sale_form.date }}</div>
-      <div><label class="block text-xs font-medium text-slate-400">Channel</label>{{ sale_form.channel }}</div>
-      <div><label class="block text-xs font-medium text-slate-400">{{ sale_form.subcategory.label }}</label>{{ sale_form.subcategory }}</div>
-      <div class="grid grid-cols-2 gap-3">
-        <div><label class="block text-xs font-medium text-slate-400">{{ sale_form.product_category.label }}</label>{{ sale_form.product_category }}</div>
-        <div><label class="block text-xs font-medium text-slate-400">Customer</label>{{ sale_form.customer }}</div>
-      </div>
-      <div class="grid grid-cols-3 gap-3">
-        <div><label class="block text-xs font-medium text-slate-400">{{ sale_form.quantity.label }}</label>{{ sale_form.quantity }}</div>
-        <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ sale_form.amount }}</div>
-        <div><label class="block text-xs font-medium text-slate-400">Received via</label>{{ sale_form.payment_mode }}</div>
-      </div>
-      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ sale_form.note }}</div>
-      <button type="submit" class="btn-primary w-full">Save sale</button>
-    </form>
-  </div>
-</div>
-
-<div id="modal-expense" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-expense')">
-  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
-    <div class="flex items-center justify-between">
-      <h3 class="text-base font-semibold text-white">Add an expense</h3>
-      <button onclick="bai.closeModal('modal-expense')" class="text-slate-500 hover:text-white">✕</button>
-    </div>
-    <form method="post" action="{% url 'finance:add_expense' %}" class="mt-4 space-y-3">
-      {% csrf_token %}
-      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-      <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ expense_form.date }}</div>
-      <div><label class="block text-xs font-medium text-slate-400">Category</label>{{ expense_form.category }}</div>
-      <div><label class="block text-xs font-medium text-slate-400">{{ expense_form.subcategory.label }}</label>{{ expense_form.subcategory }}</div>
-      <div class="grid grid-cols-2 gap-3">
-        <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ expense_form.amount }}</div>
-        <div><label class="block text-xs font-medium text-slate-400">Paid via</label>{{ expense_form.payment_mode }}</div>
-      </div>
-      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ expense_form.note }}</div>
-      <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#f87171,#ef4444)">Save expense</button>
-    </form>
-  </div>
-</div>
-
-<div id="modal-purchase" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-purchase')">
-  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
-    <div class="flex items-center justify-between">
-      <h3 class="text-base font-semibold text-white">Add a purchase</h3>
-      <button onclick="bai.closeModal('modal-purchase')" class="text-slate-500 hover:text-white">✕</button>
-    </div>
-    <form method="post" action="{% url 'finance:add_purchase' %}" class="mt-4 space-y-3">
-      {% csrf_token %}
-      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-      <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ purchase_form.date }}</div>
-      <div><label class="block text-xs font-medium text-slate-400">Category</label>{{ purchase_form.category }}</div>
-      <div><label class="block text-xs font-medium text-slate-400">{{ purchase_form.subcategory.label }}</label>{{ purchase_form.subcategory }}</div>
-      <div><label class="block text-xs font-medium text-slate-400">{{ purchase_form.product_category.label }}</label>{{ purchase_form.product_category }}</div>
-      <div><label class="block text-xs font-medium text-slate-400">Vendor</label>{{ purchase_form.vendor }}</div>
-      <div class="grid grid-cols-3 gap-3">
-        <div><label class="block text-xs font-medium text-slate-400">{{ purchase_form.quantity.label }}</label>{{ purchase_form.quantity }}</div>
-        <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ purchase_form.amount }}</div>
-        <div><label class="block text-xs font-medium text-slate-400">Paid via</label>{{ purchase_form.payment_mode }}</div>
-      </div>
-      <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ purchase_form.note }}</div>
-      <label class="flex items-start gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-xs text-slate-300">
-        {{ purchase_form.on_credit }}
-        <span>{{ purchase_form.on_credit.label }}<br><span class="text-slate-500">{{ purchase_form.on_credit.help_text }}</span></span>
-      </label>
-      <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">Save purchase</button>
-    </form>
-  </div>
-</div>
-
 <div id="modal-transfer" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-transfer')">
   <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
     <div class="flex items-center justify-between">
@@ -97,29 +19,7 @@
 </div>
 
 <style>
-  #modal-sale.hidden, #modal-expense.hidden, #modal-purchase.hidden, #modal-transfer.hidden { display: none; }
-  #modal-sale:not(.hidden), #modal-expense:not(.hidden), #modal-purchase:not(.hidden), #modal-transfer:not(.hidden) { display: flex; }
+  #modal-transfer.hidden { display: none; }
+  #modal-transfer:not(.hidden) { display: flex; }
 </style>
 
-<script>
-  window.bai = window.bai || {};
-  bai.SUBCATEGORY_MAP = {{ subcategory_map_json|default:"{}"|safe }};
-
-  bai.wireSubcategory = function (mainId, subId) {
-    const mainEl = document.getElementById(mainId);
-    const subEl = document.getElementById(subId);
-    if (!mainEl || !subEl) return;
-    const refresh = (preserve) => {
-      const options = bai.SUBCATEGORY_MAP[mainEl.value] || [];
-      subEl.innerHTML = '<option value="">---------</option>' +
-        options.map((o) => `<option value="${o.id}">${o.name}</option>`).join("");
-      if (preserve && options.some((o) => o.id === preserve)) subEl.value = preserve;
-    };
-    refresh(subEl.value);
-    mainEl.addEventListener("change", () => refresh(null));
-  };
-
-  bai.wireSubcategory("id_sale_channel", "id_sale_subcategory");
-  bai.wireSubcategory("id_expense_category", "id_expense_subcategory");
-  bai.wireSubcategory("id_purchase_category", "id_purchase_subcategory");
-</script>

@@ -11,22 +11,23 @@
     <td style="width:50%; vertical-align:top; padding-right:10px;">
       <table>
         <tr><th style="text-align:left; border-bottom:1px solid #ccc;">Money In</th><th class="right" style="border-bottom:1px solid #ccc;">Amount</th></tr>
-        {% for e in report.sales %}
-        <tr><td>{{ e.channel.name|default:"Sale" }}{% if e.note %} — {{ e.note }}{% endif %}</td><td class="right">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td></tr>
-        {% empty %}
-        <tr><td colspan="2" class="muted">No sales logged.</td></tr>
+        {% for group in report.sales_by_category %}
+        {% include "finance/pdf/_pdf_group_rows.html" with group=group %}
         {% endfor %}
+        {% if not report.sales %}
+        <tr><td colspan="2" class="muted">No revenue logged.</td></tr>
+        {% endif %}
         <tr class="thick"><td>Total income</td><td class="right pos">{{ organization.currency }} {{ report.total_sales|floatformat:2|intcomma }}</td></tr>
       </table>
     </td>
     <td style="width:50%; vertical-align:top; padding-left:10px;">
       <table>
         <tr><th style="text-align:left; border-bottom:1px solid #ccc;">Money Out</th><th class="right" style="border-bottom:1px solid #ccc;">Amount</th></tr>
-        {% for e in report.expenses %}
-        <tr><td>[Expense] {{ e.category.name|default:"—" }}{% if e.note %} — {{ e.note }}{% endif %}</td><td class="right">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td></tr>
+        {% for group in report.expenses_by_category %}
+        {% include "finance/pdf/_pdf_group_rows.html" with group=group tag="[Expense] " %}
         {% endfor %}
-        {% for e in report.purchases %}
-        <tr><td>[Purchase] {{ e.category.name|default:"—" }}{% if e.vendor %} ({{ e.vendor }}){% endif %}</td><td class="right">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td></tr>
+        {% for group in report.purchases_by_category %}
+        {% include "finance/pdf/_pdf_group_rows.html" with group=group tag="[Purchase] " %}
         {% endfor %}
         {% if not report.expenses and not report.purchases %}
         <tr><td colspan="2" class="muted">No expenses or purchases logged.</td></tr>
