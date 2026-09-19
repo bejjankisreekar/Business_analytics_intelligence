@@ -61,6 +61,21 @@ def create_tenant_schema(schema_name: str, using: str = "default") -> None:
             cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
 
 
+def rename_tenant_schema(old_name: str, new_name: str, using: str = "default") -> None:
+    for name in (old_name, new_name):
+        if not SCHEMA_RE.match(name):
+            raise TenantSchemaError("Invalid schema name.")
+    with connections[using].cursor() as cursor:
+        if sql is not None:
+            cursor.execute(
+                sql.SQL("ALTER SCHEMA {} RENAME TO {}").format(
+                    sql.Identifier(old_name), sql.Identifier(new_name)
+                )
+            )
+        else:
+            cursor.execute(f"ALTER SCHEMA {old_name} RENAME TO {new_name}")
+
+
 def drop_tenant_schema(schema_name: str, using: str = "default") -> None:
     if not SCHEMA_RE.match(schema_name):
         raise TenantSchemaError("Invalid schema name.")

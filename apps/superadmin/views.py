@@ -2,12 +2,14 @@ import calendar
 import datetime
 import json
 import logging
+import os
+import subprocess
 from decimal import Decimal
 
 from django.contrib import messages
-from django.db import DatabaseError
+from django.db import DatabaseError, transaction
 from django.db.models import Count, Max, Q, Sum
-from django.http import Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.generic import FormView, TemplateView, View
@@ -20,6 +22,8 @@ from apps.billing import payments as payment_services
 from apps.billing.models import Coupon, CouponRedemption, Invoice, Payment, Plan, Subscription
 from apps.organizations import service_control
 from apps.organizations.models import Organization, ServiceStatusChange
+from apps.organizations.backup import dump_schema_archive, dump_schema_sql, find_pg_dump
+from apps.organizations.utils import SCHEMA_RE, TenantSchemaError, rename_tenant_schema, schema_exists
 from apps.organizations.services import OrganizationSignupError, create_organization_with_tenant_schema_and_admin
 
 from .forms import (
@@ -231,6 +235,7 @@ class OrganizationDetailView(SuperAdminRequiredMixin, TemplateView):
         context["env_key"] = env
         context["env_label"] = label
         context["org"] = org
+        context["pg_dump_available"] = find_pg_dump() is not None
         context["subscription"] = subscription
         context["subscription_history"] = history
         context["subscription_form"] = SubscriptionActionForm(
@@ -315,6 +320,80 @@ class OrganizationCreateView(SuperAdminRequiredMixin, FormView):
 
     def form_invalid(self, form):
         return self.render_to_response(self.get_context_data(form=form))
+
+
+class OrganizationSchemaRenameView(SuperAdminRequiredMixin, View):
+    """Rename an organization's Postgres schema and keep `schema_name` in sync."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        org = get_object_or_404(Organization.objects.using(env), pk=pk)
+        new_name = (request.POST.get("schema_name") or "").strip().lower()
+        back = redirect("superadmin:org_detail", env=env, pk=pk)
+
+        if new_name == org.schema_name:
+            return back
+        if not SCHEMA_RE.match(new_name) or new_name == "public" or new_name.startswith("pg_"):
+            messages.error(request, "Schema name may only contain lowercase letters, digits and underscores (max 63).")
+            return back
+        if Organization.objects.using(env).filter(schema_name=new_name).exclude(pk=org.pk).exists():
+            messages.error(request, "Another organization already uses that schema name.")
+            return back
+        if schema_exists(new_name, using=env):
+            messages.error(request, f"A schema named '{new_name}' already exists in the {env} database.")
+            return back
+
+        old_name = org.schema_name
+        try:
+            with transaction.atomic(using=env):
+                if schema_exists(old_name, using=env):
+                    rename_tenant_schema(old_name, new_name, using=env)
+                org.schema_name = new_name
+                org.save(using=env, update_fields=["schema_name", "updated_at"])
+        except (DatabaseError, TenantSchemaError) as exc:
+            logger.exception("Schema rename failed for org %s", org.pk)
+            messages.error(request, f"Could not rename schema: {exc}")
+            return back
+
+        messages.success(request, f"Schema renamed from {old_name} to {new_name}.")
+        return back
+
+
+class OrganizationSchemaBackupView(SuperAdminRequiredMixin, View):
+    """Download a restorable SQL backup (structure + data) of the tenant schema."""
+
+    def get(self, request, env, pk):
+        _env_label_or_404(env)
+        org = get_object_or_404(Organization.objects.using(env), pk=pk)
+        if not schema_exists(org.schema_name, using=env):
+            messages.error(request, f"Schema {org.schema_name} does not exist in the {env} database.")
+            return redirect("superadmin:org_detail", env=env, pk=pk)
+
+        stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+        if request.GET.get("format") == "custom":
+            try:
+                path = dump_schema_archive(org.schema_name, using=env)
+            except (TenantSchemaError, OSError, subprocess.SubprocessError) as exc:
+                logger.exception("pg_dump backup failed for org %s", org.pk)
+                messages.error(request, f"Could not create pg_restore backup: {exc}")
+                return redirect("superadmin:org_detail", env=env, pk=pk)
+            # Unlink now; the open handle keeps the data readable on POSIX, and
+            # on Windows the temp file is removed by the OS temp cleanup.
+            handle = open(path, "rb")
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+            return FileResponse(
+                handle, as_attachment=True, filename=f"{org.schema_name}_{stamp}.dump",
+                content_type="application/octet-stream",
+            )
+        response = StreamingHttpResponse(
+            dump_schema_sql(org.schema_name, using=env), content_type="application/sql; charset=utf-8"
+        )
+        response["Content-Disposition"] = f'attachment; filename="{org.schema_name}_{stamp}.sql"'
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 class OrganizationEditView(SuperAdminRequiredMixin, View):
