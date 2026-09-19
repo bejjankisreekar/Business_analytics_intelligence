@@ -155,15 +155,15 @@
 <div class="card mt-5 p-5" id="drilldown-section">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h3 class="text-sm font-semibold text-white">Revenue by sub-category</h3>
-      <p class="text-xs text-slate-500">e.g. each doctor under a specialty · {{ period.label }} — pick a group below</p>
+      <h3 class="text-sm font-semibold text-white">Revenue by category &amp; sub-category</h3>
+      <p class="text-xs text-slate-500">{{ period.label }} — pick a category; every level of sub-category is charted automatically</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <form method="get" action="#drilldown-section">
         <input type="hidden" name="period" value="{{ period.key }}">
-        <select name="doctor_group" onchange="this.form.submit()" class="!mt-0 !w-auto">
+        <select name="category" onchange="this.form.submit()" class="!mt-0 !w-auto">
           {% for g in subcategory_groups %}
-          <option value="{{ g.id }}" {% if selected_group_id == g.id|stringformat:"s" %}selected{% endif %}>{{ g.category.name }} → {{ g.name }}</option>
+          <option value="{{ g.id }}" {% if selected_group_id == g.id|stringformat:"s" %}selected{% endif %}>{{ g.name }}</option>
           {% endfor %}
         </select>
       </form>
@@ -174,18 +174,9 @@
       </div>
     </div>
   </div>
-  <!-- Who earns most, ranked -->
-  <div class="mt-5 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-    <h4 class="text-sm font-semibold text-white">Ranked by revenue{% if selected_group %} · {{ selected_group.name }}{% endif %}</h4>
-    <p class="text-xs text-slate-500">{{ period.label }} · highest earner first</p>
-    {% if drilldown_totals %}
-    <div class="mt-3 chart-box" style="height: {{ drilldown_chart_height }}px;">
-      <canvas id="chartDrilldownRanked"></canvas>
-    </div>
-    {% else %}
-    <p class="mt-6 py-6 text-center text-sm text-slate-500">Nothing tagged under this group yet.</p>
-    {% endif %}
-  </div>
+  <!-- One bar chart per level: category -> sub-categories -> their sub-categories, as deep as the data goes -->
+  <div id="breakdownCharts" class="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2"></div>
+  <p class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Trend over time{% if selected_group %} &middot; {{ selected_group.name }}{% endif %}</p>
 
   <div class="mt-5 h-72"><canvas id="chartDrilldown"></canvas></div>
 </div>
@@ -264,45 +255,41 @@
     monthly: {{ chart_drilldown_monthly|safe }},
   };
 
-  {% if drilldown_totals %}
-  // Ranked totals for the picked group — who earns most, at a glance.
   (function () {
-    const labels = {{ chart_drilldown_total_labels|safe }};
-    const values = {{ chart_drilldown_total_values|safe }};
-    new Chart(document.getElementById("chartDrilldownRanked"), {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [{
-          data: values,
-          backgroundColor: labels.map((_, i) => donutColors[i % donutColors.length]),
-          borderRadius: 4,
-        }],
-      },
-      options: {
-        indexAxis: "y",
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const total = values.reduce((a, b) => a + Number(b), 0);
-                const share = total ? ((Number(ctx.raw) / total) * 100).toFixed(1) : "0.0";
-                return ` ${Number(ctx.raw).toLocaleString()} (${share}% of group)`;
-              },
-            },
-          },
+    const tree = {{ chart_breakdown_tree|safe }};
+    const host = document.getElementById("breakdownCharts");
+    tree.forEach((node, n) => {
+      const total = node.values.reduce((a, b) => a + Number(b), 0);
+      const card = document.createElement("div");
+      card.className = "rounded-xl border border-white/5 bg-white/[0.02] p-4";
+      const title = document.createElement("h4");
+      title.className = "text-sm font-semibold text-white";
+      title.textContent = node.title;
+      const sub = document.createElement("p");
+      sub.className = "text-xs text-slate-500";
+      sub.textContent = "{{ period.label }} · total " + total.toLocaleString();
+      const box = document.createElement("div");
+      box.className = "mt-3 chart-box";
+      box.style.height = Math.max(160, node.labels.length * 40 + 50) + "px";
+      const canvas = document.createElement("canvas");
+      box.appendChild(canvas);
+      card.append(title, sub, box);
+      if (n === 0) card.classList.add("lg:col-span-2");
+      host.appendChild(card);
+      new Chart(canvas, {
+        type: "bar",
+        data: { labels: node.labels, datasets: [{ data: node.values, backgroundColor: node.labels.map((_, i) => donutColors[i % donutColors.length]), borderRadius: 4 }] },
+        options: {
+          indexAxis: "y", responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => {
+            const share = total ? ((Number(ctx.raw) / total) * 100).toFixed(1) : "0.0";
+            return ` ${Number(ctx.raw).toLocaleString()} (${share}%)`;
+          } } } },
+          scales: { x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 } }, y: { grid: { display: false } } },
         },
-        scales: {
-          x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 } },
-          y: { grid: { display: false } },
-        },
-      },
+      });
     });
   })();
-  {% endif %}
   const drilldownChart = new Chart(document.getElementById("chartDrilldown"), {
     type: "bar",
     data: {

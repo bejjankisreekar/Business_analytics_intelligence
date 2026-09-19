@@ -465,45 +465,100 @@ def monthly_trend(months: int = 6, *, end: datetime.date | None = None) -> list[
     return out
 
 
-def subcategory_groups_with_children() -> list[Subcategory]:
-    """Every Subcategory that has at least one child (e.g. 'Cardiology'
-    under 'OPD Consultation') — the drill-down picker on Revenue
-    Intelligence only offers groups that actually have something to drill
-    into."""
+def categories_with_subcategories() -> list[Category]:
+    """Every revenue Category that has at least one active Subcategory — the
+    drill-down picker on Revenue Intelligence offers exactly these."""
     return list(
-        Subcategory.objects.filter(parent__isnull=True, children__isnull=False)
-        .select_related("category").distinct().order_by("category__name", "name")
+        Category.objects.filter(kind=Category.Kind.SALES, subcategories__is_active=True)
+        .distinct().order_by("name")
     )
 
 
-def subcategory_children_trend(parent_id, period: Period | None = None) -> dict:
-    """Revenue trend for each child of a subcategory (e.g. each doctor
-    under a specialty) at daily/weekly/monthly granularity — powers the
-    drill-down chart on Revenue Intelligence, mirroring the daily/weekly/
-    monthly granularity toggle already used on Analytics.
+def _subcategory_index(category_id) -> dict:
+    """id -> {parent_id, name, children[]} for every active subcategory of a category."""
+    rows = list(Subcategory.objects.filter(category_id=category_id, is_active=True).order_by("name"))
+    index = {r.id: {"id": r.id, "parent_id": r.parent_id, "name": r.name, "children": []} for r in rows}
+    for node in index.values():
+        parent = index.get(node["parent_id"])
+        if parent is not None:
+            parent["children"].append(node)
+    return index
+
+
+def _roots(index: dict) -> list[dict]:
+    return [n for n in index.values() if n["parent_id"] not in index]
+
+
+def category_breakdown_tree(category_id, period: Period) -> list[dict]:
+    """One bar chart per level, built automatically from whatever
+    sub-categories exist: the category's own sub-categories first, then a
+    chart for every sub-category that itself has children, however deep.
+    Revenue is rolled up, so a sub-category's bar includes everything tagged
+    beneath it."""
+    index = _subcategory_index(category_id)
+    own: dict = {}
+    for row in (
+        SalesEntry.objects.filter(date__gte=period.start, date__lte=period.end, subcategory_id__in=index.keys())
+        .values("subcategory_id").annotate(total=Sum("amount"))
+    ):
+        own[row["subcategory_id"]] = row["total"] or ZERO
+
+    def subtree_total(node) -> Decimal:
+        return own.get(node["id"], ZERO) + sum((subtree_total(c) for c in node["children"]), ZERO)
+
+    def chart(title, nodes):
+        rows = sorted(({"name": n["name"], "amount": subtree_total(n)} for n in nodes),
+                      key=lambda r: (-r["amount"], r["name"]))
+        return {"title": title, "labels": [r["name"] for r in rows], "values": [r["amount"] for r in rows]}
+
+    charts = []
+    category = Category.objects.filter(pk=category_id).first()
+    charts.append(chart(category.name if category else "Category", _roots(index)))
+
+    def walk(node, path):
+        if not node["children"]:
+            return
+        charts.append(chart(" → ".join(path), node["children"]))
+        for child in node["children"]:
+            walk(child, path + [child["name"]])
+
+    for root in _roots(index):
+        walk(root, [category.name if category else "Category", root["name"]])
+    return charts
+
+
+def subcategory_children_trend(category_id, period: Period | None = None) -> dict:
+    """Revenue trend for each top-level sub-category of a category, at
+    daily/weekly/monthly granularity — powers the drill-down chart on Revenue
+    Intelligence. Revenue tagged on deeper levels (e.g. each doctor) rolls up
+    into its top-level sub-category (e.g. the specialty).
 
     Bucketing spans `period`, so the drill-down answers the same question as
-    every other chart on the page. Without that it plotted its own fixed
-    windows (last 30 days / 12 weeks / 6 months) and came up blank whenever
-    the party's revenue sat outside them, however wide a period was picked."""
-    children = list(Subcategory.objects.filter(parent_id=parent_id, is_active=True).order_by("name"))
+    every other chart on the page."""
+    index = _subcategory_index(category_id)
+    children = _roots(index)
     if not children:
         empty = {"labels": [], "series": []}
         return {"children": [], "daily": empty, "weekly": empty, "monthly": empty}
+
+    def top_of(sub_id):
+        node = index.get(sub_id)
+        while node is not None and node["parent_id"] in index:
+            node = index[node["parent_id"]]
+        return node["id"] if node else None
 
     today = datetime.date.today()
 
     def bucketed(start, end, bucket_key, label_fn):
         rows = (
-            SalesEntry.objects.filter(date__gte=start, date__lte=end, subcategory__parent_id=parent_id)
-            .values("date", "subcategory__name").annotate(total=Sum("amount"))
+            SalesEntry.objects.filter(date__gte=start, date__lte=end, subcategory_id__in=index.keys())
+            .values("date", "subcategory_id").annotate(total=Sum("amount"))
         )
         totals: dict[tuple, Decimal] = {}
         for row in rows:
-            key = bucket_key(row["date"])
-            totals[(key, row["subcategory__name"])] = (
-                totals.get((key, row["subcategory__name"]), ZERO) + row["total"]
-            )
+            top = top_of(row["subcategory_id"])
+            key = (bucket_key(row["date"]), top)
+            totals[key] = totals.get(key, ZERO) + row["total"]
 
         keys, labels = [], []
         cursor = start
@@ -515,7 +570,7 @@ def subcategory_children_trend(parent_id, period: Period | None = None) -> dict:
             cursor += datetime.timedelta(days=1)
 
         series = [
-            {"name": child.name, "data": [totals.get((key, child.name), ZERO) for key in keys]}
+            {"name": child["name"], "data": [totals.get((key, child["id"]), ZERO) for key in keys]}
             for child in children
         ]
         return {"labels": labels, "series": series}
@@ -537,25 +592,7 @@ def subcategory_children_trend(parent_id, period: Period | None = None) -> dict:
         label_fn=lambda d: d.strftime("%b %Y"),
     )
 
-    totals = [
-        {"name": row["subcategory__name"] or "Unnamed", "amount": row["total"] or ZERO}
-        for row in (
-            SalesEntry.objects.filter(date__gte=start, date__lte=end, subcategory__parent_id=parent_id)
-            .values("subcategory__name").annotate(total=Sum("amount")).order_by("-total")
-        )
-    ]
-    # Children with nothing in the period still belong on the ranking — a
-    # doctor who billed nothing is a finding, not a row to hide.
-    earned = {row["name"] for row in totals}
-    totals += [{"name": c.name, "amount": ZERO} for c in children if c.name not in earned]
-
-    return {
-        "children": children,
-        "totals": totals,
-        "daily": daily,
-        "weekly": weekly,
-        "monthly": monthly,
-    }
+    return {"children": children, "daily": daily, "weekly": weekly, "monthly": monthly}
 
 
 def _label_with_sub(base: str, subcategory) -> str:

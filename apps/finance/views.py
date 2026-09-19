@@ -521,12 +521,13 @@ class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView)
         vs_prev_month = services.sales_vs_previous_month()
         perf_trend = services.sales_performance_trend(6)
 
-        subcategory_groups = services.subcategory_groups_with_children()
+        subcategory_groups = services.categories_with_subcategories()
         group_ids = {str(g.id) for g in subcategory_groups}
-        selected_group_id = self.request.GET.get("doctor_group")
+        selected_group_id = self.request.GET.get("category")
         if selected_group_id not in group_ids:
-            selected_group_id = next(iter(group_ids), None)
+            selected_group_id = str(subcategory_groups[0].id) if subcategory_groups else None
         drilldown = services.subcategory_children_trend(selected_group_id, period) if selected_group_id else None
+        breakdown_tree = services.category_breakdown_tree(selected_group_id, period) if selected_group_id else []
         selected_group = next((g for g in subcategory_groups if str(g.id) == selected_group_id), None)
 
         context.update({
@@ -559,10 +560,7 @@ class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView)
             "subcategory_groups": subcategory_groups,
             "selected_group_id": selected_group_id,
             "selected_group": selected_group,
-            "drilldown_totals": drilldown["totals"] if drilldown else [],
-            "drilldown_chart_height": max(180, len(drilldown["totals"]) * 44 + 60) if drilldown else 180,
-            "chart_drilldown_total_labels": to_json([r["name"] for r in drilldown["totals"]] if drilldown else []),
-            "chart_drilldown_total_values": to_json([r["amount"] for r in drilldown["totals"]] if drilldown else []),
+            "chart_breakdown_tree": to_json(breakdown_tree),
             "chart_drilldown_daily": to_json(drilldown["daily"] if drilldown else {"labels": [], "series": []}),
             "chart_drilldown_weekly": to_json(drilldown["weekly"] if drilldown else {"labels": [], "series": []}),
             "chart_drilldown_monthly": to_json(drilldown["monthly"] if drilldown else {"labels": [], "series": []}),
