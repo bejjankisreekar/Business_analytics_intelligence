@@ -25,6 +25,14 @@ CSRF_TRUSTED_ORIGINS = config(
     default="http://127.0.0.1:8000,http://localhost:8000",
 )
 
+# Render exposes the service's public hostname; trust it automatically.
+_RENDER_HOST = config("RENDER_EXTERNAL_HOSTNAME", default="")
+if _RENDER_HOST:
+    if _RENDER_HOST not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_RENDER_HOST)
+    if f"https://{_RENDER_HOST}" not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(f"https://{_RENDER_HOST}")
+
 SITE_NAME = "Business Analytics Intelligence"
 
 INSTALLED_APPS = [

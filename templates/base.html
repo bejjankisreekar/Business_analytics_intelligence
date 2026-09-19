@@ -84,7 +84,7 @@
 </head>
 <body class="bg-ink-950 text-slate-200 antialiased">
 {% if messages %}
-<div class="fixed top-4 right-4 z-50 space-y-2 w-full max-w-sm px-4 sm:px-0">
+<div id="bai-messages" class="fixed top-4 right-4 z-50 space-y-2 w-full max-w-sm px-4 sm:px-0">
   {% for message in messages %}
   <div class="rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur
       {% if message.tags == 'error' %} border-red-500/30 bg-red-500/10 text-red-200
@@ -94,6 +94,15 @@
   </div>
   {% endfor %}
 </div>
+<script>
+  setTimeout(function () {
+    var box = document.getElementById("bai-messages");
+    if (!box) return;
+    box.style.transition = "opacity .4s";
+    box.style.opacity = "0";
+    setTimeout(function () { box.remove(); }, 400);
+  }, 5000);
+</script>
 {% endif %}
 {% block body %}{% endblock %}
 <script>
