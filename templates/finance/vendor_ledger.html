@@ -90,7 +90,7 @@
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ request.get_full_path }}">
       <div><label class="block text-xs font-medium text-slate-400">Vendor</label>{{ e.edit_form.vendor }}{% if e.edit_form.vendor.help_text %}<p class="mt-1 text-[11px] text-slate-500">{{ e.edit_form.vendor.help_text }}</p>{% endif %}</div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label class="block text-xs font-medium text-slate-400">Bill date</label>{{ e.edit_form.bill_date }}</div>
         <div><label class="block text-xs font-medium text-slate-400">Due date</label>{{ e.edit_form.due_date }}</div>
       </div>

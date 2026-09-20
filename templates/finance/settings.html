@@ -81,7 +81,7 @@
         {{ form.fy_start_month }}
         {% for error in form.fy_start_month.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
       </div>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="block text-xs font-medium text-slate-400">Opening cash-in-hand</label>
           {{ form.opening_balance }}

@@ -10,7 +10,7 @@
 
   <div class="card p-6">
     <h2 class="text-sm font-semibold text-white">Personal details</h2>
-    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
       {% for field in user_form %}
         <div>
           <label for="{{ field.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ field.label }}</label>
@@ -25,7 +25,7 @@
   <div class="card p-6">
     <h2 class="text-sm font-semibold text-white">Organization</h2>
     {% for error in org_form.non_field_errors %}<p class="mt-2 text-xs text-red-400">{{ error }}</p>{% endfor %}
-    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
       {% for field in org_form %}
         <div{% if field.name == "address" %} class="sm:col-span-2"{% endif %}>
           <label for="{{ field.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ field.label }}</label>

@@ -271,7 +271,7 @@
     <form method="post" action="{% url 'finance:add_receivable' %}" class="mt-4 space-y-3">
       {% csrf_token %}
       <div><label class="block text-xs font-medium text-slate-400">Customer</label>{{ receivable_form.customer }}</div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label class="block text-xs font-medium text-slate-400">Invoice date</label>{{ receivable_form.invoice_date }}</div>
         <div><label class="block text-xs font-medium text-slate-400">Due date</label>{{ receivable_form.due_date }}</div>
       </div>
@@ -292,7 +292,7 @@
     <form method="post" action="{% url 'finance:add_payable' %}" class="mt-4 space-y-3">
       {% csrf_token %}
       <div><label class="block text-xs font-medium text-slate-400">Vendor</label>{{ payable_form.vendor }}</div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label class="block text-xs font-medium text-slate-400">Bill date</label>{{ payable_form.bill_date }}</div>
         <div><label class="block text-xs font-medium text-slate-400">Due date</label>{{ payable_form.due_date }}</div>
       </div>
@@ -314,7 +314,7 @@
       {% csrf_token %}
       <div><label class="block text-xs font-medium text-slate-400">Name</label>{{ partner_form.name }}</div>
       <div><label class="block text-xs font-medium text-slate-400">Phone</label>{{ partner_form.phone }}</div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label class="block text-xs font-medium text-slate-400">{{ partner_form.opening_balance.label }}</label>{{ partner_form.opening_balance }}</div>
         <div><label class="block text-xs font-medium text-slate-400">{{ partner_form.opening_balance_as_on.label }}</label>{{ partner_form.opening_balance_as_on }}</div>
       </div>
@@ -335,11 +335,11 @@
     <form method="post" action="{% url 'finance:add_partner_transaction' %}" class="mt-4 space-y-3">
       {% csrf_token %}
       <div><label class="block text-xs font-medium text-slate-400">Partner</label>{{ partner_transaction_form.partner }}</div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label class="block text-xs font-medium text-slate-400">Type</label>{{ partner_transaction_form.kind }}</div>
         <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ partner_transaction_form.date }}</div>
       </div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ partner_transaction_form.amount }}</div>
         <div><label class="block text-xs font-medium text-slate-400">Via</label>{{ partner_transaction_form.payment_mode }}</div>
       </div>
@@ -363,7 +363,7 @@
     <form id="payment-form" method="post" class="mt-4 space-y-3">
       {% csrf_token %}
       <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ payment_form.date }}</div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ payment_form.amount }}</div>
         <div><label class="block text-xs font-medium text-slate-400">Via</label>{{ payment_form.payment_mode }}</div>
       </div>
@@ -382,7 +382,7 @@
   bai.openPaymentModal = (url, balance, kind) => {
     document.getElementById("payment-form").action = url;
     document.getElementById("payment-balance-hint").textContent =
-      "Outstanding balance: {{ organization.currency }} " + Number(balance).toLocaleString();
+      "Outstanding balance: {{ organization.currency }} " + Number(balance).toLocaleString("en-IN");
     bai.openModal("modal-payment");
   };
 </script>

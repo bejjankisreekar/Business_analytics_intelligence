@@ -21,7 +21,7 @@
   {% csrf_token %}
 
   <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Business details</h2>
-  <div class="mt-3 grid gap-4 sm:grid-cols-2">
+  <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
     {% for field in form %}
       {% if field.name in "name,business_type,industry,size" %}
       <div>
@@ -34,7 +34,7 @@
   </div>
 
   <h2 class="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Contact</h2>
-  <div class="mt-3 grid gap-4 sm:grid-cols-2">
+  <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
     {% for field in form %}
       {% if field.name in "contact_person,contact_email,contact_phone,website" %}
       <div>
@@ -47,7 +47,7 @@
   </div>
 
   <h2 class="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Address</h2>
-  <div class="mt-3 grid gap-4 sm:grid-cols-2">
+  <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
     {% for field in form %}
       {% if field.name in "address,city,state,country,tax_id" %}
       <div>
@@ -61,7 +61,7 @@
 
   {% if mode == "create" %}
   <h2 class="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Owner login</h2>
-  <div class="mt-3 grid gap-4 sm:grid-cols-2">
+  <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
     {% for field in form %}
       {% if field.name in "owner_first_name,owner_last_name,owner_email,owner_password" %}
       <div>

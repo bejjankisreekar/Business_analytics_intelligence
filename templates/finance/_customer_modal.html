@@ -32,7 +32,7 @@
       </button>
       <form id="modal-customers-add-form" method="post" action="{% url 'finance:add_customer' %}" class="mt-3 hidden space-y-3">
         {% csrf_token %}
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div><label class="block text-xs font-medium text-slate-400">Name</label>{{ customer_form.name }}</div>
           <div><label class="block text-xs font-medium text-slate-400">Phone</label>{{ customer_form.phone }}</div>
         </div>

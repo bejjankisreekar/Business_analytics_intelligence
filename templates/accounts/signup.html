@@ -2,7 +2,7 @@
 {% block title %}Create your organization · {{ SITE_NAME }}{% endblock %}
 
 {% block body %}
-<div class="flex min-h-screen bg-grid">
+<div class="relative flex min-h-screen overflow-x-hidden bg-grid">
   <div class="pointer-events-none absolute -top-40 right-1/3 h-[500px] w-[800px] rounded-full bg-mint-500/10 blur-[120px]"></div>
 
   <!-- Left: brand panel -->
@@ -60,7 +60,7 @@
               {{ form.organization_name }}
               {% for error in form.organization_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label for="business-type-search" class="block text-xs font-medium text-slate-200">Business type</label>
                 <div class="relative" id="business-type-combobox">
@@ -84,7 +84,7 @@
         <div class="border-t border-white/5 pt-6">
           <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-180">Your account (Organization Owner)</p>
           <div class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label for="{{ form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-200">First name</label>
                 {{ form.first_name }}
@@ -106,7 +106,7 @@
               <p class="mt-1 text-xs text-slate-500">You can sign in with this instead of your email.</p>
               {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password</label>
                 {{ form.password }}

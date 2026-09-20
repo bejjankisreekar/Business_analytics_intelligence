@@ -64,7 +64,7 @@
 <div class="mt-6 sa-card p-5">
   <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Create invoice</h2>
   <p class="mt-1 text-[11px] text-slate-600">Appears immediately as a pending amount on this client's own Billing page.</p>
-  <form method="post" action="{% url 'superadmin:invoice_create' env_key org.pk %}" class="mt-4 grid gap-4 sm:grid-cols-3">
+  <form method="post" action="{% url 'superadmin:invoice_create' env_key org.pk %}" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
     {% csrf_token %}
     {% for field in create_invoice_form %}
     <div>
@@ -83,7 +83,7 @@
 <div class="mt-6 sa-card p-5">
   <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Record a payment</h2>
   <p class="mt-1 text-[11px] text-slate-600">For off-platform payments (bank transfer, cash, cheque). A real gateway payment arrives automatically via webhook.</p>
-  <form method="post" action="{% url 'superadmin:record_payment' env_key org.pk %}" class="mt-4 grid gap-4 sm:grid-cols-3">
+  <form method="post" action="{% url 'superadmin:record_payment' env_key org.pk %}" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
     {% csrf_token %}
     {% for field in record_payment_form %}
     <div class="{% if field.name == 'notes' %}sm:col-span-3{% endif %}">

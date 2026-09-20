@@ -20,7 +20,7 @@
   </form>
 </div>
 
-<div class="mt-6 flex gap-2 border-b border-white/5">
+<div class="mt-6 flex gap-2 overflow-x-auto whitespace-nowrap border-b border-white/5">
   <button onclick="bai.showTab('pnl')" id="tab-btn-pnl" class="report-tab report-tab--active">Profit &amp; Loss</button>
   <button onclick="bai.showTab('bs')" id="tab-btn-bs" class="report-tab">Balance Sheet</button>
   <button onclick="bai.showTab('cf')" id="tab-btn-cf" class="report-tab">Cash Flow</button>
@@ -197,6 +197,7 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>Chart.defaults.locale = "en-IN";</script>
 <script>
   Chart.defaults.color = "#9aa4bd";
   Chart.defaults.borderColor = "rgba(255,255,255,0.06)";

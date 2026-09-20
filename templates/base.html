@@ -79,6 +79,9 @@
   }
   .bai-select-option:hover, .bai-select-option--active { background: rgba(91,124,250,0.18); color: #fff; }
   .bai-select-option[disabled] { opacity: 0.4; cursor: not-allowed; }
+  /* Long emails/URLs/IDs in label-value grids wrap instead of widening the page. */
+  dl > div { min-width: 0; }
+  dt, dd { overflow-wrap: anywhere; }
 </style>
 {% block extra_head %}{% endblock %}
 </head>

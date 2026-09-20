@@ -79,11 +79,11 @@
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ request.get_full_path }}">
       <div><label class="block text-xs font-medium text-slate-400">Partner</label>{{ e.edit_form.partner }}</div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ e.edit_form.date }}</div>
         <div><label class="block text-xs font-medium text-slate-400">Type</label>{{ e.edit_form.kind }}</div>
       </div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ e.edit_form.amount }}</div>
         <div><label class="block text-xs font-medium text-slate-400">Via</label>{{ e.edit_form.payment_mode }}</div>
       </div>

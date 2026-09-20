@@ -13,7 +13,7 @@
 
 <form method="post" class="sa-card mt-6 max-w-2xl p-6">
   {% csrf_token %}
-  <div class="grid gap-4 sm:grid-cols-2">
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div>
       <label class="sa-field-label" for="{{ form.name.id_for_label }}">Plan name</label>
       {{ form.name }}

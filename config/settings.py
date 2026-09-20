@@ -42,13 +42,12 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.humanize",
     "rest_framework",
     "apps.organizations",
     "apps.accounts",
     "apps.billing",
     "apps.finance",
-    "apps.core",
+    "apps.core",  # provides the `humanize` template library (Indian digit grouping)
     "apps.superadmin",
 ]
 

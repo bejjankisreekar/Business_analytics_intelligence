@@ -188,6 +188,7 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>Chart.defaults.locale = "en-IN";</script>
 <script>
   Chart.defaults.color = "#9aa4bd";
   Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
@@ -267,7 +268,7 @@
       title.textContent = node.title;
       const sub = document.createElement("p");
       sub.className = "text-xs text-slate-500";
-      sub.textContent = "{{ period.label }} · total " + total.toLocaleString();
+      sub.textContent = "{{ period.label }} · total " + total.toLocaleString("en-IN");
       const box = document.createElement("div");
       box.className = "mt-3 chart-box";
       box.style.height = Math.max(160, node.labels.length * 40 + 50) + "px";
@@ -283,7 +284,7 @@
           indexAxis: "y", responsive: true, maintainAspectRatio: false,
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => {
             const share = total ? ((Number(ctx.raw) / total) * 100).toFixed(1) : "0.0";
-            return ` ${Number(ctx.raw).toLocaleString()} (${share}%)`;
+            return ` ${Number(ctx.raw).toLocaleString("en-IN")} (${share}%)`;
           } } } },
           scales: { x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 } }, y: { grid: { display: false } } },
         },

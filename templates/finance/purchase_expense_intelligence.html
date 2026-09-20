@@ -154,6 +154,7 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>Chart.defaults.locale = "en-IN";</script>
 <script>
   Chart.defaults.color = "#9aa4bd";
   Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
@@ -166,7 +167,7 @@
   // ---- Where the money goes: every level charted by default ---------------------
   const costTrees = {{ cost_trees_json|safe }};
   const costCharts = [];
-  const fmt = (n) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const fmt = (n) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
   const sumOf = (nodes) => nodes.reduce((a, n) => a + Number(n.amount), 0);
 
   function barChart(canvas, nodes) {

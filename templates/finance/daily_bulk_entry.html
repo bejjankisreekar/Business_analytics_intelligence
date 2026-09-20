@@ -32,7 +32,7 @@
 {% endif %}
 
 <div class="card mt-4 p-5">
-  <div class="flex gap-2 border-b border-white/5">
+  <div class="flex gap-2 overflow-x-auto whitespace-nowrap border-b border-white/5">
     <button type="button" onclick="bai.showBulkTab('sale')" id="bulk-tab-btn-sale" class="report-tab {% if active_bulk_tab == 'sale' %}report-tab--active{% endif %}">Revenue <span class="ml-1 text-xs font-normal text-slate-500" id="tab-total-sale"></span></button>
     <button type="button" onclick="bai.showBulkTab('expense')" id="bulk-tab-btn-expense" class="report-tab {% if active_bulk_tab == 'expense' %}report-tab--active{% endif %}">Expenses <span class="ml-1 text-xs font-normal text-slate-500" id="tab-total-expense"></span></button>
     <button type="button" onclick="bai.showBulkTab('purchase')" id="bulk-tab-btn-purchase" class="report-tab {% if active_bulk_tab == 'purchase' %}report-tab--active{% endif %}">Purchases <span class="ml-1 text-xs font-normal text-slate-500" id="tab-total-purchase"></span></button>
@@ -272,10 +272,10 @@
       const value = amount ? parseFloat(amount.value) : NaN;
       if (!isNaN(value) && value > 0 && !(remove && remove.checked)) { total += value; count += 1; }
     });
-    const money = total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const money = total.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     document.getElementById(`total-${prefix}`).textContent = `${CURRENCY} ${money}`;
     document.getElementById(`total-count-${prefix}`).textContent = `${count} ${count === 1 ? "entry" : "entries"}`;
-    document.getElementById(`tab-total-${prefix}`).textContent = count ? `· ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "";
+    document.getElementById(`tab-total-${prefix}`).textContent = count ? `· ${total.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "";
   };
   ["sale", "expense", "purchase"].forEach((prefix) => {
     const body = document.getElementById(`${prefix}-formset-body`);

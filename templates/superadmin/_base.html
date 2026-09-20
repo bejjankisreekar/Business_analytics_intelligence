@@ -30,6 +30,9 @@
   <!-- Top nav: environment switch + account -->
   <header class="sticky top-0 z-20 flex items-center justify-between border-b border-white/5 bg-[#0f1115] px-4 py-2.5 sm:px-6">
     <div class="flex items-center gap-2">
+      <button type="button" onclick="saNav.open()" aria-label="Open menu" aria-controls="sa-sidebar" class="-ml-1 mr-1 flex h-8 w-8 flex-none items-center justify-center rounded text-slate-300 hover:bg-white/5 lg:hidden">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/></svg>
+      </button>
       <a href="{{ dev_href }}" class="sa-env-pill {% if env_key == "dev" %}sa-env-pill--active{% endif %}">
         <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span> Development
       </a>
@@ -46,25 +49,16 @@
     </div>
   </header>
 
-  <!-- Mobile section links (sidebar replacement below lg) -->
-  <div class="sticky top-[49px] z-20 flex items-center gap-4 overflow-x-auto border-b border-white/5 bg-[#0f1115] px-4 py-2.5 text-xs whitespace-nowrap lg:hidden">
-    <a href="{% url 'superadmin:overview' %}" class="text-slate-300">Overview</a>
-    <a href="{% url 'superadmin:org_list' env_key|default:'dev' %}" class="text-slate-300">Clients</a>
-    <a href="{% url 'superadmin:plan_list' env_key|default:'dev' %}" class="text-slate-300">Plans</a>
-    <a href="{% url 'superadmin:coupon_list' env_key|default:'dev' %}" class="text-slate-300">Coupons</a>
-    <a href="{% url 'superadmin:invoice_list' env_key|default:'dev' %}" class="text-slate-300">Invoices</a>
-    <a href="{% url 'superadmin:payment_list' env_key|default:'dev' %}" class="text-slate-300">Payments</a>
-  </div>
-
   <div class="flex">
-    <!-- Sidebar (desktop only) -->
-    <aside class="sticky top-[49px] hidden h-[calc(100vh-49px)] w-56 flex-col overflow-y-auto border-r border-white/5 bg-[#0f1115] lg:flex">
+    <!-- Sidebar: fixed on desktop, slide-in drawer on phones and tablets -->
+    <div id="sa-backdrop" onclick="saNav.close()" class="fixed inset-0 z-30 hidden bg-black/60 lg:hidden"></div>
+    <aside id="sa-sidebar" class="fixed inset-y-0 left-0 z-40 flex w-56 -translate-x-full flex-col overflow-y-auto border-r border-white/5 bg-[#0f1115] transition-transform duration-200 lg:sticky lg:top-[49px] lg:z-auto lg:h-[calc(100vh-49px)] lg:translate-x-0">
       <a href="{% url 'superadmin:overview' %}" class="flex items-center gap-2.5 border-b border-white/5 px-5 py-5">
         <span class="flex h-8 w-8 items-center justify-center rounded border border-amber-500/30 bg-black text-[11px] font-bold tracking-wide text-amber-400">OPS</span>
         <span class="font-mono text-sm font-semibold text-slate-200">superadmin</span>
       </a>
 
-      <nav class="flex-1 space-y-0.5 px-3 py-5">
+      <nav class="flex-1 space-y-0.5 px-3 py-5" onclick="if (event.target.closest('a')) saNav.close()">
         <a href="{% url 'superadmin:overview' %}" class="sa-nav-link {% if request.resolver_match.url_name == 'overview' %}sa-nav-link--active{% endif %}">
           Overview
         </a>
@@ -91,6 +85,20 @@
     </main>
   </div>
 </div>
+<script>
+  window.saNav = {
+    open() {
+      document.getElementById("sa-sidebar").classList.remove("-translate-x-full");
+      document.getElementById("sa-backdrop").classList.remove("hidden");
+    },
+    close() {
+      document.getElementById("sa-sidebar").classList.add("-translate-x-full");
+      document.getElementById("sa-backdrop").classList.add("hidden");
+    },
+  };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") saNav.close(); });
+  window.addEventListener("pageshow", () => saNav.close());
+</script>
 {% endblock %}
 
 {% block extra_head %}
