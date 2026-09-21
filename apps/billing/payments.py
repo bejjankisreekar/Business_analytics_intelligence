@@ -62,7 +62,27 @@ def apply_payment_to_invoice(invoice, amount, *, using: str = "default"):
     invoice = invoicing.refresh_invoice_status(invoice, using=using)
     if invoice.status == Invoice.Status.PAID:
         services.renew_subscription_from_invoice(invoice, using=using)
+        _resume_if_payment_hold_cleared(invoice, using=using)
     return invoice
+
+
+def _resume_if_payment_hold_cleared(invoice, *, using: str) -> None:
+    """A client whose service was stopped/suspended for a pending payment gets it
+    back as soon as their last open invoice is paid - no superadmin action needed."""
+    from apps.organizations import service_control
+
+    org = invoice.organization
+    if not org.is_payment_hold:
+        return
+    still_open = Invoice.objects.using(using).filter(
+        organization_id=org.id,
+        status__in=[Invoice.Status.ISSUED, Invoice.Status.PARTIALLY_PAID, Invoice.Status.OVERDUE],
+    ).exists()
+    if not still_open:
+        service_control.resume_service(
+            org, using=using, admin_email="system (payment received)",
+            notes=f"Service resumed automatically: invoice {invoice.invoice_number} was paid.",
+        )
 
 
 def refund_payment(payment: Payment, *, using: str = "default", amount=None, reason: str = "") -> Payment:

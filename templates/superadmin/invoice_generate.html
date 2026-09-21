@@ -1,0 +1,121 @@
+{% extends "superadmin/_base.html" %}
+{% block title %}Generate invoice · Superadmin{% endblock %}
+
+
+{% block sa_content %}
+{% if org %}
+<a href="{% url 'superadmin:org_detail' env_key org.pk %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ org.name }}</a>
+{% else %}
+<a href="{% url 'superadmin:invoice_list' env_key %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ env_label }} invoices</a>
+{% endif %}
+
+<h1 class="mt-4 text-xl font-bold text-slate-100">Generate invoice{% if org %} for {{ org.name }}{% endif %}</h1>
+<p class="mt-1 text-xs text-slate-500">{{ env_label }} · the invoice appears straight away on the client's own Billing page.</p>
+
+{% if subscription %}
+<div class="mt-5 sa-card p-4 text-sm text-slate-300">
+  Current plan: <span class="font-semibold text-slate-100">{{ subscription.plan.name }}</span>
+  · {{ subscription.get_billing_cycle_display }}
+  · <span class="sa-mono">₹{% if subscription.billing_cycle == "YEARLY" %}{{ subscription.plan.yearly_price }}{% else %}{{ subscription.plan.monthly_price }}{% endif %}</span>
+  — the amount below starts at this price.
+</div>
+{% endif %}
+
+<form method="post" class="mt-5 sa-card p-5">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="mb-4">{% for e in form.non_field_errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}</div>{% endif %}
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    {% if org %}
+    <div class="sm:col-span-2">
+      <label class="sa-field-label">Client</label>
+      <p class="mt-1 text-sm font-medium text-slate-100">{{ org.name }} <span class="sa-mono text-xs font-normal text-slate-500">{{ org.organization_code }}</span></p>
+    </div>
+    {% else %}
+    <div class="sm:col-span-2">
+      <label class="sa-field-label" for="{{ form.organization.id_for_label }}">Client</label>
+      {{ form.organization }}
+      {% for e in form.organization.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    {% endif %}
+    {% for field in form %}
+      {% if field.name != "organization" %}
+      <div>
+        <label class="sa-field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<p class="mt-1 text-[11px] text-slate-600">{{ field.help_text }}</p>{% endif %}
+        {% for e in field.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <!-- What the client will actually be billed -->
+  <div id="payable-summary" class="mt-5 rounded border border-amber-500/30 bg-amber-500/[0.06] p-4">
+    <p class="text-[11px] font-semibold uppercase tracking-wider text-amber-400">Final amount payable by client</p>
+    <p class="mt-1 text-2xl font-bold text-slate-100"><span id="ps-total" class="sa-mono">₹0</span></p>
+    <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-400 sm:max-w-sm">
+      <dt>Amount</dt><dd id="ps-subtotal" class="sa-mono text-right text-slate-300">₹0</dd>
+      <dt id="ps-coupon-label">Coupon</dt><dd id="ps-coupon" class="sa-mono text-right text-emerald-300">— ₹0</dd>
+      <dt>Extra discount</dt><dd id="ps-discount" class="sa-mono text-right text-emerald-300">— ₹0</dd>
+      <dt>Tax</dt><dd id="ps-tax" class="sa-mono text-right text-slate-300">+ ₹0</dd>
+    </dl>
+    <p id="ps-note" class="mt-2 hidden text-[11px] text-amber-300"></p>
+  </div>
+
+  <div class="mt-5 flex items-center gap-3">
+    <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Generate invoice</button>
+    <a href="{% if org %}{% url 'superadmin:org_detail' env_key org.pk %}{% else %}{% url 'superadmin:invoice_list' env_key %}{% endif %}" class="sa-btn-ghost rounded px-4 py-2 text-xs font-semibold">Cancel</a>
+  </div>
+</form>
+
+{{ coupon_data|json_script:"coupon-data" }}
+<script>
+  (function () {
+    const coupons = JSON.parse(document.getElementById("coupon-data").textContent);
+    const $ = (id) => document.getElementById(id);
+    const num = (el) => { const v = parseFloat(el && el.value); return Number.isFinite(v) && v > 0 ? v : 0; };
+    const money = (n) => "₹" + Math.round(n).toLocaleString("en-IN");
+
+    function couponDiscount(coupon, subtotal) {
+      if (!coupon || subtotal <= 0) return 0;
+      const value = parseFloat(coupon.value) || 0;
+      let off = 0;
+      if (coupon.type === "PERCENT") off = subtotal * value / 100;
+      else if (coupon.type === "FIXED_PRICE") off = Math.max(subtotal - value, 0);
+      else off = value;
+      return Math.min(off, subtotal);          // a coupon never pushes the invoice below zero
+    }
+
+    function update() {
+      const subtotal = num($("id_subtotal"));
+      const select = $("id_coupon");
+      const coupon = select && coupons.find((c) => String(c.id) === select.value);
+      const couponOff = couponDiscount(coupon, subtotal);
+      const extra = num($("id_discount"));
+      const tax = num($("id_tax"));
+      const total = Math.max(subtotal - couponOff - extra + tax, 0);
+
+      $("ps-subtotal").textContent = money(subtotal);
+      $("ps-coupon-label").textContent = coupon ? "Coupon " + coupon.code : "Coupon";
+      $("ps-coupon").textContent = "— " + money(couponOff);
+      $("ps-discount").textContent = "— " + money(extra);
+      $("ps-tax").textContent = "+ " + money(tax);
+      $("ps-total").textContent = money(total);
+
+      const note = $("ps-note");
+      const notes = [];
+      if (coupon && coupon.type === "FIXED_PRICE" && subtotal > 0 && subtotal <= parseFloat(coupon.value)) {
+        notes.push("This amount is already at or below the coupon's fixed price, so the coupon takes nothing off.");
+      }
+      if (subtotal - couponOff - extra < 0) notes.push("Discounts are larger than the amount, so the invoice total is shown as zero.");
+      note.textContent = notes.join(" ");
+      note.classList.toggle("hidden", notes.length === 0);
+    }
+
+    ["id_subtotal", "id_coupon", "id_discount", "id_tax"].forEach((id) => {
+      const el = $(id);
+      if (el) { el.addEventListener("input", update); el.addEventListener("change", update); }
+    });
+    update();
+  })();
+</script>
+{% endblock %}

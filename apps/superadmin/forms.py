@@ -133,6 +133,10 @@ class CouponForm(forms.ModelForm):
         if discount_type == Coupon.DiscountType.PERCENT and discount_value is not None:
             if discount_value <= 0 or discount_value > 100:
                 self.add_error("discount_value", "A percentage discount must be between 0 and 100.")
+        if discount_type == Coupon.DiscountType.FLAT and discount_value is not None and discount_value <= 0:
+            self.add_error("discount_value", "A flat discount must be more than 0.")
+        if discount_type == Coupon.DiscountType.FIXED_PRICE and discount_value is not None and discount_value < 0:
+            self.add_error("discount_value", "The fixed price can't be negative.")
         valid_from = cleaned.get("valid_from")
         valid_until = cleaned.get("valid_until")
         if valid_from and valid_until and valid_from > valid_until:
@@ -275,3 +279,70 @@ class CreateInvoiceForm(forms.Form):
             Subscription.objects.using(using).filter(organization_id=organization.id).order_by("-created_at")
         )
         _style(self.fields)
+
+
+class GenerateInvoiceForm(forms.Form):
+    """Generate an invoice for one specific client. The amount starts at the
+    client's current plan price, and an optional coupon can bring it down (a
+    "Pay 999" coupon turns a 2999 subscription into a 999 invoice). The client
+    sees the invoice - and the reduced amount - on their own Billing page."""
+
+    organization = forms.ModelChoiceField(queryset=Organization.objects.none(), label="Client")
+    subtotal = forms.DecimalField(min_value=0, max_digits=10, decimal_places=2, label="Amount (before coupon)")
+    coupon = forms.ModelChoiceField(
+        queryset=Coupon.objects.none(), required=False, empty_label="No coupon",
+        help_text="Optional. Applied right away, so the client is billed the reduced amount.",
+    )
+    discount = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0,
+                                  label="Extra discount (\u20b9)")
+    tax = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0)
+    invoice_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    due_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    status = forms.ChoiceField(
+        choices=[(Invoice.Status.ISSUED, "Issued - visible and payable now"),
+                 (Invoice.Status.DRAFT, "Draft - not counted as due yet")],
+        initial=Invoice.Status.ISSUED,
+    )
+
+    def __init__(self, *args, using="default", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["organization"].queryset = Organization.objects.using(using).order_by("name")
+        self.fields["coupon"].queryset = Coupon.objects.using(using).filter(is_active=True).order_by("code")
+        self.fields["coupon"].label_from_instance = lambda c: f"{c.code} \u2014 {c.summary()}"
+        _style(self.fields)
+
+
+class ApplyInvoiceCouponForm(forms.Form):
+    coupon = forms.ModelChoiceField(queryset=Coupon.objects.none())
+
+    def __init__(self, *args, using="default", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["coupon"].queryset = Coupon.objects.using(using).filter(is_active=True).order_by("code")
+        self.fields["coupon"].label_from_instance = lambda c: f"{c.code} \u2014 {c.summary()}"
+        _style(self.fields)
+
+
+class RecordInvoicePaymentForm(forms.Form):
+    """Record an off-platform payment (bank transfer, cash, cheque, UPI...)
+    against one specific invoice. The amount starts at what's still due and
+    may be smaller for a part-payment, but never larger."""
+
+    amount = forms.DecimalField(min_value=0.01, max_digits=10, decimal_places=2, label="Amount received")
+    payment_method = forms.ChoiceField(choices=Payment.Method.choices, initial=Payment.Method.BANK_TRANSFER)
+    payment_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    transaction_id = forms.CharField(
+        required=False, max_length=100, label="Reference / transaction ID",
+        help_text="Optional - UTR, cheque number, receipt number, etc.",
+    )
+    notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, amount_due=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.amount_due = amount_due
+        _style(self.fields)
+
+    def clean_amount(self):
+        amount = self.cleaned_data["amount"]
+        if self.amount_due is not None and amount > self.amount_due:
+            raise forms.ValidationError(f"This is more than the amount still due ({self.amount_due}).")
+        return amount

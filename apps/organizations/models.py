@@ -100,6 +100,21 @@ class Organization(models.Model):
     def is_service_active(self) -> bool:
         return self.service_status == self.ServiceStatus.ACTIVE
 
+    @property
+    def is_payment_hold(self) -> bool:
+        """Service is stopped/suspended *because a payment is pending*. Such a client
+        can still sign in - but only reaches the Billing page until they pay. Any
+        other suspension reason keeps the hard block (no sign-in at all)."""
+        if self.is_service_active:
+            return False
+        last = (
+            self.service_status_changes
+            .filter(action__in=[ServiceStatusChange.Action.STOP, ServiceStatusChange.Action.SUSPEND])
+            .order_by("-created_at")
+            .first()
+        )
+        return bool(last and last.reason == ServiceStatusChange.Reason.PAYMENT_OVERDUE)
+
 
 class ServiceStatusChange(models.Model):
     """Audit log entry for a superadmin start/stop/suspend/resume action.
@@ -114,7 +129,7 @@ class ServiceStatusChange(models.Model):
         RESUME = "RESUME", "Resume Service"
 
     class Reason(models.TextChoices):
-        PAYMENT_OVERDUE = "PAYMENT_OVERDUE", "Payment overdue"
+        PAYMENT_OVERDUE = "PAYMENT_OVERDUE", "Payment pending / overdue"
         CUSTOMER_REQUESTED = "CUSTOMER_REQUESTED", "Customer requested"
         ADMINISTRATIVE = "ADMINISTRATIVE", "Administrative action"
         MAINTENANCE = "MAINTENANCE", "Maintenance"

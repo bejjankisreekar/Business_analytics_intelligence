@@ -346,6 +346,10 @@ def redeem_coupon(*, organization, invoice: Invoice, code: str, using: str = "de
         if already_used >= coupon.max_redemptions_per_org:
             raise CouponError("You've already used this coupon the maximum number of times.")
 
+    return _apply_coupon(coupon, organization, invoice, using=using)
+
+
+def _apply_coupon(coupon: Coupon, organization, invoice: Invoice, *, using: str) -> CouponRedemption:
     discount = coupon.discount_amount_for(invoice.subtotal)
     if discount <= 0:
         raise CouponError("This coupon doesn't apply any discount to this invoice.")
@@ -357,7 +361,31 @@ def redeem_coupon(*, organization, invoice: Invoice, code: str, using: str = "de
         coupon=coupon, organization=organization, invoice=invoice, discount_amount=discount
     )
     redemption.save(using=using)
+
+    if invoice.amount_due <= 0:
+        # A 100%-off coupon settles the invoice outright: treat it as paid so access is restored.
+        from . import payments
+
+        payments.apply_payment_to_invoice(invoice, Decimal("0"), using=using)
     return redemption
+
+
+@transaction.atomic
+def apply_coupon_as_admin(*, coupon: Coupon, invoice: Invoice, using: str = "default") -> CouponRedemption:
+    """A superadmin attaches a coupon to a client's invoice — same effect as
+    the client redeeming the code, so the invoice's total drops and the client
+    sees the reduced amount on their Billing page. The admin decides, so the
+    validity window and usage caps are not enforced; the coupon just has to be
+    switched on, and the invoice still open with nothing paid yet."""
+    if not coupon.is_active:
+        raise CouponError("That coupon is switched off.")
+    if invoice.status in (Invoice.Status.PAID, Invoice.Status.CANCELLED):
+        raise CouponError("This invoice is already settled - a coupon can't be applied to it.")
+    if invoice.amount_paid and invoice.amount_paid > 0:
+        raise CouponError("A payment has already been made against this invoice.")
+    if CouponRedemption.objects.using(using).filter(invoice=invoice).exists():
+        raise CouponError("A coupon has already been applied to this invoice.")
+    return _apply_coupon(coupon, invoice.organization, invoice, using=using)
 
 
 # ---------------------------------------------------------------------------

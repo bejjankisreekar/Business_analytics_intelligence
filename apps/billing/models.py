@@ -391,16 +391,17 @@ class Coupon(models.Model):
 
     class DiscountType(models.TextChoices):
         PERCENT = "PERCENT", "Percentage"
-        FLAT = "FLAT", "Flat amount"
+        FLAT = "FLAT", "Flat amount off"
+        FIXED_PRICE = "FIXED_PRICE", "Fixed price (client pays only this)"
 
     coupon_id = models.CharField(max_length=20, unique=True, editable=False)
     code = models.CharField(max_length=40, unique=True, help_text="What the customer types in, e.g. SUMMER25")
     description = models.CharField(max_length=255, blank=True)
 
-    discount_type = models.CharField(max_length=10, choices=DiscountType.choices, default=DiscountType.PERCENT)
+    discount_type = models.CharField(max_length=20, choices=DiscountType.choices, default=DiscountType.PERCENT)
     discount_value = models.DecimalField(
         max_digits=10, decimal_places=2,
-        help_text="A percentage (0-100) or a flat currency amount, depending on Discount type.",
+        help_text="A percentage (0-100), a flat amount to take off, or - for Fixed price - the amount the client will pay.",
     )
 
     is_active = models.BooleanField(default=True)
@@ -429,6 +430,16 @@ class Coupon(models.Model):
         self.code = (self.code or "").strip().upper()
         super().save(*args, **kwargs)
 
+    def summary(self) -> str:
+        """Short human text for pickers and lists: "20% off", "₹500 off" or "Pay ₹999"."""
+        value = self.discount_value.normalize() if self.discount_value is not None else ""
+        value = f"{value:f}"
+        if self.discount_type == self.DiscountType.PERCENT:
+            return f"{value}% off"
+        if self.discount_type == self.DiscountType.FIXED_PRICE:
+            return f"Pay ₹{value}"
+        return f"₹{value} off"
+
     def is_valid_now(self, *, as_of=None, using: str = "default") -> bool:
         from django.utils import timezone
 
@@ -454,6 +465,9 @@ class Coupon(models.Model):
             amount = (subtotal * self.discount_value / Decimal("100")).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
+        elif self.discount_type == self.DiscountType.FIXED_PRICE:
+            # "Pay 999 instead of 2999": the discount is whatever brings the subtotal down to that price.
+            amount = max(subtotal - self.discount_value, Decimal("0.00"))
         else:
             amount = self.discount_value
         return min(amount, subtotal) if subtotal > 0 else Decimal("0.00")

@@ -478,7 +478,7 @@ class CrossConnectionLoginTests(TransactionTestCase):
 
             admin_client.post(
                 f"/superadmin/{ENV}/{org.pk}/service/suspend/",
-                {"reason": "PAYMENT_OVERDUE", "confirm": "on"},
+                {"reason": "ADMINISTRATIVE", "confirm": "on"},
             )
             org.refresh_from_db(using=ENV)
             self.assertEqual(org.service_status, Organization.ServiceStatus.SUSPENDED)
@@ -822,7 +822,7 @@ class ServiceControlTests(TestCase):
             f"/superadmin/{ENV}/{self.org.pk}/service/suspend/", {"reason": "PAYMENT_OVERDUE", "confirm": "on"}
         )
         resp = self.client_.get(f"/superadmin/{ENV}/{self.org.pk}/service/")
-        self.assertContains(resp, "Payment overdue")
+        self.assertContains(resp, "Payment pending / overdue")
         self.assertContains(resp, "1000")  # outstanding amount
 
 

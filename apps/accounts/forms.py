@@ -34,7 +34,9 @@ class LoginForm(forms.Form):
                 raise forms.ValidationError("Incorrect email or password.")
             if not user.is_active:
                 raise forms.ValidationError("This account has been deactivated.")
-            if user.organization is not None and not user.organization.is_service_active:
+            org = user.organization
+            # Service stopped for a pending payment: let them in - they only get the Billing page.
+            if org is not None and not org.is_service_active and not org.is_payment_hold:
                 raise forms.ValidationError(
                     "This organization's access has been suspended. Contact support."
                 )

@@ -35,7 +35,42 @@
       <div><dt class="text-xs text-slate-500">Amount paid</dt><dd class="sa-mono mt-0.5 text-slate-200">{{ invoice.currency }} {{ invoice.amount_paid }}</dd></div>
       <div><dt class="text-xs text-slate-500">Amount due</dt><dd class="sa-mono mt-0.5 text-slate-200">{{ invoice.currency }} {{ invoice.amount_due }}</dd></div>
     </dl>
+
+    {% if redemption %}
+    <p class="mt-4 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+      Coupon <span class="sa-mono font-semibold">{{ redemption.coupon.code }}</span> ({{ redemption.coupon.summary }}) applied — {{ invoice.currency }} {{ redemption.discount_amount }} off.
+      The client sees {{ invoice.currency }} {{ invoice.total }} instead of {{ invoice.currency }} {{ invoice.subtotal }}.
+    </p>
+    {% elif can_apply_coupon %}
+    <form method="post" action="{% url 'superadmin:invoice_apply_coupon' env_key invoice.pk %}" class="mt-4 flex flex-wrap items-end gap-3 border-t border-white/5 pt-4">
+      {% csrf_token %}
+      <div class="min-w-[14rem] flex-1">
+        <label class="sa-field-label" for="{{ coupon_form.coupon.id_for_label }}">Apply a coupon to this invoice</label>
+        {{ coupon_form.coupon }}
+      </div>
+      <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Apply coupon</button>
+    </form>
+    {% endif %}
   </div>
+
+  <div class="space-y-5">
+  {% if can_record_payment %}
+  <div id="record-payment" class="sa-card p-5">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Record a payment</h2>
+    <p class="mt-1 text-[11px] text-slate-600">For money received outside the app - bank transfer, cash, cheque, UPI. Due now: <span class="sa-mono text-slate-300">{{ invoice.currency }} {{ invoice.amount_due }}</span>.</p>
+    <form method="post" action="{% url 'superadmin:invoice_record_payment' env_key invoice.pk %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      {% for field in payment_form %}
+      <div>
+        <label class="sa-field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<p class="mt-1 text-[11px] text-slate-600">{{ field.help_text }}</p>{% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit" class="sa-btn-primary w-full rounded px-4 py-2 text-xs font-semibold">Record payment</button>
+    </form>
+  </div>
+  {% endif %}
 
   <div class="sa-card p-5">
     <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Payments against this invoice</h2>
@@ -52,6 +87,7 @@
       <li class="text-slate-600">No payments recorded yet.</li>
       {% endfor %}
     </ul>
+  </div>
   </div>
 </div>
 {% endblock %}

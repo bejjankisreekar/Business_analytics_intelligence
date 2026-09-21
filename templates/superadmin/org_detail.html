@@ -17,6 +17,7 @@
     {% endif %}
     <a href="{% url 'superadmin:service_control' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Service control</a>
     <a href="{% url 'superadmin:financial_history' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Financial history</a>
+    <a href="{% url 'superadmin:client_invoice_new' env_key org.pk %}" class="sa-btn-primary rounded px-3 py-1.5 text-xs font-semibold">Generate invoice</a>
     <a href="{% url 'superadmin:org_edit' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Edit client</a>
   </div>
 </div>

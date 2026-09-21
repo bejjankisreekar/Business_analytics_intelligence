@@ -27,13 +27,16 @@ from apps.organizations.utils import SCHEMA_RE, TenantSchemaError, rename_tenant
 from apps.organizations.services import OrganizationSignupError, create_organization_with_tenant_schema_and_admin
 
 from .forms import (
+    ApplyInvoiceCouponForm,
     ClientCreateForm,
     ClientProfileForm,
     CouponForm,
     CreateInvoiceForm,
     ExtendTrialForm,
+    GenerateInvoiceForm,
     GrantComplimentaryForm,
     PlanForm,
+    RecordInvoicePaymentForm,
     RecordPaymentForm,
     ServiceActionForm,
     SubscriptionActionForm,
@@ -860,7 +863,167 @@ class InvoiceDetailView(SuperAdminRequiredMixin, TemplateView):
         )
         context["invoice"] = invoice
         context["payments"] = Payment.objects.using(env).filter(invoice_id=invoice.id).order_by("-payment_date")
+        context["redemption"] = (
+            CouponRedemption.objects.using(env).select_related("coupon").filter(invoice_id=invoice.id).first()
+        )
+        context["can_apply_coupon"] = (
+            context["redemption"] is None
+            and not invoice.amount_paid
+            and invoice.status not in (Invoice.Status.PAID, Invoice.Status.CANCELLED)
+        )
+        context["coupon_form"] = ApplyInvoiceCouponForm(using=env)
+        context["can_record_payment"] = (
+            invoice.amount_due > 0
+            and invoice.status in (Invoice.Status.ISSUED, Invoice.Status.PARTIALLY_PAID, Invoice.Status.OVERDUE)
+        )
+        context["payment_form"] = RecordInvoicePaymentForm(
+            amount_due=invoice.amount_due,
+            initial={"amount": invoice.amount_due, "payment_date": timezone.localdate()},
+        )
         return context
+
+
+class InvoiceGenerateView(SuperAdminRequiredMixin, View):
+    """Generate an invoice for one specific client (optionally with a coupon).
+    Reached from the client's page (client fixed) or from the invoice list
+    (pick the client). The invoice lands on that client's own Billing page."""
+
+    template_name = "superadmin/invoice_generate.html"
+
+    def _initial_for(self, env, org):
+        today = timezone.localdate()
+        initial = {"invoice_date": today, "due_date": today + datetime.timedelta(days=7)}
+        if org is not None:
+            initial["organization"] = org.pk
+            sub = billing_services.get_current_subscription(org.id, using=env)
+            if sub is not None:
+                yearly = sub.billing_cycle == Subscription.BillingCycle.YEARLY
+                initial["subtotal"] = sub.plan.yearly_price if yearly else sub.plan.monthly_price
+        return initial
+
+    def _render(self, request, env, form, org, sub):
+        coupons = [
+            {"id": c.pk, "code": c.code, "type": c.discount_type, "value": str(c.discount_value)}
+            for c in Coupon.objects.using(env).filter(is_active=True)
+        ]
+        return render(request, self.template_name, {
+            "env_key": env, "env_label": ENVIRONMENTS[env], "form": form, "org": org, "subscription": sub,
+            "coupon_data": coupons,
+        })
+
+    def get(self, request, env, pk=None):
+        _env_label_or_404(env)
+        org = None
+        if pk is not None:
+            org = get_object_or_404(Organization.objects.using(env), pk=pk)
+        elif request.GET.get("org"):
+            org = Organization.objects.using(env).filter(pk=request.GET["org"]).first()
+        form = GenerateInvoiceForm(using=env, initial=self._initial_for(env, org))
+        sub = billing_services.get_current_subscription(org.id, using=env) if org else None
+        return self._render(request, env, form, org, sub)
+
+    def post(self, request, env, pk=None):
+        _env_label_or_404(env)
+        fixed_org = get_object_or_404(Organization.objects.using(env), pk=pk) if pk is not None else None
+        data = request.POST.copy()
+        if fixed_org is not None:
+            data["organization"] = str(fixed_org.pk)
+        form = GenerateInvoiceForm(data, using=env)
+        if not form.is_valid():
+            org = fixed_org
+            return self._render(request, env, form, org, None)
+
+        cd = form.cleaned_data
+        org = cd["organization"]
+        subscription = billing_services.get_current_subscription(org.id, using=env)
+        try:
+            with transaction.atomic(using=env):
+                invoice = invoicing.create_invoice(
+                    org, using=env, subscription=subscription, subtotal=cd["subtotal"],
+                    discount=cd.get("discount") or 0, tax=cd.get("tax") or 0, currency=org.currency,
+                    invoice_date=cd["invoice_date"], due_date=cd["due_date"], status=cd["status"],
+                )
+                if cd.get("coupon"):
+                    billing_services.apply_coupon_as_admin(coupon=cd["coupon"], invoice=invoice, using=env)
+        except billing_services.CouponError as exc:
+            form.add_error("coupon", str(exc))
+            return self._render(request, env, form, org, subscription)
+
+        invoice.refresh_from_db(using=env)
+        price = f"{org.currency} {invoice.total:,.0f}"
+        if invoice.discount > 0:
+            price += f" (was {org.currency} {invoice.subtotal:,.0f})"
+        messages.success(
+            request,
+            f"Invoice {invoice.invoice_number} generated for {org.name} - {price}. "
+            "It's now on their Billing page.",
+        )
+        return redirect("superadmin:invoice_detail", env=env, pk=invoice.pk)
+
+
+class ApplyInvoiceCouponView(SuperAdminRequiredMixin, View):
+    """Attach a coupon to an existing, unpaid invoice - the client's Billing
+    page then shows the reduced amount."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        invoice = get_object_or_404(Invoice.objects.using(env).select_related("organization"), pk=pk)
+        form = ApplyInvoiceCouponForm(request.POST, using=env)
+        if form.is_valid():
+            try:
+                redemption = billing_services.apply_coupon_as_admin(
+                    coupon=form.cleaned_data["coupon"], invoice=invoice, using=env
+                )
+            except billing_services.CouponError as exc:
+                messages.error(request, str(exc))
+            else:
+                invoice.refresh_from_db(using=env)
+                messages.success(
+                    request,
+                    f"Coupon {redemption.coupon.code} applied - {invoice.organization.name} now pays "
+                    f"{invoice.currency} {invoice.total:,.0f} (was {invoice.currency} {invoice.subtotal:,.0f}).",
+                )
+        else:
+            messages.error(request, "Choose a coupon to apply.")
+        return redirect("superadmin:invoice_detail", env=env, pk=pk)
+
+
+class InvoiceRecordPaymentView(SuperAdminRequiredMixin, View):
+    """Record a manual (off-platform) payment against one specific invoice.
+    Same effect as any other payment: the invoice's paid/due amounts and status
+    update, and once it's fully paid the client's subscription renews and a
+    payment-pending hold on their service lifts by itself."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        invoice = get_object_or_404(Invoice.objects.using(env).select_related("organization"), pk=pk)
+        if invoice.status in (Invoice.Status.CANCELLED, Invoice.Status.DRAFT, Invoice.Status.PAID) or invoice.amount_due <= 0:
+            messages.error(request, "This invoice isn't open for payment.")
+            return redirect("superadmin:invoice_detail", env=env, pk=pk)
+        form = RecordInvoicePaymentForm(request.POST, amount_due=invoice.amount_due)
+        if not form.is_valid():
+            messages.error(request, "Couldn't record the payment: " + "; ".join(
+                f"{f}: {' '.join(errs)}" for f, errs in form.errors.items()))
+            return redirect("superadmin:invoice_detail", env=env, pk=pk)
+
+        cd = form.cleaned_data
+        org = invoice.organization
+        payment_date = timezone.make_aware(datetime.datetime.combine(cd["payment_date"], datetime.time.min))
+        payment, _created = payment_services.record_payment(
+            org, using=env,
+            subscription=invoice.subscription or billing_services.get_current_subscription(org.id, using=env),
+            invoice=invoice, amount=cd["amount"], currency=invoice.currency,
+            payment_method=cd["payment_method"], gateway=Payment.Gateway.MANUAL,
+            transaction_id=cd.get("transaction_id", ""), status=Payment.Status.SUCCESS,
+            payment_date=payment_date,
+            raw_response={"recorded_by": request.user.email, "notes": cd.get("notes", "")},
+        )
+        invoice.refresh_from_db(using=env)
+        left = f" {invoice.currency} {invoice.amount_due:,.0f} still due." if invoice.amount_due > 0 else " Invoice fully paid."
+        messages.success(
+            request, f"Recorded {invoice.currency} {cd['amount']:,.0f} ({payment.payment_id}) against {invoice.invoice_number}.{left}"
+        )
+        return redirect("superadmin:invoice_detail", env=env, pk=pk)
 
 
 class InvoiceDownloadView(SuperAdminRequiredMixin, View):

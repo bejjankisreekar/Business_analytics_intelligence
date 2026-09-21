@@ -9,8 +9,13 @@
 
 {% if locked %}
 <div class="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+  {% if payment_hold %}
+  <p class="text-sm font-semibold text-red-300">Your service is on hold — payment is pending</p>
+  <p class="mt-1 text-xs text-red-200/80">Only this Billing page is available until the pending amount is paid. Once it is, your access comes back automatically.{% if outstanding <= 0 %} If you don't see an invoice below, please contact support.{% endif %}</p>
+  {% else %}
   <p class="text-sm font-semibold text-red-300">Your service is on hold — trial or paid period has ended</p>
   <p class="mt-1 text-xs text-red-200/80">This is a prepaid plan, so access is paused until the invoice below is paid. Every other page will bring you back here until then — pay now to restore access immediately.</p>
+  {% endif %}
   {% if outstanding > 0 %}
   <p class="mt-2 text-sm font-semibold text-red-300">Outstanding balance: {{ organization.currency }} {{ outstanding|floatformat:0|intcomma }}</p>
   {% endif %}
@@ -19,6 +24,17 @@
 <div class="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
   <p class="text-sm font-semibold text-amber-300">Outstanding balance: {{ organization.currency }} {{ outstanding|floatformat:0|intcomma }}</p>
   <p class="mt-1 text-xs text-amber-200/80">Please arrange payment to keep your service active.</p>
+</div>
+{% endif %}
+
+{% if discounted_invoice %}
+<div class="mt-5 rounded-xl border border-mint-500/30 bg-mint-500/10 p-4">
+  <p class="text-sm font-semibold text-mint-300">Special price applied{% if discounted_invoice.coupon_redemption %} · coupon {{ discounted_invoice.coupon_redemption.coupon.code }}{% endif %}</p>
+  <p class="mt-1 text-sm text-slate-200">
+    You pay <span class="font-bold text-white">{{ organization.currency }} {{ discounted_invoice.total|floatformat:0|intcomma }}</span>
+    instead of <span class="text-slate-400 line-through">{{ organization.currency }} {{ discounted_invoice.subtotal|floatformat:0|intcomma }}</span>
+    for invoice {{ discounted_invoice.invoice_number }}.
+  </p>
 </div>
 {% endif %}
 
@@ -82,7 +98,9 @@
         <td class="py-2.5 pr-4 text-slate-300">{{ inv.invoice_number }}</td>
         <td class="py-2.5 pr-4 text-slate-400">{{ inv.invoice_date|date:"d M Y" }}</td>
         <td class="py-2.5 pr-4 text-slate-400">{{ inv.due_date|date:"d M Y" }}</td>
-        <td class="py-2.5 pr-4 font-medium text-white">{{ organization.currency }} {{ inv.total|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 font-medium text-white">
+          {% if inv.discount > 0 %}<span class="mr-1 text-xs font-normal text-slate-500 line-through">{{ organization.currency }} {{ inv.subtotal|floatformat:0|intcomma }}</span>{% endif %}{{ organization.currency }} {{ inv.total|floatformat:0|intcomma }}
+        </td>
         <td class="py-2.5 pr-4 {% if inv.amount_due > 0 %}font-medium text-red-400{% else %}text-slate-400{% endif %}">{{ organization.currency }} {{ inv.amount_due|floatformat:0|intcomma }}</td>
         <td class="py-2.5 pr-4">
           <span class="rounded-full px-2 py-0.5 text-[11px] font-medium

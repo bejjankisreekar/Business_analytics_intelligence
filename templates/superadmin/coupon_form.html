@@ -30,7 +30,7 @@
     <div>
       <label class="sa-field-label" for="{{ form.discount_value.id_for_label }}">Discount value</label>
       {{ form.discount_value }}
-      <p class="mt-1 text-[11px] text-slate-600">A percentage (0–100) or a flat ₹ amount, depending on Discount type.</p>
+      <p class="mt-1 text-[11px] text-slate-600">Percentage: 0–100 · Flat amount off: ₹ to take off · Fixed price: what the client pays (e.g. 999 makes a ₹2,999 plan cost ₹999).</p>
       {% for e in form.discount_value.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
     </div>
     <div>

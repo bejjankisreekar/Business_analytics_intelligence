@@ -140,7 +140,10 @@ class TenantLoginRequiredMixin(LoginRequiredMixin):
     """Every tenant-facing view requires this. Two independent gates:
 
     1. Organization.is_service_active — a superadmin's manual stop/suspend
-       switch. Tripped, it logs the user out entirely (existing behavior).
+       switch. Tripped, it logs the user out entirely (existing behavior) -
+       unless the service was stopped *for a pending payment*
+       (Organization.is_payment_hold): that client stays signed in and is
+       limited to the Billing page, like a lapsed subscription below.
     2. billing_services.has_active_access() — the prepaid gate: has the
        org's trial or paid period actually lapsed? Tripped, the user stays
        logged in but every view except the ones that opt in via
@@ -157,13 +160,20 @@ class TenantLoginRequiredMixin(LoginRequiredMixin):
         user = request.user
         if user.is_authenticated and user.organization is not None:
             org = user.organization
+            request.billing_locked = False
             if not org.is_service_active:
-                logout(request)
-                messages.error(request, "This organization's access has been suspended. Contact support.")
-                return redirect("accounts:login")
-            if not self.allow_when_locked and not billing_services.has_active_access(org):
-                billing_services.ensure_renewal_invoice(org)
-                return redirect("finance:billing")
+                if not org.is_payment_hold:
+                    logout(request)
+                    messages.error(request, "This organization's access has been suspended. Contact support.")
+                    return redirect("accounts:login")
+                request.billing_locked = True
+                if not self.allow_when_locked:
+                    return redirect("finance:billing")
+            elif not billing_services.has_active_access(org):
+                request.billing_locked = True
+                if not self.allow_when_locked:
+                    billing_services.ensure_renewal_invoice(org)
+                    return redirect("finance:billing")
         return super().dispatch(request, *args, **kwargs)
 
 
@@ -236,8 +246,10 @@ class BillingView(TenantLoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         org = self.request.user.organization
-        locked = not billing_services.has_active_access(org)
-        if locked:
+        payment_hold = org.is_payment_hold
+        lapsed = not billing_services.has_active_access(org)
+        locked = payment_hold or lapsed
+        if lapsed:
             # Covers landing here directly (bookmark, fresh login) rather
             # than being bounced from another page — same idempotent call
             # either way, so the invoice always exists once lapsed.
@@ -262,6 +274,15 @@ class BillingView(TenantLoginRequiredMixin, TemplateView):
                 "outstanding": outstanding,
                 "razorpay_configured": razorpay_client.is_configured(),
                 "locked": locked,
+                "payment_hold": payment_hold,
+                "discounted_invoice": next(
+                    (
+                        inv for inv in invoices
+                        if inv.discount > 0 and inv.amount_due > 0
+                        and inv.status not in (Invoice.Status.PAID, Invoice.Status.CANCELLED, Invoice.Status.DRAFT)
+                    ),
+                    None,
+                ),
             }
         )
         return context

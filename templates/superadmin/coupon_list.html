@@ -27,7 +27,7 @@
       <tr>
         <td class="font-medium text-slate-100 sa-mono">{{ coupon.code }}{% if coupon.description %}<p class="mt-0.5 text-xs font-normal text-slate-500">{{ coupon.description }}</p>{% endif %}</td>
         <td class="sa-mono">
-          {% if coupon.discount_type == "PERCENT" %}{{ coupon.discount_value }}%{% else %}₹{{ coupon.discount_value }}{% endif %}
+          {{ coupon.summary }}
         </td>
         <td class="text-xs text-slate-400">
           {% if coupon.valid_from or coupon.valid_until %}

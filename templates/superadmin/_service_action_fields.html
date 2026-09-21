@@ -7,6 +7,10 @@
     {% if value %}<option value="{{ value }}">{{ label }}</option>{% endif %}
     {% endfor %}
   </select>
+  <p class="mt-1 text-[11px] text-slate-600">
+    <span class="font-semibold text-slate-400">Payment pending / overdue:</span> the client can still sign in, but only sees their Billing page.
+    Paying the open invoice restores service automatically. Any other reason blocks sign-in completely.
+  </p>
 </div>
 {% endif %}
 <div>

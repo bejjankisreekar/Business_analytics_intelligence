@@ -250,3 +250,71 @@ class MultiAliasBillingTests(TestCase):
         self.assertEqual(Payment.objects.using("dev").filter(pk=payment.pk).count(), 1)
         # Must NOT have leaked onto "default"/"prod".
         self.assertEqual(Invoice.objects.using("prod").filter(invoice_number=invoice.invoice_number).count(), 0)
+
+
+class CouponAndPaymentHoldTests(TestCase):
+    """A superadmin's 'pay 999 instead of 2999' coupon, and a client whose service
+    was stopped for a pending payment (only Billing reachable, auto-resume on payment)."""
+
+    def setUp(self):
+        from apps.billing.models import Coupon
+
+        self.org = _make_org(name="Coupon Hold Org")
+        self.coupon = Coupon.objects.create(
+            code="PAY999", discount_type=Coupon.DiscountType.FIXED_PRICE, discount_value=Decimal("999"),
+        )
+
+    def tearDown(self):
+        delete_organization_and_tenant(self.org)
+
+    def test_fixed_price_coupon_turns_2999_into_999(self):
+        self.assertEqual(self.coupon.discount_amount_for(Decimal("2999")), Decimal("2000.00"))
+        # never negative: a subtotal already under the fixed price gets no discount
+        self.assertEqual(self.coupon.discount_amount_for(Decimal("500")), Decimal("0.00"))
+
+    def test_admin_applied_coupon_reduces_the_invoice_total(self):
+        from . import services
+
+        invoice = invoicing.create_invoice(self.org, subtotal=2999)
+        services.apply_coupon_as_admin(coupon=self.coupon, invoice=invoice)
+        invoice.refresh_from_db()
+        self.assertEqual((invoice.subtotal, invoice.discount, invoice.total), (Decimal("2999"), Decimal("2000"), Decimal("999")))
+        with self.assertRaises(services.CouponError):
+            services.apply_coupon_as_admin(coupon=self.coupon, invoice=invoice)   # only one coupon per invoice
+
+    def test_payment_hold_only_reaches_billing_and_resumes_on_payment(self):
+        from apps.accounts.forms import LoginForm
+        from apps.accounts.models import User
+        from apps.organizations import service_control
+        from apps.organizations.models import ServiceStatusChange
+
+        owner = User.objects.get(organization=self.org)
+        service_control.suspend_service(
+            self.org, admin_email="sa@test.local", reason=ServiceStatusChange.Reason.PAYMENT_OVERDUE
+        )
+        self.org.refresh_from_db()
+        self.assertTrue(self.org.is_payment_hold)
+        self.assertTrue(LoginForm({"email": owner.email, "password": "pw12345678"}).is_valid())
+
+        client = Client()
+        client.force_login(owner)
+        self.assertEqual(client.get("/app/").status_code, 302)
+        self.assertEqual(client.get("/app/").url, "/app/billing/")
+        self.assertEqual(client.get("/app/billing/").status_code, 200)
+
+        invoice = invoicing.create_invoice(self.org, subtotal=999)
+        payment_services.record_payment(self.org, invoice=invoice, amount=999, status=Payment.Status.SUCCESS)
+        self.org.refresh_from_db()
+        self.assertTrue(self.org.is_service_active)   # resumed automatically
+
+    def test_other_suspension_reasons_still_block_sign_in(self):
+        from apps.accounts.forms import LoginForm
+        from apps.accounts.models import User
+        from apps.organizations import service_control
+        from apps.organizations.models import ServiceStatusChange
+
+        owner = User.objects.get(organization=self.org)
+        service_control.suspend_service(self.org, admin_email="sa@test.local", reason=ServiceStatusChange.Reason.SECURITY)
+        self.org.refresh_from_db()
+        self.assertFalse(self.org.is_payment_hold)
+        self.assertFalse(LoginForm({"email": owner.email, "password": "pw12345678"}).is_valid())
