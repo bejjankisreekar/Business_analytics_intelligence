@@ -16,6 +16,7 @@ from .views import (
     EditTransferView,
     AddVendorView,
     AnalyticsView,
+    SubcategoryDetailView,
     BillingView,
     BulkAddExpensesView,
     BulkAddPurchasesView,
@@ -85,6 +86,7 @@ urlpatterns = [
     path("billing/autopay/verify/", VerifyAutopaySetupView.as_view(), name="verify_autopay_setup"),
     path("billing/autopay/cancel/", CancelAutopayView.as_view(), name="cancel_autopay"),
     path("analytics/", AnalyticsView.as_view(), name="analytics"),
+    path("analytics/subcategory-detail/", SubcategoryDetailView.as_view(), name="subcategory_detail"),
     path("sales-intelligence/", SalesIntelligenceView.as_view(), name="sales_intelligence"),
     path(
         "purchase-expense-intelligence/",

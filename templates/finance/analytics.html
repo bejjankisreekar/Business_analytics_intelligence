@@ -118,7 +118,7 @@
     {% if subcategory_categories %}
     <form method="get" class="flex items-center gap-2">
       <input type="hidden" name="period" value="{{ period.key }}">
-      <select name="subcat_category" onchange="this.form.submit()" class="!mt-0 !w-auto">
+      <select name="subcat_category" onchange="this.form.submit()" class="!mt-0 !w-auto sel-wide">
         {% for c in subcategory_categories %}
         <option value="{{ c.id }}" {% if selected_subcategory_category == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
         {% endfor %}
@@ -141,8 +141,18 @@
 </div>
 
 <div class="mt-5 card p-5">
-  <h3 class="text-sm font-semibold text-white">Quantity by sub-category</h3>
-  <p class="text-xs text-slate-500">{{ period.label }} · quantity, not revenue</p>
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Sales quantity by sub-category</h3>
+            <p class="text-xs text-slate-500">{{ period.label }} · units sold, not revenue · phones are counted by brand
+    <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · units sold</span></p>
+      <p class="mt-1 text-[11px] text-slate-500">Click any slice, bar or legend entry for its details — sales, purchases, items and estimated stock.</p>
+    </div>
+    <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
+      <button type="button" onclick="bai.setQtyType('PQ', 'pie')" id="qty-btn-PQ-pie" class="granularity-btn granularity-btn--active">Pie</button>
+      <button type="button" onclick="bai.setQtyType('PQ', 'bar')" id="qty-btn-PQ-bar" class="granularity-btn">Bar</button>
+    </div>
+  </div>
   {% if product_quantity_groups %}
   <div class="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
     {% for group in product_quantity_groups %}
@@ -158,6 +168,52 @@
   {% else %}
   <p class="mt-4 py-6 text-center text-sm text-slate-500">No revenue with a quantity recorded yet.</p>
   {% endif %}
+</div>
+
+<div class="mt-5 card p-5">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Purchase quantity by sub-category</h3>
+            <p class="text-xs text-slate-500">{{ period.label }} · units bought, not cost · phones are counted by brand
+    <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · units purchased</span></p>
+      <p class="mt-1 text-[11px] text-slate-500">Click any slice, bar or legend entry for its details — sales, purchases, items and estimated stock.</p>
+    </div>
+    <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
+      <button type="button" onclick="bai.setQtyType('PP', 'pie')" id="qty-btn-PP-pie" class="granularity-btn granularity-btn--active">Pie</button>
+      <button type="button" onclick="bai.setQtyType('PP', 'bar')" id="qty-btn-PP-bar" class="granularity-btn">Bar</button>
+    </div>
+  </div>
+  {% if purchase_quantity_groups %}
+  <div class="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
+    {% for group in purchase_quantity_groups %}
+    <div class="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+      <div class="flex items-center justify-between gap-2">
+        <h4 class="text-sm font-semibold text-white">{{ group.category }}</h4>
+        <span class="flex-none text-xs text-slate-500">{{ group.total }} units</span>
+      </div>
+      <div class="mt-3 chart-box" style="height: {{ group.chart_height }}px"><canvas id="chartPP-{{ forloop.counter }}"></canvas></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="mt-4 py-6 text-center text-sm text-slate-500">No purchases with a quantity recorded yet.</p>
+  {% endif %}
+</div>
+
+<!-- Sub-category details, opened by clicking a quantity chart -->
+<div id="qty-detail" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="qty-detail-title" onclick="if (event.target === this) bai.closeQtyDetail()">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 p-6 shadow-2xl" style="background:#0a0e1a">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h3 id="qty-detail-title" class="text-lg font-semibold text-white"></h3>
+        <p id="qty-detail-sub" class="mt-0.5 text-xs text-slate-500"></p>
+      </div>
+      <button type="button" onclick="bai.closeQtyDetail()" aria-label="Close" class="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="qty-detail-body" class="mt-5"></div>
+  </div>
 </div>
 {% endblock %}
 
@@ -284,19 +340,50 @@
   });
   {% endif %}
 
-  {% for group in product_quantity_groups %}
-  (function () {
-    const labels = {{ group.labels_json|safe }};
-    const values = {{ group.values_json|safe }};
+  // Quantity charts: one chart per category, switchable between pie and bar.
+  window.bai = window.bai || {};
+  bai.qtyCharts = {};
+  const qtyType = { PQ: "pie", PP: "pie" };
+  try {
+    ["PQ", "PP"].forEach((k) => { const v = localStorage.getItem("bai.qtyType." + k); if (v === "pie" || v === "bar") qtyType[k] = v; });
+  } catch (e) { /* storage unavailable: default to pie */ }
+
+  function buildQuantityChart(canvasId, labels, values, type, meta) {
     const colors = labels.map((_, i) => donutColors[i % donutColors.length]);
-    new Chart(document.getElementById("chartPQ-{{ forloop.counter }}"), {
+    const total = values.reduce((a, b) => a + Number(b), 0);
+    const tooltip = { callbacks: { label: (ctx) => {
+      const share = total ? ((Number(ctx.raw) / total) * 100).toFixed(1) : "0.0";
+      return ` ${ctx.label}: ${Number(ctx.raw).toLocaleString("en-IN")} units (${share}%)`;
+    } } };
+    const open = (index) => { if (index != null && labels[index] != null) bai.openQtyDetail(meta, labels[index]); };
+    const clickable = {
+      onClick: (evt, elements) => { if (elements.length) open(elements[0].index); },
+      onHover: (evt, elements) => { evt.native.target.style.cursor = elements.length ? "pointer" : "default"; },
+    };
+    if (type === "bar") {
+      return new Chart(document.getElementById(canvasId), {
+        type: "bar",
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 4 }] },
+        options: {
+          indexAxis: "y", responsive: true, maintainAspectRatio: false, ...clickable,
+          plugins: { legend: { display: false }, tooltip },
+          scales: {
+            x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 }, title: { display: true, text: "Units (count)" } },
+            y: { grid: { display: false } },
+          },
+        },
+      });
+    }
+    return new Chart(document.getElementById(canvasId), {
       type: "doughnut",
       data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverOffset: 10, hoverBorderWidth: 0 }] },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true, maintainAspectRatio: false, ...clickable,
         plugins: {
+          tooltip,
           legend: {
             position: "right",
+            onClick: (evt, item) => open(item.index),
             labels: {
               boxWidth: 10, boxHeight: 10, padding: 10, usePointStyle: true, color: "#cbd5e1", font: { size: 11 },
               generateLabels: (chart) => {
@@ -317,8 +404,137 @@
         transitions: { active: { animation: { duration: 250, easing: "easeOutQuart" } } },
       },
     });
-  })();
+  }
+
+  function registerQuantityChart(prefix, canvasId, labels, values, meta) {
+    bai.qtyCharts[canvasId] = { prefix, labels, values, meta, chart: buildQuantityChart(canvasId, labels, values, qtyType[prefix], meta) };
+  }
+
+  bai.setQtyType = (prefix, type) => {
+    qtyType[prefix] = type;
+    try { localStorage.setItem("bai.qtyType." + prefix, type); } catch (e) { /* not persisted */ }
+    Object.entries(bai.qtyCharts).forEach(([id, entry]) => {
+      if (entry.prefix !== prefix) return;
+      entry.chart.destroy();
+      entry.chart = buildQuantityChart(id, entry.labels, entry.values, type, entry.meta);
+    });
+    ["pie", "bar"].forEach((t) => {
+      const btn = document.getElementById(`qty-btn-${prefix}-${t}`);
+      if (btn) btn.classList.toggle("granularity-btn--active", t === type);
+    });
+  };
+
+  // ---- Sub-category details (opened by clicking a quantity chart) ----
+  const CURRENCY = "{{ organization.currency|escapejs }}";
+  const fmtNum = (n) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const fmtMoney = (n) => (n == null ? "—" : CURRENCY + " " + fmtNum(n));
+  const qtyModal = document.getElementById("qty-detail");
+
+  function h(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function stat(label, value, hint) {
+    const box = h("div", "rounded-xl border border-white/5 bg-white/[0.03] p-3");
+    box.append(h("p", "text-[11px] font-medium uppercase tracking-wide text-slate-500", label),
+               h("p", "mt-1 text-lg font-bold text-white", value));
+    if (hint) box.append(h("p", "mt-0.5 text-[11px] text-slate-500", hint));
+    return box;
+  }
+  function section(title) { return h("p", "mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400", title); }
+
+  function renderQtyDetail(d) {
+    const body = document.getElementById("qty-detail-body");
+    body.replaceChildren();
+    document.getElementById("qty-detail-title").textContent = d.name;
+    document.getElementById("qty-detail-sub").textContent =
+      [d.sales_category, d.period.label].filter(Boolean).join(" · ");
+
+    body.append(section("Sales · " + d.period.label));
+    const sales = h("div", "grid grid-cols-1 gap-3 sm:grid-cols-3");
+    sales.append(stat("Units sold", fmtNum(d.sold.units)), stat("Revenue", fmtMoney(d.sold.amount)),
+                 stat("Avg price / unit", fmtMoney(d.sold.avg_price)));
+    body.append(sales);
+
+    body.append(section("Purchases · " + d.period.label));
+    const buys = h("div", "grid grid-cols-1 gap-3 sm:grid-cols-3");
+    buys.append(stat("Units purchased", fmtNum(d.bought.units)), stat("Purchase cost", fmtMoney(d.bought.amount)),
+                stat("Avg cost / unit", fmtMoney(d.bought.avg_cost)));
+    body.append(buys);
+
+    body.append(section("Inventory · as of " + d.period.as_of));
+    const inv = d.inventory;
+    if (!inv.tracked) {
+      body.append(h("p", "rounded-xl border border-white/5 bg-white/[0.02] p-4 text-sm text-slate-400",
+        "Stock isn't tracked for this item — there is no matching purchase category, so units bought can't be compared with units sold."));
+    } else {
+      const stock = inv.stock;
+      const grid = h("div", "grid grid-cols-2 gap-3 sm:grid-cols-4");
+      grid.append(stat("Estimated in stock", fmtNum(Math.max(stock, 0)) + " units"),
+                  stat("Stock value", fmtMoney(inv.value), "at average cost"),
+                  stat("Bought (to date)", fmtNum(inv.bought_total)), stat("Sold (to date)", fmtNum(inv.sold_total)));
+      body.append(grid);
+      body.append(h("p", "mt-2 text-[11px] leading-relaxed " + (stock < 0 ? "text-amber-300" : "text-slate-500"),
+        stock < 0
+          ? "Recorded purchases are " + fmtNum(-stock) + " units short of what was sold — units bought on credit are only counted once the supplier bill is paid, and there is no opening stock on record."
+          : "Estimated as units purchased minus units sold. Units on unpaid supplier bills aren't counted until they're paid."));
+    }
+
+    if (d.items.length) {
+      body.append(section("Items sold · " + d.period.label));
+      const table = h("table", "w-full text-left text-sm");
+      const thead = h("thead");
+      const head = h("tr", "text-[11px] uppercase tracking-wide text-slate-500");
+      ["Item", "Units", "Revenue"].forEach((t, i) => head.append(h("th", "pb-2 font-medium" + (i ? " text-right" : ""), t)));
+      thead.append(head);
+      const tbody = h("tbody", "divide-y divide-white/5");
+      d.items.forEach((it) => {
+        const row = h("tr");
+        row.append(h("td", "py-2 pr-3 text-slate-200", it.name), h("td", "py-2 text-right text-slate-300", fmtNum(it.units)),
+                   h("td", "py-2 text-right text-slate-300", fmtMoney(it.amount)));
+        tbody.append(row);
+      });
+      table.append(thead, tbody);
+      const wrap = h("div", "overflow-x-auto");
+      wrap.append(table);
+      body.append(wrap);
+    }
+  }
+
+  bai.openQtyDetail = async (meta, name) => {
+    qtyModal.classList.remove("hidden");
+    qtyModal.classList.add("flex");
+    document.getElementById("qty-detail-title").textContent = name;
+    document.getElementById("qty-detail-sub").textContent = meta.category;
+    const body = document.getElementById("qty-detail-body");
+    body.replaceChildren(h("p", "py-8 text-center text-sm text-slate-500", "Loading…"));
+    const params = new URLSearchParams(window.location.search);
+    params.set("kind", meta.kind); params.set("category", meta.category); params.set("name", name);
+    try {
+      const res = await fetch("{% url 'finance:subcategory_detail' %}?" + params.toString(), { headers: { Accept: "application/json" } });
+      if (!res.ok) throw new Error(res.status === 404 ? "No details found for this item." : "Could not load details.");
+      renderQtyDetail(await res.json());
+    } catch (err) {
+      body.replaceChildren(h("p", "py-8 text-center text-sm text-red-300", err.message));
+    }
+  };
+  bai.closeQtyDetail = () => { qtyModal.classList.add("hidden"); qtyModal.classList.remove("flex"); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") bai.closeQtyDetail(); });
+
+  {% for group in product_quantity_groups %}
+  registerQuantityChart("PQ", "chartPQ-{{ forloop.counter }}", {{ group.labels_json|safe }}, {{ group.values_json|safe }}, { kind: "sale", category: "{{ group.category|escapejs }}" });
   {% endfor %}
+  {% for group in purchase_quantity_groups %}
+  registerQuantityChart("PP", "chartPP-{{ forloop.counter }}", {{ group.labels_json|safe }}, {{ group.values_json|safe }}, { kind: "purchase", category: "{{ group.category|escapejs }}" });
+  {% endfor %}
+  ["PQ", "PP"].forEach((k) => {
+    ["pie", "bar"].forEach((t) => {
+      const btn = document.getElementById(`qty-btn-${k}-${t}`);
+      if (btn) btn.classList.toggle("granularity-btn--active", t === qtyType[k]);
+    });
+  });
 
   window.bai = window.bai || {};
   bai.setGranularity = (key) => {

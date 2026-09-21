@@ -329,25 +329,130 @@ def subcategory_revenue_breakdown(
     return [{"name": row["subcategory__name"] or "Uncategorized", "amount": row["total"]} for row in rows]
 
 
-def product_quantity_breakdown(start: datetime.date, end: datetime.date) -> list[dict]:
-    """Units sold per product (SalesEntry.subcategory) in the period, most
-    units first, tagged with its sales channel (e.g. New Mobiles,
-    Accessories, Repairs & Services) so the chart can be filtered to one
-    sector at a time instead of lumping every channel together.
-    Entries without a quantity recorded are excluded."""
+def product_quantity_breakdown(start: datetime.date, end: datetime.date, model=SalesEntry) -> list[dict]:
+    """Units per product in the period, most units first, tagged with the
+    category they sit under (a sales channel like New Mobiles, or a purchase
+    category like New Mobiles Stock) so each category gets its own chart.
+
+    Counts are rolled up to the top-level sub-category: a phone tagged
+    "Samsung → Galaxy A15" counts under "Samsung", so mobiles are counted by
+    brand, not by model. Works for SalesEntry (units sold) and PurchaseEntry
+    (units bought). Entries without a quantity recorded are excluded."""
+    category_field = "channel" if model is SalesEntry else "category"
     rows = (
-        SalesEntry.objects.filter(date__gte=start, date__lte=end, quantity__isnull=False)
-        .values("subcategory__name", "channel__name")
-        .annotate(total=Sum("quantity")).order_by("-total")
+        model.objects.filter(date__gte=start, date__lte=end, quantity__isnull=False)
+        .values("subcategory__name", "subcategory__parent__name", f"{category_field}__name")
+        .annotate(total=Sum("quantity"))
     )
+    totals: dict[tuple, int] = {}
+    for row in rows:
+        name = row["subcategory__parent__name"] or row["subcategory__name"] or "Uncategorized"
+        category = row[f"{category_field}__name"] or "Uncategorized"
+        totals[(category, name)] = totals.get((category, name), 0) + (row["total"] or 0)
     return [
-        {
-            "name": row["subcategory__name"] or "Uncategorized",
-            "category": row["channel__name"] or "Uncategorized",
-            "quantity": row["total"],
-        }
-        for row in rows
+        {"name": name, "category": category, "quantity": qty}
+        for (category, name), qty in sorted(totals.items(), key=lambda kv: -kv[1])
     ]
+
+
+def _paired_purchase_category(sales_category):
+    """The purchase category that stocks a sales category, matched by name:
+    "New Mobiles" <-> "New Mobiles Stock", "Old Mobiles" <-> "Old Mobiles
+    (Buyback)". None when nothing lines up (e.g. services)."""
+    wanted = sales_category.name.lower()
+    for cat in Category.objects.filter(kind=Category.Kind.PURCHASE):
+        if cat.name.lower().startswith(wanted) or wanted in cat.name.lower():
+            return cat
+    return None
+
+
+def _paired_sales_category(purchase_category):
+    name = purchase_category.name.lower()
+    for cat in Category.objects.filter(kind=Category.Kind.SALES):
+        if name.startswith(cat.name.lower()) or cat.name.lower() in name:
+            return cat
+    return None
+
+
+def _subtree_ids(root) -> list:
+    ids, frontier = [root.id], [root.id]
+    while frontier:
+        frontier = list(Subcategory.objects.filter(parent_id__in=frontier).values_list("id", flat=True))
+        ids.extend(frontier)
+    return ids
+
+
+def subcategory_detail(kind: str, category_name: str, name: str, period: Period) -> dict | None:
+    """Everything known about one sub-category (e.g. the Samsung brand under
+    New Mobiles): what sold and what it earned in the period, what was bought
+    for it, the models/items under it, and an estimated stock position.
+
+    `kind` says which side was clicked: "sale" (category_name is a sales
+    category) or "purchase" (a purchase category). Stock on hand is estimated
+    as every unit ever recorded as bought (up to the period's end) minus every
+    unit recorded as sold - it only means something when the two sides track
+    the same items, and it can't see units still owed on unpaid supplier bills.
+    """
+    if kind == "purchase":
+        purchase_cat = Category.objects.filter(kind=Category.Kind.PURCHASE, name=category_name).first()
+        sales_cat = _paired_sales_category(purchase_cat) if purchase_cat else None
+    else:
+        sales_cat = Category.objects.filter(kind=Category.Kind.SALES, name=category_name).first()
+        purchase_cat = _paired_purchase_category(sales_cat) if sales_cat else None
+    if sales_cat is None and purchase_cat is None:
+        return None
+
+    sales_sub = (
+        Subcategory.objects.filter(category=sales_cat, parent__isnull=True, name=name).first() if sales_cat else None
+    )
+    purchase_sub = (
+        Subcategory.objects.filter(category=purchase_cat, parent__isnull=True, name=name).first()
+        if purchase_cat else None
+    )
+    if sales_sub is None and purchase_sub is None:
+        return None
+
+    def totals(model, sub, start=None):
+        if sub is None:
+            return {"units": 0, "amount": ZERO}
+        qs = model.objects.filter(subcategory_id__in=_subtree_ids(sub), date__lte=period.end)
+        if start:
+            qs = qs.filter(date__gte=start)
+        row = qs.aggregate(units=Sum("quantity"), amount=Sum("amount"))
+        return {"units": row["units"] or 0, "amount": row["amount"] or ZERO}
+
+    sold, bought = totals(SalesEntry, sales_sub, period.start), totals(PurchaseEntry, purchase_sub, period.start)
+    sold_all, bought_all = totals(SalesEntry, sales_sub), totals(PurchaseEntry, purchase_sub)
+
+    items = []
+    if sales_sub is not None:
+        for child in Subcategory.objects.filter(parent=sales_sub).order_by("name"):
+            row = SalesEntry.objects.filter(
+                subcategory_id__in=_subtree_ids(child), date__gte=period.start, date__lte=period.end
+            ).aggregate(units=Sum("quantity"), amount=Sum("amount"))
+            if row["amount"]:
+                items.append({"name": child.name, "units": row["units"] or 0, "amount": row["amount"]})
+        items.sort(key=lambda r: -r["amount"])
+
+    tracks_stock = purchase_sub is not None and sales_sub is not None
+    stock = bought_all["units"] - sold_all["units"] if tracks_stock else None
+    avg_cost = (bought_all["amount"] / bought_all["units"]) if bought_all["units"] else None
+    return {
+        "name": name,
+        "sales_category": sales_cat.name if sales_cat else None,
+        "purchase_category": purchase_cat.name if purchase_cat else None,
+        "period": {"label": period.label, "as_of": period.end.isoformat()},
+        "sold": {**sold, "avg_price": (sold["amount"] / sold["units"]) if sold["units"] else None},
+        "bought": {**bought, "avg_cost": (bought["amount"] / bought["units"]) if bought["units"] else None},
+        "items": items,
+        "inventory": {
+            "tracked": tracks_stock,
+            "bought_total": bought_all["units"],
+            "sold_total": sold_all["units"],
+            "stock": stock,
+            "value": (max(stock, 0) * avg_cost) if (stock is not None and avg_cost is not None) else None,
+        },
+    }
 
 
 def payment_mode_breakdown(start: datetime.date, end: datetime.date, models=None) -> list[dict]:
@@ -507,18 +612,28 @@ def category_breakdown_tree(category_id, period: Period) -> list[dict]:
         return own.get(node["id"], ZERO) + sum((subtree_total(c) for c in node["children"]), ZERO)
 
     def chart(title, nodes):
-        rows = sorted(({"name": n["name"], "amount": subtree_total(n)} for n in nodes),
-                      key=lambda r: (-r["amount"], r["name"]))
+        """A level's chart, or None when nothing was sold under it — levels
+        with no recorded revenue are left out entirely, not drawn empty."""
+        rows = sorted(
+            (r for r in ({"name": n["name"], "amount": subtree_total(n)} for n in nodes) if r["amount"] > 0),
+            key=lambda r: (-r["amount"], r["name"]),
+        )
+        if not rows:
+            return None
         return {"title": title, "labels": [r["name"] for r in rows], "values": [r["amount"] for r in rows]}
 
     charts = []
     category = Category.objects.filter(pk=category_id).first()
-    charts.append(chart(category.name if category else "Category", _roots(index)))
+    top = chart(category.name if category else "Category", _roots(index))
+    if top:
+        charts.append(top)
 
     def walk(node, path):
-        if not node["children"]:
+        if not node["children"] or subtree_total(node) <= 0:
             return
-        charts.append(chart(" → ".join(path), node["children"]))
+        level = chart(" → ".join(path), node["children"])
+        if level:
+            charts.append(level)
         for child in node["children"]:
             walk(child, path + [child["name"]])
 
@@ -536,10 +651,6 @@ def subcategory_children_trend(category_id, period: Period | None = None) -> dic
     Bucketing spans `period`, so the drill-down answers the same question as
     every other chart on the page."""
     index = _subcategory_index(category_id)
-    children = _roots(index)
-    if not children:
-        empty = {"labels": [], "series": []}
-        return {"children": [], "daily": empty, "weekly": empty, "monthly": empty}
 
     def top_of(sub_id):
         node = index.get(sub_id)
@@ -548,6 +659,22 @@ def subcategory_children_trend(category_id, period: Period | None = None) -> dic
         return node["id"] if node else None
 
     today = datetime.date.today()
+    start = period.start if period else today - datetime.timedelta(days=29)
+    end = period.end if period else today
+
+    # Only sub-categories that actually sold something in the period get a
+    # series; the rest are left out rather than drawn as empty charts.
+    earned = set()
+    for row in (
+        SalesEntry.objects.filter(date__gte=start, date__lte=end, subcategory_id__in=index.keys())
+        .values("subcategory_id").annotate(total=Sum("amount"))
+    ):
+        if (row["total"] or ZERO) > 0:
+            earned.add(top_of(row["subcategory_id"]))
+    children = [c for c in _roots(index) if c["id"] in earned]
+    if not children:
+        empty = {"labels": [], "series": []}
+        return {"children": [], "daily": empty, "weekly": empty, "monthly": empty}
 
     def bucketed(start, end, bucket_key, label_fn):
         rows = (
@@ -574,9 +701,6 @@ def subcategory_children_trend(category_id, period: Period | None = None) -> dic
             for child in children
         ]
         return {"labels": labels, "series": series}
-
-    start = period.start if period else today - datetime.timedelta(days=29)
-    end = period.end if period else today
 
     daily = bucketed(start, end, bucket_key=lambda d: d, label_fn=lambda d: d.strftime("%d %b"))
 
@@ -771,9 +895,10 @@ def _group_by_subcategory(entries) -> list[dict]:
         parent = sub.parent if sub is not None and sub.parent_id else None
         name = parent.name if parent is not None else (sub.name if sub is not None else "")
         if name not in groups:
-            groups[name] = {"name": name, "total": ZERO, "entries": [], "nested": False}
+            groups[name] = {"name": name, "total": ZERO, "entries": [], "nested": False, "units": 0}
             order.append(name)
         groups[name]["total"] += entry.amount
+        groups[name]["units"] += getattr(entry, "quantity", None) or 0
         groups[name]["entries"].append(entry)
         if parent is not None:
             groups[name]["nested"] = True
@@ -998,21 +1123,74 @@ def payables_aging(as_of: datetime.date | None = None) -> dict:
     return _aging_report(payables_open(), lambda p: p.vendor, as_of)
 
 
-def vendor_outstanding_map() -> dict:
+def vendor_outstanding_map(as_of: datetime.date | None = None) -> dict:
     """{vendor name: total outstanding balance} from open payables — matched
-    by the free-text vendor name, since Payable.vendor isn't an FK."""
+    by the free-text vendor name, since Payable.vendor isn't an FK. With
+    `as_of`, only bills dated on or before that day count (the same basis the
+    vendor ledger's running balance uses)."""
     totals: dict[str, Decimal] = {}
     for p in payables_open():
+        if as_of and p.bill_date > as_of:
+            continue
         totals[p.vendor] = totals.get(p.vendor, ZERO) + p.balance
     return totals
 
 
-def customer_outstanding_map() -> dict:
-    """{customer_id: total outstanding balance} from open receivables."""
+def customer_outstanding_map(as_of: datetime.date | None = None) -> dict:
+    """{customer_id: total outstanding balance} from open receivables; with
+    `as_of`, only invoices dated on or before that day."""
     totals: dict = {}
     for r in receivables_open():
+        if as_of and r.invoice_date > as_of:
+            continue
         totals[r.customer_id] = totals.get(r.customer_id, ZERO) + r.balance
     return totals
+
+
+def filter_ledger(entries: list[dict], date_from=None, date_to=None, query: str = "") -> dict:
+    """Narrow a running-balance ledger to a date range and/or a search term.
+
+    The balance column keeps the value from the *full* history, so a filtered
+    row still shows the true balance at that point. `opening_bf` is the
+    balance carried in from before `date_from` (None when there's no start
+    date), and `closing_balance` is the balance at the end of the date range
+    — both ignore the search term, which only decides which rows are listed.
+    Totals cover the rows listed. The search matches the particular text, the
+    date as printed ("12 Sep 2026") and the debit/credit amounts.
+    """
+    before = [e for e in entries if date_from and e["date"] < date_from]
+    in_range = [
+        e for e in entries
+        if (not date_from or e["date"] >= date_from) and (not date_to or e["date"] <= date_to)
+    ]
+    opening_bf = before[-1]["balance"] if before else (ZERO if date_from else None)
+    closing = in_range[-1]["balance"] if in_range else (opening_bf if opening_bf is not None else ZERO)
+
+    query = (query or "").strip().lower()
+    listed = in_range
+    if query:
+        needle = query.replace(",", "")
+
+        def matches(e) -> bool:
+            blob = " ".join([
+                str(e.get("particular", "")).lower(),
+                e["date"].strftime("%d %b %Y").lower(),
+                e["date"].isoformat(),
+                f"{e['debit']:.2f} {e['credit']:.2f} {e['debit']:.0f} {e['credit']:.0f}",
+            ])
+            return query in blob or needle in blob
+
+        listed = [e for e in in_range if matches(e)]
+
+    return {
+        "entries": listed,
+        "opening_bf": opening_bf,
+        "closing_balance": closing,
+        "total_debit": sum((e["debit"] for e in listed), ZERO),
+        "total_credit": sum((e["credit"] for e in listed), ZERO),
+        "matched": len(listed),
+        "in_range": len(in_range),
+    }
 
 
 def customer_ledger_entries(customer) -> list[dict]:

@@ -67,7 +67,7 @@
       <h3 class="text-base font-semibold text-white">Add a vendor</h3>
       <button onclick="bai.closeModal('modal-vendor')" class="text-slate-500 hover:text-white">✕</button>
     </div>
-    <p class="mt-1 text-xs text-slate-500">An opening balance logs what you already owed this vendor as an outstanding payable.</p>
+    <p class="mt-1 text-xs text-slate-500">An opening balance logs what you already owed this vendor as money you still have to pay.</p>
     <form method="post" action="{% url 'finance:add_vendor' %}" class="mt-4 space-y-3">
       {% csrf_token %}
       <div><label class="block text-xs font-medium text-slate-400">Name</label>{{ vendor_form.name }}</div>

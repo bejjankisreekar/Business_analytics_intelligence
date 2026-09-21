@@ -79,10 +79,48 @@
   }
   .bai-select-option:hover, .bai-select-option--active { background: rgba(91,124,250,0.18); color: #fff; }
   .bai-select-option[disabled] { opacity: 0.4; cursor: not-allowed; }
+  /* Wider, taller category pickers (add class "sel-wide" to the <select>). */
+  .bai-select-wrap.sel-wide { min-width: 22rem; }
+  @media (max-width: 480px) { .bai-select-wrap.sel-wide { min-width: 0; width: 100% !important; } }
+  .bai-select-wrap.sel-wide .bai-select-trigger { width: 100%; padding: 0.65rem 0.9rem; font-size: 0.9rem; }
+  .bai-select-wrap.sel-wide .bai-select-panel { max-height: 26rem; }
+  .bai-select-wrap.sel-wide .bai-select-option { padding: 0.65rem 1rem; font-size: 0.9rem; }
   /* Long emails/URLs/IDs in label-value grids wrap instead of widening the page. */
   dl > div { min-width: 0; }
   dt, dd { overflow-wrap: anywhere; }
 </style>
+<script>
+  // Keep the scroll position when a form re-loads the same page (period / category / date
+  // dropdowns submit on change), instead of jumping back to the top.
+  (function () {
+    var KEY = "bai.scrollRestore";
+    function remember(form) {
+      try {
+        var url = new URL(form.getAttribute("action") || location.href, location.href);
+        if (url.pathname !== location.pathname) return;          // only same-page submits
+        sessionStorage.setItem(KEY, JSON.stringify({ path: location.pathname, y: window.scrollY, t: Date.now() }));
+      } catch (e) { /* storage unavailable: fall back to the browser default */ }
+    }
+    var nativeSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () { remember(this); return nativeSubmit.call(this); };
+    document.addEventListener("submit", function (e) { remember(e.target); }, true);
+
+    try {
+      var raw = sessionStorage.getItem(KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(KEY);
+      var saved = JSON.parse(raw);
+      if (saved.path !== location.pathname || Date.now() - saved.t > 15000) return;
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+      // The page grows as charts and tables render, so keep nudging until the spot is reachable.
+      var tries = 0;
+      (function restore() {
+        window.scrollTo(0, saved.y);
+        if (Math.abs(window.scrollY - saved.y) > 2 && tries++ < 20) setTimeout(restore, 100);
+      })();
+    } catch (e) { /* ignore */ }
+  })();
+</script>
 {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-ink-950 text-slate-200 antialiased">

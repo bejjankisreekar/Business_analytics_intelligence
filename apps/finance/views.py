@@ -1,3 +1,4 @@
+import calendar
 import csv
 import datetime
 import json
@@ -7,6 +8,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.paginator import Paginator
 from django.db.models import Prefetch, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -102,7 +104,7 @@ def _pad_daily_series(series: list[dict], min_days: int) -> list[dict]:
 
 def _product_quantity_groups(product_quantity: list[dict]) -> list[dict]:
     """`product_quantity_breakdown()`'s flat rows, split into one group per
-    sales channel (e.g. New Mobiles, Accessories) so the Analytics page can
+    category (e.g. New Mobiles, Accessories) so the Analytics page can
     render a dedicated small chart per category instead of one combined
     chart mixing every category together."""
     groups: dict[str, list[dict]] = {}
@@ -432,6 +434,7 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
         channel_breakdown = services.category_breakdown(SalesEntry, period.start, period.end, field="channel")
         payment_breakdown = services.payment_mode_breakdown(period.start, period.end)
         product_quantity = services.product_quantity_breakdown(period.start, period.end)
+        purchase_quantity = services.product_quantity_breakdown(period.start, period.end, model=PurchaseEntry)
 
         subcategory_categories = services.subcategory_revenue_categories(period.start, period.end)
         category_ids = {str(c.id) for c in subcategory_categories}
@@ -495,6 +498,7 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
             "selected_subcategory_category": selected_subcategory_category,
             "product_quantity": product_quantity,
             "product_quantity_groups": _product_quantity_groups(product_quantity),
+            "purchase_quantity_groups": _product_quantity_groups(purchase_quantity),
         })
         return context
 
@@ -561,11 +565,29 @@ class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView)
             "selected_group_id": selected_group_id,
             "selected_group": selected_group,
             "chart_breakdown_tree": to_json(breakdown_tree),
+            "has_breakdown": bool(breakdown_tree),
+            "has_trend": bool(drilldown and drilldown["daily"]["series"]),
             "chart_drilldown_daily": to_json(drilldown["daily"] if drilldown else {"labels": [], "series": []}),
             "chart_drilldown_weekly": to_json(drilldown["weekly"] if drilldown else {"labels": [], "series": []}),
             "chart_drilldown_monthly": to_json(drilldown["monthly"] if drilldown else {"labels": [], "series": []}),
         })
         return context
+
+
+class SubcategoryDetailView(TenantLoginRequiredMixin, PeriodMixin, View):
+    """JSON behind the click-through on the Analytics quantity charts: units,
+    revenue, purchases, items and estimated stock for one sub-category."""
+
+    def get(self, request, *args, **kwargs):
+        kind = request.GET.get("kind", "sale")
+        category, name = request.GET.get("category", ""), request.GET.get("name", "")
+        if kind not in ("sale", "purchase") or not category or not name:
+            return JsonResponse({"error": "kind, category and name are required"}, status=400)
+        period = self.get_period(services.get_finance_settings().fy_start_month)
+        detail = services.subcategory_detail(kind, category, name, period)
+        if detail is None:
+            return JsonResponse({"error": "Sub-category not found"}, status=404)
+        return JsonResponse(json.loads(to_json(detail)))
 
 
 class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
@@ -597,7 +619,6 @@ class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, Tem
             period.start, period.end, models=(ExpenseEntry, PurchaseEntry)
         )
         expense_analysis = services.expense_month_comparison(fs.fy_start_month)
-        expense_asc = sorted(expense_analysis["rows"], key=lambda r: r["this_month"])
         cost_trees = {
             "expense": services.cost_tree(ExpenseEntry, period.start, period.end),
             "purchase": services.cost_tree(PurchaseEntry, period.start, period.end),
@@ -650,9 +671,6 @@ class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, Tem
             "expense_breakdown": expense_breakdown,
             "vendor_breakdown": vendor_breakdown[:10],
             "expense_analysis": expense_analysis,
-            "expense_asc": expense_asc,
-            "chart_expense_asc_labels": to_json([r["name"] for r in expense_asc]),
-            "chart_expense_asc_values": to_json([r["this_month"] for r in expense_asc]),
         })
         return context
 
@@ -762,6 +780,32 @@ class DailyBulkEntryView(TenantLoginRequiredMixin, TemplateView):
         return context
 
 
+def _daily_pdf_density(report) -> dict:
+    """Pick how much detail and what type size lets the Daily Report PDF fit
+    one A4 page. The page holds roughly 28 rows at 9px, 33 at 8px and 38 at
+    7px (measured with the letterhead, opening line and closing block); a busy day drops the per-sub-category lines and keeps category
+    totals only."""
+    def rows(groups, detail):
+        total = 0
+        for g in groups:
+            total += 1
+            if detail and g["has_detail"] and len(g["subgroups"]) > 1:
+                total += len(g["subgroups"])
+        return total
+
+    def tallest(detail):
+        money_out = list(report["expenses_by_category"]) + list(report["purchases_by_category"])
+        return max(rows(report["sales_by_category"], detail), rows(money_out, detail))
+
+    # Room left under the table for transfers / net / closing balance.
+    below = len(report["transfers"])
+    detailed = tallest(True) + below
+    for limit, px in ((28, 9), (33, 8), (38, 7)):
+        if detailed <= limit:
+            return {"pdf_detail": True, "font_px": px}
+    return {"pdf_detail": False, "font_px": 8}
+
+
 class DailyReportPdfView(TenantLoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         raw = request.GET.get("date")
@@ -771,7 +815,7 @@ class DailyReportPdfView(TenantLoginRequiredMixin, View):
             selected_date = datetime.date.today()
 
         report = services.daily_report(selected_date)
-        context = {"organization": request.user.organization, "report": report}
+        context = {"organization": request.user.organization, "report": report, **_daily_pdf_density(report)}
         return _render_statement_pdf(
             request, "finance/pdf/daily_report_pdf.html", context, f"daily-report-{selected_date}.pdf"
         )
@@ -1311,6 +1355,78 @@ class VendorsView(TenantLoginRequiredMixin, TemplateView):
         return context
 
 
+PAGE_SIZES = (20, 50, 100)
+DEFAULT_PAGE_SIZE = 50
+
+
+def _page_size(request) -> int:
+    try:
+        size = int(request.GET.get("per_page", DEFAULT_PAGE_SIZE))
+    except ValueError:
+        size = DEFAULT_PAGE_SIZE
+    return size if size in PAGE_SIZES else DEFAULT_PAGE_SIZE
+
+
+def _paginate(request, items, param="page", newest_last=False):
+    """Slice `items` to one page of 20 / 50 / 100 (?per_page=). With
+    `newest_last` (running-balance ledgers, oldest first) the page that opens
+    by default is the last one, so the most recent entries show first."""
+    per_page = _page_size(request)
+    paginator = Paginator(items, per_page)
+    raw = request.GET.get(param)
+    if raw is None and newest_last:
+        number = paginator.num_pages
+    else:
+        number = raw
+    page = paginator.get_page(number)
+    numbers = [n if isinstance(n, int) else "…" for n in paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1)]
+    params = request.GET.copy()
+    params.pop(param, None)
+    return {
+        "page_obj": page,
+        "page_numbers": numbers,
+        "page_query": params.urlencode(),
+        "per_page": per_page,
+        "page_sizes": PAGE_SIZES,
+    }
+
+
+def _ledger_filter_context(request, entries):
+    """Read ?from=&to=&q= and narrow `entries` with services.filter_ledger.
+    Returns the filtered ledger plus the values the filter form needs."""
+    def parse(name):
+        raw = request.GET.get(name)
+        try:
+            return datetime.date.fromisoformat(raw) if raw else None
+        except ValueError:
+            return None
+
+    # No date parameters at all -> this month. Submitting the form with the dates
+    # emptied (?from=&to=) is how a user asks for the whole history.
+    default_range = "from" not in request.GET and "to" not in request.GET
+    if default_range:
+        today = datetime.date.today()
+        date_from = today.replace(day=1)
+        date_to = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+    else:
+        date_from, date_to = parse("from"), parse("to")
+        if date_from and date_to and date_from > date_to:
+            date_from, date_to = date_to, date_from
+    query = (request.GET.get("q") or "").strip()
+    result = services.filter_ledger(entries, date_from, date_to, query)
+    page = _paginate(request, result["entries"])
+    result["entries"] = list(page["page_obj"].object_list)
+    result.update(page)
+    result.update({
+        "date_from": date_from,
+        "date_to": date_to,
+        "query": query,
+        "is_filtered": bool(date_from or date_to or query),
+        "default_range": default_range,
+    })
+    return result
+
+
 class LedgersView(TenantLoginRequiredMixin, TemplateView):
     """Every ledger in the business in one place: Cash and Bank (current
     balance, linking into their full transaction history), plus a
@@ -1325,23 +1441,48 @@ class LedgersView(TenantLoginRequiredMixin, TemplateView):
         today = datetime.date.today()
         cash, bank = services.cash_and_bank_as_of(today)
 
-        customer_outstanding = services.customer_outstanding_map()
+        try:
+            as_of = datetime.date.fromisoformat(self.request.GET.get("as_of", ""))
+        except ValueError:
+            as_of = None
+        query = (self.request.GET.get("q") or "").strip()
+        needle = query.lower()
+
+        # Businesses that only make general counter sales keep no customer list, so the
+        # Customer Ledgers block is left out for them entirely.
+        has_customers = Customer.objects.exists()
+        customer_outstanding = services.customer_outstanding_map(as_of)
         customers = list(Customer.objects.all())
         for customer in customers:
             customer.outstanding = customer_outstanding.get(customer.id, services.ZERO)
-
-        vendor_outstanding = services.vendor_outstanding_map()
+        vendor_outstanding = services.vendor_outstanding_map(as_of)
         vendors = list(Vendor.objects.all())
         for vendor in vendors:
             vendor.outstanding = vendor_outstanding.get(vendor.name, services.ZERO)
 
+        if needle:
+            customers = [
+                c for c in customers
+                if needle in " ".join([c.name, c.phone or "", c.email or ""]).lower()
+            ]
+            vendors = [v for v in vendors if needle in " ".join([v.name, v.phone or "", v.details or ""]).lower()]
+
+        customer_page = _paginate(self.request, customers, param="cpage")
+        vendor_page = _paginate(self.request, vendors, param="vpage")
         context.update({
             "active_nav": "ledgers",
             "organization": self.request.user.organization,
             "cash_balance": cash,
             "bank_balance": bank,
-            "customers": customers,
-            "vendors": vendors,
+            "customers": list(customer_page["page_obj"].object_list),
+            "vendors": list(vendor_page["page_obj"].object_list),
+            "has_customers": has_customers,
+            "customer_pager": customer_page,
+            "vendor_pager": vendor_page,
+            "per_page": customer_page["per_page"],
+            "page_sizes": PAGE_SIZES,
+            "query": query,
+            "as_of": as_of,
         })
         return context
 
@@ -1355,23 +1496,19 @@ class CustomerLedgerView(TenantLoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         customer = get_object_or_404(Customer, pk=kwargs["pk"])
-        entries = services.customer_ledger_entries(customer)
+        flt = _ledger_filter_context(self.request, services.customer_ledger_entries(customer))
+        entries = flt["entries"]
         invoices = {r.pk: r for r in Receivable.objects.filter(customer=customer)}
         for row in entries:
             if row["source"]["role"] == "invoice":
                 row["edit_form"] = ReceivableEditForm(
                     instance=invoices[row["source"]["pk"]], auto_id=f"id_edit_inv_{row['source']['pk']}_%s"
                 )
-        total_debit = sum((e["debit"] for e in entries), services.ZERO)
-        total_credit = sum((e["credit"] for e in entries), services.ZERO)
         context.update({
             "active_nav": "ledgers",
             "organization": self.request.user.organization,
             "customer": customer,
-            "entries": entries,
-            "total_debit": total_debit,
-            "total_credit": total_credit,
-            "closing_balance": entries[-1]["balance"] if entries else services.ZERO,
+            **flt,
         })
         return context
 
@@ -1385,23 +1522,19 @@ class VendorLedgerView(TenantLoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         vendor = get_object_or_404(Vendor, pk=kwargs["pk"])
-        entries = services.vendor_ledger_entries(vendor.name)
+        flt = _ledger_filter_context(self.request, services.vendor_ledger_entries(vendor.name))
+        entries = flt["entries"]
         bills = {p.pk: p for p in Payable.objects.filter(vendor=vendor.name)}
         for row in entries:
             if row["source"]["role"] == "invoice":
                 row["edit_form"] = PayableEditForm(
                     instance=bills[row["source"]["pk"]], auto_id=f"id_edit_bill_{row['source']['pk']}_%s"
                 )
-        total_debit = sum((e["debit"] for e in entries), services.ZERO)
-        total_credit = sum((e["credit"] for e in entries), services.ZERO)
         context.update({
             "active_nav": "ledgers",
             "organization": self.request.user.organization,
             "vendor": vendor,
-            "entries": entries,
-            "total_debit": total_debit,
-            "total_credit": total_credit,
-            "closing_balance": entries[-1]["balance"] if entries else services.ZERO,
+            **flt,
         })
         return context
 
@@ -1417,17 +1550,12 @@ class AccountLedgerView(TenantLoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        entries = services.account_ledger_entries(self.account)
-        total_debit = sum((e["debit"] for e in entries), services.ZERO)
-        total_credit = sum((e["credit"] for e in entries), services.ZERO)
+        flt = _ledger_filter_context(self.request, services.account_ledger_entries(self.account))
         context.update({
             "active_nav": "ledgers",
             "organization": self.request.user.organization,
             "account_label": self.account_label,
-            "entries": entries,
-            "total_debit": total_debit,
-            "total_credit": total_credit,
-            "closing_balance": entries[-1]["balance"] if entries else services.ZERO,
+            **flt,
         })
         return context
 
@@ -1602,9 +1730,9 @@ class AddReceivableView(TenantLoginRequiredMixin, View):
             receivable = form.save(commit=False)
             receivable.created_by_email = request.user.email
             receivable.save()
-            messages.success(request, f"Logged a receivable of {receivable.amount} for {receivable.customer}.")
+            messages.success(request, f"Logged {receivable.amount} to receive from {receivable.customer}.")
         else:
-            messages.error(request, "Couldn't save that receivable: " + "; ".join(
+            messages.error(request, "Couldn't save that money to receive: " + "; ".join(
                 f"{f}: {', '.join(e)}" for f, e in form.errors.items()
             ))
         return redirect("finance:cash_position")
@@ -1617,7 +1745,7 @@ class DeleteReceivableView(TenantLoginRequiredMixin, View):
             messages.error(request, "Can't delete an invoice that already has payments recorded against it.")
         else:
             receivable.delete()
-            messages.success(request, "Receivable deleted.")
+            messages.success(request, "Money-to-receive entry deleted.")
         return redirect(request.POST.get("next") or "finance:cash_position")
 
 
@@ -1640,7 +1768,7 @@ class RecordReceivablePaymentView(TenantLoginRequiredMixin, View):
                 )
                 receivable.amount_received += amount
                 receivable.save(update_fields=["amount_received"])
-                messages.success(request, f"Recorded a payment of {amount} against this receivable.")
+                messages.success(request, f"Recorded {amount} received against this.")
         else:
             messages.error(request, "Couldn't record that payment: " + "; ".join(
                 f"{f}: {', '.join(e)}" for f, e in form.errors.items()
@@ -1655,9 +1783,9 @@ class AddPayableView(TenantLoginRequiredMixin, View):
             payable = form.save(commit=False)
             payable.created_by_email = request.user.email
             payable.save()
-            messages.success(request, f"Logged a payable of {payable.amount} to {payable.vendor}.")
+            messages.success(request, f"Logged {payable.amount} to pay to {payable.vendor}.")
         else:
-            messages.error(request, "Couldn't save that payable: " + "; ".join(
+            messages.error(request, "Couldn't save that money to pay: " + "; ".join(
                 f"{f}: {', '.join(e)}" for f, e in form.errors.items()
             ))
         return redirect("finance:cash_position")
@@ -1670,7 +1798,7 @@ class DeletePayableView(TenantLoginRequiredMixin, View):
             messages.error(request, "Can't delete a bill that already has payments recorded against it.")
         else:
             payable.delete()
-            messages.success(request, "Payable deleted.")
+            messages.success(request, "Money-to-pay entry deleted.")
         return redirect(request.POST.get("next") or "finance:cash_position")
 
 
@@ -1693,7 +1821,7 @@ class RecordPayablePaymentView(TenantLoginRequiredMixin, View):
                 )
                 payable.amount_paid += amount
                 payable.save(update_fields=["amount_paid"])
-                messages.success(request, f"Recorded a payment of {amount} against this payable.")
+                messages.success(request, f"Recorded {amount} paid against this.")
         else:
             messages.error(request, "Couldn't record that payment: " + "; ".join(
                 f"{f}: {', '.join(e)}" for f, e in form.errors.items()
@@ -1796,7 +1924,8 @@ class PartnerLedgerView(TenantLoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         partner = get_object_or_404(Partner, pk=kwargs["pk"])
-        entries = services.partner_ledger_entries(partner)
+        flt = _ledger_filter_context(self.request, services.partner_ledger_entries(partner))
+        entries = flt["entries"]
         min_date = _historical_min_date(self.request)
         txns = {t.pk: t for t in partner.transactions.all()}
         for row in entries:
@@ -1805,16 +1934,14 @@ class PartnerLedgerView(TenantLoginRequiredMixin, TemplateView):
                 instance=txn, auto_id=f"id_edit_ptxn_{txn.pk}_%s", min_date=min_date
             )
             row["txn"] = txn
-        total_debit = sum((e["debit"] for e in entries), services.ZERO)
-        total_credit = sum((e["credit"] for e in entries), services.ZERO)
         context.update({
             "active_nav": "cash_position",
             "organization": self.request.user.organization,
             "partner": partner,
-            "entries": entries,
-            "total_invested": total_debit,
-            "total_withdrawn": total_credit,
-            "net_capital": entries[-1]["balance"] if entries else services.ZERO,
+            **flt,
+            "total_invested": flt["total_debit"],
+            "total_withdrawn": flt["total_credit"],
+            "net_capital": flt["closing_balance"],
         })
         return context
 

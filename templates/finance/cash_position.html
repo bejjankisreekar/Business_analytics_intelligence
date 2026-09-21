@@ -13,32 +13,32 @@
   </div>
   <div class="flex flex-wrap gap-3">
     <a href="{% url 'finance:aging_report' %}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Aging Report →</a>
-    <button onclick="bai.openModal('modal-receivable')" class="btn-primary">+ Receivable</button>
-    <button onclick="bai.openModal('modal-payable')" class="btn-primary" style="background:linear-gradient(90deg,#f87171,#ef4444)">+ Payable</button>
+    <button onclick="bai.openModal('modal-receivable')" class="btn-primary">+ Money to Receive</button>
+    <button onclick="bai.openModal('modal-payable')" class="btn-primary" style="background:linear-gradient(90deg,#f87171,#ef4444)">+ Money to Pay</button>
   </div>
 </div>
 
 <!-- KPI row -->
 <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
   <div class="card p-5">
-    <p class="text-xs font-medium text-slate-500">Total Receivable</p>
+    <p class="text-xs font-medium text-slate-500">Total to Receive <span class="font-normal text-slate-600">· Receivable</span></p>
     <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ total_receivable|floatformat:0|intcomma }}</p>
     <p class="mt-0.5 text-xs text-slate-500">{{ receivables|length }} open invoice{{ receivables|length|pluralize }}</p>
   </div>
   <div class="card p-5">
-    <p class="text-xs font-medium text-slate-500">Total Payable</p>
+    <p class="text-xs font-medium text-slate-500">Total to Pay <span class="font-normal text-slate-600">· Payable</span></p>
     <p class="mt-1.5 text-xl font-bold text-red-400">{{ organization.currency }} {{ total_payable|floatformat:0|intcomma }}</p>
     <p class="mt-0.5 text-xs text-slate-500">{{ payables|length }} open bill{{ payables|length|pluralize }}</p>
   </div>
   <div class="card p-5">
     <p class="text-xs font-medium text-slate-500">Net Position</p>
     <p class="mt-1.5 text-xl font-bold {% if net_position >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ net_position|floatformat:0|intcomma }}</p>
-    <p class="mt-0.5 text-xs text-slate-500">Receivable − Payable</p>
+    <p class="mt-0.5 text-xs text-slate-500">Money to receive − money to pay</p>
   </div>
   <div class="card p-5">
     <p class="text-xs font-medium text-slate-500">Upcoming Obligations</p>
     <p class="mt-1.5 text-xl font-bold text-amber-400">{{ upcoming_obligations|length }}</p>
-    <p class="mt-0.5 text-xs text-slate-500">Payable{{ upcoming_obligations|length|pluralize }} due in the next 30 days</p>
+    <p class="mt-0.5 text-xs text-slate-500">Bill{{ upcoming_obligations|length|pluralize }} to pay in the next 30 days</p>
   </div>
 </div>
 
@@ -108,7 +108,7 @@
 
 <!-- Receivables -->
 <div class="card mt-6 p-6">
-  <h2 class="text-base font-semibold text-white">Receivables</h2>
+  <h2 class="text-base font-semibold text-white">Receivables <span class="font-medium text-mint-400">— money to receive</span></h2>
   <p class="text-xs text-slate-500">Money customers owe you</p>
   <div class="mt-4 overflow-x-auto">
     <table class="w-full text-left text-sm">
@@ -159,7 +159,7 @@
 
 <!-- Payables -->
 <div class="card mt-6 p-6">
-  <h2 class="text-base font-semibold text-white">Payables</h2>
+  <h2 class="text-base font-semibold text-white">Payables <span class="font-medium text-red-400">— money to pay</span></h2>
   <p class="text-xs text-slate-500">Money you owe vendors</p>
   <div class="mt-4 overflow-x-auto">
     <table class="w-full text-left text-sm">
@@ -265,7 +265,7 @@
 <div id="modal-receivable" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-receivable')">
   <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
     <div class="flex items-center justify-between">
-      <h3 class="text-base font-semibold text-white">Add a receivable</h3>
+      <h3 class="text-base font-semibold text-white">Add money to receive</h3>
       <button onclick="bai.closeModal('modal-receivable')" class="text-slate-500 hover:text-white">✕</button>
     </div>
     <form method="post" action="{% url 'finance:add_receivable' %}" class="mt-4 space-y-3">
@@ -277,7 +277,7 @@
       </div>
       <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ receivable_form.amount }}</div>
       <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ receivable_form.note }}</div>
-      <button type="submit" class="btn-primary w-full">Save receivable</button>
+      <button type="submit" class="btn-primary w-full">Save</button>
     </form>
   </div>
 </div>
@@ -286,7 +286,7 @@
 <div id="modal-payable" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-payable')">
   <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
     <div class="flex items-center justify-between">
-      <h3 class="text-base font-semibold text-white">Add a payable</h3>
+      <h3 class="text-base font-semibold text-white">Add money to pay</h3>
       <button onclick="bai.closeModal('modal-payable')" class="text-slate-500 hover:text-white">✕</button>
     </div>
     <form method="post" action="{% url 'finance:add_payable' %}" class="mt-4 space-y-3">
@@ -298,7 +298,7 @@
       </div>
       <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ payable_form.amount }}</div>
       <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ payable_form.note }}</div>
-      <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#f87171,#ef4444)">Save payable</button>
+      <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#f87171,#ef4444)">Save</button>
     </form>
   </div>
 </div>

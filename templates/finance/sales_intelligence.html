@@ -5,6 +5,11 @@
 {% block app_content %}
 <style>
   #period-select + .bai-select-trigger { min-width: 12rem; }
+  /* Says, on every chart, what its numbers measure. */
+  .unit-badge { display: inline-block; margin-left: 0.4rem; border-radius: 9999px; padding: 0.05rem 0.55rem; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.02em; vertical-align: middle; border: 1px solid transparent; }
+  .unit-badge--amount { color: #34d9b8; background: rgba(52,217,184,0.1); border-color: rgba(52,217,184,0.3); }
+  .unit-badge--count { color: #7c9dff; background: rgba(91,124,250,0.12); border-color: rgba(91,124,250,0.35); }
+  .unit-badge--pct { color: #fbbf24; background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.3); }
 </style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
@@ -53,8 +58,8 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h3 class="text-sm font-semibold text-white">Revenue vs previous period</h3>
-        <p class="text-xs text-slate-500" id="vsprev-subtitle-week">{{ vs_prev_week.prev_label }} vs {{ vs_prev_week.current_label }}</p>
-        <p class="hidden text-xs text-slate-500" id="vsprev-subtitle-month">{{ vs_prev_month.prev_label }} vs {{ vs_prev_month.current_label }}</p>
+        <p class="text-xs text-slate-500" id="vsprev-subtitle-week">{{ vs_prev_week.prev_label }} vs {{ vs_prev_week.current_label }} <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
+        <p class="hidden text-xs text-slate-500" id="vsprev-subtitle-month">{{ vs_prev_month.prev_label }} vs {{ vs_prev_month.current_label }} <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
       </div>
       <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
         <button type="button" onclick="bai.setVsPrevView('week')" id="vsprev-btn-week" class="granularity-btn granularity-btn--active">Week</button>
@@ -62,15 +67,15 @@
       </div>
     </div>
     <div class="mt-5" id="vsprev-panel-week">
-      {% include "finance/_vs_prev_panel.html" with data=vs_prev_week %}
+      {% include "finance/_vs_prev_panel.html" with data=vs_prev_week key="week" %}
     </div>
     <div class="mt-5 hidden" id="vsprev-panel-month">
-      {% include "finance/_vs_prev_panel.html" with data=vs_prev_month %}
+      {% include "finance/_vs_prev_panel.html" with data=vs_prev_month key="month" %}
     </div>
   </div>
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Revenue vs profit</h3>
-    <p class="text-xs text-slate-500">Last 6 months</p>
+    <p class="text-xs text-slate-500">Last 6 months <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
     <div class="mt-4 h-64"><canvas id="chartRevenueProfit"></canvas></div>
   </div>
 </div>
@@ -79,17 +84,17 @@
 <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Orders trend</h3>
-    <p class="text-xs text-slate-500">Revenue transactions logged per month, last 6 months</p>
+    <p class="text-xs text-slate-500">Revenue transactions logged per month, last 6 months <span class="unit-badge unit-badge--count">Count · number of orders</span></p>
     <div class="mt-4 h-56"><canvas id="chartOrders"></canvas></div>
   </div>
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Average order value trend</h3>
-    <p class="text-xs text-slate-500">Revenue ÷ orders, last 6 months</p>
+    <p class="text-xs text-slate-500">Revenue ÷ orders, last 6 months <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
     <div class="mt-4 h-56"><canvas id="chartAov"></canvas></div>
   </div>
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Gross margin % trend</h3>
-    <p class="text-xs text-slate-500">(Revenue − purchases) / revenue, last 6 months</p>
+    <p class="text-xs text-slate-500">(Revenue − purchases) / revenue, last 6 months <span class="unit-badge unit-badge--pct">Percentage · %</span></p>
     <div class="mt-4 h-56"><canvas id="chartMargin"></canvas></div>
   </div>
 </div>
@@ -97,7 +102,7 @@
 <!-- Revenue Insights -->
 <div class="card mt-5 p-5">
   <h3 class="text-sm font-semibold text-white">Revenue Insights</h3>
-  <p class="text-xs text-slate-500">{{ sales_insights.this_month_label }} vs {{ sales_insights.last_month_label }}, by channel</p>
+  <p class="text-xs text-slate-500">{{ sales_insights.this_month_label }} vs {{ sales_insights.last_month_label }}, by channel <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
 
   {% if sales_insights.notes %}
   <div class="mt-4 space-y-2">
@@ -145,7 +150,7 @@
 <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">How revenue is received</h3>
-    <p class="text-xs text-slate-500">Cash vs bank, {{ period.label }}</p>
+    <p class="text-xs text-slate-500">Cash vs bank, {{ period.label }} <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
     <div class="mt-4 h-64"><canvas id="chartPaymentMode"></canvas></div>
   </div>
 </div>
@@ -156,32 +161,44 @@
   <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
       <h3 class="text-sm font-semibold text-white">Revenue by category &amp; sub-category</h3>
-      <p class="text-xs text-slate-500">{{ period.label }} — pick a category; every level of sub-category is charted automatically</p>
+      <p class="text-xs text-slate-500">{{ period.label }} — pick a category; every level of sub-category is charted automatically <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <form method="get" action="#drilldown-section">
         <input type="hidden" name="period" value="{{ period.key }}">
-        <select name="category" onchange="this.form.submit()" class="!mt-0 !w-auto">
+        <select name="category" onchange="this.form.submit()" class="!mt-0 !w-auto sel-wide">
           {% for g in subcategory_groups %}
           <option value="{{ g.id }}" {% if selected_group_id == g.id|stringformat:"s" %}selected{% endif %}>{{ g.name }}</option>
           {% endfor %}
         </select>
       </form>
+      {% if has_trend %}
       <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
         <button type="button" onclick="bai.setDrilldownGranularity('daily')" id="dd-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
         <button type="button" onclick="bai.setDrilldownGranularity('weekly')" id="dd-btn-weekly" class="granularity-btn">Weekly</button>
         <button type="button" onclick="bai.setDrilldownGranularity('monthly')" id="dd-btn-monthly" class="granularity-btn">Monthly</button>
       </div>
+      {% endif %}
     </div>
   </div>
   <!-- One bar chart per level: category -> sub-categories -> their sub-categories, as deep as the data goes -->
+  {% if has_breakdown %}
   <div id="breakdownCharts" class="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2"></div>
-  <p class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Trend over time{% if selected_group %} &middot; {{ selected_group.name }}{% endif %}</p>
+  {% else %}
+  <p class="mt-5 rounded-xl border border-white/5 bg-white/[0.02] py-10 text-center text-sm text-slate-500">
+    No sales recorded under {% if selected_group %}{{ selected_group.name }}{% else %}this category{% endif %} in {{ period.label }} — nothing to chart.
+  </p>
+  {% endif %}
+  {% if has_trend %}
+  <p class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Trend over time{% if selected_group %} &middot; {{ selected_group.name }}{% endif %} <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
 
   <div class="mt-5 h-72"><canvas id="chartDrilldown"></canvas></div>
+  {% endif %}
 </div>
 
+{% if has_trend %}
 <div id="drilldownChildCharts" class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3"></div>
+{% endif %}
 {% endif %}
 
 {% endblock %}
@@ -256,6 +273,7 @@
     monthly: {{ chart_drilldown_monthly|safe }},
   };
 
+  {% if has_breakdown %}
   (function () {
     const tree = {{ chart_breakdown_tree|safe }};
     const host = document.getElementById("breakdownCharts");
@@ -268,7 +286,11 @@
       title.textContent = node.title;
       const sub = document.createElement("p");
       sub.className = "text-xs text-slate-500";
-      sub.textContent = "{{ period.label }} · total " + total.toLocaleString("en-IN");
+      sub.textContent = "{{ period.label }} · total " + total.toLocaleString("en-IN") + " ";
+      const badge = document.createElement("span");
+      badge.className = "unit-badge unit-badge--amount";
+      badge.textContent = "Amount · {{ organization.currency }}";
+      sub.appendChild(badge);
       const box = document.createElement("div");
       box.className = "mt-3 chart-box";
       box.style.height = Math.max(160, node.labels.length * 40 + 50) + "px";
@@ -286,11 +308,13 @@
             const share = total ? ((Number(ctx.raw) / total) * 100).toFixed(1) : "0.0";
             return ` ${Number(ctx.raw).toLocaleString("en-IN")} (${share}%)`;
           } } } },
-          scales: { x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 } }, y: { grid: { display: false } } },
+          scales: { x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 }, title: { display: true, text: "Amount ({{ organization.currency }})" } }, y: { grid: { display: false } } },
         },
       });
     });
   })();
+  {% endif %}
+  {% if has_trend %}
   const drilldownChart = new Chart(document.getElementById("chartDrilldown"), {
     type: "bar",
     data: {
@@ -301,14 +325,14 @@
     },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
       plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" }, title: { display: true, text: "Amount ({{ organization.currency }})" } } } },
   });
   const childChartsEl = document.getElementById("drilldownChildCharts");
   const drilldownChildCharts = drilldownData.daily.series.map((s, i) => {
     const card = document.createElement("div");
     card.className = "card p-5";
     card.innerHTML = `<h3 class="text-sm font-semibold text-white">${s.name}</h3>
-      <p class="text-xs text-slate-500">Revenue trend</p>
+      <p class="text-xs text-slate-500">Revenue trend <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
       <div class="mt-4 h-56"><canvas></canvas></div>`;
     childChartsEl.appendChild(card);
     return new Chart(card.querySelector("canvas"), {
@@ -335,14 +359,39 @@
     });
   };
   {% endif %}
+  {% endif %}
 
   window.bai = window.bai || {};
+  bai.vsCharts = {};
+  document.querySelectorAll("canvas[data-vsprev]").forEach((canvas) => {
+    const current = Number(canvas.dataset.current), prev = Number(canvas.dataset.prev);
+    const total = current + prev;
+    bai.vsCharts[canvas.dataset.vsprev] = new Chart(canvas, {
+      type: "doughnut",
+      data: {
+        labels: [canvas.dataset.currentLabel + " (this period)", canvas.dataset.prevLabel + " (previous)"],
+        datasets: [{ data: [current, prev], backgroundColor: [palette.mint, palette.brand], borderWidth: 0, hoverOffset: 4 }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "68%",
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => {
+            const share = total ? ((ctx.raw / total) * 100).toFixed(1) : "0.0";
+            return ` ${ctx.label}: ${Number(ctx.raw).toLocaleString("en-IN")} (${share}%)`;
+          } } },
+        },
+      },
+    });
+  });
   bai.setVsPrevView = (view) => {
     ["week", "month"].forEach((k) => {
       document.getElementById("vsprev-btn-" + k).classList.toggle("granularity-btn--active", k === view);
       document.getElementById("vsprev-panel-" + k).classList.toggle("hidden", k !== view);
       document.getElementById("vsprev-subtitle-" + k).classList.toggle("hidden", k !== view);
     });
+    // A chart built while its panel was hidden has no size; re-measure once visible.
+    if (bai.vsCharts[view]) bai.vsCharts[view].resize();
   };
 </script>
 {% endblock %}

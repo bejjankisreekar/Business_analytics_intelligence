@@ -1,0 +1,31 @@
+<!-- Date range + search -->
+<form method="get" class="card mt-5 flex flex-wrap items-end gap-3 p-4">
+  <div>
+    <label for="lf-from" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
+    <input id="lf-from" type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+  </div>
+  <div>
+    <label for="lf-to" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">To</label>
+    <input id="lf-to" type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+  </div>
+  <div class="min-w-[14rem] flex-1">
+    <label for="lf-q" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Search</label>
+    <input id="lf-q" type="text" name="q" value="{{ query }}" placeholder="Particular, date or amount" class="!mt-1">
+  </div>
+  <div>
+    <label for="lf-per" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Rows per page</label>
+    <select id="lf-per" name="per_page" onchange="this.form.submit()" class="!mt-1 !w-auto" data-plain>
+      {% for n in page_sizes %}<option value="{{ n }}" {% if n == per_page %}selected{% endif %}>{{ n }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <button type="submit" class="btn-primary">Apply</button>
+    {% if not default_range or query %}<a href="{{ request.path }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">This month</a>{% endif %}
+    {% if date_from or date_to %}<a href="{{ request.path }}?from=&to=" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">All time</a>{% endif %}
+  </div>
+  {% if is_filtered %}
+  <p class="w-full text-xs text-slate-500">
+    {% if default_range %}<span class="font-medium text-slate-300">This month by default — change the dates, or pick All time.</span> {% endif %}Showing {{ matched }} of {{ in_range }} entr{{ in_range|pluralize:"y,ies" }}{% if date_from or date_to %} between {% if date_from %}{{ date_from|date:"d M Y" }}{% else %}the start{% endif %} and {% if date_to %}{{ date_to|date:"d M Y" }}{% else %}today{% endif %}{% endif %}{% if query %} matching “{{ query }}”{% endif %}. Balances are the running balance from the full ledger.
+  </p>
+  {% endif %}
+</form>

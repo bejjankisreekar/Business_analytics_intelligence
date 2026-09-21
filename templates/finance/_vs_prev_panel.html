@@ -1,25 +1,36 @@
 {% load humanize %}
-<div class="flex items-end justify-between gap-4">
-  <div>
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">This period</p>
-    <p class="mt-1 text-2xl font-bold text-white">{{ organization.currency }} {{ data.current_sales|floatformat:0|intcomma }}</p>
+{% if data.current_sales or data.prev_sales %}
+<div class="grid items-center gap-5 sm:grid-cols-2">
+  <div class="relative mx-auto h-52 w-52">
+    <canvas data-vsprev="{{ key }}" data-current="{{ data.current_sales|floatformat:2 }}" data-prev="{{ data.prev_sales|floatformat:2 }}"
+            data-current-label="{{ data.current_label }}" data-prev-label="{{ data.prev_label }}"></canvas>
+    {% if data.change_pct is not None %}
+    <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+      <p class="text-2xl font-bold {% if data.change_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">
+        {% if data.change_pct >= 0 %}▲{% else %}▼{% endif %} {{ data.change_pct|floatformat:1 }}%
+      </p>
+      <p class="mt-0.5 text-[11px] uppercase tracking-wide text-slate-500">vs previous</p>
+    </div>
+    {% endif %}
   </div>
-  {% if data.change_pct is not None %}
-  <p class="mb-1 text-xs font-semibold {% if data.change_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">
-    {% if data.change_pct >= 0 %}▲{% else %}▼{% endif %} {{ data.change_pct|floatformat:1 }}%
-  </p>
-  {% endif %}
-</div>
-<div class="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-white/5">
-  <div class="h-full rounded-full bg-mint-500" style="width: {{ data.current_pct }}%"></div>
-</div>
 
-<div class="mt-4 flex items-end justify-between gap-4">
-  <div>
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Previous period</p>
-    <p class="mt-1 text-lg font-semibold text-slate-400">{{ organization.currency }} {{ data.prev_sales|floatformat:0|intcomma }}</p>
+  <div class="space-y-4">
+    <div>
+      <p class="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        <span class="h-2.5 w-2.5 rounded-full bg-mint-500"></span> This period
+      </p>
+      <p class="mt-1 text-2xl font-bold text-white">{{ organization.currency }} {{ data.current_sales|floatformat:0|intcomma }}</p>
+      <p class="text-xs text-slate-500">{{ data.current_label }}</p>
+    </div>
+    <div>
+      <p class="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        <span class="h-2.5 w-2.5 rounded-full bg-brand-500"></span> Previous period
+      </p>
+      <p class="mt-1 text-lg font-semibold text-slate-300">{{ organization.currency }} {{ data.prev_sales|floatformat:0|intcomma }}</p>
+      <p class="text-xs text-slate-500">{{ data.prev_label }}</p>
+    </div>
   </div>
 </div>
-<div class="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-white/5">
-  <div class="h-full rounded-full bg-brand-500" style="width: {{ data.prev_pct }}%"></div>
-</div>
+{% else %}
+<p class="py-10 text-center text-sm text-slate-500">No revenue recorded in either period yet.</p>
+{% endif %}

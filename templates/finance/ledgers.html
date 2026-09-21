@@ -6,9 +6,32 @@
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold text-white">Ledgers</h1>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · every account's ledger — cash, bank, customers and vendors</p>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · every account's ledger — cash, bank{% if has_customers %}, customers{% endif %} and vendors</p>
   </div>
 </div>
+
+<!-- Search + as-of date -->
+<form method="get" class="card mt-5 flex flex-wrap items-end gap-3 p-4">
+  <div class="min-w-[14rem] flex-1">
+    <label for="ld-q" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">{% if has_customers %}Search customers &amp; vendors{% else %}Search vendors{% endif %}</label>
+    <input id="ld-q" type="text" name="q" value="{{ query }}" placeholder="{% if has_customers %}Name, phone or email{% else %}Name or phone{% endif %}" class="!mt-1">
+  </div>
+  <div>
+    <label for="ld-asof" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Balances as of</label>
+    <input id="ld-asof" type="date" name="as_of" value="{{ as_of|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+  </div>
+  <div>
+    <label for="ld-per" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Rows per page</label>
+    <select id="ld-per" name="per_page" onchange="this.form.submit()" class="!mt-1 !w-auto" data-plain>
+      {% for n in page_sizes %}<option value="{{ n }}" {% if n == per_page %}selected{% endif %}>{{ n }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="flex items-center gap-2">
+    <button type="submit" class="btn-primary">Apply</button>
+    {% if query or as_of %}<a href="{% url 'finance:ledgers' %}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Clear</a>{% endif %}
+  </div>
+  {% if as_of %}<p class="w-full text-xs text-slate-500">Outstanding balances count only invoices and bills dated on or before {{ as_of|date:"d M Y" }}. Cash and bank show today's balance.</p>{% endif %}
+</form>
 
 <!-- Cash & Bank -->
 <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -24,9 +47,10 @@
   </a>
 </div>
 
+{% if has_customers %}
 <!-- Customers -->
 <div class="mt-8 flex items-center justify-between">
-  <h2 class="text-sm font-semibold text-white">Customer Ledgers <span class="font-normal text-slate-500">(Accounts Receivable)</span></h2>
+  <h2 class="text-sm font-semibold text-white">Customer Ledgers <span class="font-normal text-mint-400">— money to receive</span></h2>
   <a href="{% url 'finance:settings' %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">+ Add Customer</a>
 </div>
 <div class="card mt-3 overflow-x-auto p-5">
@@ -56,17 +80,19 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" class="py-8 text-center text-slate-500">No customers yet — add one to start a ledger.</td></tr>
+      <tr><td colspan="5" class="py-8 text-center text-slate-500">{% if query %}No customers match “{{ query }}”.{% else %}No customers yet — add one to start a ledger.{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% include "finance/_pager.html" with pg=customer_pager.page_obj pq=customer_pager.page_query param="cpage" numbers=customer_pager.page_numbers %}
+{% endif %}
 
 <!-- Vendors -->
 <div class="mt-8 flex items-center justify-between">
   <div>
-    <h2 class="text-sm font-semibold text-white">Vendor Ledgers <span class="font-normal text-slate-500">(Accounts Payable)</span></h2>
-    <p class="mt-0.5 text-xs text-slate-500">Bills owed to a vendor — opening balances, Add Payable entries, and Daily Entries purchases logged as "Not paid yet (on credit)". A purchase paid in full at the time of entry never shows up here.</p>
+    <h2 class="text-sm font-semibold text-white">Vendor Ledgers <span class="font-normal text-red-400">— money to pay</span></h2>
+    <p class="mt-0.5 text-xs text-slate-500">Bills owed to a vendor — opening balances, Add Money to Pay entries, and Daily Entries purchases logged as "Not paid yet (on credit)". A purchase paid in full at the time of entry never shows up here.</p>
   </div>
   <a href="{% url 'finance:vendors' %}" class="shrink-0 text-xs font-medium text-brand-400 hover:text-brand-300">+ Add Vendor</a>
 </div>
@@ -97,9 +123,10 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" class="py-8 text-center text-slate-500">No vendors yet — add one to start a ledger.</td></tr>
+      <tr><td colspan="5" class="py-8 text-center text-slate-500">{% if query %}No vendors match “{{ query }}”.{% else %}No vendors yet — add one to start a ledger.{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% include "finance/_pager.html" with pg=vendor_pager.page_obj pq=vendor_pager.page_query param="vpage" numbers=vendor_pager.page_numbers %}
 {% endblock %}

@@ -6,7 +6,7 @@
   <tr><td>Opening balance (cash {{ organization.currency }} {{ report.opening_cash|floatformat:2|intcomma }} + bank {{ organization.currency }} {{ report.opening_bank|floatformat:2|intcomma }})</td><td class="right">{{ organization.currency }} {{ report.opening_total|floatformat:2|intcomma }}</td></tr>
 </table>
 
-<table style="margin-top:18px;">
+<table style="margin-top:6px;">
   <tr>
     <td style="width:50%; vertical-align:top; padding-right:10px;">
       <table>
@@ -39,7 +39,7 @@
 </table>
 
 {% if report.transfers %}
-<table style="margin-top:18px;">
+<table style="margin-top:6px;">
   <tr><th style="text-align:left; border-bottom:1px solid #ccc;">Cash ⇄ Bank transfers</th><th class="right" style="border-bottom:1px solid #ccc;">Amount</th></tr>
   {% for t in report.transfers %}
   <tr><td>{{ t.get_direction_display }}{% if t.note %} — {{ t.note }}{% endif %}</td><td class="right">{{ organization.currency }} {{ t.amount|floatformat:2|intcomma }}</td></tr>
@@ -47,7 +47,7 @@
 </table>
 {% endif %}
 
-<table style="margin-top:18px;">
+<table style="margin-top:6px;">
   <tr><td>Net for the day</td><td class="right {% if report.net >= 0 %}pos{% else %}neg{% endif %}">{{ organization.currency }} {{ report.net|floatformat:2|intcomma }}</td></tr>
   <tr class="thick"><td>Closing balance (cash {{ organization.currency }} {{ report.closing_cash|floatformat:2|intcomma }} + bank {{ organization.currency }} {{ report.closing_bank|floatformat:2|intcomma }})</td><td class="right">{{ organization.currency }} {{ report.closing_total|floatformat:2|intcomma }}</td></tr>
 </table>

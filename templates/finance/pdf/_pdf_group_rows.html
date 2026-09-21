@@ -1,34 +1,21 @@
 {% load humanize %}
 {% comment %}
-One category's rows for the Daily Report PDF, mirroring the levels shown on
-screen: category total, then a sub-category subtotal where entries are tagged
-a level deeper (OPD Consultation > Orthopedics > Dr. Khan), then each entry.
+One category's rows for the Daily Report PDF: the category total, then one
+compact line per sub-category (entry and unit counts included) so a busy day
+still fits on a single page.
 Expects `group`, `organization`, and an optional `tag` prefix.
 {% endcomment %}
+{% with only=group.subgroups|length %}
 <tr>
-  <td style="border-top:1px solid #ddd;"><b>{{ tag }}{{ group.name }}</b></td>
-  <td class="right" style="border-top:1px solid #ddd;"><b>{{ organization.currency }} {{ group.total|floatformat:2|intcomma }}</b></td>
+  <td style="border-top:1px solid #ddd; padding-top:2px;"><b>{{ tag }}{{ group.name }}</b>{% if group.has_detail and pdf_detail|default_if_none:True and only == 1 %}{% for sub in group.subgroups %}{% if sub.name %} <span style="color:#666;">· {{ sub.name }}</span>{% endif %} <span style="color:#999; font-size:8px;">· {% if sub.units %}{{ sub.units }} unit{{ sub.units|pluralize }}{% else %}{{ sub.entries|length }} entr{{ sub.entries|length|pluralize:"y,ies" }}{% endif %}</span>{% endfor %}{% endif %}</td>
+  <td class="right" style="border-top:1px solid #ddd; padding-top:2px;"><b>{{ organization.currency }} {{ group.total|floatformat:2|intcomma }}</b></td>
 </tr>
-{% if group.has_detail %}
+{% if group.has_detail and pdf_detail|default_if_none:True and only != 1 %}
 {% for sub in group.subgroups %}
-{% if sub.nested %}
 <tr>
-  <td style="padding-left:14px;">{{ sub.name }}</td>
-  <td class="right">{{ organization.currency }} {{ sub.total|floatformat:2|intcomma }}</td>
-</tr>
-{% for e in sub.entries %}
-<tr>
-  <td style="padding-left:30px; color:#555;">{{ e.subcategory.name }}{% if e.vendor %} ({{ e.vendor }}){% endif %}{% if e.note %} — {{ e.note }}{% endif %} · {{ e.get_payment_mode_display }}</td>
-  <td class="right" style="color:#555;">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td>
-</tr>
-{% endfor %}
-{% else %}
-{% for e in sub.entries %}
-<tr>
-  <td style="padding-left:14px; color:#555;">{% if e.subcategory %}{{ e.subcategory.name }}{% else %}—{% endif %}{% if e.vendor %} ({{ e.vendor }}){% endif %}{% if e.note %} — {{ e.note }}{% endif %} · {{ e.get_payment_mode_display }}</td>
-  <td class="right" style="color:#555;">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</td>
+  <td style="padding-left:12px; color:#444;">{% if sub.name %}{{ sub.name }}{% else %}Other{% endif %} <span style="color:#999; font-size:8px;">· {% if sub.units %}{{ sub.units }} unit{{ sub.units|pluralize }}{% else %}{{ sub.entries|length }} entr{{ sub.entries|length|pluralize:"y,ies" }}{% endif %}</span></td>
+  <td class="right" style="color:#444;">{{ organization.currency }} {{ sub.total|floatformat:2|intcomma }}</td>
 </tr>
 {% endfor %}
 {% endif %}
-{% endfor %}
-{% endif %}
+{% endwith %}

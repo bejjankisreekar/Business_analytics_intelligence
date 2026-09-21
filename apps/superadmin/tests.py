@@ -125,7 +125,7 @@ class ClientListSearchFilterTests(TestCase):
         self.assertNotContains(resp, "Test Org")
 
     def test_filter_by_business_type(self):
-        resp = self.client_.get(f"/superadmin/{ENV}/", {"business_type": "RETAIL"})
+        resp = self.client_.get(f"/superadmin/{ENV}/", {"business_type": "RETAIL_ECOMMERCE"})
         self.assertContains(resp, "Test Org")
         resp2 = self.client_.get(f"/superadmin/{ENV}/", {"business_type": "MANUFACTURING"})
         self.assertNotContains(resp2, "Test Org")
@@ -153,7 +153,7 @@ class ClientCreateEditTests(TestCase):
     def _create_payload(self, **overrides):
         payload = {
             "name": "Created Client Co",
-            "business_type": "RETAIL",
+            "business_type": "RETAIL_ECOMMERCE",
             "industry": "Retail Goods",
             "size": "SMALL",
             "contact_person": "Bob Contact",
@@ -429,7 +429,7 @@ class CrossConnectionLoginTests(TransactionTestCase):
 
         payload = {
             "name": "Live Login Co",
-            "business_type": "RETAIL",
+            "business_type": "RETAIL_ECOMMERCE",
             "industry": "Retail",
             "size": "SMALL",
             "contact_person": "Cara Contact",

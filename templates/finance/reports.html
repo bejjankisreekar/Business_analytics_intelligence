@@ -57,9 +57,17 @@
     </table>
   </div>
 
-  <div class="card mt-5 p-5">
-    <h3 class="text-sm font-semibold text-white">Revenue vs Net Profit</h3>
-    <div class="mt-4 h-56"><canvas id="chartPnl"></canvas></div>
+  <div class="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold text-white">Revenue vs Net Profit</h3>
+      <p class="text-xs text-slate-500">Where the period's money came in and went out</p>
+      <div class="mt-4 h-60"><canvas id="chartPnl"></canvas></div>
+    </div>
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold text-white">Where revenue goes</h3>
+      <p class="text-xs text-slate-500">Share of revenue: cost of goods, operating expenses and profit</p>
+      <div class="mt-4 h-60"><canvas id="chartPnlShare"></canvas></div>
+    </div>
   </div>
 </section>
 
@@ -102,7 +110,7 @@
     <p class="mt-5 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-slate-500">
       This is a simplified, cash-basis balance sheet derived from your daily revenue, expenses and purchases —
       it assumes the business started with opening capital equal to opening cash and tracks no separate
-      inventory. Outstanding receivables and payables are tracked separately on the
+      inventory. Money still to receive and money still to pay are tracked separately on the
       <a href="{% url 'finance:cash_position' %}" class="text-brand-400 hover:text-brand-300">Cash Position</a> page,
       not as assets/liabilities here. Assets ({{ organization.currency }} {{ balance_sheet.total_assets|floatformat:2|intcomma }})
       {% if balance_sheet.balances %}balance exactly{% else %}should balance{% endif %} against Liabilities + Equity.
@@ -136,9 +144,17 @@
     </table>
   </div>
 
-  <div class="card mt-5 p-5">
-    <h3 class="text-sm font-semibold text-white">Cash in vs cash out</h3>
-    <div class="mt-4 h-56"><canvas id="chartCashFlow"></canvas></div>
+  <div class="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold text-white">Cash in vs cash out</h3>
+      <p class="text-xs text-slate-500">Operating cash movement in the period</p>
+      <div class="mt-4 h-60"><canvas id="chartCashFlow"></canvas></div>
+    </div>
+    <div class="card p-5">
+      <h3 class="text-sm font-semibold text-white">Where cash goes</h3>
+      <p class="text-xs text-slate-500">Cash out by purpose, and what was left over</p>
+      <div class="mt-4 h-60"><canvas id="chartCashOutShare"></canvas></div>
+    </div>
   </div>
 </section>
 
@@ -230,13 +246,54 @@
       scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
   });
 
+  // Doughnut of slices, dropping any that are zero/negative so the ring only shows real shares.
+  function shareDoughnut(canvasId, slices) {
+    const shown = slices.filter((s) => Number(s.value) > 0);
+    const total = shown.reduce((a, s) => a + Number(s.value), 0);
+    new Chart(document.getElementById(canvasId), {
+      type: "doughnut",
+      data: { labels: shown.map((s) => s.label), datasets: [{ data: shown.map((s) => s.value), backgroundColor: shown.map((s) => s.color), borderWidth: 0, hoverOffset: 8 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "62%",
+        plugins: {
+          legend: { position: "right", labels: { boxWidth: 10, usePointStyle: true, color: "#cbd5e1", font: { size: 11 },
+            generateLabels: (chart) => chart.data.labels.map((label, i) => {
+              const v = chart.data.datasets[0].data[i];
+              return { text: `${label}: ${total ? ((v / total) * 100).toFixed(1) : "0.0"}%`, fillStyle: chart.data.datasets[0].backgroundColor[i],
+                       strokeStyle: chart.data.datasets[0].backgroundColor[i], fontColor: "#cbd5e1", pointStyle: "circle", index: i };
+            }) } },
+          tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${Number(ctx.raw).toLocaleString("en-IN", { maximumFractionDigits: 0 })} ({{ organization.currency }})` } },
+        },
+      },
+    });
+  }
+  shareDoughnut("chartPnlShare", [
+    { label: "Cost of goods", value: {{ pnl.cogs }}, color: "#f87171" },
+    { label: "Operating expenses", value: {{ pnl.total_opex }}, color: "#fbbf24" },
+    { label: "Net profit", value: {{ pnl.net_profit }}, color: "#34d9b8" },
+  ]);
+  shareDoughnut("chartCashOutShare", [
+    { label: "Purchases", value: {{ cash_flow.cash_out_purchases }}, color: "#f87171" },
+    { label: "Expenses", value: {{ cash_flow.cash_out_expenses }}, color: "#fbbf24" },
+    { label: "Partner withdrawals", value: {{ cash_flow.partner_withdrawn }}, color: "#a78bfa" },
+    { label: "Left over", value: {{ cash_flow.net_change_in_cash }}, color: "#34d9b8" },
+  ]);
+
   window.bai = window.bai || {};
   bai.showTab = (tab) => {
+    try { sessionStorage.setItem("bai.reportsTab", JSON.stringify({ tab, t: Date.now() })); } catch (e) { /* not persisted */ }
     ["pnl", "bs", "cf", "gst"].forEach((t) => {
       document.getElementById("tab-" + t).classList.toggle("hidden", t !== tab);
       document.getElementById("tab-btn-" + t).classList.toggle("report-tab--active", t === tab);
     });
+    // Charts built while their tab was hidden have no size yet; re-measure now that it's visible.
+    Object.values(Chart.instances).forEach((chart) => { chart.resize(); chart.update("none"); });
   };
+  try {
+    // Only right after a period change (a same-page reload), never on a fresh visit.
+    const saved = JSON.parse(sessionStorage.getItem("bai.reportsTab") || "null");
+    if (saved && Date.now() - saved.t < 15000 && document.getElementById("tab-" + saved.tab)) bai.showTab(saved.tab);
+  } catch (e) { /* default tab */ }
 </script>
 <style>
   .report-tab { padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500; color: #6b7488; border-bottom: 2px solid transparent; }

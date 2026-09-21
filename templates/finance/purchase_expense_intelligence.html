@@ -92,17 +92,6 @@
   {% endif %}
 </div>
 
-<!-- Expenses this month, ascending -->
-<div class="card mt-5 p-5">
-  <h3 class="text-sm font-semibold text-white">This month's expenses — low to high</h3>
-  <p class="text-xs text-slate-500">{{ expense_analysis.this_month_label }}, by category, smallest first</p>
-  {% if expense_asc|length > 1 %}
-  <div class="mt-4 h-64"><canvas id="chartExpensesAscending"></canvas></div>
-  {% else %}
-  <p class="mt-8 py-6 text-center text-sm text-slate-500">No expenses logged this month yet.</p>
-  {% endif %}
-</div>
-
 <!-- Where the money goes: every category, sub-category and named item, all shown -->
 <div class="card mt-6 p-5">
   <div class="flex flex-wrap items-center justify-between gap-3">
@@ -303,14 +292,6 @@
     });
   };
 
-  {% if expense_asc|length > 1 %}
-  new Chart(document.getElementById("chartExpensesAscending"), {
-    type: "bar",
-    data: { labels: {{ chart_expense_asc_labels|safe }}, datasets: [{ data: {{ chart_expense_asc_values|safe }}, backgroundColor: palette.red, borderRadius: 4 }] },
-    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
-  });
-  {% endif %}
 
 
   {% if vendor_breakdown|length > 1 %}
