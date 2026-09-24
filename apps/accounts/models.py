@@ -1,8 +1,11 @@
+import secrets
 import uuid
+from datetime import timedelta
 
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
+from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
@@ -75,3 +78,23 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def get_short_name(self) -> str:
         return self.first_name or self.email
+
+
+OTP_VALIDITY = timedelta(minutes=10)
+
+
+class PasswordResetOTP(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="password_reset_otps")
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [models.Index(fields=["user", "code"])]
+
+    @staticmethod
+    def generate_code() -> str:
+        return "".join(secrets.choice("0123456789") for _ in range(6))
+
+    def is_valid(self) -> bool:
+        return not self.is_used and timezone.now() <= self.created_at + OTP_VALIDITY

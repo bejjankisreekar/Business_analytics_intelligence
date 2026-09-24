@@ -97,6 +97,60 @@ class OrganizationSignupForm(forms.Form):
         return cleaned
 
 
+class ForgotPasswordForm(forms.Form):
+    email = forms.EmailField(widget=forms.EmailInput(attrs={"placeholder": "you@company.com", "autofocus": True}))
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if not User.objects.filter(email=email).exists():
+            raise forms.ValidationError("No account is registered with this email.")
+        return email
+
+
+class ResetPasswordForm(forms.Form):
+    otp = forms.CharField(
+        max_length=6,
+        widget=forms.TextInput(attrs={"placeholder": "6-digit code", "autofocus": True, "inputmode": "numeric"}),
+    )
+    new_password = forms.CharField(
+        min_length=8, widget=forms.PasswordInput(attrs={"placeholder": "New password"})
+    )
+    confirm_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={"placeholder": "Confirm new password"})
+    )
+
+    def __init__(self, *args, user, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_otp(self):
+        from .models import PasswordResetOTP
+
+        otp = self.cleaned_data["otp"].strip()
+        record = (
+            PasswordResetOTP.objects.filter(user=self.user, code=otp).order_by("-created_at").first()
+        )
+        if record is None or not record.is_valid():
+            raise forms.ValidationError("This code is invalid or has expired.")
+        self.otp_record = record
+        return otp
+
+    def clean(self):
+        cleaned = super().clean()
+        new_password = cleaned.get("new_password")
+        confirm_password = cleaned.get("confirm_password")
+        if new_password and confirm_password and new_password != confirm_password:
+            raise forms.ValidationError("New password and confirmation do not match.")
+        return cleaned
+
+    def save(self):
+        self.user.set_password(self.cleaned_data["new_password"])
+        self.user.save(update_fields=["password"])
+        self.otp_record.is_used = True
+        self.otp_record.save(update_fields=["is_used"])
+        return self.user
+
+
 class ChangePasswordForm(forms.Form):
     current_password = forms.CharField(
         widget=forms.PasswordInput(attrs={"placeholder": "Current password", "autofocus": True})

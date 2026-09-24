@@ -144,8 +144,8 @@
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
       <h3 class="text-sm font-semibold text-white">Sales quantity by sub-category</h3>
-            <p class="text-xs text-slate-500">{{ period.label }} · units sold, not revenue · phones are counted by brand
-    <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · units sold</span></p>
+            <p class="text-xs text-slate-500">{{ period.label }} · quantity recorded, not revenue · nested sub-categories roll up to their parent
+    <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · quantity recorded</span></p>
       <p class="mt-1 text-[11px] text-slate-500">Click any slice, bar or legend entry for its details — sales, purchases, items and estimated stock.</p>
     </div>
     <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
@@ -159,7 +159,7 @@
     <div class="rounded-xl border border-white/5 bg-white/[0.02] p-4">
       <div class="flex items-center justify-between gap-2">
         <h4 class="text-sm font-semibold text-white">{{ group.category }}</h4>
-        <span class="flex-none text-xs text-slate-500">{{ group.total }} units</span>
+        <span class="flex-none text-xs text-slate-500">{{ group.total }} {{ quantity_word }}</span>
       </div>
       <div class="mt-3 chart-box" style="height: {{ group.chart_height }}px"><canvas id="chartPQ-{{ forloop.counter }}"></canvas></div>
     </div>
@@ -174,8 +174,8 @@
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
       <h3 class="text-sm font-semibold text-white">Purchase quantity by sub-category</h3>
-            <p class="text-xs text-slate-500">{{ period.label }} · units bought, not cost · phones are counted by brand
-    <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · units purchased</span></p>
+            <p class="text-xs text-slate-500">{{ period.label }} · quantity recorded, not cost · nested sub-categories roll up to their parent
+    <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · quantity recorded</span></p>
       <p class="mt-1 text-[11px] text-slate-500">Click any slice, bar or legend entry for its details — sales, purchases, items and estimated stock.</p>
     </div>
     <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
@@ -189,7 +189,7 @@
     <div class="rounded-xl border border-white/5 bg-white/[0.02] p-4">
       <div class="flex items-center justify-between gap-2">
         <h4 class="text-sm font-semibold text-white">{{ group.category }}</h4>
-        <span class="flex-none text-xs text-slate-500">{{ group.total }} units</span>
+        <span class="flex-none text-xs text-slate-500">{{ group.total }} {{ quantity_word }}</span>
       </div>
       <div class="mt-3 chart-box" style="height: {{ group.chart_height }}px"><canvas id="chartPP-{{ forloop.counter }}"></canvas></div>
     </div>
@@ -353,7 +353,7 @@
     const total = values.reduce((a, b) => a + Number(b), 0);
     const tooltip = { callbacks: { label: (ctx) => {
       const share = total ? ((Number(ctx.raw) / total) * 100).toFixed(1) : "0.0";
-      return ` ${ctx.label}: ${Number(ctx.raw).toLocaleString("en-IN")} units (${share}%)`;
+      return ` ${ctx.label}: ${Number(ctx.raw).toLocaleString("en-IN")} ${QTY_WORD} (${share}%)`;
     } } };
     const open = (index) => { if (index != null && labels[index] != null) bai.openQtyDetail(meta, labels[index]); };
     const clickable = {
@@ -368,7 +368,7 @@
           indexAxis: "y", responsive: true, maintainAspectRatio: false, ...clickable,
           plugins: { legend: { display: false }, tooltip },
           scales: {
-            x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 }, title: { display: true, text: "Units (count)" } },
+            x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 }, title: { display: true, text: QTY_WORD_CAP } },
             y: { grid: { display: false } },
           },
         },
@@ -426,6 +426,9 @@
 
   // ---- Sub-category details (opened by clicking a quantity chart) ----
   const CURRENCY = "{{ organization.currency|escapejs }}";
+  const QTY_WORD = "{{ quantity_word|escapejs }}";
+  const QTY_WORD_CAP = QTY_WORD.charAt(0).toUpperCase() + QTY_WORD.slice(1);
+  const QTY_WORD_SINGULAR = QTY_WORD.replace(/s$/, "");
   const fmtNum = (n) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
   const fmtMoney = (n) => (n == null ? "—" : CURRENCY + " " + fmtNum(n));
   const qtyModal = document.getElementById("qty-detail");
@@ -454,32 +457,32 @@
 
     body.append(section("Sales · " + d.period.label));
     const sales = h("div", "grid grid-cols-1 gap-3 sm:grid-cols-3");
-    sales.append(stat("Units sold", fmtNum(d.sold.units)), stat("Revenue", fmtMoney(d.sold.amount)),
-                 stat("Avg price / unit", fmtMoney(d.sold.avg_price)));
+    sales.append(stat(QTY_WORD_CAP + " sold", fmtNum(d.sold.units)), stat("Revenue", fmtMoney(d.sold.amount)),
+                 stat("Avg price / " + QTY_WORD_SINGULAR, fmtMoney(d.sold.avg_price)));
     body.append(sales);
 
     body.append(section("Purchases · " + d.period.label));
     const buys = h("div", "grid grid-cols-1 gap-3 sm:grid-cols-3");
-    buys.append(stat("Units purchased", fmtNum(d.bought.units)), stat("Purchase cost", fmtMoney(d.bought.amount)),
-                stat("Avg cost / unit", fmtMoney(d.bought.avg_cost)));
+    buys.append(stat(QTY_WORD_CAP + " purchased", fmtNum(d.bought.units)), stat("Purchase cost", fmtMoney(d.bought.amount)),
+                stat("Avg cost / " + QTY_WORD_SINGULAR, fmtMoney(d.bought.avg_cost)));
     body.append(buys);
 
     body.append(section("Inventory · as of " + d.period.as_of));
     const inv = d.inventory;
     if (!inv.tracked) {
       body.append(h("p", "rounded-xl border border-white/5 bg-white/[0.02] p-4 text-sm text-slate-400",
-        "Stock isn't tracked for this item — there is no matching purchase category, so units bought can't be compared with units sold."));
+        "Stock isn't tracked for this item — there is no matching purchase category, so " + QTY_WORD + " bought can't be compared with " + QTY_WORD + " sold."));
     } else {
       const stock = inv.stock;
       const grid = h("div", "grid grid-cols-2 gap-3 sm:grid-cols-4");
-      grid.append(stat("Estimated in stock", fmtNum(Math.max(stock, 0)) + " units"),
+      grid.append(stat("Estimated in stock", fmtNum(Math.max(stock, 0)) + " " + QTY_WORD),
                   stat("Stock value", fmtMoney(inv.value), "at average cost"),
                   stat("Bought (to date)", fmtNum(inv.bought_total)), stat("Sold (to date)", fmtNum(inv.sold_total)));
       body.append(grid);
       body.append(h("p", "mt-2 text-[11px] leading-relaxed " + (stock < 0 ? "text-amber-300" : "text-slate-500"),
         stock < 0
-          ? "Recorded purchases are " + fmtNum(-stock) + " units short of what was sold — units bought on credit are only counted once the supplier bill is paid, and there is no opening stock on record."
-          : "Estimated as units purchased minus units sold. Units on unpaid supplier bills aren't counted until they're paid."));
+          ? "Recorded purchases are " + fmtNum(-stock) + " " + QTY_WORD + " short of what was sold — " + QTY_WORD + " bought on credit are only counted once the supplier bill is paid, and there is no opening stock on record."
+          : "Estimated as " + QTY_WORD + " purchased minus " + QTY_WORD + " sold. " + QTY_WORD_CAP + " on unpaid supplier bills aren't counted until they're paid."));
     }
 
     if (d.items.length) {
@@ -487,7 +490,7 @@
       const table = h("table", "w-full text-left text-sm");
       const thead = h("thead");
       const head = h("tr", "text-[11px] uppercase tracking-wide text-slate-500");
-      ["Item", "Units", "Revenue"].forEach((t, i) => head.append(h("th", "pb-2 font-medium" + (i ? " text-right" : ""), t)));
+      ["Item", QTY_WORD_CAP, "Revenue"].forEach((t, i) => head.append(h("th", "pb-2 font-medium" + (i ? " text-right" : ""), t)));
       thead.append(head);
       const tbody = h("tbody", "divide-y divide-white/5");
       d.items.forEach((it) => {

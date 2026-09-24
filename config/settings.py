@@ -207,6 +207,28 @@ RAZORPAY_WEBHOOK_SECRET = config("RAZORPAY_WEBHOOK_SECRET", default="")
 RAZORPAY_PAYMENT_BUTTON_ID = config("RAZORPAY_PAYMENT_BUTTON_ID", default="")
 RAZORPAY_PAYMENT_BUTTON_AMOUNT = config("RAZORPAY_PAYMENT_BUTTON_AMOUNT", cast=int, default=899)
 
+# Gmail SMTP for transactional email (password reset OTPs). Falls back to
+# printing emails to the console when no Gmail account is configured, so
+# `runserver` still works out of the box for devs without .env set up.
+# EMAIL_HOST_USER is a Gmail address; EMAIL_HOST_PASSWORD is a 16-char Gmail
+# "app password" (Google Account -> Security -> 2-Step Verification -> App
+# passwords), NOT the account's normal login password.
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST_USER
+    else "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = config("EMAIL_PORT", cast=int, default=587)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", cast=bool, default=True)
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "no-reply@example.com")
+
+# Contact details shown on the public landing page.
+CONTACT_EMAIL = EMAIL_HOST_USER
+CONTACT_PHONE = config("CONTACT_PHONE", default="")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

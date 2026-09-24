@@ -1,7 +1,12 @@
+import logging
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.mail import EmailMultiAlternatives
 from django.shortcuts import redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.views.generic import FormView, View
 
@@ -14,12 +19,18 @@ from apps.organizations.services import (
 
 from .forms import (
     ChangePasswordForm,
+    ForgotPasswordForm,
     LoginForm,
     OrganizationProfileForm,
     OrganizationSignupForm,
     ProfileForm,
+    ResetPasswordForm,
 )
-from .models import User
+from .models import PasswordResetOTP, User
+
+logger = logging.getLogger(__name__)
+
+RESET_SESSION_KEY = "password_reset_email"
 
 
 def _post_login_redirect(user):
@@ -41,6 +52,70 @@ class LoginView(FormView):
         user = form.cleaned_data["user"]
         login(self.request, user)
         return _post_login_redirect(user)
+
+
+class ForgotPasswordView(FormView):
+    template_name = "accounts/forgot_password.html"
+    form_class = ForgotPasswordForm
+    success_url = reverse_lazy("accounts:reset_password")
+
+    def form_valid(self, form):
+        email = form.cleaned_data["email"]
+        user = User.objects.get(email=email)
+        otp = PasswordResetOTP.objects.create(user=user, code=PasswordResetOTP.generate_code())
+        try:
+            text_body = (
+                f"Your {settings.SITE_NAME} password reset code is {otp.code}.\n\n"
+                "It expires in 10 minutes. If you didn't request this, you can ignore this email."
+            )
+            html_body = render_to_string("emails/otp_code.html", {
+                "site_name": settings.SITE_NAME,
+                "code": otp.code,
+                "heading": "Reset your password",
+                "intro": "Use this code to finish resetting your password.",
+            })
+            email_message = EmailMultiAlternatives(
+                subject=f"Your {settings.SITE_NAME} password reset code",
+                body=text_body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[email],
+            )
+            email_message.attach_alternative(html_body, "text/html")
+            email_message.send()
+        except Exception:
+            logger.exception("Failed to send password reset OTP email to %s", email)
+            form.add_error(None, "We couldn't send the reset code right now. Please try again in a few minutes.")
+            return self.form_invalid(form)
+        self.request.session[RESET_SESSION_KEY] = email
+        messages.success(self.request, f"We've emailed a 6-digit code to {email}.")
+        return super().form_valid(form)
+
+
+class ResetPasswordView(FormView):
+    template_name = "accounts/reset_password.html"
+    form_class = ResetPasswordForm
+    success_url = reverse_lazy("accounts:login")
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.session.get(RESET_SESSION_KEY):
+            return redirect("accounts:forgot_password")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = User.objects.get(email=self.request.session[RESET_SESSION_KEY])
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["email"] = self.request.session.get(RESET_SESSION_KEY)
+        return context
+
+    def form_valid(self, form):
+        form.save()
+        del self.request.session[RESET_SESSION_KEY]
+        messages.success(self.request, "Your password has been reset. Sign in with your new password.")
+        return super().form_valid(form)
 
 
 class SignupView(FormView):

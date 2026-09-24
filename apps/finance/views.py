@@ -19,6 +19,7 @@ from apps.billing import payments as billing_payments
 from apps.billing import razorpay_client
 from apps.billing import services as billing_services
 from apps.billing.models import Invoice, Payment
+from apps.organizations.models import Organization
 
 from . import services
 from .forms import (
@@ -113,8 +114,6 @@ def _product_quantity_groups(product_quantity: list[dict]) -> list[dict]:
 
     result = []
     for category, rows in groups.items():
-        if len(rows) <= 1:
-            continue
         total = sum(r["quantity"] for r in rows)
         result.append({
             "category": category,
@@ -475,10 +474,13 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
             cash_running.append({"date": row["date"], "balance": running})
 
         padded_daily = _pad_daily_series(series, 30)
+        organization = self.request.user.organization
+        quantity_word = "count" if organization.business_type == Organization.BusinessType.HEALTHCARE else "units"
 
         context.update({
             "active_nav": "analytics",
-            "organization": self.request.user.organization,
+            "organization": organization,
+            "quantity_word": quantity_word,
             "period": period,
             "period_choices": PERIOD_CHOICES,
             "chart_daily_labels": to_json([r["date"].strftime("%d %b") for r in padded_daily]),
