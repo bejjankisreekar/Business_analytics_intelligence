@@ -3,7 +3,11 @@
 {% block subtitle %}Daily Report · {{ report.date|date:"l, d F Y" }}{% endblock %}
 {% block statement %}
 <table>
+  {% if show_bank %}
   <tr><td>Opening balance (cash {{ organization.currency }} {{ report.opening_cash|floatformat:2|intcomma }} + bank {{ organization.currency }} {{ report.opening_bank|floatformat:2|intcomma }})</td><td class="right">{{ organization.currency }} {{ report.opening_total|floatformat:2|intcomma }}</td></tr>
+  {% else %}
+  <tr><td>Opening balance (cash)</td><td class="right">{{ organization.currency }} {{ report.opening_cash|floatformat:2|intcomma }}</td></tr>
+  {% endif %}
 </table>
 
 <table style="margin-top:6px;">
@@ -48,7 +52,11 @@
 {% endif %}
 
 <table style="margin-top:6px;">
-  <tr><td>Net for the day</td><td class="right {% if report.net >= 0 %}pos{% else %}neg{% endif %}">{{ organization.currency }} {{ report.net|floatformat:2|intcomma }}</td></tr>
+  <tr><td>Net amount</td><td class="right {% if report.net >= 0 %}pos{% else %}neg{% endif %}">{{ organization.currency }} {{ report.net|floatformat:2|intcomma }}</td></tr>
+  {% if show_bank %}
   <tr class="thick"><td>Closing balance (cash {{ organization.currency }} {{ report.closing_cash|floatformat:2|intcomma }} + bank {{ organization.currency }} {{ report.closing_bank|floatformat:2|intcomma }})</td><td class="right">{{ organization.currency }} {{ report.closing_total|floatformat:2|intcomma }}</td></tr>
+  {% else %}
+  <tr class="thick"><td>Closing balance (cash)</td><td class="right">{{ organization.currency }} {{ report.closing_cash|floatformat:2|intcomma }}</td></tr>
+  {% endif %}
 </table>
 {% endblock %}

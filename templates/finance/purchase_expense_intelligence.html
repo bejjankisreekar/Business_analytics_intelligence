@@ -39,17 +39,23 @@
   </div>
 </div>
 
-<!-- Cost trend with granularity toggle -->
+<!-- Expenses/Purchases trend with granularity toggle -->
 <div class="card mt-6 p-5">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h3 class="text-sm font-semibold text-white">Cost trend</h3>
-      <p class="text-xs text-slate-500">Expenses and purchases · switch between daily, weekly and monthly views</p>
+      <h3 id="ctrend-title" class="text-sm font-semibold text-white">Expenses trend</h3>
+      <p class="text-xs text-slate-500">Switch between daily, weekly and monthly views</p>
     </div>
-    <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
-      <button type="button" onclick="bai.setCostTrend('daily')" id="ctrend-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
-      <button type="button" onclick="bai.setCostTrend('weekly')" id="ctrend-btn-weekly" class="granularity-btn">Weekly</button>
-      <button type="button" onclick="bai.setCostTrend('monthly')" id="ctrend-btn-monthly" class="granularity-btn">Monthly</button>
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+        <button type="button" onclick="bai.setCostTrendKind('expenses')" id="ctrend-kind-btn-expenses" class="granularity-btn granularity-btn--active">Expenses</button>
+        <button type="button" onclick="bai.setCostTrendKind('purchases')" id="ctrend-kind-btn-purchases" class="granularity-btn">Purchases</button>
+      </div>
+      <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+        <button type="button" onclick="bai.setCostTrend('daily')" id="ctrend-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
+        <button type="button" onclick="bai.setCostTrend('weekly')" id="ctrend-btn-weekly" class="granularity-btn">Weekly</button>
+        <button type="button" onclick="bai.setCostTrend('monthly')" id="ctrend-btn-monthly" class="granularity-btn">Monthly</button>
+      </div>
     </div>
   </div>
   <div class="mt-4 h-72 chart-box"><canvas id="chartCostTrend"></canvas></div>
@@ -71,7 +77,7 @@
       </thead>
       <tbody class="divide-y divide-white/5">
         {% for row in expense_analysis.rows %}
-        <tr>
+        <tr class="cursor-pointer hover:bg-white/[0.03]" onclick="bai.openExpenseTrend('{{ row.name|escapejs }}')" title="Click for the daily/weekly/monthly breakdown">
           <td class="py-2.5 pr-4 text-slate-200">{{ row.name }}</td>
           <td class="py-2.5 pr-4 text-right text-slate-300">{{ organization.currency }} {{ row.this_month|floatformat:0|intcomma }}</td>
           <td class="py-2.5 pr-4 text-right text-slate-500">{{ organization.currency }} {{ row.last_month|floatformat:0|intcomma }}</td>
@@ -139,6 +145,29 @@
   <p class="text-xs text-slate-500">Purchases &amp; expenses by month</p>
   <div class="mt-4 h-72"><canvas id="chartMonthly"></canvas></div>
 </div>
+
+<!-- Expense category daily-trend popup -->
+<div id="expense-trend-modal" class="modal-overlay fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="expense-trend-title" onclick="if (event.target === this) bai.closeModal('expense-trend-modal')">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 p-6 shadow-2xl" style="background:#0a0e1a">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h3 id="expense-trend-title" class="text-lg font-semibold text-white"></h3>
+        <p id="expense-trend-sub" class="mt-0.5 text-xs text-slate-500"></p>
+      </div>
+      <button type="button" onclick="bai.closeModal('expense-trend-modal')" aria-label="Close" class="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="mt-4 flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1 w-fit">
+      <button type="button" onclick="bai.setExpenseTrendGranularity('daily')" id="etrend-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
+      <button type="button" onclick="bai.setExpenseTrendGranularity('weekly')" id="etrend-btn-weekly" class="granularity-btn">Weekly</button>
+      <button type="button" onclick="bai.setExpenseTrendGranularity('monthly')" id="etrend-btn-monthly" class="granularity-btn">Monthly</button>
+    </div>
+    <div class="mt-4 h-72"><canvas id="chartExpenseTrend"></canvas></div>
+    <p id="expense-trend-empty" class="hidden py-8 text-center text-sm text-slate-500">Nothing logged under this category for this period.</p>
+    <p id="expense-trend-loading" class="py-8 text-center text-sm text-slate-500">Loading…</p>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -148,6 +177,66 @@
   Chart.defaults.color = "#9aa4bd";
   Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
   Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+
+  // ---- Expense Analysis row click: bar chart for one category, with its own Daily/Weekly/Monthly toggle ----
+  let expenseTrendChart = null;
+  let expenseTrendCategory = null;
+  let expenseTrendGranularity = "daily";
+
+  bai.openExpenseTrend = (categoryName) => {
+    expenseTrendCategory = categoryName;
+    expenseTrendGranularity = "daily";
+    ["daily", "weekly", "monthly"].forEach((g) => {
+      document.getElementById("etrend-btn-" + g).classList.toggle("granularity-btn--active", g === "daily");
+    });
+    document.getElementById("expense-trend-title").textContent = categoryName;
+    bai.openModal("expense-trend-modal");
+    loadExpenseTrend();
+  };
+
+  bai.setExpenseTrendGranularity = (granularity) => {
+    expenseTrendGranularity = granularity;
+    ["daily", "weekly", "monthly"].forEach((g) => {
+      document.getElementById("etrend-btn-" + g).classList.toggle("granularity-btn--active", g === granularity);
+    });
+    loadExpenseTrend();
+  };
+
+  function loadExpenseTrend() {
+    document.getElementById("expense-trend-sub").textContent = "";
+    document.getElementById("chartExpenseTrend").classList.add("hidden");
+    document.getElementById("expense-trend-empty").classList.add("hidden");
+    document.getElementById("expense-trend-loading").classList.remove("hidden");
+
+    const url = "{% url 'finance:expense_category_trend' %}?category=" + encodeURIComponent(expenseTrendCategory)
+      + "&granularity=" + expenseTrendGranularity;
+    fetch(url).then((r) => r.json()).then((data) => {
+      document.getElementById("expense-trend-loading").classList.add("hidden");
+      const total = data.values.reduce((a, b) => a + Number(b), 0);
+      document.getElementById("expense-trend-sub").textContent = data.period_label + " · total {{ organization.currency }} " + total.toLocaleString("en-IN");
+      if (!total) {
+        document.getElementById("expense-trend-empty").classList.remove("hidden");
+        return;
+      }
+      document.getElementById("chartExpenseTrend").classList.remove("hidden");
+      if (expenseTrendChart) expenseTrendChart.destroy();
+      expenseTrendChart = new Chart(document.getElementById("chartExpenseTrend"), {
+        type: "bar",
+        data: { labels: data.labels, datasets: [{ data: data.values, backgroundColor: palette.red, borderRadius: 4 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => "{{ organization.currency }} " + Number(ctx.raw).toLocaleString("en-IN") } } },
+          scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } },
+        },
+      });
+    }).catch(() => {
+      document.getElementById("expense-trend-loading").textContent = "Couldn't load this — try again.";
+    });
+  }
 
   const palette = { brand: "#5b7cfa", brandFill: "rgba(91,124,250,0.15)", mint: "#34d9b8", mintFill: "rgba(52,217,184,0.15)", red: "#f87171", redFill: "rgba(248,113,113,0.15)" };
   const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } };
@@ -263,33 +352,53 @@
   };
   renderCost();
 
-  // ---- Cost trend: daily / weekly / monthly, same shape as the revenue trend ----
+  // ---- Expenses/Purchases trend: daily / weekly / monthly, same shape as the revenue trend ----
   const costTrend = {{ cost_trend_json|safe }};
+  const costTrendMeta = {
+    expenses: { label: "Expenses", color: palette.red, title: "Expenses trend" },
+    purchases: { label: "Purchases", color: palette.brand, title: "Purchases trend" },
+  };
+  let costTrendPeriod = "daily";
+  let costTrendKind = "expenses";
+
   const costTrendChart = new Chart(document.getElementById("chartCostTrend"), {
     type: "bar",
     data: {
       labels: costTrend.daily.labels,
       datasets: [
-        { label: "Expenses", data: costTrend.daily.expenses, backgroundColor: palette.red, borderRadius: 4 },
-        { label: "Purchases", data: costTrend.daily.purchases, backgroundColor: palette.brand, borderRadius: 4 },
+        { label: costTrendMeta.expenses.label, data: costTrend.daily.expenses, backgroundColor: costTrendMeta.expenses.color, borderRadius: 4 },
       ],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
       plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { color: "rgba(255,255,255,0.05)" } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } },
     },
   });
-  bai.setCostTrend = (key) => {
-    const g = costTrend[key];
+
+  function renderCostTrend() {
+    const meta = costTrendMeta[costTrendKind];
+    const g = costTrend[costTrendPeriod];
     costTrendChart.data.labels = g.labels;
-    costTrendChart.data.datasets[0].data = g.expenses;
-    costTrendChart.data.datasets[1].data = g.purchases;
+    costTrendChart.data.datasets[0].data = g[costTrendKind];
+    costTrendChart.data.datasets[0].label = meta.label;
+    costTrendChart.data.datasets[0].backgroundColor = meta.color;
     costTrendChart.update();
+    document.getElementById("ctrend-title").textContent = meta.title;
     ["daily", "weekly", "monthly"].forEach((k) => {
-      document.getElementById("ctrend-btn-" + k).classList.toggle("granularity-btn--active", k === key);
+      document.getElementById("ctrend-btn-" + k).classList.toggle("granularity-btn--active", k === costTrendPeriod);
     });
+    ["expenses", "purchases"].forEach((k) => {
+      document.getElementById("ctrend-kind-btn-" + k).classList.toggle("granularity-btn--active", k === costTrendKind);
+    });
+  }
+  bai.setCostTrend = (key) => {
+    costTrendPeriod = key;
+    renderCostTrend();
+  };
+  bai.setCostTrendKind = (kind) => {
+    costTrendKind = kind;
+    renderCostTrend();
   };
 
 

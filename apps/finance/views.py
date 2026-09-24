@@ -615,6 +615,82 @@ class SubcategoryDetailView(TenantLoginRequiredMixin, PeriodMixin, View):
         return JsonResponse(json.loads(to_json(detail)))
 
 
+class ExpenseCategoryTrendView(TenantLoginRequiredMixin, View):
+    """JSON behind the click-through on the Expense Analysis table: one
+    category's spend over time, for the bar-chart popup. `granularity`
+    picks the window — daily is the current calendar month up to today,
+    weekly the last 12 weeks, monthly the last 6 months — same bucketing
+    the page's own Cost trend chart uses, so the two read alike."""
+
+    def get(self, request, *args, **kwargs):
+        category_name = request.GET.get("category", "")
+        if not category_name:
+            return JsonResponse({"error": "category is required"}, status=400)
+        granularity = request.GET.get("granularity", "daily")
+
+        if granularity == "weekly":
+            series = services.expense_category_weekly_trend(category_name)
+            period_label = "Last 12 weeks"
+        elif granularity == "monthly":
+            series = services.expense_category_monthly_trend(category_name)
+            period_label = "Last 6 months"
+        else:
+            granularity = "daily"
+            fs = services.get_finance_settings()
+            this_month = resolve_period("this_month", fs.fy_start_month)
+            today = datetime.date.today()
+            end = min(this_month.end, today)
+            daily = services.expense_category_daily_trend(category_name, this_month.start, end)
+            series = [{"label": r["date"].strftime("%d %b"), "amount": r["amount"]} for r in daily]
+            period_label = f"{this_month.label} to date"
+
+        payload = {
+            "category": category_name,
+            "granularity": granularity,
+            "period_label": period_label,
+            "labels": [r["label"] for r in series],
+            "values": [r["amount"] for r in series],
+        }
+        return JsonResponse(json.loads(to_json(payload)))
+
+
+class SalesChannelTrendView(TenantLoginRequiredMixin, View):
+    """JSON behind the click-through on the Revenue Insights table: one
+    channel's revenue over time, for the bar-chart popup. Same granularity
+    windows as ExpenseCategoryTrendView, mirrored for SalesEntry/channel."""
+
+    def get(self, request, *args, **kwargs):
+        channel_name = request.GET.get("channel", "")
+        if not channel_name:
+            return JsonResponse({"error": "channel is required"}, status=400)
+        granularity = request.GET.get("granularity", "daily")
+
+        if granularity == "weekly":
+            series = services.sales_channel_weekly_trend(channel_name)
+            period_label = "Last 12 weeks"
+        elif granularity == "monthly":
+            series = services.sales_channel_monthly_trend(channel_name)
+            period_label = "Last 6 months"
+        else:
+            granularity = "daily"
+            fs = services.get_finance_settings()
+            this_month = resolve_period("this_month", fs.fy_start_month)
+            today = datetime.date.today()
+            end = min(this_month.end, today)
+            daily = services.sales_channel_daily_trend(channel_name, this_month.start, end)
+            series = [{"label": r["date"].strftime("%d %b"), "amount": r["amount"]} for r in daily]
+            period_label = f"{this_month.label} to date"
+
+        payload = {
+            "channel": channel_name,
+            "granularity": granularity,
+            "period_label": period_label,
+            "labels": [r["label"] for r in series],
+            "values": [r["amount"] for r in series],
+        }
+        return JsonResponse(json.loads(to_json(payload)))
+
+
 class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     """Every purchase- and expense-side insight in one place: trend,
     category/vendor breakdowns, cost by product category, and how outflow
@@ -840,7 +916,12 @@ class DailyReportPdfView(TenantLoginRequiredMixin, View):
             selected_date = datetime.date.today()
 
         report = services.daily_report(selected_date)
-        context = {"organization": request.user.organization, "report": report, **_daily_pdf_density(report)}
+        context = {
+            "organization": request.user.organization,
+            "report": report,
+            "show_bank": request.GET.get("show_bank") == "1",
+            **_daily_pdf_density(report),
+        }
         return _render_statement_pdf(
             request, "finance/pdf/daily_report_pdf.html", context, f"daily-report-{selected_date}.pdf"
         )
@@ -1254,10 +1335,16 @@ class EditCategoryView(TenantLoginRequiredMixin, TemplateView):
         next_url = request.GET.get("next") or request.POST.get("next") or (
             f"{reverse('finance:categories')}?kind={category.kind}"
         )
+        subcategories = Subcategory.objects.filter(
+            category=category, parent__isnull=True
+        ).prefetch_related("children")
+        tab = next(t for t in CATEGORY_TABS if t[0] == category.kind)
         context = {
             "active_nav": "categories",
             "organization": request.user.organization,
             "category": category,
+            "subcategories": subcategories,
+            "sub_placeholder": tab[3],
             "form": form,
             "next": next_url,
         }

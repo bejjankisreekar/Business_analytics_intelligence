@@ -50,6 +50,18 @@ class User(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=150, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.MEMBER)
 
+    # Personal details — collected from the Profile page after signup, not
+    # during signup itself, to keep the signup form minimal.
+    phone = models.CharField(max_length=20, blank=True)
+    designation = models.CharField("Job title", max_length=100, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+
+    # Emergency contact — a person to reach if this user can't be, separate
+    # from the organization's own business contact.
+    emergency_contact_name = models.CharField(max_length=150, blank=True)
+    emergency_contact_phone = models.CharField(max_length=20, blank=True)
+    emergency_contact_relation = models.CharField(max_length=50, blank=True)
+
     organization = models.ForeignKey(
         "organizations.Organization",
         on_delete=models.CASCADE,

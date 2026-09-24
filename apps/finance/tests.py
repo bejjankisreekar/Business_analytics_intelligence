@@ -527,7 +527,7 @@ class CostTreeTests(TestCase):
         self.assertEqual(rent["children"], [])   # only untagged entries: nothing to drill into
 
     def test_page_renders_and_escapes_script_close_in_names(self):
-        resp = self.client_.get("/app/purchase-expense-intelligence/?period=today")
+        resp = self.client_.get("/app/cost-intelligence/?period=today")
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Where the money goes")
         # Every chart embeds names via to_json: none may be able to close the <script> block.

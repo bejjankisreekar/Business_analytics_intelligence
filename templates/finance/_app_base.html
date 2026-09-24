@@ -165,6 +165,54 @@
       menu.classList.add("hidden");
     }
   });
+
+  // Locks every field inside each [data-lock-section] container behind one
+  // lock icon per section (not per field) so a stray click can't edit
+  // something by accident — a whole card (e.g. "Organization") stays
+  // disabled and greyed out until its own lock is clicked open. Disabled
+  // fields are dropped from the submitted form data by the browser, so on
+  // submit every field is briefly re-enabled first to make sure an
+  // untouched (still-locked) section's values still get posted.
+  window.bai = window.bai || {};
+  bai.initFieldLocks = (form) => {
+    if (!form) return;
+    const LOCKED_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="1.5"/><path d="M8 10.5V7a4 4 0 018 0v3.5"/></svg>';
+    const UNLOCKED_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="1.5"/><path d="M8 10.5V7a4 4 0 017.75-1.35"/></svg>';
+    const allFields = [];
+    form.querySelectorAll("[data-lock-section]").forEach((btn) => {
+      const section = document.getElementById(btn.dataset.lockSection);
+      if (!section) return;
+      const fields = section.querySelectorAll("input, select, textarea");
+      allFields.push(...fields);
+      let locked = true;
+      const render = () => {
+        fields.forEach((f) => {
+          f.disabled = locked;
+          // A <select> here may have been swapped for the custom dropdown
+          // trigger button (see base.html's enhanceSelect) — that trigger
+          // only mirrors the real <select>'s disabled state on its own
+          // "change"/init events, neither of which fires when this toggles
+          // it programmatically, so it's kept in sync by hand here too.
+          if (f.tagName === "SELECT") {
+            const trigger = f.parentElement && f.parentElement.querySelector(":scope > .bai-select-trigger");
+            if (trigger) trigger.disabled = locked;
+          }
+        });
+        btn.innerHTML = locked ? LOCKED_ICON : UNLOCKED_ICON;
+        btn.classList.toggle("field-lock--unlocked", !locked);
+        btn.setAttribute("aria-label", locked ? "Unlock section to edit" : "Lock section");
+      };
+      render();
+      btn.addEventListener("click", () => {
+        locked = !locked;
+        render();
+        if (!locked && fields[0]) fields[0].focus();
+      });
+    });
+    form.addEventListener("submit", () => {
+      allFields.forEach((f) => { f.disabled = false; });
+    });
+  };
 </script>
 {% endblock %}
 
@@ -205,6 +253,14 @@
     border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
     padding: 0.5rem 0.75rem; font-size: 0.83rem; color: #fff; outline: none;
   }
+  /* Without this, the browser draws its native date/time chrome (the
+     calendar icon, the picker popup) for a light background, so the icon
+     renders near-black and disappears against this dark input. This alone
+     is enough — Chromium already redraws the icon in a light tint for a
+     dark color-scheme, so adding a filter:invert on top of it flips it
+     back to dark and undoes the fix. */
+  input[type=date] { color-scheme: dark; }
+  input[type=date]::-webkit-calendar-picker-indicator { cursor: pointer; }
   select {
     appearance: none; -webkit-appearance: none; -moz-appearance: none;
     padding: 0.65rem 2.25rem 0.65rem 0.85rem;
@@ -216,9 +272,38 @@
     transition: border-color .15s, background-color .15s, box-shadow .15s;
   }
   select:hover { border-color: rgba(255,255,255,0.24); background-color: rgba(255,255,255,0.06); }
-  select:disabled { opacity: .5; cursor: not-allowed; }
+  input:disabled:not(.bai-select-native), select:disabled:not(.bai-select-native), textarea:disabled { opacity: .5; cursor: not-allowed; }
   input:focus, select:focus { border-color: #5b7cfa; box-shadow: 0 0 0 3px rgba(91,124,250,0.15); }
   select option { background: #111627; color: #fff; padding: 0.5rem; }
+
+  /* Lock icon shown beside a section heading — click to unlock the whole
+     section's fields before editing. */
+  .field-lock {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.75rem; height: 1.75rem; border-radius: 0.5rem; flex-shrink: 0;
+    color: #94a3b8; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    cursor: pointer; transition: color .15s, background-color .15s, border-color .15s;
+  }
+  .field-lock:hover { color: #e2e8f0; background: rgba(255,255,255,0.08); }
+  .field-lock svg { width: 0.95rem; height: 0.95rem; }
+  .field-lock--unlocked { color: #34d9b8; background: rgba(52,217,184,0.1); border-color: rgba(52,217,184,0.3); }
+  .field-lock--unlocked:hover { color: #5eead4; background: rgba(52,217,184,0.15); }
+
+  /* Reusable on/off switch (checkbox styled as a pill toggle). */
+  .bai-switch { position: relative; display: inline-flex; flex-shrink: 0; width: 2.25rem; height: 1.25rem; }
+  .bai-switch input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+  .bai-switch-track {
+    position: absolute; inset: 0; border-radius: 9999px; pointer-events: none;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.1);
+    transition: background-color .15s, border-color .15s;
+  }
+  .bai-switch-track::after {
+    content: ""; position: absolute; top: 1px; left: 1px; width: 1rem; height: 1rem;
+    border-radius: 9999px; background: #fff; transition: transform .15s;
+  }
+  .bai-switch input:checked + .bai-switch-track { background: #5b7cfa; border-color: #5b7cfa; }
+  .bai-switch input:checked + .bai-switch-track::after { transform: translateX(1rem); }
+  .bai-switch input:focus-visible + .bai-switch-track { box-shadow: 0 0 0 3px rgba(91,124,250,0.25); }
   .btn-primary {
     display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
     border-radius: 0.6rem; background: linear-gradient(90deg,#5b7cfa,#4361ee);

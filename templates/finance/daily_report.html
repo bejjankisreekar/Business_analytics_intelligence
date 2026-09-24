@@ -18,15 +18,17 @@
       <input type="date" name="date" value="{{ report.date|date:'Y-m-d' }}" onchange="this.form.submit()" class="!mt-0 !w-auto">
     </form>
     <a href="?date={{ next_date|date:'Y-m-d' }}&mode={{ selected_mode }}" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">›</a>
-    {% if report.date != today %}
+    {% if report.date == today %}
+    <span class="cursor-not-allowed rounded-lg border border-white/5 px-3 py-2 text-xs font-medium text-slate-600" aria-disabled="true">Today</span>
+    {% else %}
     <a href="?date={{ today|date:'Y-m-d' }}&mode={{ selected_mode }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Today</a>
     {% endif %}
-    <a href="{% url 'finance:daily_report_pdf' %}?date={{ report.date|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
+    <a id="download-pdf-link" href="{% url 'finance:daily_report_pdf' %}?date={{ report.date|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
   </div>
 </div>
 
 <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-  <p class="text-sm font-medium text-slate-300">{{ report.date|date:"l, d F Y" }}</p>
+  <span class="inline-flex items-center rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-1.5 text-sm font-semibold text-white">{{ report.date|date:"l, d F Y" }}</span>
   <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
     <a href="?date={{ report.date|date:'Y-m-d' }}&mode=all" class="granularity-btn {% if selected_mode == 'all' %}granularity-btn--active{% endif %}">Both</a>
     <a href="?date={{ report.date|date:'Y-m-d' }}&mode=cash" class="granularity-btn {% if selected_mode == 'cash' %}granularity-btn--active{% endif %}">Cash</a>
@@ -35,13 +37,24 @@
 </div>
 
 <!-- Bulk entry -->
-<div class="mt-4 flex flex-nowrap items-center gap-3 overflow-x-auto pb-1">
-  <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">▦ Bulk Entry — enter the whole day at once</a>
-  <button onclick="bai.openModal('modal-transfer')" class="btn-primary shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">⇄ Cash / Bank transfer</button>
+<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+  <div class="flex flex-nowrap items-center gap-3 overflow-x-auto pb-1">
+    <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">▦ Bulk Entry — enter the whole day at once</a>
+    <button onclick="bai.openModal('modal-transfer')" class="btn-primary shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">⇄ Cash / Bank transfer</button>
+  </div>
+  {% if selected_mode == 'all' %}
+  <div class="flex items-center gap-2">
+    <label for="toggle-bank-balance" class="text-xs font-medium text-slate-400">Show bank opening/closing balance</label>
+    <span class="bai-switch">
+      <input type="checkbox" id="toggle-bank-balance" onchange="bai.setBankBalanceVisible(this.checked)">
+      <span class="bai-switch-track"></span>
+    </span>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Summary strip -->
-<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
   <div class="card p-4">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Opening balance{% if selected_mode == 'cash' %} · Cash{% elif selected_mode == 'bank' %} · Bank{% endif %}</p>
     {% if selected_mode == 'cash' %}
@@ -49,9 +62,10 @@
     {% elif selected_mode == 'bank' %}
     <p class="mt-1.5 text-xl font-bold text-white">{{ report.opening_bank|floatformat:0|intcomma }}</p>
     {% else %}
-    <p class="mt-1.5 text-xl font-bold text-white">{{ report.opening_total|floatformat:0|intcomma }}</p>
+    <p class="mt-1.5 text-xl font-bold text-white bank-balance-figure hidden">{{ report.opening_total|floatformat:0|intcomma }}</p>
+    <p class="mt-1.5 text-xl font-bold text-white cash-only-figure">{{ report.opening_cash|floatformat:0|intcomma }}</p>
     <p class="mt-1 text-xs text-slate-500">
-      Cash {{ report.opening_cash|floatformat:0|intcomma }} · Bank {{ report.opening_bank|floatformat:0|intcomma }}
+      Cash {{ report.opening_cash|floatformat:0|intcomma }}<span class="bank-balance-figure hidden"> · Bank {{ report.opening_bank|floatformat:0|intcomma }}</span>
     </p>
     {% endif %}
   </div>
@@ -63,6 +77,10 @@
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total outgoing</p>
     <p class="mt-1.5 text-xl font-bold text-red-400">-{{ report.total_outgoing|floatformat:0|intcomma }}</p>
   </div>
+  <div class="card p-4">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Net amount</p>
+    <p class="mt-1.5 text-xl font-bold {% if report.net >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{% if report.net >= 0 %}+{% endif %}{{ report.net|floatformat:0|intcomma }}</p>
+  </div>
   <div class="card p-4" style="border-color:rgba(91,124,250,0.35);">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Closing balance{% if selected_mode == 'cash' %} · Cash{% elif selected_mode == 'bank' %} · Bank{% endif %}</p>
     {% if selected_mode == 'cash' %}
@@ -70,9 +88,10 @@
     {% elif selected_mode == 'bank' %}
     <p class="mt-1.5 text-xl font-bold text-white">{{ report.closing_bank|floatformat:0|intcomma }}</p>
     {% else %}
-    <p class="mt-1.5 text-xl font-bold text-white">{{ report.closing_total|floatformat:0|intcomma }}</p>
+    <p class="mt-1.5 text-xl font-bold text-white bank-balance-figure hidden">{{ report.closing_total|floatformat:0|intcomma }}</p>
+    <p class="mt-1.5 text-xl font-bold text-white cash-only-figure">{{ report.closing_cash|floatformat:0|intcomma }}</p>
     <p class="mt-1 text-xs text-slate-500">
-      Cash {{ report.closing_cash|floatformat:0|intcomma }} · Bank {{ report.closing_bank|floatformat:0|intcomma }}
+      Cash {{ report.closing_cash|floatformat:0|intcomma }}<span class="bank-balance-figure hidden"> · Bank {{ report.closing_bank|floatformat:0|intcomma }}</span>
     </p>
     {% endif %}
   </div>
@@ -228,5 +247,24 @@
     const open = detail.classList.toggle("hidden") === false;
     head.querySelector(".sub-chevron").classList.toggle("rotate-90", open);
   };
+
+  bai.setBankBalanceVisible = (show) => {
+    document.querySelectorAll(".bank-balance-figure").forEach((el) => el.classList.toggle("hidden", !show));
+    document.querySelectorAll(".cash-only-figure").forEach((el) => el.classList.toggle("hidden", show));
+    try { localStorage.setItem("bai.showBankBalance", show ? "1" : "0"); } catch (e) { /* not persisted */ }
+    const pdfLink = document.getElementById("download-pdf-link");
+    if (pdfLink) {
+      const url = new URL(pdfLink.href, window.location.origin);
+      url.searchParams.set("show_bank", show ? "1" : "0");
+      pdfLink.href = url.pathname + url.search;
+    }
+  };
+  (() => {
+    const toggle = document.getElementById("toggle-bank-balance");
+    let show = false;
+    try { show = localStorage.getItem("bai.showBankBalance") === "1"; } catch (e) { /* default: hidden */ }
+    if (toggle) toggle.checked = show;
+    bai.setBankBalanceVisible(show);
+  })();
 </script>
 {% endblock %}

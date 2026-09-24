@@ -3,36 +3,106 @@
 
 {% block app_content %}
 <h1 class="text-2xl font-bold text-white">Profile</h1>
-<p class="mt-1 text-sm text-slate-400">Update your personal details{% if org_form %} and your organization's information{% endif %}.</p>
+<p class="mt-1 text-sm text-slate-400">Update your personal details{% if org_form %} and your organization's information{% endif %}. Each section is locked by default — click its lock icon to edit it.</p>
 
-<form method="post" class="mt-6 max-w-3xl space-y-6">
+<form method="post" id="profile-form" class="mt-6 space-y-6">
   {% csrf_token %}
 
-  <div class="card p-6">
-    <h2 class="text-sm font-semibold text-white">Personal details</h2>
-    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+  <div class="card p-6" id="section-personal">
+    <div class="flex items-center justify-between gap-2">
+      <h2 class="text-sm font-semibold text-white">Personal details</h2>
+      <button type="button" class="field-lock" data-lock-section="section-personal"></button>
+    </div>
+    {% for error in user_form.non_field_errors %}<p class="mt-2 text-xs text-red-400">{{ error }}</p>{% endfor %}
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {% for field in user_form %}
+        {% if field.name != "emergency_contact_name" and field.name != "emergency_contact_phone" and field.name != "emergency_contact_relation" %}
         <div>
           <label for="{{ field.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ field.label }}</label>
           {{ field }}
           {% for error in field.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
         </div>
+        {% endif %}
       {% endfor %}
     </div>
   </div>
 
+  <div class="card p-6" id="section-emergency">
+    <div class="flex items-center justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-semibold text-white">Emergency contact</h2>
+        <p class="mt-1 text-xs text-slate-500">Someone to reach if you can't be — optional.</p>
+      </div>
+      <button type="button" class="field-lock" data-lock-section="section-emergency"></button>
+    </div>
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <label for="{{ user_form.emergency_contact_name.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ user_form.emergency_contact_name.label }}</label>
+        {{ user_form.emergency_contact_name }}
+        {% for error in user_form.emergency_contact_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label for="{{ user_form.emergency_contact_phone.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ user_form.emergency_contact_phone.label }}</label>
+        {{ user_form.emergency_contact_phone }}
+        {% for error in user_form.emergency_contact_phone.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label for="{{ user_form.emergency_contact_relation.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ user_form.emergency_contact_relation.label }}</label>
+        {{ user_form.emergency_contact_relation }}
+        {% for error in user_form.emergency_contact_relation.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+    </div>
+  </div>
+
   {% if org_form %}
-  <div class="card p-6">
-    <h2 class="text-sm font-semibold text-white">Organization</h2>
+  <div class="card p-6" id="section-organization">
+    <div class="flex items-center justify-between gap-2">
+      <h2 class="text-sm font-semibold text-white">Organization</h2>
+      <button type="button" class="field-lock" data-lock-section="section-organization"></button>
+    </div>
     {% for error in org_form.non_field_errors %}<p class="mt-2 text-xs text-red-400">{{ error }}</p>{% endfor %}
-    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {% for field in org_form %}
-        <div{% if field.name == "address" %} class="sm:col-span-2"{% endif %}>
+        {% if field.name != "bank_account_holder" and field.name != "bank_account_number" and field.name != "bank_ifsc" and field.name != "bank_name" %}
+        <div{% if field.name == "address" or field.name == "registered_address" %} class="sm:col-span-2"{% endif %}>
           <label for="{{ field.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ field.label }}</label>
           {{ field }}
           {% for error in field.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
         </div>
+        {% endif %}
       {% endfor %}
+    </div>
+  </div>
+
+  <div class="card p-6" id="section-bank">
+    <div class="flex items-center justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-semibold text-white">Bank details</h2>
+        <p class="mt-1 text-xs text-slate-500">For invoicing/payout reference — optional.</p>
+      </div>
+      <button type="button" class="field-lock" data-lock-section="section-bank"></button>
+    </div>
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <label for="{{ org_form.bank_account_holder.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ org_form.bank_account_holder.label }}</label>
+        {{ org_form.bank_account_holder }}
+        {% for error in org_form.bank_account_holder.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label for="{{ org_form.bank_name.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ org_form.bank_name.label }}</label>
+        {{ org_form.bank_name }}
+        {% for error in org_form.bank_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label for="{{ org_form.bank_account_number.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ org_form.bank_account_number.label }}</label>
+        {{ org_form.bank_account_number }}
+        {% for error in org_form.bank_account_number.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label for="{{ org_form.bank_ifsc.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ org_form.bank_ifsc.label }}</label>
+        {{ org_form.bank_ifsc }}
+        {% for error in org_form.bank_ifsc.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
     </div>
   </div>
   {% endif %}
@@ -42,4 +112,10 @@
     <a href="{% url 'accounts:change_password' %}" class="text-sm text-slate-400 hover:text-white">Change password</a>
   </div>
 </form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  bai.initFieldLocks(document.getElementById("profile-form"));
+</script>
 {% endblock %}

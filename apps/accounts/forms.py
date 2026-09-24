@@ -191,7 +191,14 @@ class ChangePasswordForm(forms.Form):
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email", "username"]
+        fields = [
+            "first_name", "last_name", "email", "username",
+            "phone", "designation", "date_of_birth",
+            "emergency_contact_name", "emergency_contact_phone", "emergency_contact_relation",
+        ]
+        widgets = {
+            "date_of_birth": forms.DateInput(attrs={"type": "date"}),
+        }
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip().lower()
@@ -210,7 +217,8 @@ class OrganizationProfileForm(forms.ModelForm):
     class Meta:
         model = Organization
         fields = [
-            "name", "business_type", "size", "industry", "contact_person",
-            "contact_email", "contact_phone", "address", "city", "state",
-            "country", "tax_id", "website",
+            "name", "business_type", "size", "employee_count", "industry", "contact_person",
+            "contact_email", "contact_phone", "address", "registered_address", "city", "state",
+            "country", "tax_id", "pan_number", "website",
+            "bank_account_holder", "bank_account_number", "bank_ifsc", "bank_name",
         ]

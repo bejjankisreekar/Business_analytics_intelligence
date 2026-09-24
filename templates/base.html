@@ -68,7 +68,14 @@
   .bai-select-trigger-chevron { flex: none; width: 1rem; height: 1rem; color: #9aa4bd; transition: transform .15s; }
   .bai-select-trigger[aria-expanded="true"] .bai-select-trigger-chevron { transform: rotate(180deg); }
   .bai-select-panel {
-    position: absolute; z-index: 50; top: 100%; left: 0; right: 0; margin-top: 0.375rem;
+    /* `fixed`, not `absolute`: this dropdown can open inside a horizontally-
+       scrollable table (bulk entry) whose wrapper has overflow-x:auto — that
+       forces overflow-y:auto too (a CSS quirk: an element can't scroll one
+       axis and show the other), which would clip an absolutely-positioned
+       panel to the table's box instead of letting it float over the page.
+       `fixed` escapes that clipping; JS sets its top/left/width to match the
+       trigger since it's no longer positioned relative to .bai-select-wrap. */
+    position: fixed; z-index: 50; margin-top: 0.375rem;
     max-height: 14rem; overflow-y: auto; border-radius: 0.75rem;
     border: 1px solid rgba(255,255,255,0.1); background: #111627;
     box-shadow: 0 10px 30px rgba(0,0,0,0.45);
@@ -206,9 +213,30 @@
         });
       }
 
+      function positionPanel() {
+        const r = trigger.getBoundingClientRect();
+        const maxHeight = parseFloat(getComputedStyle(panel).maxHeight) || 224;
+        const spaceBelow = window.innerHeight - r.bottom;
+        const openUpward = spaceBelow < maxHeight + 12 && r.top > spaceBelow;
+        panel.style.left = r.left + "px";
+        panel.style.width = r.width + "px";
+        if (openUpward) {
+          panel.style.top = "";
+          panel.style.bottom = (window.innerHeight - r.top) + "px";
+          panel.style.marginTop = "0";
+          panel.style.marginBottom = "0.375rem";
+        } else {
+          panel.style.bottom = "";
+          panel.style.top = r.bottom + "px";
+          panel.style.marginTop = "0.375rem";
+          panel.style.marginBottom = "0";
+        }
+      }
+
       function openPanel() {
         if (select.disabled) return;
         renderPanel();
+        positionPanel();
         panel.classList.remove("hidden");
         trigger.setAttribute("aria-expanded", "true");
         const active = panel.querySelector(".bai-select-option--active");
@@ -224,6 +252,17 @@
         e.stopPropagation();
         if (panel.classList.contains("hidden")) openPanel();
         else closePanel();
+      });
+      // The panel is viewport-fixed (see .bai-select-panel), so a scroll
+      // anywhere — the page, or the table's own horizontal scroller — has to
+      // either move it with the trigger or close it; scroll events don't
+      // bubble, so this has to listen on the capture phase to catch one
+      // from a nested scroll container.
+      document.addEventListener("scroll", () => {
+        if (!panel.classList.contains("hidden")) positionPanel();
+      }, true);
+      window.addEventListener("resize", () => {
+        if (!panel.classList.contains("hidden")) positionPanel();
       });
       trigger.addEventListener("keydown", (e) => {
         if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {

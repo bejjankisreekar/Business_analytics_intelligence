@@ -1356,6 +1356,126 @@ def account_ledger_entries(account: str) -> list[dict]:
     return rows
 
 
+def expense_category_daily_trend(category_name: str, start: datetime.date, end: datetime.date) -> list[dict]:
+    """One expense category's spend, day by day, for the click-through bar
+    chart behind the Expense Analysis table — zero-filled so a day with no
+    entries still gets a bar."""
+    by_day = {
+        row["date"]: row["total"]
+        for row in ExpenseEntry.objects.filter(
+            category__name=category_name, date__gte=start, date__lte=end
+        ).values("date").annotate(total=Sum("amount"))
+    }
+    series = []
+    day = start
+    while day <= end:
+        series.append({"date": day, "amount": by_day.get(day, ZERO)})
+        day += datetime.timedelta(days=1)
+    return series
+
+
+def expense_category_weekly_trend(category_name: str, weeks: int = 12) -> list[dict]:
+    """Same one category, bucketed into the last `weeks` calendar weeks
+    (Mon-Sun) — same bucketing as `weekly_trend`, so the Daily/Weekly/
+    Monthly toggle on the click-through chart reads consistently with the
+    page's own Cost trend chart."""
+    end = datetime.date.today()
+    week_start = end - datetime.timedelta(days=end.weekday())
+    start = week_start - datetime.timedelta(weeks=weeks - 1)
+
+    daily = expense_category_daily_trend(category_name, start, end)
+    buckets: dict[str, dict] = {}
+    order = []
+    for row in daily:
+        bucket_start = row["date"] - datetime.timedelta(days=row["date"].weekday())
+        key = bucket_start.isoformat()
+        if key not in buckets:
+            buckets[key] = {"label": week_label(bucket_start), "amount": ZERO}
+            order.append(key)
+        buckets[key]["amount"] += row["amount"]
+    return [buckets[k] for k in order]
+
+
+def expense_category_monthly_trend(category_name: str, months: int = 6) -> list[dict]:
+    """Same one category, bucketed into the last `months` calendar months —
+    same bucketing as `monthly_trend`."""
+    end = datetime.date.today()
+    start = end.replace(day=1)
+    for _ in range(months - 1):
+        start = (start - datetime.timedelta(days=1)).replace(day=1)
+
+    by_month = {
+        row["m"].strftime("%Y-%m"): row["total"]
+        for row in ExpenseEntry.objects.filter(category__name=category_name, date__gte=start, date__lte=end)
+        .annotate(m=TruncMonth("date")).values("m").annotate(total=Sum("amount"))
+    }
+    out = []
+    cursor = start
+    while cursor <= end:
+        out.append({"label": cursor.strftime("%b %Y"), "amount": by_month.get(cursor.strftime("%Y-%m"), ZERO)})
+        cursor = (cursor.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
+    return out
+
+
+def sales_channel_daily_trend(channel_name: str, start: datetime.date, end: datetime.date) -> list[dict]:
+    """One sales channel's revenue, day by day, for the click-through bar
+    chart behind the Revenue Insights table — zero-filled so a day with no
+    entries still gets a bar."""
+    by_day = {
+        row["date"]: row["total"]
+        for row in SalesEntry.objects.filter(
+            channel__name=channel_name, date__gte=start, date__lte=end
+        ).values("date").annotate(total=Sum("amount"))
+    }
+    series = []
+    day = start
+    while day <= end:
+        series.append({"date": day, "amount": by_day.get(day, ZERO)})
+        day += datetime.timedelta(days=1)
+    return series
+
+
+def sales_channel_weekly_trend(channel_name: str, weeks: int = 12) -> list[dict]:
+    """Same one channel, bucketed into the last `weeks` calendar weeks
+    (Mon-Sun) — same bucketing as `weekly_trend`."""
+    end = datetime.date.today()
+    week_start = end - datetime.timedelta(days=end.weekday())
+    start = week_start - datetime.timedelta(weeks=weeks - 1)
+
+    daily = sales_channel_daily_trend(channel_name, start, end)
+    buckets: dict[str, dict] = {}
+    order = []
+    for row in daily:
+        bucket_start = row["date"] - datetime.timedelta(days=row["date"].weekday())
+        key = bucket_start.isoformat()
+        if key not in buckets:
+            buckets[key] = {"label": week_label(bucket_start), "amount": ZERO}
+            order.append(key)
+        buckets[key]["amount"] += row["amount"]
+    return [buckets[k] for k in order]
+
+
+def sales_channel_monthly_trend(channel_name: str, months: int = 6) -> list[dict]:
+    """Same one channel, bucketed into the last `months` calendar months —
+    same bucketing as `monthly_trend`."""
+    end = datetime.date.today()
+    start = end.replace(day=1)
+    for _ in range(months - 1):
+        start = (start - datetime.timedelta(days=1)).replace(day=1)
+
+    by_month = {
+        row["m"].strftime("%Y-%m"): row["total"]
+        for row in SalesEntry.objects.filter(channel__name=channel_name, date__gte=start, date__lte=end)
+        .annotate(m=TruncMonth("date")).values("m").annotate(total=Sum("amount"))
+    }
+    out = []
+    cursor = start
+    while cursor <= end:
+        out.append({"label": cursor.strftime("%b %Y"), "amount": by_month.get(cursor.strftime("%Y-%m"), ZERO)})
+        cursor = (cursor.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
+    return out
+
+
 def expense_month_comparison(fy_start_month: int) -> dict:
     """Category-wise expense comparison, this calendar month vs last, plus
     an auto-generated insight when one category's growth is outpacing

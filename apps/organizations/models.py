@@ -72,6 +72,21 @@ class Organization(models.Model):
     country = models.CharField(max_length=100, blank=True, default="India")
     tax_id = models.CharField("GST / tax number", max_length=32, blank=True)
     website = models.URLField(blank=True)
+    pan_number = models.CharField("PAN number", max_length=20, blank=True)
+    registered_address = models.CharField(
+        max_length=255, blank=True,
+        help_text="Leave blank if the same as the operating address above.",
+    )
+    employee_count = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Exact headcount, if known — separate from the team-size range above.",
+    )
+
+    # Bank details — for invoicing/payout reference only, not used to move
+    # money anywhere in this app.
+    bank_account_holder = models.CharField(max_length=150, blank=True)
+    bank_account_number = models.CharField(max_length=34, blank=True)
+    bank_ifsc = models.CharField("IFSC code", max_length=11, blank=True)
+    bank_name = models.CharField(max_length=150, blank=True)
 
     # Per-org override of the earliest date this org's users may create or
     # backdate a finance entry (sales/purchase/expense — see

@@ -130,7 +130,7 @@
       </thead>
       <tbody class="divide-y divide-white/5">
         {% for row in sales_insights.rows %}
-        <tr>
+        <tr class="cursor-pointer hover:bg-white/[0.03]" onclick="bai.openChannelTrend('{{ row.name|escapejs }}')" title="Click for the daily/weekly/monthly breakdown">
           <td class="py-2.5 pr-4 text-slate-200">{{ row.name }}</td>
           <td class="py-2.5 pr-4 text-right text-slate-300">{{ organization.currency }} {{ row.this_month|floatformat:0|intcomma }}</td>
           <td class="py-2.5 pr-4 text-right text-slate-500">{{ organization.currency }} {{ row.last_month|floatformat:0|intcomma }}</td>
@@ -201,6 +201,29 @@
 {% endif %}
 {% endif %}
 
+<!-- Revenue channel daily-trend popup -->
+<div id="channel-trend-modal" class="modal-overlay fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="channel-trend-title" onclick="if (event.target === this) bai.closeModal('channel-trend-modal')">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 p-6 shadow-2xl" style="background:#0a0e1a">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h3 id="channel-trend-title" class="text-lg font-semibold text-white"></h3>
+        <p id="channel-trend-sub" class="mt-0.5 text-xs text-slate-500"></p>
+      </div>
+      <button type="button" onclick="bai.closeModal('channel-trend-modal')" aria-label="Close" class="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="mt-4 flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1 w-fit">
+      <button type="button" onclick="bai.setChannelTrendGranularity('daily')" id="chtrend-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
+      <button type="button" onclick="bai.setChannelTrendGranularity('weekly')" id="chtrend-btn-weekly" class="granularity-btn">Weekly</button>
+      <button type="button" onclick="bai.setChannelTrendGranularity('monthly')" id="chtrend-btn-monthly" class="granularity-btn">Monthly</button>
+    </div>
+    <div class="mt-4 h-72"><canvas id="chartChannelTrend"></canvas></div>
+    <p id="channel-trend-empty" class="hidden py-8 text-center text-sm text-slate-500">Nothing logged under this channel for this period.</p>
+    <p id="channel-trend-loading" class="py-8 text-center text-sm text-slate-500">Loading…</p>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -214,6 +237,66 @@
   const palette = { brand: "#5b7cfa", brandFill: "rgba(91,124,250,0.15)", mint: "#34d9b8", mintFill: "rgba(52,217,184,0.15)", red: "#f87171", redFill: "rgba(248,113,113,0.15)" };
   const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } };
   const donutColors = ["#5b7cfa","#34d9b8","#f87171","#fbbf24","#a78bfa","#38bdf8","#fb923c","#f472b6"];
+
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+
+  // ---- Revenue Insights row click: bar chart for one channel, with its own Daily/Weekly/Monthly toggle ----
+  let channelTrendChart = null;
+  let channelTrendChannel = null;
+  let channelTrendGranularity = "daily";
+
+  bai.openChannelTrend = (channelName) => {
+    channelTrendChannel = channelName;
+    channelTrendGranularity = "daily";
+    ["daily", "weekly", "monthly"].forEach((g) => {
+      document.getElementById("chtrend-btn-" + g).classList.toggle("granularity-btn--active", g === "daily");
+    });
+    document.getElementById("channel-trend-title").textContent = channelName;
+    bai.openModal("channel-trend-modal");
+    loadChannelTrend();
+  };
+
+  bai.setChannelTrendGranularity = (granularity) => {
+    channelTrendGranularity = granularity;
+    ["daily", "weekly", "monthly"].forEach((g) => {
+      document.getElementById("chtrend-btn-" + g).classList.toggle("granularity-btn--active", g === granularity);
+    });
+    loadChannelTrend();
+  };
+
+  function loadChannelTrend() {
+    document.getElementById("channel-trend-sub").textContent = "";
+    document.getElementById("chartChannelTrend").classList.add("hidden");
+    document.getElementById("channel-trend-empty").classList.add("hidden");
+    document.getElementById("channel-trend-loading").classList.remove("hidden");
+
+    const url = "{% url 'finance:sales_channel_trend' %}?channel=" + encodeURIComponent(channelTrendChannel)
+      + "&granularity=" + channelTrendGranularity;
+    fetch(url).then((r) => r.json()).then((data) => {
+      document.getElementById("channel-trend-loading").classList.add("hidden");
+      const total = data.values.reduce((a, b) => a + Number(b), 0);
+      document.getElementById("channel-trend-sub").textContent = data.period_label + " · total {{ organization.currency }} " + total.toLocaleString("en-IN");
+      if (!total) {
+        document.getElementById("channel-trend-empty").classList.remove("hidden");
+        return;
+      }
+      document.getElementById("chartChannelTrend").classList.remove("hidden");
+      if (channelTrendChart) channelTrendChart.destroy();
+      channelTrendChart = new Chart(document.getElementById("chartChannelTrend"), {
+        type: "bar",
+        data: { labels: data.labels, datasets: [{ data: data.values, backgroundColor: palette.mint, borderRadius: 4 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => "{{ organization.currency }} " + Number(ctx.raw).toLocaleString("en-IN") } } },
+          scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } },
+        },
+      });
+    }).catch(() => {
+      document.getElementById("channel-trend-loading").textContent = "Couldn't load this — try again.";
+    });
+  }
 
   new Chart(document.getElementById("chartRevenueProfit"), {
     type: "line",
