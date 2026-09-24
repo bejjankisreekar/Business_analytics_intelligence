@@ -200,6 +200,13 @@ RAZORPAY_KEY_ID = config("RAZORPAY_KEY_ID", default="")
 RAZORPAY_KEY_SECRET = config("RAZORPAY_KEY_SECRET", default="")
 RAZORPAY_WEBHOOK_SECRET = config("RAZORPAY_WEBHOOK_SECRET", default="")
 
+# A fixed-price Razorpay "Payment Button" (dashboard-configured, not the
+# Orders API) — a separate, non-reconciling quick-pay option on the Billing
+# page for invoices whose amount due happens to match the button's fixed
+# price. Blank hides it. See templates/finance/billing.html.
+RAZORPAY_PAYMENT_BUTTON_ID = config("RAZORPAY_PAYMENT_BUTTON_ID", default="")
+RAZORPAY_PAYMENT_BUTTON_AMOUNT = config("RAZORPAY_PAYMENT_BUTTON_AMOUNT", cast=int, default=899)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Sum
 from django.utils import timezone
 
 from . import invoicing, services
@@ -83,6 +84,31 @@ def _resume_if_payment_hold_cleared(invoice, *, using: str) -> None:
             org, using=using, admin_email="system (payment received)",
             notes=f"Service resumed automatically: invoice {invoice.invoice_number} was paid.",
         )
+
+
+def edit_payment(payment: Payment, *, using: str = "default") -> Payment:
+    """Reconcile `payment.invoice` after a superadmin correction to an
+    already-saved Payment row (amount and/or status edited directly, not
+    through record_payment). Recomputes the invoice's amount_paid from
+    scratch as the sum of all its SUCCESS payments — rather than applying
+    a before/after delta — so it self-heals correctly even after more than
+    one edit. Deliberately does NOT re-trigger
+    services.renew_subscription_from_invoice or payment-hold clearing:
+    those are one-time consequences of a payment actually landing, not of
+    a later correction to its record. If a correction should also move a
+    billing date or restore access, use the org's 'Edit dates' /
+    service-control tools directly."""
+    if payment.invoice_id is None:
+        return payment
+    invoice = payment.invoice
+    invoice.amount_paid = (
+        Payment.objects.using(using)
+        .filter(invoice_id=invoice.id, status=Payment.Status.SUCCESS)
+        .aggregate(t=Sum("amount"))["t"]
+        or 0
+    )
+    invoicing.refresh_invoice_status(invoice, using=using)
+    return payment
 
 
 def refund_payment(payment: Payment, *, using: str = "default", amount=None, reason: str = "") -> Payment:

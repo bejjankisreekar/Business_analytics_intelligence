@@ -42,7 +42,7 @@ class Plan(models.Model):
     )
     trial_days = models.PositiveIntegerField(default=0, help_text="0 = no trial period")
     historical_months_limit = models.PositiveIntegerField(
-        default=1,
+        default=3,
         help_text="How many months back a customer on this plan may create or backdate a transaction.",
     )
 

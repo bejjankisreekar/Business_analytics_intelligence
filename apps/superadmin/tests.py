@@ -599,6 +599,120 @@ class PaymentAndInvoiceUITests(TestCase):
         self.assertEqual(invoice2.status, Invoice.Status.PAID)
 
 
+class InvoiceAndPaymentEditTests(TestCase):
+    """Superadmin correction of an already-issued/already-paid invoice, and
+    of an already-recorded payment — both reachable from invoice_detail and
+    payment_list. Editing a payment must keep its invoice's amount_paid and
+    status in sync (apps.billing.payments.edit_payment)."""
+
+    databases = DATABASES
+
+    def setUp(self):
+        self.superadmin = _make_superadmin("sa-edit@test.local")
+        self.org, self.owner = _make_client()
+        self.client_ = Client()
+        self.client_.force_login(self.superadmin)
+        self.invoice = invoicing.create_invoice(self.org, using=ENV, subtotal=1000, discount=0, tax=180)
+        self.payment, _ = payment_services.record_payment(
+            self.org, using=ENV, invoice=self.invoice, amount=self.invoice.total,
+            gateway=Payment.Gateway.MANUAL, payment_method=Payment.Method.BANK_TRANSFER,
+            status=Payment.Status.SUCCESS,
+        )
+        self.invoice.refresh_from_db(using=ENV)  # PAID after setUp's payment
+
+    def tearDown(self):
+        delete_organization_and_tenant(self.org, using=ENV)
+
+    def test_edit_invoice_updates_fields_and_recomputes_total(self):
+        resp = self.client_.post(
+            f"/superadmin/{ENV}/invoices/{self.invoice.pk}/edit/",
+            {
+                "subscription": "", "subtotal": "1200", "discount": "50", "tax": "90",
+                "currency": "INR", "invoice_date": "2026-09-01", "due_date": "2026-09-08",
+                "status": Invoice.Status.ISSUED,
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.invoice.refresh_from_db(using=ENV)
+        self.assertEqual(self.invoice.subtotal, Decimal("1200"))
+        self.assertEqual(self.invoice.discount, Decimal("50"))
+        self.assertEqual(self.invoice.tax, Decimal("90"))
+        self.assertEqual(self.invoice.total, Decimal("1240"))  # 1200 - 50 + 90
+        self.assertEqual(str(self.invoice.invoice_date), "2026-09-01")
+
+    def test_edit_invoice_never_touches_amount_paid(self):
+        original_amount_paid = self.invoice.amount_paid
+        self.client_.post(
+            f"/superadmin/{ENV}/invoices/{self.invoice.pk}/edit/",
+            {
+                "subscription": "", "subtotal": "5000", "discount": "0", "tax": "0",
+                "currency": "INR", "invoice_date": "2026-09-01", "due_date": "2026-09-08",
+                "status": Invoice.Status.ISSUED,
+            },
+        )
+        self.invoice.refresh_from_db(using=ENV)
+        self.assertEqual(self.invoice.amount_paid, original_amount_paid)
+
+    def test_edit_payment_amount_down_resyncs_invoice_to_partially_paid(self):
+        resp = self.client_.post(
+            f"/superadmin/{ENV}/payments/{self.payment.pk}/edit/",
+            {
+                "amount": "500", "currency": "INR", "payment_method": "BANK_TRANSFER",
+                "gateway": "MANUAL", "transaction_id": "", "payment_date": "2026-09-14T10:00",
+                "status": "SUCCESS", "failure_reason": "", "next": "",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.payment.refresh_from_db(using=ENV)
+        self.invoice.refresh_from_db(using=ENV)
+        self.assertEqual(self.payment.amount, Decimal("500"))
+        self.assertEqual(self.invoice.amount_paid, Decimal("500"))
+        self.assertEqual(self.invoice.status, Invoice.Status.PARTIALLY_PAID)
+
+    def test_marking_payment_failed_removes_its_contribution_from_invoice(self):
+        self.client_.post(
+            f"/superadmin/{ENV}/payments/{self.payment.pk}/edit/",
+            {
+                "amount": str(self.payment.amount), "currency": "INR", "payment_method": "BANK_TRANSFER",
+                "gateway": "MANUAL", "transaction_id": "", "payment_date": "2026-09-14T10:00",
+                "status": "FAILED", "failure_reason": "reversed", "next": "",
+            },
+        )
+        self.invoice.refresh_from_db(using=ENV)
+        self.assertEqual(self.invoice.amount_paid, Decimal("0"))
+        self.assertNotEqual(self.invoice.status, Invoice.Status.PAID)
+
+    def test_edit_payment_redirects_to_safe_next(self):
+        next_url = f"/superadmin/{ENV}/invoices/{self.invoice.pk}/"
+        resp = self.client_.post(
+            f"/superadmin/{ENV}/payments/{self.payment.pk}/edit/",
+            {
+                "amount": str(self.payment.amount), "currency": "INR", "payment_method": "BANK_TRANSFER",
+                "gateway": "MANUAL", "transaction_id": "", "payment_date": "2026-09-14T10:00",
+                "status": "SUCCESS", "failure_reason": "", "next": next_url,
+            },
+        )
+        self.assertRedirects(resp, next_url)
+
+    def test_edit_payment_ignores_unsafe_next(self):
+        resp = self.client_.post(
+            f"/superadmin/{ENV}/payments/{self.payment.pk}/edit/",
+            {
+                "amount": str(self.payment.amount), "currency": "INR", "payment_method": "BANK_TRANSFER",
+                "gateway": "MANUAL", "transaction_id": "", "payment_date": "2026-09-14T10:00",
+                "status": "SUCCESS", "failure_reason": "", "next": "https://evil.example/steal",
+            },
+        )
+        self.assertRedirects(resp, f"/superadmin/{ENV}/payments/")
+
+    def test_non_superadmin_cannot_edit_invoice_or_payment(self):
+        regular = User.objects.create_user(email="regular-edit@test.local", password="pw12345678", role=User.Role.OWNER)
+        c = Client()
+        c.force_login(regular)
+        self.assertEqual(c.post(f"/superadmin/{ENV}/invoices/{self.invoice.pk}/edit/", {}).status_code, 403)
+        self.assertEqual(c.post(f"/superadmin/{ENV}/payments/{self.payment.pk}/edit/", {}).status_code, 403)
+
+
 class PlanDiscountTests(TestCase):
     databases = DATABASES
 

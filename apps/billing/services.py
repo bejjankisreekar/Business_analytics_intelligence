@@ -187,19 +187,31 @@ def historical_window_start(organization, *, using: str = "default", as_of=None)
     at all, so this only matters for an org with an active plan).
 
     Combines two independent floors and returns whichever is later (more
-    restrictive): the plan's normal rolling window, and — if the org's
+    restrictive): the org's normal rolling window, and — if the org's
     last renewal came in later than RENEWAL_GRACE_DAYS after its previous
     period lapsed — entry_floor_date, which permanently walls off the
     unpaid gap from ever being backdated into. A renewal within the grace
     window instead leaves entry_floor_date null, so the normal window
     alone decides (already wide enough to cover a grace-period-long gap
-    in the common case)."""
+    in the common case).
+
+    The normal floor is `organization.historical_entry_cutoff_date` — a fixed
+    date, not a rolling window — when a superadmin has set one for this
+    specific org, or no floor at all when `historical_entry_no_limit` is set.
+    Otherwise it falls back to the current plan's rolling
+    `historical_months_limit` (3 months back from today by default for a
+    newly-created org)."""
     as_of = as_of or timezone.localdate()
     sub = get_current_subscription(organization.id, using=using)
     if sub is None:
         return None
-    normal_floor = _shift_months(as_of, sub.plan.historical_months_limit)
-    if sub.entry_floor_date and sub.entry_floor_date > normal_floor:
+    if organization.historical_entry_no_limit:
+        normal_floor = None
+    elif organization.historical_entry_cutoff_date is not None:
+        normal_floor = organization.historical_entry_cutoff_date
+    else:
+        normal_floor = _shift_months(as_of, sub.plan.historical_months_limit)
+    if sub.entry_floor_date and (normal_floor is None or sub.entry_floor_date > normal_floor):
         return sub.entry_floor_date
     return normal_floor
 
@@ -223,11 +235,17 @@ def has_active_access(organization, *, using: str = "default", as_of=None) -> bo
     return sub.end_date is None or sub.end_date >= as_of
 
 
+def _renewal_amount(sub: Subscription):
+    return sub.plan.yearly_price if sub.billing_cycle == Subscription.BillingCycle.YEARLY else sub.plan.monthly_price
+
+
 def ensure_renewal_invoice(organization, *, using: str = "default") -> None:
     """Called whenever access is found to be lapsed: if there's no unpaid
     invoice yet for the current (lapsed) subscription, issue one now, due
-    immediately — prepaid means no grace period — and flip the
-    subscription to PAYMENT_DUE/PAST_DUE so superadmin views show it too.
+    immediately — prepaid means no grace period. Always brings the
+    subscription's status in line with PAYMENT_DUE/PAST_DUE so superadmin
+    views show it too, even if generate_upcoming_renewal_invoices() already
+    issued the invoice ahead of time and there's nothing new to create here.
     Idempotent: a lapsed period only ever gets one open invoice, so this
     is safe to call on every blocked request.
     """
@@ -240,31 +258,89 @@ def ensure_renewal_invoice(organization, *, using: str = "default") -> None:
         subscription=sub,
         status__in=[Invoice.Status.ISSUED, Invoice.Status.PARTIALLY_PAID, Invoice.Status.OVERDUE],
     ).exists()
-    if has_open_invoice:
-        return
 
-    amount = (
-        sub.plan.yearly_price if sub.billing_cycle == Subscription.BillingCycle.YEARLY else sub.plan.monthly_price
-    )
-    if not amount:
-        return
+    if not has_open_invoice:
+        amount = _renewal_amount(sub)
+        if amount:
+            today = timezone.localdate()
+            invoicing.create_invoice(
+                organization,
+                using=using,
+                subscription=sub,
+                subtotal=amount,
+                invoice_date=today,
+                due_date=today,
+                status=Invoice.Status.ISSUED,
+            )
 
-    today = timezone.localdate()
-    invoicing.create_invoice(
-        organization,
-        using=using,
-        subscription=sub,
-        subtotal=amount,
-        invoice_date=today,
-        due_date=today,
-        status=Invoice.Status.ISSUED,
-    )
     new_status = (
         Subscription.Status.PAYMENT_DUE if sub.status == Subscription.Status.TRIAL else Subscription.Status.PAST_DUE
     )
     if sub.status != new_status:
         sub.status = new_status
         sub.save(using=using, update_fields=["status", "updated_at"])
+
+
+UPCOMING_INVOICE_LEAD_DAYS = 2
+
+
+def generate_upcoming_renewal_invoices(*, using: str = "default", lead_days: int = UPCOMING_INVOICE_LEAD_DAYS) -> int:
+    """Issue a renewal invoice ahead of time for every current subscription
+    (trial or paid) whose period ends within `lead_days` — due on the
+    expiry date itself, so a client who pays before then never sees the
+    billing lock at all. ensure_renewal_invoice() above is only the
+    fallback for anyone who doesn't pay in time. Meant to run once a day
+    (see the generate_renewal_invoices management command); idempotent,
+    same as ensure_renewal_invoice — never issues a second open invoice for
+    the same subscription. Returns how many invoices were created."""
+    today = timezone.localdate()
+    horizon = today + datetime.timedelta(days=lead_days)
+    subs = (
+        Subscription.objects.using(using)
+        .filter(is_current=True, status__in=[Subscription.Status.ACTIVE, Subscription.Status.TRIAL])
+        .select_related("plan", "organization")
+    )
+
+    created = 0
+    for sub in subs:
+        expiry = sub.trial_end_date if sub.status == Subscription.Status.TRIAL else sub.end_date
+        if expiry is None or not (today <= expiry <= horizon):
+            continue
+
+        has_open_invoice = Invoice.objects.using(using).filter(
+            organization_id=sub.organization_id,
+            subscription=sub,
+            status__in=[Invoice.Status.ISSUED, Invoice.Status.PARTIALLY_PAID, Invoice.Status.OVERDUE],
+        ).exists()
+        if has_open_invoice:
+            continue
+
+        amount = _renewal_amount(sub)
+        if not amount:
+            continue
+
+        invoicing.create_invoice(
+            sub.organization,
+            using=using,
+            subscription=sub,
+            subtotal=amount,
+            invoice_date=today,
+            due_date=expiry,
+            status=Invoice.Status.ISSUED,
+        )
+        created += 1
+    return created
+
+
+def _one_cycle_after(d: datetime.date, billing_cycle: str) -> datetime.date:
+    """`d` plus one billing period: same day next month (MONTHLY, day
+    clamped for short months) or same day next year (YEARLY). CUSTOM has no
+    defined recurring length, so it falls back to a flat 30 days."""
+    if billing_cycle == Subscription.BillingCycle.YEARLY:
+        return _shift_months(d, -12)
+    if billing_cycle == Subscription.BillingCycle.MONTHLY:
+        return _shift_months(d, -1)
+    return d + datetime.timedelta(days=30)
 
 
 def renew_subscription_from_invoice(invoice: Invoice, *, using: str = "default") -> None:
@@ -274,6 +350,15 @@ def renew_subscription_from_invoice(invoice: Invoice, *, using: str = "default")
     ONLY path that reactivates a lapsed subscription — never a time-based
     or manual shortcut, matching the prepaid rule that service never
     resumes without a real successful payment.
+
+    The new period is always anchored to the OLD billing end date, never to
+    whatever date the payment happened to land on — paying a few days
+    early or a few days late still renews to the same day-of-month every
+    cycle (e.g. always the 3rd). The one exception: if the org is so far
+    overdue that one cycle from the old end date still wouldn't cover
+    today, a cycle is measured from today instead, so a real payment
+    always actually restores access rather than leaving them still locked
+    out immediately after paying.
 
     Also decides the fate of the gap between when the prior period lapsed
     and today: paid within RENEWAL_GRACE_DAYS, the gap stays fully
@@ -298,9 +383,11 @@ def renew_subscription_from_invoice(invoice: Invoice, *, using: str = "default")
     else:
         sub.entry_floor_date = None
 
-    days = 365 if sub.billing_cycle == Subscription.BillingCycle.YEARLY else 30
-    base = sub.end_date if sub.end_date and sub.end_date >= today else today
-    sub.end_date = base + datetime.timedelta(days=days)
+    base = sub.end_date or sub.trial_end_date or today
+    new_end_date = _one_cycle_after(base, sub.billing_cycle)
+    if new_end_date < today:
+        new_end_date = _one_cycle_after(today, sub.billing_cycle)
+    sub.end_date = new_end_date
     if sub.start_date is None:
         sub.start_date = today
     sub.status = Subscription.Status.ACTIVE

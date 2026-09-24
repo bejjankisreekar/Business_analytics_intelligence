@@ -11,6 +11,7 @@ from django.db import DatabaseError, transaction
 from django.db.models import Count, Max, Q, Sum
 from django.http import FileResponse, Http404, HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import FormView, TemplateView, View
 
@@ -30,14 +31,19 @@ from .forms import (
     ApplyInvoiceCouponForm,
     ClientCreateForm,
     ClientProfileForm,
+    ClientUserEditForm,
     CouponForm,
     CreateInvoiceForm,
+    EditInvoiceForm,
+    EditKeyDatesForm,
+    EditPaymentForm,
     ExtendTrialForm,
     GenerateInvoiceForm,
     GrantComplimentaryForm,
     PlanForm,
     RecordInvoicePaymentForm,
     RecordPaymentForm,
+    ResetClientPasswordForm,
     ServiceActionForm,
     SubscriptionActionForm,
 )
@@ -226,6 +232,7 @@ class OrganizationDetailView(SuperAdminRequiredMixin, TemplateView):
         label = _env_label_or_404(env)
         org = get_object_or_404(Organization.objects.using(env), pk=kwargs["pk"])
         subscription = billing_services.get_current_subscription(org.id, using=env)
+        historical_window_start = billing_services.historical_window_start(org, using=env)
         history = (
             Subscription.objects.using(env)
             .filter(organization_id=org.id)
@@ -241,13 +248,71 @@ class OrganizationDetailView(SuperAdminRequiredMixin, TemplateView):
         context["pg_dump_available"] = find_pg_dump() is not None
         context["subscription"] = subscription
         context["subscription_history"] = history
+        context["historical_window_start"] = historical_window_start
         context["subscription_form"] = SubscriptionActionForm(
             using=env, initial={"start_date": datetime.date.today(), "billing_cycle": Subscription.BillingCycle.MONTHLY}
         )
         context["extend_trial_form"] = ExtendTrialForm()
         context["complimentary_form"] = GrantComplimentaryForm(using=env, initial={"start_date": datetime.date.today()})
+        context["edit_dates_form"] = EditKeyDatesForm(initial={
+            "historical_entry_cutoff_date": org.historical_entry_cutoff_date,
+            "historical_entry_no_limit": org.historical_entry_no_limit,
+            "trial_start_date": subscription.trial_start_date if subscription else None,
+            "trial_end_date": subscription.trial_end_date if subscription else None,
+            "start_date": subscription.start_date if subscription else None,
+            "end_date": subscription.end_date if subscription else None,
+            "cancellation_date": subscription.cancellation_date if subscription else None,
+        })
         context["team"] = User.objects.using(env).filter(organization_id=org.id).order_by("email")
         return context
+
+
+class ClientUserEditView(SuperAdminRequiredMixin, View):
+    """Edit a client user's name, email and username from superadmin."""
+
+    def post(self, request, env, pk, user_id):
+        _env_label_or_404(env)
+        org = get_object_or_404(Organization.objects.using(env), pk=pk)
+        member = get_object_or_404(User.objects.using(env), pk=user_id, organization_id=org.id)
+        back = redirect("superadmin:org_detail", env=env, pk=pk)
+
+        form = ClientUserEditForm(request.POST, instance=member, using=env)
+        if not form.is_valid():
+            messages.error(request, " ".join(e for errs in form.errors.values() for e in errs))
+            return back
+
+        form.save()
+        messages.success(request, f"Updated {member.email}.")
+        return back
+
+
+class ClientPasswordResetView(SuperAdminRequiredMixin, View):
+    """Directly set a client user's password from superadmin. There's no
+    email service yet, so this is the only way for a client to recover
+    access — the new password is shown once in the success message for the
+    operator to relay to the client out-of-band."""
+
+    def post(self, request, env, pk, user_id):
+        _env_label_or_404(env)
+        org = get_object_or_404(Organization.objects.using(env), pk=pk)
+        member = get_object_or_404(User.objects.using(env), pk=user_id, organization_id=org.id)
+        back = redirect("superadmin:org_detail", env=env, pk=pk)
+
+        form = ResetClientPasswordForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, " ".join(e for errs in form.errors.values() for e in errs))
+            return back
+
+        password_was_generated = not bool(form.cleaned_data.get("new_password"))
+        password = form.generated_password()
+        member.set_password(password)
+        member.save(using=env, update_fields=["password"])
+
+        if password_was_generated:
+            messages.success(request, f"Password reset for {member.email}. New temporary password: {password}")
+        else:
+            messages.success(request, f"Password reset for {member.email}.")
+        return back
 
 
 class OrganizationCreateView(SuperAdminRequiredMixin, FormView):
@@ -478,6 +543,46 @@ class ExtendTrialView(SuperAdminRequiredMixin, View):
         else:
             messages.error(request, "Couldn't extend the trial — please check the date.")
         return redirect("superadmin:org_detail", env=env, pk=pk)
+
+
+class EditKeyDatesView(SuperAdminRequiredMixin, View):
+    """Directly correct the org's backdating cutoff and the current
+    subscription's trial/billing dates in place — for fixing a wrong date,
+    not a normal renew/extend/plan-change (those go through
+    SubscriptionCreateView / ExtendTrialView, which preserve history)."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        org = get_object_or_404(Organization.objects.using(env), pk=pk)
+        back = redirect("superadmin:org_detail", env=env, pk=pk)
+
+        form = EditKeyDatesForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "Couldn't update the dates — please check the form.")
+            return back
+
+        data = form.cleaned_data
+        org.historical_entry_cutoff_date = data["historical_entry_cutoff_date"]
+        org.historical_entry_no_limit = data["historical_entry_no_limit"]
+        org.save(using=env, update_fields=["historical_entry_cutoff_date", "historical_entry_no_limit"])
+
+        subscription = billing_services.get_current_subscription(org.id, using=env)
+        if subscription is not None:
+            subscription.trial_start_date = data["trial_start_date"]
+            subscription.trial_end_date = data["trial_end_date"]
+            subscription.start_date = data["start_date"]
+            subscription.end_date = data["end_date"]
+            subscription.cancellation_date = data["cancellation_date"]
+            subscription.save(
+                using=env,
+                update_fields=[
+                    "trial_start_date", "trial_end_date", "start_date", "end_date",
+                    "cancellation_date", "updated_at",
+                ],
+            )
+
+        messages.success(request, f"Updated {org.name}'s dates.")
+        return back
 
 
 class GrantComplimentaryView(SuperAdminRequiredMixin, View):
@@ -880,7 +985,72 @@ class InvoiceDetailView(SuperAdminRequiredMixin, TemplateView):
             amount_due=invoice.amount_due,
             initial={"amount": invoice.amount_due, "payment_date": timezone.localdate()},
         )
+        context["edit_invoice_form"] = EditInvoiceForm(instance=invoice, using=env)
         return context
+
+
+class InvoiceEditView(SuperAdminRequiredMixin, View):
+    """Direct correction of an already-issued/already-paid invoice's own
+    fields (dates, amounts, status) — for fixing a mistake, not a normal
+    billing action. amount_paid/total/amount_due stay derived; see
+    EditInvoiceForm."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        invoice = get_object_or_404(Invoice.objects.using(env), pk=pk)
+        form = EditInvoiceForm(request.POST, instance=invoice, using=env)
+        if form.is_valid():
+            instance = form.save(commit=False)
+            instance.save(using=env)
+            messages.success(request, f"Updated invoice {instance.invoice_number}.")
+        else:
+            messages.error(request, "Couldn't update the invoice — please check the form.")
+        return redirect("superadmin:invoice_detail", env=env, pk=pk)
+
+
+class PaymentEditView(SuperAdminRequiredMixin, View):
+    """Direct correction of an already-recorded payment — for fixing a
+    typo'd amount, wrong date/method, or wrong status after the fact.
+    Reachable from both the payments list and an invoice's own page;
+    `next` (query string on GET, hidden field on POST) sends the operator
+    back to wherever they came from."""
+
+    template_name = "superadmin/payment_edit.html"
+
+    def _get_payment(self, env, pk):
+        return get_object_or_404(
+            Payment.objects.using(env).select_related("organization", "invoice"), pk=pk
+        )
+
+    def _safe_next(self, env, next_url):
+        return next_url if next_url and next_url.startswith(f"/superadmin/{env}/") else None
+
+    def get(self, request, env, pk):
+        _env_label_or_404(env)
+        payment = self._get_payment(env, pk)
+        form = EditPaymentForm(instance=payment)
+        return render(request, self.template_name, {
+            "form": form, "payment": payment, "env_key": env, "env_label": ENVIRONMENTS[env],
+            "next": self._safe_next(env, request.GET.get("next", "")) or "",
+        })
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        payment = self._get_payment(env, pk)
+        form = EditPaymentForm(request.POST, instance=payment)
+        next_url = self._safe_next(env, request.POST.get("next", ""))
+        if not form.is_valid():
+            messages.error(request, "Couldn't update the payment — please check the form.")
+            return render(request, self.template_name, {
+                "form": form, "payment": payment, "env_key": env, "env_label": ENVIRONMENTS[env],
+                "next": next_url or "",
+            })
+
+        instance = form.save(commit=False)
+        instance.save(using=env)
+        payment_services.edit_payment(instance, using=env)
+        messages.success(request, f"Updated payment {instance.payment_id}.")
+        return redirect(next_url or reverse("superadmin:payment_list", args=[env]))
 
 
 class InvoiceGenerateView(SuperAdminRequiredMixin, View):

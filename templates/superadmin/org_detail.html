@@ -23,6 +23,121 @@
 </div>
 
 <div class="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
+  <!-- Key dates -->
+  <div class="sa-card p-5 lg:col-span-3">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Key dates</h2>
+    <div class="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-600">Account</h3>
+        <dl class="mt-2 space-y-2 text-sm">
+          <div><dt class="text-xs text-slate-500">Registered on</dt><dd class="mt-0.5 text-slate-200">{{ org.created_at|date:"d M Y, H:i" }}</dd></div>
+          <div><dt class="text-xs text-slate-500">Last updated</dt><dd class="mt-0.5 text-slate-200">{{ org.updated_at|date:"d M Y, H:i" }}</dd></div>
+        </dl>
+      </div>
+      <div>
+        <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-600">Backdating limit</h3>
+        <dl class="mt-2 space-y-2 text-sm">
+          <div>
+            <dt class="text-xs text-slate-500">Entries allowed from</dt>
+            <dd class="mt-0.5 text-slate-200">
+              {% if org.historical_entry_no_limit %}
+                No limit (override)
+              {% elif org.historical_entry_cutoff_date %}
+                {{ org.historical_entry_cutoff_date|date:"d M Y" }} (override)
+              {% elif historical_window_start %}
+                {{ historical_window_start|date:"d M Y" }} (plan default)
+              {% else %}
+                —
+              {% endif %}
+            </dd>
+          </div>
+          {% if historical_window_start and not org.historical_entry_no_limit %}
+          <div><dt class="text-xs text-slate-500">Entries blocked before</dt><dd class="mt-0.5 text-slate-200">{{ historical_window_start|date:"d M Y" }}</dd></div>
+          {% endif %}
+        </dl>
+      </div>
+      <div>
+        <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-600">Trial</h3>
+        <dl class="mt-2 space-y-2 text-sm">
+          <div><dt class="text-xs text-slate-500">Trial start</dt><dd class="mt-0.5 text-slate-200">{{ subscription.trial_start_date|date:"d M Y"|default:"—" }}</dd></div>
+          <div><dt class="text-xs text-slate-500">Trial expiry</dt><dd class="mt-0.5 text-slate-200">{{ subscription.trial_end_date|date:"d M Y"|default:"—" }}</dd></div>
+        </dl>
+      </div>
+      <div>
+        <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-600">Billing</h3>
+        <dl class="mt-2 space-y-2 text-sm">
+          <div>
+            <dt class="text-xs text-slate-500">Billing start</dt>
+            <dd class="mt-0.5 text-slate-200">
+              {% if subscription.trial_end_date and subscription.start_date and subscription.start_date <= subscription.trial_end_date %}
+                {{ subscription.trial_end_date|date:"d M Y" }} <span class="text-slate-500">(after trial ends)</span>
+              {% else %}
+                {{ subscription.start_date|date:"d M Y"|default:"—" }}
+              {% endif %}
+            </dd>
+          </div>
+          <div><dt class="text-xs text-slate-500">Billing end</dt><dd class="mt-0.5 text-slate-200">{{ subscription.end_date|date:"d M Y"|default:"—" }}</dd></div>
+          <div><dt class="text-xs text-slate-500">Cancellation date</dt><dd class="mt-0.5 text-slate-200">{{ subscription.cancellation_date|date:"d M Y"|default:"—" }}</dd></div>
+        </dl>
+      </div>
+    </div>
+    {% if subscription_history %}
+    <p class="mt-4 text-[11px] text-slate-600">Extensions &amp; prior periods (plan changes, renewals, trial extensions) are listed with their own start/trial/end dates in the subscription history table below.</p>
+    {% endif %}
+
+    <details class="mt-4">
+      <summary class="cursor-pointer text-xs font-semibold text-brand-400 hover:text-brand-300">Edit dates</summary>
+      <form method="post" action="{% url 'superadmin:edit_key_dates' env_key org.pk %}"
+            class="mt-3 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {% csrf_token %}
+        <div class="space-y-3">
+          <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-600">Backdating limit</h3>
+          <div>
+            <label class="sa-field-label" for="{{ edit_dates_form.historical_entry_cutoff_date.id_for_label }}">{{ edit_dates_form.historical_entry_cutoff_date.label }}</label>
+            {{ edit_dates_form.historical_entry_cutoff_date }}
+          </div>
+          <div class="flex items-center gap-2">
+            {{ edit_dates_form.historical_entry_no_limit }}
+            <label class="sa-field-label" for="{{ edit_dates_form.historical_entry_no_limit.id_for_label }}">{{ edit_dates_form.historical_entry_no_limit.label }}</label>
+          </div>
+        </div>
+        {% if subscription %}
+        <div class="space-y-3">
+          <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-600">Trial</h3>
+          <div>
+            <label class="sa-field-label" for="{{ edit_dates_form.trial_start_date.id_for_label }}">Trial start</label>
+            {{ edit_dates_form.trial_start_date }}
+          </div>
+          <div>
+            <label class="sa-field-label" for="{{ edit_dates_form.trial_end_date.id_for_label }}">Trial expiry</label>
+            {{ edit_dates_form.trial_end_date }}
+          </div>
+        </div>
+        <div class="space-y-3">
+          <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-600">Billing</h3>
+          <div>
+            <label class="sa-field-label" for="{{ edit_dates_form.start_date.id_for_label }}">Billing start</label>
+            {{ edit_dates_form.start_date }}
+          </div>
+          <div>
+            <label class="sa-field-label" for="{{ edit_dates_form.end_date.id_for_label }}">Billing end</label>
+            {{ edit_dates_form.end_date }}
+          </div>
+          <div>
+            <label class="sa-field-label" for="{{ edit_dates_form.cancellation_date.id_for_label }}">Cancellation date</label>
+            {{ edit_dates_form.cancellation_date }}
+          </div>
+        </div>
+        {% else %}
+        <div class="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-600">No current subscription — trial/billing dates aren't editable until one exists.</div>
+        {% endif %}
+        <div class="sm:col-span-2 lg:col-span-4">
+          <button type="submit" class="sa-btn-primary rounded px-3 py-1.5 text-xs font-semibold">Save dates</button>
+        </div>
+      </form>
+    </details>
+  </div>
+
   <!-- Client info -->
   <div class="sa-card p-5 lg:col-span-2">
     <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Client information</h2>
@@ -40,7 +155,6 @@
       <div><dt class="text-xs text-slate-500">State</dt><dd class="mt-0.5 text-slate-200">{{ org.state|default:"—" }}</dd></div>
       <div><dt class="text-xs text-slate-500">Country</dt><dd class="mt-0.5 text-slate-200">{{ org.country|default:"—" }}</dd></div>
       <div><dt class="text-xs text-slate-500">GST / tax number</dt><dd class="sa-mono mt-0.5 text-slate-200">{{ org.tax_id|default:"—" }}</dd></div>
-      <div><dt class="text-xs text-slate-500">Created</dt><dd class="mt-0.5 text-slate-200">{{ org.created_at|date:"d M Y, H:i" }}</dd></div>
       <div><dt class="text-xs text-slate-500">Account status</dt><dd class="mt-0.5 text-slate-200">{% if org.is_active %}Active{% else %}Suspended{% endif %}</dd></div>
     </dl>
   </div>
@@ -69,7 +183,6 @@
         </details>
       </div>
       <div><dt class="text-xs text-slate-500">Database</dt><dd class="sa-mono mt-0.5 text-slate-200">{{ env_key }}</dd></div>
-      <div><dt class="text-xs text-slate-500">Last updated</dt><dd class="mt-0.5 text-slate-200">{{ org.updated_at|date:"d M Y, H:i" }}</dd></div>
     </dl>
   </div>
 
@@ -101,11 +214,6 @@
         </dd>
       </div>
       <div><dt class="text-xs text-slate-500">Auto renewal</dt><dd class="mt-0.5 text-slate-200">{{ subscription.auto_renewal|yesno:"Yes,No" }}</dd></div>
-      <div><dt class="text-xs text-slate-500">Start date</dt><dd class="mt-0.5 text-slate-200">{{ subscription.start_date|date:"d M Y"|default:"—" }}</dd></div>
-      <div><dt class="text-xs text-slate-500">End date</dt><dd class="mt-0.5 text-slate-200">{{ subscription.end_date|date:"d M Y"|default:"—" }}</dd></div>
-      <div><dt class="text-xs text-slate-500">Cancellation date</dt><dd class="mt-0.5 text-slate-200">{{ subscription.cancellation_date|date:"d M Y"|default:"—" }}</dd></div>
-      <div><dt class="text-xs text-slate-500">Trial start</dt><dd class="mt-0.5 text-slate-200">{{ subscription.trial_start_date|date:"d M Y"|default:"—" }}</dd></div>
-      <div><dt class="text-xs text-slate-500">Trial end</dt><dd class="mt-0.5 text-slate-200">{{ subscription.trial_end_date|date:"d M Y"|default:"—" }}</dd></div>
       <div><dt class="text-xs text-slate-500">Price</dt><dd class="sa-mono mt-0.5 text-slate-200">₹{{ subscription.price }}</dd></div>
       <div><dt class="text-xs text-slate-500">Discount</dt><dd class="sa-mono mt-0.5 text-slate-200">₹{{ subscription.discount }}</dd></div>
       <div><dt class="text-xs text-slate-500">Tax</dt><dd class="sa-mono mt-0.5 text-slate-200">₹{{ subscription.tax }}</dd></div>
@@ -128,6 +236,33 @@
           <span class="sa-mono ml-2 shrink-0 text-[10px] uppercase text-slate-500">{{ member.role }}</span>
         </div>
         <p class="mt-0.5 text-[11px] text-slate-600">Last login: {{ member.last_login|date:"d M Y, H:i"|default:"Never" }}</p>
+        <details class="mt-1">
+          <summary class="cursor-pointer text-[11px] font-semibold text-brand-400 hover:text-brand-300">Edit</summary>
+          <form method="post" action="{% url 'superadmin:edit_client_user' env_key org.pk member.pk %}" class="mt-2 space-y-2">
+            {% csrf_token %}
+            <div class="grid grid-cols-2 gap-2">
+              <input type="text" name="first_name" value="{{ member.first_name }}" placeholder="First name"
+                     class="w-full rounded border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-slate-100">
+              <input type="text" name="last_name" value="{{ member.last_name }}" placeholder="Last name"
+                     class="w-full rounded border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-slate-100">
+            </div>
+            <input type="email" name="email" value="{{ member.email }}" placeholder="Email" required
+                   class="sa-mono w-full rounded border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-slate-100">
+            <input type="text" name="username" value="{{ member.username|default:'' }}" placeholder="Username (optional)"
+                   class="sa-mono w-full rounded border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-slate-100">
+            <button type="submit" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Save</button>
+          </form>
+        </details>
+        <details class="mt-1">
+          <summary class="cursor-pointer text-[11px] font-semibold text-brand-400 hover:text-brand-300">Reset password</summary>
+          <form method="post" action="{% url 'superadmin:reset_client_password' env_key org.pk member.pk %}" class="mt-2 space-y-2"
+                onsubmit="return confirm('Reset the password for {{ member.email|escapejs }}? They will need the new password to log in.');">
+            {% csrf_token %}
+            <input type="password" name="new_password" placeholder="Leave blank to auto-generate" autocomplete="new-password"
+                   class="sa-mono w-full rounded border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-slate-100">
+            <button type="submit" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Set password</button>
+          </form>
+        </details>
       </li>
       {% empty %}
       <li class="text-slate-600">No users yet.</li>
@@ -188,12 +323,14 @@
   <!-- Subscription history -->
   <div class="sa-card p-5 lg:col-span-3">
     <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Subscription history</h2>
+    <p class="mt-1 text-[11px] text-slate-600">Every prior subscription period, including plan changes, renewals, complimentary grants and trial extensions — each with its own dates.</p>
     <div class="mt-3 overflow-x-auto">
       <table class="sa-table w-full">
         <thead>
           <tr>
             <th>Subscription ID</th><th>Plan</th><th>Cycle</th><th>Status</th><th>Payment</th>
-            <th>Start</th><th>End</th><th>Final amount</th><th>Comp</th><th>Created</th>
+            <th>Start</th><th>End</th><th>Trial start</th><th>Trial end</th><th>Cancelled</th>
+            <th>Final amount</th><th>Comp</th><th>Created</th>
           </tr>
         </thead>
         <tbody>
@@ -206,12 +343,15 @@
             <td>{{ h.get_payment_status_display }}</td>
             <td>{{ h.start_date|date:"d M Y"|default:"—" }}</td>
             <td>{{ h.end_date|date:"d M Y"|default:"—" }}</td>
+            <td>{{ h.trial_start_date|date:"d M Y"|default:"—" }}</td>
+            <td>{{ h.trial_end_date|date:"d M Y"|default:"—" }}</td>
+            <td>{{ h.cancellation_date|date:"d M Y"|default:"—" }}</td>
             <td class="sa-mono">₹{{ h.final_amount }}</td>
             <td>{% if h.is_complimentary %}Yes{% else %}—{% endif %}</td>
             <td>{{ h.created_at|date:"d M Y, H:i" }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="10" class="text-center text-slate-600">No prior subscriptions.</td></tr>
+          <tr><td colspan="13" class="text-center text-slate-600">No prior subscriptions.</td></tr>
           {% endfor %}
         </tbody>
       </table>

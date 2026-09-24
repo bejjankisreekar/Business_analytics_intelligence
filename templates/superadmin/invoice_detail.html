@@ -36,6 +36,24 @@
       <div><dt class="text-xs text-slate-500">Amount due</dt><dd class="sa-mono mt-0.5 text-slate-200">{{ invoice.currency }} {{ invoice.amount_due }}</dd></div>
     </dl>
 
+    <details class="mt-4 border-t border-white/5 pt-4">
+      <summary class="cursor-pointer text-xs font-semibold text-brand-400 hover:text-brand-300">Edit invoice</summary>
+      <form method="post" action="{% url 'superadmin:invoice_edit' env_key invoice.pk %}" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {% csrf_token %}
+        {% for field in edit_invoice_form %}
+        <div>
+          <label class="sa-field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% for e in field.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+        <p class="sm:col-span-2 text-[11px] text-slate-600">Amount paid / total / amount due stay derived from these numbers and from actual payments — they're not edited directly here.</p>
+        <div class="sm:col-span-2">
+          <button type="submit" class="sa-btn-primary rounded px-3 py-1.5 text-xs font-semibold">Save invoice</button>
+        </div>
+      </form>
+    </details>
+
     {% if redemption %}
     <p class="mt-4 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
       Coupon <span class="sa-mono font-semibold">{{ redemption.coupon.code }}</span> ({{ redemption.coupon.summary }}) applied — {{ invoice.currency }} {{ redemption.discount_amount }} off.
@@ -81,7 +99,10 @@
           <span class="sa-mono text-slate-300">{{ p.payment_id }}</span>
           <span class="sa-mono text-slate-200">{{ p.currency }} {{ p.amount }}</span>
         </div>
-        <p class="mt-0.5 text-[11px] text-slate-600">{{ p.get_status_display }} · {{ p.payment_date|date:"d M Y" }}</p>
+        <div class="mt-0.5 flex items-center justify-between">
+          <p class="text-[11px] text-slate-600">{{ p.get_status_display }} · {{ p.payment_date|date:"d M Y" }}</p>
+          <a href="{% url 'superadmin:payment_edit' env_key p.pk %}?next={{ request.get_full_path|urlencode }}" class="text-[11px] font-semibold text-brand-400 hover:text-brand-300">Edit</a>
+        </div>
       </li>
       {% empty %}
       <li class="text-slate-600">No payments recorded yet.</li>

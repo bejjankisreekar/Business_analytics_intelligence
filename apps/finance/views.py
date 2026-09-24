@@ -273,6 +273,8 @@ class BillingView(TenantLoginRequiredMixin, TemplateView):
                 "payments": Payment.objects.filter(organization_id=org.id).order_by("-payment_date")[:15],
                 "outstanding": outstanding,
                 "razorpay_configured": razorpay_client.is_configured(),
+                "razorpay_payment_button_id": settings.RAZORPAY_PAYMENT_BUTTON_ID,
+                "razorpay_payment_button_amount": settings.RAZORPAY_PAYMENT_BUTTON_AMOUNT,
                 "locked": locked,
                 "payment_hold": payment_hold,
                 "discounted_invoice": next(

@@ -20,6 +20,8 @@ PROFILE_FIELDS = [
     "country",
     "tax_id",
     "website",
+    "historical_entry_cutoff_date",
+    "historical_entry_no_limit",
 ]
 
 
@@ -32,10 +34,19 @@ class ClientProfileForm(forms.ModelForm):
     class Meta:
         model = Organization
         fields = PROFILE_FIELDS
+        widgets = {
+            "historical_entry_cutoff_date": forms.DateInput(attrs={"type": "date"}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["historical_entry_cutoff_date"].label = "Backdating cutoff date"
+        self.fields["historical_entry_cutoff_date"].help_text = (
+            "Entries dated before this are blocked. Leave blank to use the plan's default."
+        )
+        self.fields["historical_entry_no_limit"].label = "No backdating limit"
         _style(self.fields)
+        self.fields["historical_entry_no_limit"].widget.attrs.pop("class", None)
 
 
 class ClientCreateForm(ClientProfileForm):
@@ -70,6 +81,57 @@ class ClientCreateForm(ClientProfileForm):
 
     def generated_password(self):
         return self.cleaned_data.get("owner_password") or secrets.token_urlsafe(9)
+
+
+class ClientUserEditForm(forms.ModelForm):
+    class Meta:
+        from apps.accounts.models import User
+
+        model = User
+        fields = ["first_name", "last_name", "email", "username"]
+
+    def __init__(self, *args, using="default", **kwargs):
+        super().__init__(*args, **kwargs)
+        self._using = using
+        _style(self.fields)
+
+    def clean_email(self):
+        from apps.accounts.models import User
+
+        email = self.cleaned_data["email"].strip().lower()
+        if User.objects.using(self._using).exclude(pk=self.instance.pk).filter(email__iexact=email).exists():
+            raise forms.ValidationError("This email is already in use.")
+        return email
+
+    def clean_username(self):
+        from apps.accounts.models import User
+
+        username = (self.cleaned_data.get("username") or "").strip() or None
+        if username and User.objects.using(self._using).exclude(pk=self.instance.pk).filter(username__iexact=username).exists():
+            raise forms.ValidationError("This username is already taken.")
+        return username
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            instance.save(using=self._using)
+        return instance
+
+
+class ResetClientPasswordForm(forms.Form):
+    new_password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+        label="New password",
+        help_text="Leave blank to auto-generate a random password.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self.fields)
+
+    def generated_password(self):
+        return self.cleaned_data.get("new_password") or secrets.token_urlsafe(9)
 
 
 class PlanForm(forms.ModelForm):
@@ -165,6 +227,39 @@ class SubscriptionActionForm(forms.Form):
         self.fields["plan"].queryset = Plan.objects.using(using).filter(is_active=True)
         _style(self.fields)
         self.fields["auto_renewal"].widget.attrs.pop("class", None)
+
+
+class EditKeyDatesForm(forms.Form):
+    """Direct superadmin correction of an org's backdating cutoff and the
+    current subscription's trial/billing dates — edits the existing rows
+    in place, unlike SubscriptionActionForm (supersedes with a new row) or
+    ExtendTrialForm (only bumps trial_end_date forward). For fixing a date
+    that was entered wrong, not for a normal renew/extend/plan-change."""
+
+    historical_entry_cutoff_date = forms.DateField(
+        required=False, widget=forms.DateInput(attrs={"type": "date"}),
+        label="Backdating cutoff date",
+        help_text="Entries dated before this are blocked. Leave blank to use the plan's default.",
+    )
+    historical_entry_no_limit = forms.BooleanField(required=False, label="No backdating limit")
+
+    trial_start_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    trial_end_date = forms.DateField(
+        required=False, widget=forms.DateInput(attrs={"type": "date"}), label="Trial expiry date"
+    )
+
+    start_date = forms.DateField(
+        required=False, widget=forms.DateInput(attrs={"type": "date"}), label="Billing start date"
+    )
+    end_date = forms.DateField(
+        required=False, widget=forms.DateInput(attrs={"type": "date"}), label="Billing end date"
+    )
+    cancellation_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self.fields)
+        self.fields["historical_entry_no_limit"].widget.attrs.pop("class", None)
 
 
 class ExtendTrialForm(forms.Form):
@@ -281,6 +376,57 @@ class CreateInvoiceForm(forms.Form):
         _style(self.fields)
 
 
+class EditInvoiceForm(forms.ModelForm):
+    """Direct superadmin correction of an already-issued (or already-paid)
+    invoice's own fields. Deliberately excludes amount_paid/total/amount_due
+    — those stay derived (total from subtotal/discount/tax on save(),
+    amount_paid from the sum of the invoice's actual Payment rows) rather
+    than editable directly, so they can't drift out of sync with the
+    numbers that produced them. To correct amount_paid, edit the payment
+    itself instead (see EditPaymentForm)."""
+
+    class Meta:
+        model = Invoice
+        fields = ["subscription", "subtotal", "discount", "tax", "currency", "invoice_date", "due_date", "status"]
+        widgets = {
+            "invoice_date": forms.DateInput(attrs={"type": "date"}),
+            "due_date": forms.DateInput(attrs={"type": "date"}),
+        }
+
+    def __init__(self, *args, using="default", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["subscription"].queryset = (
+            Subscription.objects.using(using)
+            .filter(organization_id=self.instance.organization_id)
+            .order_by("-created_at")
+        )
+        self.fields["subscription"].required = False
+        _style(self.fields)
+
+
+class EditPaymentForm(forms.ModelForm):
+    """Direct superadmin correction of an already-recorded payment — e.g.
+    fixing a typo'd amount, wrong date, or wrong method after the fact.
+    Saving re-syncs the linked invoice's amount_paid/status (see
+    apps.billing.payments.edit_payment) but deliberately does not replay
+    renewal/access side effects — see that function's docstring."""
+
+    class Meta:
+        model = Payment
+        fields = [
+            "amount", "currency", "payment_method", "gateway", "transaction_id",
+            "payment_date", "status", "failure_reason",
+        ]
+        widgets = {
+            "payment_date": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["payment_date"].input_formats = ["%Y-%m-%dT%H:%M"]
+        _style(self.fields)
+
+
 class GenerateInvoiceForm(forms.Form):
     """Generate an invoice for one specific client. The amount starts at the
     client's current plan price, and an optional coupon can bring it down (a
@@ -307,6 +453,7 @@ class GenerateInvoiceForm(forms.Form):
     def __init__(self, *args, using="default", **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["organization"].queryset = Organization.objects.using(using).order_by("name")
+        self.fields["organization"].label_from_instance = lambda o: f"{o.name} \u2014 {o.organization_code}"
         self.fields["coupon"].queryset = Coupon.objects.using(using).filter(is_active=True).order_by("code")
         self.fields["coupon"].label_from_instance = lambda c: f"{c.code} \u2014 {c.summary()}"
         _style(self.fields)

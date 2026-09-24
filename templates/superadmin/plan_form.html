@@ -37,6 +37,16 @@
       {{ form.yearly_discount_percent }}
       <p class="mt-1 text-[11px] text-slate-600">Shown on the public pricing section.</p>
     </div>
+    <div class="sm:col-span-2 flex flex-wrap gap-4 rounded border border-white/5 bg-white/[0.02] px-4 py-3 text-sm">
+      <div>
+        <span class="text-xs text-slate-500">Net monthly (after discount)</span>
+        <p class="sa-mono text-base font-semibold text-slate-100">₹<span id="net-monthly-price">0</span></p>
+      </div>
+      <div>
+        <span class="text-xs text-slate-500">Net yearly (after discount)</span>
+        <p class="sa-mono text-base font-semibold text-slate-100">₹<span id="net-yearly-price">0</span></p>
+      </div>
+    </div>
     <div>
       <label class="sa-field-label" for="{{ form.trial_days.id_for_label }}">Trial period (days)</label>
       {{ form.trial_days }}
@@ -79,4 +89,34 @@
     <a href="{% url 'superadmin:plan_list' env_key %}" class="sa-btn-ghost rounded px-4 py-2 text-xs font-semibold">Cancel</a>
   </div>
 </form>
+
+<script>
+(function () {
+  // Mirrors Plan._discounted() in apps/billing/models.py: percentage off,
+  // rounded to the nearest whole rupee (ties round up).
+  function netPrice(price, percent) {
+    price = parseFloat(price) || 0;
+    percent = parseFloat(percent) || 0;
+    if (!percent) return Math.round(price);
+    return Math.round(price * (100 - percent) / 100);
+  }
+
+  var monthlyPrice = document.getElementById("{{ form.monthly_price.id_for_label }}");
+  var monthlyDiscount = document.getElementById("{{ form.monthly_discount_percent.id_for_label }}");
+  var yearlyPrice = document.getElementById("{{ form.yearly_price.id_for_label }}");
+  var yearlyDiscount = document.getElementById("{{ form.yearly_discount_percent.id_for_label }}");
+  var netMonthlyOut = document.getElementById("net-monthly-price");
+  var netYearlyOut = document.getElementById("net-yearly-price");
+
+  function refresh() {
+    netMonthlyOut.textContent = netPrice(monthlyPrice.value, monthlyDiscount.value);
+    netYearlyOut.textContent = netPrice(yearlyPrice.value, yearlyDiscount.value);
+  }
+
+  [monthlyPrice, monthlyDiscount, yearlyPrice, yearlyDiscount].forEach(function (el) {
+    el.addEventListener("input", refresh);
+  });
+  refresh();
+})();
+</script>
 {% endblock %}

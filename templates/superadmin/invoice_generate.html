@@ -33,7 +33,10 @@
     {% else %}
     <div class="sm:col-span-2">
       <label class="sa-field-label" for="{{ form.organization.id_for_label }}">Client</label>
-      {{ form.organization }}
+      <div class="relative" data-searchable-select>
+        {{ form.organization }}
+      </div>
+      <p class="mt-1 text-[11px] text-slate-600">Search by company name or client ID.</p>
       {% for e in form.organization.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
     </div>
     {% endif %}
@@ -69,6 +72,98 @@
 
 {{ coupon_data|json_script:"coupon-data" }}
 <script>
+  // Progressive enhancement: turns a plain <select> into a type-to-search
+  // combobox. The real <select> stays in the DOM (just visually hidden) so
+  // form submission and Django's error-repopulation work exactly as before;
+  // this only changes how an option gets picked.
+  (function () {
+    document.querySelectorAll("[data-searchable-select]").forEach(function (wrap) {
+      const select = wrap.querySelector("select");
+      if (!select) return;
+
+      const options = Array.from(select.options)
+        .filter(function (o) { return o.value; })
+        .map(function (o) { return { value: o.value, label: o.textContent.trim() }; });
+
+      select.style.display = "none";
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.autocomplete = "off";
+      input.className = "sa-input";
+      input.placeholder = "Type a company name or client ID…";
+      const selected = options.find(function (o) { return o.value === select.value; });
+      if (selected) input.value = selected.label;
+
+      const menu = document.createElement("ul");
+      menu.className = "absolute z-10 mt-1 hidden max-h-60 w-full overflow-auto rounded border border-white/10 bg-[#111318] py-1 text-sm shadow-lg";
+
+      wrap.appendChild(input);
+      wrap.appendChild(menu);
+
+      let activeIndex = -1;
+
+      function renderMenu(filtered) {
+        menu.innerHTML = "";
+        activeIndex = -1;
+        if (!filtered.length) {
+          menu.classList.add("hidden");
+          return;
+        }
+        filtered.forEach(function (o, i) {
+          const li = document.createElement("li");
+          li.textContent = o.label;
+          li.dataset.value = o.value;
+          li.className = "cursor-pointer px-3 py-1.5 text-slate-200 hover:bg-white/5";
+          li.addEventListener("mousedown", function (e) {
+            e.preventDefault();
+            pick(o);
+          });
+          menu.appendChild(li);
+        });
+        menu.classList.remove("hidden");
+      }
+
+      function highlight(index) {
+        Array.from(menu.children).forEach(function (li, i) {
+          li.classList.toggle("bg-white/10", i === index);
+        });
+        activeIndex = index;
+      }
+
+      function pick(option) {
+        select.value = option.value;
+        input.value = option.label;
+        menu.classList.add("hidden");
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+
+      function filter() {
+        const q = input.value.trim().toLowerCase();
+        const matches = q
+          ? options.filter(function (o) { return o.label.toLowerCase().includes(q); })
+          : options;
+        renderMenu(matches.slice(0, 50));
+      }
+
+      input.addEventListener("focus", filter);
+      input.addEventListener("input", function () {
+        if (select.value) { select.value = ""; select.dispatchEvent(new Event("change", { bubbles: true })); }
+        filter();
+      });
+      input.addEventListener("keydown", function (e) {
+        const items = menu.children;
+        if (e.key === "ArrowDown") { e.preventDefault(); highlight(Math.min(activeIndex + 1, items.length - 1)); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); highlight(Math.max(activeIndex - 1, 0)); }
+        else if (e.key === "Enter") { e.preventDefault(); if (activeIndex >= 0 && items[activeIndex]) items[activeIndex].dispatchEvent(new Event("mousedown")); }
+        else if (e.key === "Escape") { menu.classList.add("hidden"); }
+      });
+      document.addEventListener("click", function (e) {
+        if (!wrap.contains(e.target)) menu.classList.add("hidden");
+      });
+    });
+  })();
+
   (function () {
     const coupons = JSON.parse(document.getElementById("coupon-data").textContent);
     const $ = (id) => document.getElementById(id);

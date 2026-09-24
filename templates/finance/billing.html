@@ -1,5 +1,5 @@
 {% extends "finance/_app_base.html" %}
-{% load humanize %}
+{% load humanize static %}
 {% block title %}Billing · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
@@ -79,6 +79,7 @@
 
 <div class="card mt-5 overflow-x-auto p-5">
   <h2 class="text-sm font-semibold text-white">Invoices</h2>
+  <p class="mt-1 text-[11px] text-slate-500">"QR Pay Now" (shown on invoices due for exactly {{ organization.currency }} {{ razorpay_payment_button_amount }}) opens a QR code to pay manually via UPI — it isn't linked to any invoice automatically, so we confirm those by hand afterward.</p>
   <table class="mt-3 w-full text-left text-sm">
     <thead>
       <tr class="text-[11px] uppercase tracking-wide text-slate-500">
@@ -123,8 +124,8 @@
           {% endif %}
         </td>
         <td class="py-2.5 text-right">
-          {% if inv.amount_due > 0 and inv.status != "CANCELLED" and razorpay_configured %}
-          <button type="button" onclick="bai.payInvoice('{{ inv.pk }}', this)" class="btn-primary !px-3 !py-1.5 text-xs">Pay Now</button>
+          {% if inv.amount_due > 0 and inv.status != "CANCELLED" and inv.amount_due == razorpay_payment_button_amount %}
+          <a href="{% static 'img/upi-qr.png' %}" target="_blank" rel="noopener" class="btn-primary !px-3 !py-1.5 text-xs" title="Scan this QR to pay {{ organization.currency }} {{ razorpay_payment_button_amount }} via UPI — not linked to this invoice automatically, we'll confirm it manually.">QR Pay Now</a>
           {% endif %}
         </td>
       </tr>

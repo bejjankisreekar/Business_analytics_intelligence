@@ -73,6 +73,26 @@ class Organization(models.Model):
     tax_id = models.CharField("GST / tax number", max_length=32, blank=True)
     website = models.URLField(blank=True)
 
+    # Per-org override of the earliest date this org's users may create or
+    # backdate a finance entry (sales/purchase/expense — see
+    # apps.billing.services.historical_window_start). A fixed calendar date,
+    # not a rolling window — it does not move as time passes. Blank = inherit
+    # the current plan's rolling `Plan.historical_months_limit` default (3
+    # months back from today for a new org on the default free plan), unless
+    # historical_entry_no_limit is set. Set only by a superadmin, from the
+    # client edit form — never by the org itself.
+    historical_entry_cutoff_date = models.DateField(
+        null=True, blank=True,
+        help_text="Fixed date before which this org may not backdate a sales/purchase/expense "
+                   "entry. Blank = use the plan's rolling default. Ignored when "
+                   "'No backdating limit' is checked. Superadmin-only.",
+    )
+    historical_entry_no_limit = models.BooleanField(
+        default=False,
+        help_text="Lets this org backdate an entry to any date, overriding both the plan "
+                   "default and the cutoff date above. Superadmin-only.",
+    )
+
     # Account status: whether this is a legitimate, non-deleted account.
     # Deliberately separate from `service_status` below — a client is never
     # deleted or deactivated as an account just because their payment is

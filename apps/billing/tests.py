@@ -1,3 +1,4 @@
+import calendar
 import datetime
 import hashlib
 import hmac
@@ -11,7 +12,8 @@ from apps.organizations.services import create_organization_with_tenant_schema_a
 
 from . import invoicing
 from . import payments as payment_services
-from .models import Invoice, Payment, PaymentWebhookEvent
+from . import services as billing_services
+from .models import Invoice, Payment, PaymentWebhookEvent, Plan, Subscription
 
 
 def _make_org(env="default", name="Billing Test Org"):
@@ -318,3 +320,127 @@ class CouponAndPaymentHoldTests(TestCase):
         self.org.refresh_from_db()
         self.assertFalse(self.org.is_payment_hold)
         self.assertFalse(LoginForm({"email": owner.email, "password": "pw12345678"}).is_valid())
+
+
+class RenewalAutomationTests(TestCase):
+    """Two things must happen automatically, with no superadmin action:
+    (1) a renewal invoice is issued a couple of days BEFORE the billing
+    period ends (generate_upcoming_renewal_invoices), and (2) paying it
+    extends the subscription to the same day next cycle, anchored to the
+    OLD end date — never to whatever date the payment happened to land
+    on (renew_subscription_from_invoice)."""
+
+    def setUp(self):
+        self.org = _make_org(name="Renewal Automation Org")
+        self.plan = Plan.objects.get(slug="enterprise")  # non-zero price
+
+    def tearDown(self):
+        delete_organization_and_tenant(self.org)
+
+    def _sub(self, **overrides):
+        defaults = dict(
+            billing_cycle=Subscription.BillingCycle.MONTHLY,
+            status=Subscription.Status.ACTIVE,
+            payment_status=Subscription.PaymentStatus.PAID,
+        )
+        defaults.update(overrides)
+        return billing_services.create_subscription(self.org, self.plan, **defaults)
+
+    def _pay(self, sub, amount=None):
+        amount = self.plan.monthly_price if amount is None else amount
+        invoice = invoicing.create_invoice(self.org, subscription=sub, subtotal=amount)
+        payment_services.record_payment(self.org, invoice=invoice, amount=amount, status=Payment.Status.SUCCESS)
+        sub.refresh_from_db()
+        return sub
+
+    # -- proactive invoice generation, ahead of the expiry date -----------
+
+    def test_invoice_issued_two_days_before_expiry(self):
+        end_date = datetime.date.today() + datetime.timedelta(days=2)
+        sub = self._sub(start_date=end_date - datetime.timedelta(days=30), end_date=end_date)
+        created = billing_services.generate_upcoming_renewal_invoices(lead_days=2)
+        self.assertEqual(created, 1)
+        invoice = Invoice.objects.get(organization_id=self.org.id, subscription=sub)
+        self.assertEqual(invoice.due_date, end_date)
+        self.assertEqual(invoice.status, Invoice.Status.ISSUED)
+
+    def test_no_invoice_issued_outside_the_lead_window(self):
+        end_date = datetime.date.today() + datetime.timedelta(days=5)
+        self._sub(start_date=end_date - datetime.timedelta(days=30), end_date=end_date)
+        created = billing_services.generate_upcoming_renewal_invoices(lead_days=2)
+        self.assertEqual(created, 0)
+        self.assertFalse(Invoice.objects.filter(organization_id=self.org.id).exists())
+
+    def test_generation_is_idempotent(self):
+        end_date = datetime.date.today() + datetime.timedelta(days=1)
+        self._sub(start_date=end_date - datetime.timedelta(days=30), end_date=end_date)
+        billing_services.generate_upcoming_renewal_invoices(lead_days=2)
+        second_run = billing_services.generate_upcoming_renewal_invoices(lead_days=2)
+        self.assertEqual(second_run, 0)
+        self.assertEqual(Invoice.objects.filter(organization_id=self.org.id).count(), 1)
+
+    def test_trial_expiring_soon_also_gets_an_invoice(self):
+        trial_end = datetime.date.today() + datetime.timedelta(days=1)
+        sub = self._sub(
+            status=Subscription.Status.TRIAL,
+            start_date=trial_end - datetime.timedelta(days=13), end_date=trial_end,
+        )
+        sub.trial_start_date = trial_end - datetime.timedelta(days=13)
+        sub.trial_end_date = trial_end
+        sub.save()
+        created = billing_services.generate_upcoming_renewal_invoices(lead_days=2)
+        self.assertEqual(created, 1)
+
+    def test_free_plan_is_never_invoiced(self):
+        free_plan = Plan.objects.get(slug="free")
+        end_date = datetime.date.today() + datetime.timedelta(days=1)
+        billing_services.create_subscription(
+            self.org, free_plan, status=Subscription.Status.ACTIVE,
+            start_date=end_date - datetime.timedelta(days=30), end_date=end_date, price=0,
+        )
+        created = billing_services.generate_upcoming_renewal_invoices(lead_days=2)
+        self.assertEqual(created, 0)
+
+    # -- renewal always anchors to the OLD end date, not the payment date -
+
+    def test_paying_early_anchors_to_old_end_date_not_payment_date(self):
+        old_end = datetime.date.today() + datetime.timedelta(days=2)
+        sub = self._sub(start_date=old_end - datetime.timedelta(days=28), end_date=old_end)
+        sub = self._pay(sub)
+        self.assertEqual(sub.end_date, billing_services._shift_months(old_end, -1))
+
+    def test_paying_a_few_days_late_still_anchors_to_old_end_date(self):
+        old_end = datetime.date.today() - datetime.timedelta(days=1)  # lapsed yesterday
+        sub = self._sub(
+            start_date=old_end - datetime.timedelta(days=29), end_date=old_end,
+            status=Subscription.Status.PAST_DUE,
+        )
+        sub = self._pay(sub)
+        self.assertEqual(sub.end_date, billing_services._shift_months(old_end, -1))
+        self.assertGreaterEqual(sub.end_date, datetime.date.today())
+
+    def test_severely_overdue_payment_still_restores_access_today(self):
+        old_end = datetime.date.today() - datetime.timedelta(days=90)
+        sub = self._sub(
+            start_date=old_end - datetime.timedelta(days=30), end_date=old_end,
+            status=Subscription.Status.PAST_DUE,
+        )
+        sub = self._pay(sub)
+        self.assertGreaterEqual(sub.end_date, datetime.date.today())
+        self.assertTrue(billing_services.has_active_access(self.org))
+
+    def test_month_end_clamps_to_shortest_month(self):
+        old_end = datetime.date(datetime.date.today().year + 1, 1, 31)
+        sub = self._sub(start_date=old_end - datetime.timedelta(days=31), end_date=old_end)
+        sub = self._pay(sub)
+        feb_days = calendar.monthrange(old_end.year, 2)[1]
+        self.assertEqual(sub.end_date, datetime.date(old_end.year, 2, feb_days))
+
+    def test_yearly_renewal_anchors_same_date_next_year(self):
+        old_end = datetime.date.today() + datetime.timedelta(days=3)
+        sub = self._sub(
+            billing_cycle=Subscription.BillingCycle.YEARLY,
+            start_date=old_end - datetime.timedelta(days=365), end_date=old_end,
+        )
+        sub = self._pay(sub, amount=self.plan.yearly_price)
+        self.assertEqual(sub.end_date, datetime.date(old_end.year + 1, old_end.month, old_end.day))

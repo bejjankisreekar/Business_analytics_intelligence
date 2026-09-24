@@ -59,6 +59,26 @@
     {% endfor %}
   </div>
 
+  <h2 class="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Data entry policy</h2>
+  <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+    {% for field in form %}
+      {% if field.name == "historical_entry_cutoff_date" %}
+      <div>
+        <label class="sa-field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<p class="mt-1 text-[11px] text-slate-600">{{ field.help_text }}</p>{% endif %}
+        {% if field.errors %}<ul class="sa-errorlist">{% for e in field.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      {% elif field.name == "historical_entry_no_limit" %}
+      <div class="flex items-center gap-2 self-end pb-2">
+        {{ field }}
+        <label class="text-xs text-slate-300" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {% if field.errors %}<ul class="sa-errorlist">{% for e in field.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
   {% if mode == "create" %}
   <h2 class="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Owner login</h2>
   <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">

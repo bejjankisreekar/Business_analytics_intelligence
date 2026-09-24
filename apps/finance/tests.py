@@ -6,7 +6,7 @@ from django.test import Client, TestCase
 from apps.billing import invoicing
 from apps.billing import payments as payment_services
 from apps.billing import services as billing_services
-from apps.billing.models import Payment, Plan
+from apps.billing.models import Invoice, Payment, Plan
 from apps.finance import services as finance_services
 from apps.finance.models import (
     CashTransfer,
@@ -204,6 +204,54 @@ class AgingReportTests(TestCase):
             row = aging["rows"][0]
             self.assertEqual(row["current"], Decimal("750"))
             self.assertEqual(sum(row[b] for b, _ in aging["buckets"] if b != "current"), Decimal("0"))
+
+
+class AccessLocksAutomaticallyOnLapseTests(TestCase):
+    """The billing period ending (Subscription.end_date, shown as 'Billing
+    end' in superadmin) must lock the org out of the app on its own —
+    no superadmin action required — until a real payment is recorded.
+    Enforced by TenantLoginRequiredMixin.dispatch() reading
+    billing_services.has_active_access() on every request; see
+    apps/finance/views.py."""
+
+    def setUp(self):
+        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+            org_data={"name": "Lapse Lock Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
+            admin_data={"email": "owner@lapselocktest.example", "password": "ownerpass123"},
+        )
+        plan = Plan.objects.get(slug="enterprise")  # non-zero price, so a lapse actually has something to invoice
+        sub = billing_services.start_trial(self.org, plan)
+        # Simulate a billing period that already ended, as if it were never renewed.
+        sub.status = sub.Status.ACTIVE
+        sub.end_date = datetime.date.today() - datetime.timedelta(days=1)
+        sub.save()
+        self.client_ = Client()
+        self.client_.force_login(self.owner)
+
+    def tearDown(self):
+        delete_organization_and_tenant(self.org)
+
+    def test_lapsed_billing_period_bounces_every_page_to_billing(self):
+        self.assertTrue(self.org.is_service_active)  # not manually suspended — the lock is automatic
+        resp = self.client_.get("/app/", follow=True)
+        self.assertRedirects(resp, "/app/billing/")
+
+    def test_lapse_auto_generates_a_payable_invoice(self):
+        self.assertEqual(Invoice.objects.filter(organization_id=self.org.id).count(), 0)
+        self.client_.get("/app/")
+        self.assertEqual(Invoice.objects.filter(organization_id=self.org.id).count(), 1)
+
+    def test_billing_page_itself_stays_reachable_while_locked(self):
+        resp = self.client_.get("/app/billing/")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_paying_the_invoice_lifts_the_lock_immediately(self):
+        self.client_.get("/app/")  # generates the invoice
+        invoice = Invoice.objects.get(organization_id=self.org.id)
+        payment_services.record_payment(self.org, invoice=invoice, amount=invoice.amount_due, status=Payment.Status.SUCCESS)
+        self.assertTrue(billing_services.has_active_access(self.org))
+        resp = self.client_.get("/app/")
+        self.assertEqual(resp.status_code, 200)
 
 
 class NewPagesSmokeTests(TestCase):
