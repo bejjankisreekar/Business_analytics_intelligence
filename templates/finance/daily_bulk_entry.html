@@ -61,6 +61,7 @@
               <th data-col="Qty" class="px-1 pb-1.5 font-medium">Qty</th>
               <th data-col="Amount" class="px-1 pb-1.5 font-medium">Amount</th>
               <th data-col="Via" class="px-1 pb-1.5 font-medium">Via</th>
+              <th data-col="Bank" class="px-1 pb-1.5 font-medium">Bank</th>
               <th data-col="Note" class="px-1 pb-1.5 font-medium">Note</th>
               <th data-col="Remove" class="px-1 pb-1.5 font-medium">Remove</th>
             </tr>
@@ -103,6 +104,7 @@
               <th data-col="Detail" class="px-1 pb-1.5 font-medium">Detail</th>
               <th data-col="Amount" class="px-1 pb-1.5 font-medium">Amount</th>
               <th data-col="Via" class="px-1 pb-1.5 font-medium">Via</th>
+              <th data-col="Bank" class="px-1 pb-1.5 font-medium">Bank</th>
               <th data-col="Note" class="px-1 pb-1.5 font-medium">Note</th>
               <th data-col="Remove" class="px-1 pb-1.5 font-medium">Remove</th>
             </tr>
@@ -147,6 +149,7 @@
               <th data-col="Qty" class="px-1 pb-1.5 font-medium">Qty</th>
               <th data-col="Amount" class="px-1 pb-1.5 font-medium">Amount</th>
               <th data-col="Via" class="px-1 pb-1.5 font-medium">Via</th>
+              <th data-col="Bank" class="px-1 pb-1.5 font-medium">Bank</th>
               <th data-col="Note" class="px-1 pb-1.5 font-medium">Note</th>
               <th data-col="On credit" class="px-1 pb-1.5 font-medium">On credit</th>
               <th data-col="Remove" class="px-1 pb-1.5 font-medium">Remove</th>
@@ -252,6 +255,30 @@
     totalInput.value = index + 1;
     const mainField = prefix === "sale" ? "channel" : "category";
     bai.wireSubcategory(`id_${prefix}-${index}-${mainField}`, `id_${prefix}-${index}-subcategory`);
+    bai.syncBankField(document.getElementById(`id_${prefix}-${index}-payment_mode`));
+  };
+
+  // A bank account only makes sense once "Via" is Bank — disabled (not
+  // hidden, which would shift every later cell in the row left and break
+  // column alignment) and cleared the rest of the time.
+  bai.syncBankField = (paymentModeSelect) => {
+    if (!paymentModeSelect) return;
+    const row = paymentModeSelect.closest("tr");
+    const bankSelect = row && row.querySelector('select[name$="-bank_account"]');
+    if (!bankSelect) return;
+    const isBank = paymentModeSelect.value === "BANK";
+    bankSelect.disabled = !isBank;
+    if (!isBank) bankSelect.value = "";
+    else bankSelect.value = bankSelect.value; // re-run the trigger's disabled sync (see base.html's enhanceSelect)
+  };
+  bai.wireBankToggle = (prefix) => {
+    const body = document.getElementById(`${prefix}-formset-body`);
+    if (!body || body.dataset.bankWired) return;
+    body.dataset.bankWired = "1";
+    body.addEventListener("change", (e) => {
+      if (e.target.matches('select[name$="-payment_mode"]')) bai.syncBankField(e.target);
+    });
+    body.querySelectorAll('select[name$="-payment_mode"]').forEach(bai.syncBankField);
   };
 
   bai.wireBulkFormset = (prefix, mainField) => {
@@ -286,6 +313,9 @@
   bai.wireBulkFormset("sale", "channel");
   bai.wireBulkFormset("expense", "category");
   bai.wireBulkFormset("purchase", "category");
+  bai.wireBankToggle("sale");
+  bai.wireBankToggle("expense");
+  bai.wireBankToggle("purchase");
 </script>
 <style>
   .report-tab { padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500; color: #6b7488; border-bottom: 2px solid transparent; }
@@ -297,6 +327,7 @@
   .bulk-table th[data-col="Qty"] { width: 4.5rem; }
   .bulk-table th[data-col="Amount"] { width: 7rem; }
   .bulk-table th[data-col="Via"] { width: 6.5rem; }
+  .bulk-table th[data-col="Bank"] { width: 8rem; }
   .bulk-table th[data-col="Remove"], .bulk-table th[data-col="On credit"] { width: 4.5rem; }
   .bulk-table .bai-select-trigger { margin-top: 0; width: 100%; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
   .bulk-table select, .bulk-table input { width: 100%; }

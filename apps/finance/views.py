@@ -23,6 +23,8 @@ from apps.organizations.models import Organization
 
 from . import services
 from .forms import (
+    BankAccountEditForm,
+    BankAccountForm,
     CashTransferForm,
     CategoryEditForm,
     CategoryForm,
@@ -47,6 +49,7 @@ from .forms import (
     VendorForm,
 )
 from .models import (
+    BankAccount,
     CashTransfer,
     Category,
     Customer,
@@ -1215,12 +1218,152 @@ class ReportsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
         return context
 
 
-def _render_statement_pdf(request, template_name, context, filename):
+MONTHLY_SUMMARY_KINDS = {
+    "sales": (SalesEntry, "channel", "Sales"),
+    "purchases": (PurchaseEntry, "category", "Purchases"),
+    "expenses": (ExpenseEntry, "category", "Expenses"),
+}
+
+GRANULARITY_CHOICES = [
+    ("daily", "Daily"),
+    ("weekly", "Weekly"),
+    ("monthly", "Monthly"),
+    ("quarterly", "Quarterly"),
+    ("yearly", "Yearly"),
+]
+GRANULARITY_KEYS = {key for key, _ in GRANULARITY_CHOICES}
+
+
+def _monthly_summary_query(request):
+    """Parses ?kind=&granularity=&period=&from=&to= the same way for the
+    report page and its CSV/PDF exports, so the three never drift apart."""
+    kind = request.GET.get("kind", "sales")
+    if kind not in MONTHLY_SUMMARY_KINDS:
+        kind = "sales"
+    granularity = request.GET.get("granularity", "monthly")
+    if granularity not in GRANULARITY_KEYS:
+        granularity = "monthly"
+
+    fs = services.get_finance_settings()
+    period_key = request.GET.get("period", "this_fy")
+    custom_from = request.GET.get("from")
+    custom_to = request.GET.get("to")
+    custom_from = datetime.date.fromisoformat(custom_from) if custom_from else None
+    custom_to = datetime.date.fromisoformat(custom_to) if custom_to else None
+    period = resolve_period(period_key, fs.fy_start_month, custom_from=custom_from, custom_to=custom_to)
+
+    model, field, label = MONTHLY_SUMMARY_KINDS[kind]
+    matrix = services.category_period_matrix(model, field, period.start, period.end, granularity)
+    yoy = services.year_over_year_comparison(model, period.start, period.end)
+    return {
+        "kind": kind,
+        "kind_label": label,
+        "granularity": granularity,
+        "period": period,
+        "matrix": matrix,
+        "yoy": yoy,
+    }
+
+
+class MonthlySummaryView(TenantLoginRequiredMixin, TemplateView):
+    """Spreadsheet-style report: every category down the side, one column
+    per day/week/month/quarter/year of the chosen period across the top —
+    one tab each for Sales/Purchases/Expenses."""
+
+    template_name = "finance/monthly_summary.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_monthly_summary_query(self.request))
+        context.update({
+            "active_nav": "monthly_summary",
+            "organization": self.request.user.organization,
+            "granularity_choices": GRANULARITY_CHOICES,
+            "period_choices": PERIOD_CHOICES,
+        })
+        return context
+
+
+class MonthlySummaryExcelView(TenantLoginRequiredMixin, View):
+    """The Monthly Summary grid (plain amounts — not the Δ%/share views)
+    as a formatted .xlsx workbook: bold headers/totals, a currency number
+    format, and the category column + header row frozen for scrolling."""
+
+    def get(self, request, *args, **kwargs):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font
+        from openpyxl.utils import get_column_letter
+
+        data = _monthly_summary_query(request)
+        matrix, kind, kind_label, period = data["matrix"], data["kind"], data["kind_label"], data["period"]
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = kind_label[:31]
+
+        header = [kind_label] + matrix["labels"] + ["Total"]
+        ws.append(header)
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal="center")
+
+        for row in matrix["rows"]:
+            ws.append([row["name"]] + [cell["value"] for cell in row["cells"]] + [row["total"]])
+
+        ws.append(["Total"] + [cell["value"] for cell in matrix["column_cells"]] + [matrix["grand_total"]])
+        for cell in ws[ws.max_row]:
+            cell.font = Font(bold=True)
+
+        for row in ws.iter_rows(min_row=2, min_col=2):
+            for cell in row:
+                cell.number_format = "#,##0.00"
+
+        ws.freeze_panes = "B2"
+        ws.column_dimensions["A"].width = 28
+        for i in range(2, len(header) + 1):
+            ws.column_dimensions[get_column_letter(i)].width = 14
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        filename = f"monthly-summary-{kind}-{period.start}-{period.end}.xlsx"
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class MonthlySummaryPdfView(TenantLoginRequiredMixin, View):
+    """The Monthly Summary grid (plain amounts) as a landscape PDF, mirroring
+    the P&L/Balance Sheet/Cash Flow export pattern on the Reports page."""
+
+    def get(self, request, *args, **kwargs):
+        data = _monthly_summary_query(request)
+        period = data["period"]
+        context = {
+            "organization": request.user.organization,
+            "kind_label": data["kind_label"],
+            "period": period,
+            "matrix": data["matrix"],
+            "yoy": data["yoy"],
+            "font_px": 7 if len(data["matrix"]["labels"]) > 8 else 9,
+        }
+        filename = f"monthly-summary-{data['kind']}-{period.start}-{period.end}.pdf"
+        return _render_statement_pdf(
+            request, "finance/pdf/monthly_summary_pdf.html", context, filename,
+            fallback_url_name="finance:monthly_summary",
+        )
+
+
+def _render_statement_pdf(request, template_name, context, filename, fallback_url_name="finance:reports"):
     try:
         from xhtml2pdf import pisa
     except ImportError:
         messages.error(request, "PDF export isn't available on this server.")
-        return redirect("finance:reports")
+        return redirect(fallback_url_name)
 
     from io import BytesIO
 
@@ -1287,6 +1430,7 @@ class FinanceSettingsView(TenantLoginRequiredMixin, TemplateView):
         context["customers"] = Customer.objects.all()
         context["customer_form"] = CustomerForm()
         context["vendors"] = Vendor.objects.all()
+        context["bank_accounts"] = BankAccount.objects.all()
         return context
 
     def post(self, request, *args, **kwargs):
@@ -1629,6 +1773,7 @@ class LedgersView(TenantLoginRequiredMixin, TemplateView):
             "organization": self.request.user.organization,
             "cash_balance": cash,
             "bank_balance": bank,
+            "bank_account_rows": services.bank_account_rows(today),
             "customers": list(customer_page["page_obj"].object_list),
             "vendors": list(vendor_page["page_obj"].object_list),
             "has_customers": has_customers,
@@ -1822,6 +1967,96 @@ class ToggleVendorView(TenantLoginRequiredMixin, View):
         return redirect("finance:vendors")
 
 
+class BankAccountsView(TenantLoginRequiredMixin, TemplateView):
+    """Full bank account directory: which bank, opening balance, and the
+    current computed closing balance — with edit/delete/deactivate."""
+
+    template_name = "finance/bank_accounts.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            "active_nav": "bank_accounts",
+            "organization": self.request.user.organization,
+            "bank_account_rows": services.bank_account_rows(),
+            "bank_account_form": BankAccountForm(auto_id="id_bank_account_%s"),
+        })
+        return context
+
+
+class AddBankAccountView(TenantLoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        form = BankAccountForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Bank account added.")
+        else:
+            messages.error(request, "Couldn't add that bank account — the name may already exist.")
+        return redirect("finance:bank_accounts")
+
+
+class EditBankAccountView(TenantLoginRequiredMixin, TemplateView):
+    template_name = "finance/edit_bank_account.html"
+
+    def get(self, request, pk, *args, **kwargs):
+        account = get_object_or_404(BankAccount, pk=pk)
+        form = BankAccountEditForm(instance=account)
+        return self.render(request, account, form)
+
+    def post(self, request, pk, *args, **kwargs):
+        account = get_object_or_404(BankAccount, pk=pk)
+        form = BankAccountEditForm(request.POST, instance=account)
+        if not form.is_valid():
+            return self.render(request, account, form)
+        form.save()
+        messages.success(request, "Bank account updated.")
+        return redirect("finance:bank_accounts")
+
+    def render(self, request, account, form):
+        context = {
+            "active_nav": "bank_accounts",
+            "organization": request.user.organization,
+            "bank_account": account,
+            "form": form,
+        }
+        return self.render_to_response(context)
+
+
+class DeleteBankAccountView(TenantLoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        account = get_object_or_404(BankAccount, pk=pk)
+        account.delete()
+        messages.success(request, "Bank account deleted.")
+        return redirect("finance:bank_accounts")
+
+
+class ToggleBankAccountView(TenantLoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        account = get_object_or_404(BankAccount, pk=pk)
+        account.is_active = not account.is_active
+        account.save(update_fields=["is_active"])
+        return redirect("finance:bank_accounts")
+
+
+class BankAccountLedgerView(TenantLoginRequiredMixin, TemplateView):
+    """One bank account's own running-balance ledger — mirrors
+    VendorLedgerView/AccountLedgerView, scoped to a specific BankAccount."""
+
+    template_name = "finance/bank_account_ledger.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        account = get_object_or_404(BankAccount, pk=kwargs["pk"])
+        flt = _ledger_filter_context(self.request, services.bank_account_ledger_entries(account))
+        context.update({
+            "active_nav": "bank_accounts",
+            "organization": self.request.user.organization,
+            "bank_account": account,
+            **flt,
+        })
+        return context
+
+
 class AgingReportView(TenantLoginRequiredMixin, TemplateView):
     """Who owes what and how overdue it is, one row per customer/vendor —
     the standard aging matrix, built from the same open receivables/
@@ -1918,6 +2153,7 @@ class RecordReceivablePaymentView(TenantLoginRequiredMixin, View):
                     customer=receivable.customer,
                     amount=amount,
                     payment_mode=form.cleaned_data["payment_mode"],
+                    bank_account=form.cleaned_data["bank_account"],
                     note=form.cleaned_data["note"] or f"Payment received for invoice — {receivable.customer}",
                     created_by_email=request.user.email,
                 )
@@ -1971,6 +2207,7 @@ class RecordPayablePaymentView(TenantLoginRequiredMixin, View):
                     vendor=payable.vendor,
                     amount=amount,
                     payment_mode=form.cleaned_data["payment_mode"],
+                    bank_account=form.cleaned_data["bank_account"],
                     note=form.cleaned_data["note"] or f"Payment to {payable.vendor} for bill",
                     created_by_email=request.user.email,
                 )

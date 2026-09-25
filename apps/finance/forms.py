@@ -4,6 +4,8 @@ from decimal import Decimal
 from django import forms
 
 from .models import (
+    BankAccount,
+    BankChoices,
     CashTransfer,
     Category,
     Customer,
@@ -55,16 +57,32 @@ class HistoricalWindowFormMixin:
         return date
 
 
-class SalesEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
+class ClearBankAccountUnlessBankMixin:
+    """A bank account only means something when the entry is actually paid
+    via Bank — carrying one on a Cash entry would silently count it toward
+    that account's ledger even though the money never touched it (see
+    services.bank_account_balance_as_of, which filters by bank_account
+    alone). Rather than error, this just drops it: switching "Via" back to
+    Cash after picking a bank is a normal edit, not a mistake to block."""
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("payment_mode") != PaymentMode.BANK:
+            cleaned_data["bank_account"] = None
+        return cleaned_data
+
+
+class SalesEntryForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     class Meta:
         model = SalesEntry
         fields = [
             "date", "channel", "subcategory", "customer", "quantity", "amount",
-            "payment_mode", "note",
+            "payment_mode", "bank_account", "note",
         ]
         labels = {
             "subcategory": "Sub-category (optional)",
             "quantity": "Qty (optional)",
+            "bank_account": "Bank",
         }
         widgets = {
             "date": DateInput(),
@@ -86,13 +104,16 @@ class SalesEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
         self.fields["quantity"].required = False
         self.fields["quantity"].widget.attrs["placeholder"] = "Qty"
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
+        self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
+        self.fields["bank_account"].required = False
+        self.fields["bank_account"].empty_label = "— Bank —"
 
 
-class ExpenseEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
+class ExpenseEntryForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     class Meta:
         model = ExpenseEntry
-        fields = ["date", "category", "subcategory", "amount", "payment_mode", "note"]
-        labels = {"subcategory": "Detail — e.g. employee name (optional)"}
+        fields = ["date", "category", "subcategory", "amount", "payment_mode", "bank_account", "note"]
+        labels = {"subcategory": "Detail — e.g. employee name (optional)", "bank_account": "Bank"}
         widgets = {
             "date": DateInput(),
             "note": forms.TextInput(attrs={"placeholder": "Optional note"}),
@@ -108,9 +129,12 @@ class ExpenseEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
         self.fields["subcategory"].required = False
         self.fields["subcategory"].widget.attrs["data-subcategory-for"] = "category"
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
+        self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
+        self.fields["bank_account"].required = False
+        self.fields["bank_account"].empty_label = "— Bank —"
 
 
-class PurchaseEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
+class PurchaseEntryForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     on_credit = forms.BooleanField(
         required=False,
         label="Not paid yet (on credit)",
@@ -122,11 +146,12 @@ class PurchaseEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
         model = PurchaseEntry
         fields = [
             "date", "category", "subcategory", "vendor", "quantity", "amount",
-            "payment_mode", "note",
+            "payment_mode", "bank_account", "note",
         ]
         labels = {
             "subcategory": "Item / detail (optional)",
             "quantity": "Qty (optional)",
+            "bank_account": "Bank",
         }
         widgets = {
             "date": DateInput(),
@@ -156,6 +181,9 @@ class PurchaseEntryForm(HistoricalWindowFormMixin, forms.ModelForm):
         self.fields["quantity"].required = False
         self.fields["quantity"].widget.attrs["placeholder"] = "Qty"
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
+        self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
+        self.fields["bank_account"].required = False
+        self.fields["bank_account"].empty_label = "— Bank —"
 
     def clean(self):
         cleaned_data = super().clean()
@@ -172,7 +200,8 @@ PurchaseEntryFormSet = forms.modelformset_factory(PurchaseEntry, form=PurchaseEn
 class CashTransferForm(HistoricalWindowFormMixin, forms.ModelForm):
     class Meta:
         model = CashTransfer
-        fields = ["date", "direction", "amount", "note"]
+        fields = ["date", "direction", "amount", "bank_account", "note"]
+        labels = {"bank_account": "Bank account (optional)"}
         widgets = {
             "date": DateInput(),
             "note": forms.TextInput(attrs={"placeholder": "Optional note"}),
@@ -182,6 +211,9 @@ class CashTransferForm(HistoricalWindowFormMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["date"].initial = self.initial.get("date", datetime.date.today())
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
+        self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
+        self.fields["bank_account"].required = False
+        self.fields["bank_account"].empty_label = "— Which bank? —"
 
 
 MONTH_CHOICES = [
@@ -324,6 +356,48 @@ class VendorEditForm(forms.ModelForm):
         self.fields["opening_balance"].required = False
 
 
+class BankAccountForm(forms.ModelForm):
+    class Meta:
+        model = BankAccount
+        fields = [
+            "name", "bank_name", "other_bank_name", "account_number",
+            "opening_balance", "opening_balance_as_on",
+        ]
+        labels = {
+            "name": "Account nickname",
+            "bank_name": "Bank",
+            "other_bank_name": "Bank name (if “Other”)",
+            "account_number": "Account number (optional)",
+            "opening_balance": "Opening balance (optional)",
+            "opening_balance_as_on": "Opening balance as on",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "e.g. Current Account"}),
+            "bank_name": forms.Select(attrs={"class": "sel-wide"}),
+            "other_bank_name": forms.TextInput(attrs={"placeholder": "Bank name"}),
+            "account_number": forms.TextInput(attrs={"placeholder": "Optional"}),
+            "opening_balance_as_on": DateInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["account_number"].required = False
+        self.fields["other_bank_name"].required = False
+        self.fields["opening_balance"].required = False
+        self.fields["opening_balance"].widget.attrs["placeholder"] = "0.00"
+        self.fields["opening_balance_as_on"].initial = datetime.date.today()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("bank_name") == BankChoices.OTHER and not cleaned_data.get("other_bank_name"):
+            self.add_error("other_bank_name", "Required when the bank isn't in the list above.")
+        return cleaned_data
+
+
+class BankAccountEditForm(BankAccountForm):
+    pass
+
+
 class ReceivableForm(forms.ModelForm):
     class Meta:
         model = Receivable
@@ -404,10 +478,14 @@ class PayableEditForm(_PaidInvoiceEditMixin, PayableForm):
         self._lock_when_paid()
 
 
-class RecordPaymentForm(forms.Form):
+class RecordPaymentForm(ClearBankAccountUnlessBankMixin, forms.Form):
     date = forms.DateField(widget=DateInput(), initial=datetime.date.today)
     amount = forms.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"))
     payment_mode = forms.ChoiceField(choices=PaymentMode.choices, initial=PaymentMode.CASH)
+    bank_account = forms.ModelChoiceField(
+        queryset=BankAccount.objects.filter(is_active=True), required=False, empty_label="— Bank —",
+        label="Bank",
+    )
     note = forms.CharField(max_length=255, required=False, widget=forms.TextInput(attrs={"placeholder": "Optional note"}))
 
 
@@ -431,10 +509,11 @@ class PartnerForm(forms.ModelForm):
         self.fields["opening_balance"].widget.attrs["placeholder"] = "0.00"
 
 
-class PartnerTransactionForm(HistoricalWindowFormMixin, forms.ModelForm):
+class PartnerTransactionForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     class Meta:
         model = PartnerTransaction
-        fields = ["partner", "date", "kind", "amount", "payment_mode", "note"]
+        fields = ["partner", "date", "kind", "amount", "payment_mode", "bank_account", "note"]
+        labels = {"bank_account": "Bank"}
         widgets = {
             "date": DateInput(),
             "note": forms.TextInput(attrs={"placeholder": "Optional note"}),
@@ -445,4 +524,7 @@ class PartnerTransactionForm(HistoricalWindowFormMixin, forms.ModelForm):
         self.fields["date"].initial = self.initial.get("date", datetime.date.today())
         self.fields["partner"].queryset = Partner.objects.filter(is_active=True)
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
+        self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
+        self.fields["bank_account"].required = False
+        self.fields["bank_account"].empty_label = "— Bank —"
 

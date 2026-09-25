@@ -47,6 +47,26 @@
   </a>
 </div>
 
+{% if bank_account_rows %}
+<!-- Individual bank accounts -->
+<div class="mt-8 flex items-center justify-between">
+  <div>
+    <h2 class="text-sm font-semibold text-white">Bank Accounts</h2>
+    <p class="mt-0.5 text-xs text-slate-500">Only entries explicitly tagged to a specific account count here — it's a breakdown of the Bank total above, not a separate figure.</p>
+  </div>
+  <a href="{% url 'finance:bank_accounts' %}" class="shrink-0 text-xs font-medium text-brand-400 hover:text-brand-300">Manage →</a>
+</div>
+<div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  {% for row in bank_account_rows %}
+  <a href="{% url 'finance:bank_account_ledger' row.account.pk %}" class="card card-link p-5">
+    <p class="text-xs font-medium text-slate-500">{{ row.account.name }} <span class="text-slate-600">· {{ row.account.display_bank }}</span></p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ row.balance|floatformat:0|intcomma }}</p>
+    <p class="mt-1 text-xs font-medium text-brand-400">View ledger →</p>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if has_customers %}
 <!-- Customers -->
 <div class="mt-8 flex items-center justify-between">

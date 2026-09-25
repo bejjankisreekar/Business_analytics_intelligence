@@ -64,6 +64,15 @@
     <p class="mt-1.5 text-xs text-slate-500">{{ vendors|length }} vendor{{ vendors|length|pluralize }}</p>
     <p class="mt-0.5 text-xs text-slate-600">Manage details, mobile &amp; opening balance →</p>
   </a>
+
+  <a href="{% url 'finance:bank_accounts' %}" class="card card-link p-5 text-left">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25l9.5-5.5 9.5 5.5M3.75 9v10.5h16.5V9M9 19.5v-6h6v6"/></svg>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold text-white">Bank Accounts</h3>
+    <p class="mt-1.5 text-xs text-slate-500">{{ bank_accounts|length }} account{{ bank_accounts|length|pluralize }}</p>
+    <p class="mt-0.5 text-xs text-slate-600">ICICI, HDFC &amp; more — each with its own opening/closing balance →</p>
+  </a>
 </div>
 
 <!-- Modal: Financial Year & Opening Balance -->
@@ -95,6 +104,7 @@
         <label class="block text-xs font-medium text-slate-400">Opening date</label>
         {{ form.opening_date }}
       </div>
+      <p class="text-xs text-slate-500">This is the combined cash/bank total every report uses. If you track individual banks separately (ICICI, HDFC, etc.), set each one's own opening balance under <a href="{% url 'finance:bank_accounts' %}" class="text-brand-400 hover:text-brand-300">Bank Accounts</a> instead — the two are independent.</p>
       <button type="submit" class="btn-primary w-full">Save</button>
     </form>
   </div>

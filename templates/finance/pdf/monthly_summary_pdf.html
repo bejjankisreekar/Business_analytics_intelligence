@@ -1,0 +1,33 @@
+{% extends "finance/pdf/_base_pdf.html" %}
+{% load humanize %}
+{% block page_size %}A4 landscape{% endblock %}
+{% block subtitle %}Monthly Summary · {{ kind_label }} · {{ period.label }} ({{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}){% endblock %}
+{% block statement %}
+<p class="muted" style="margin-top:2px;">
+  vs {{ yoy.prior_start|date:"d M Y" }} – {{ yoy.prior_end|date:"d M Y" }} (same period last year):
+  {{ organization.currency }} {{ yoy.prior_total|floatformat:2|intcomma }}
+  {% if yoy.change_pct != None %}({% if yoy.change_pct >= 0 %}+{% endif %}{{ yoy.change_pct|floatformat:1 }}% vs this period){% endif %}
+</p>
+<table>
+  <tr>
+    <td class="section-label">{{ kind_label }}</td>
+    {% for label in matrix.labels %}<td class="section-label right">{{ label }}</td>{% endfor %}
+    <td class="section-label right">Total</td>
+  </tr>
+  {% for row in matrix.rows %}
+  <tr class="divider">
+    <td>{{ row.name }}</td>
+    {% for cell in row.cells %}<td class="right">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}–{% endif %}</td>{% endfor %}
+    <td class="right" style="font-weight:bold;">{{ row.total|floatformat:2|intcomma }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="{{ matrix.labels|length|add:2 }}" class="muted">No {{ kind_label|lower }} recorded for this period.</td></tr>
+  {% endfor %}
+  <tr class="thick">
+    <td>Total</td>
+    {% for cell in matrix.column_cells %}<td class="right">{{ cell.value|floatformat:2|intcomma }}</td>{% endfor %}
+    <td class="right">{{ matrix.grand_total|floatformat:2|intcomma }}</td>
+  </tr>
+</table>
+<p class="muted" style="margin-top:10px;">Amounts in {{ organization.currency }}.</p>
+{% endblock %}

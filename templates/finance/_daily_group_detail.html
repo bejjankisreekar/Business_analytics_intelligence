@@ -17,7 +17,7 @@ gets its own subtotal line, with those entries listed under it.
       <span class="text-slate-300">{{ e.subcategory.name }}</span>
       {% if e.vendor %}<span class="text-slate-600"> · {{ e.vendor }}</span>{% endif %}
       {% if e.note %}<span class="text-slate-600"> · {{ e.note }}</span>{% endif %}
-      <span class="ml-1.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">{{ e.get_payment_mode_display }}</span>
+      <span class="ml-1.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">{{ e.get_payment_mode_display }}{% if e.bank_account %} · {{ e.bank_account.name }}{% endif %}</span>
     </div>
     <div class="shrink-0 pr-12 font-medium text-slate-200">{{ e.amount|floatformat:0|intcomma }}</div>
   </div>
@@ -29,7 +29,7 @@ gets its own subtotal line, with those entries listed under it.
       <span class="text-slate-300">{% if e.subcategory %}{{ e.subcategory.name }}{% else %}—{% endif %}</span>
       {% if e.vendor %}<span class="text-slate-600"> · {{ e.vendor }}</span>{% endif %}
       {% if e.note %}<span class="text-slate-600"> · {{ e.note }}</span>{% endif %}
-      <span class="ml-1.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">{{ e.get_payment_mode_display }}</span>
+      <span class="ml-1.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">{{ e.get_payment_mode_display }}{% if e.bank_account %} · {{ e.bank_account.name }}{% endif %}</span>
     </div>
     <div class="shrink-0 pr-12 font-medium text-slate-200">{{ e.amount|floatformat:0|intcomma }}</div>
   </div>

@@ -126,6 +126,57 @@ class Vendor(models.Model):
         return self.name
 
 
+class BankChoices(models.TextChoices):
+    SBI = "SBI", "State Bank of India"
+    HDFC = "HDFC", "HDFC Bank"
+    ICICI = "ICICI", "ICICI Bank"
+    AXIS = "AXIS", "Axis Bank"
+    KOTAK = "KOTAK", "Kotak Mahindra Bank"
+    PNB = "PNB", "Punjab National Bank"
+    BOB = "BOB", "Bank of Baroda"
+    CANARA = "CANARA", "Canara Bank"
+    UNION = "UNION", "Union Bank of India"
+    IDBI = "IDBI", "IDBI Bank"
+    YES = "YES", "Yes Bank"
+    INDUSIND = "INDUSIND", "IndusInd Bank"
+    OTHER = "OTHER", "Other"
+
+
+class BankAccount(models.Model):
+    """One specific bank account the business holds (e.g. "Current A/c —
+    ICICI"). Entries logged with PaymentMode.BANK can optionally be tagged
+    to one of these, purely as an attribution/reporting layer — it doesn't
+    change the overall cash/bank totals computed from payment_mode
+    elsewhere, it just lets each account's own opening/closing balance be
+    tracked, the same way Vendor/Partner track their own opening_balance."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=150, help_text='e.g. "Current Account" or "Salary Account"')
+    bank_name = models.CharField(max_length=20, choices=BankChoices.choices, default=BankChoices.OTHER)
+    other_bank_name = models.CharField(
+        max_length=100, blank=True, help_text="Name of the bank, if not listed above"
+    )
+    account_number = models.CharField(max_length=50, blank=True, help_text="Optional — full number or last 4 digits")
+    opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    opening_balance_as_on = models.DateField(default=datetime.date.today)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["name"], name="finance_bankaccount_name_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.display_bank})"
+
+    @property
+    def display_bank(self) -> str:
+        if self.bank_name == BankChoices.OTHER:
+            return self.other_bank_name or "Other"
+        return self.get_bank_name_display()
+
+
 class SalesEntry(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     date = models.DateField(db_index=True)
@@ -145,6 +196,9 @@ class SalesEntry(models.Model):
     quantity = models.PositiveIntegerField(null=True, blank=True)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     payment_mode = models.CharField(max_length=10, choices=PaymentMode.choices, default=PaymentMode.CASH)
+    bank_account = models.ForeignKey(
+        BankAccount, on_delete=models.SET_NULL, null=True, blank=True, related_name="sales_entries"
+    )
     note = models.CharField(max_length=255, blank=True)
     created_by_email = models.CharField(max_length=254, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -168,6 +222,9 @@ class ExpenseEntry(models.Model):
     )
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     payment_mode = models.CharField(max_length=10, choices=PaymentMode.choices, default=PaymentMode.CASH)
+    bank_account = models.ForeignKey(
+        BankAccount, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_entries"
+    )
     note = models.CharField(max_length=255, blank=True)
     created_by_email = models.CharField(max_length=254, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -197,6 +254,9 @@ class PurchaseEntry(models.Model):
     quantity = models.PositiveIntegerField(null=True, blank=True)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     payment_mode = models.CharField(max_length=10, choices=PaymentMode.choices, default=PaymentMode.CASH)
+    bank_account = models.ForeignKey(
+        BankAccount, on_delete=models.SET_NULL, null=True, blank=True, related_name="purchase_entries"
+    )
     note = models.CharField(max_length=255, blank=True)
     created_by_email = models.CharField(max_length=254, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -311,6 +371,10 @@ class CashTransfer(models.Model):
     date = models.DateField(db_index=True)
     direction = models.CharField(max_length=20, choices=Direction.choices)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
+    bank_account = models.ForeignKey(
+        BankAccount, on_delete=models.SET_NULL, null=True, blank=True, related_name="transfers",
+        help_text="Which bank account this deposit/withdrawal moved to or from (optional)",
+    )
     note = models.CharField(max_length=255, blank=True)
     created_by_email = models.CharField(max_length=254, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -364,6 +428,9 @@ class PartnerTransaction(models.Model):
     kind = models.CharField(max_length=10, choices=Kind.choices)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     payment_mode = models.CharField(max_length=10, choices=PaymentMode.choices, default=PaymentMode.CASH)
+    bank_account = models.ForeignKey(
+        BankAccount, on_delete=models.SET_NULL, null=True, blank=True, related_name="partner_transactions"
+    )
     note = models.CharField(max_length=255, blank=True)
     created_by_email = models.CharField(max_length=254, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

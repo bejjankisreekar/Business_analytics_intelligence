@@ -1,0 +1,195 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Monthly Summary · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<style>
+  #granularity-select + .bai-select-trigger { min-width: 8rem; }
+  #period-select + .bai-select-trigger { min-width: 11rem; }
+  .ms-table-wrap { overflow-x: auto; }
+  .ms-table { border-collapse: separate; border-spacing: 0; white-space: nowrap; }
+  .ms-table th, .ms-table td { padding: 0.55rem 0.9rem; font-size: 0.83rem; }
+  .ms-table thead th {
+    position: sticky; z-index: 1;
+    background: #0c0e14; color: #9aa4bd; font-weight: 600;
+    text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.03em;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .ms-table thead tr:first-child th { top: 0; }
+  .ms-table thead tr:last-child th { top: 2.1rem; }
+  .ms-table th.ms-subhead { font-size: 0.62rem; font-weight: 600; color: #626b83; padding: 0.3rem 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .ms-table td, .ms-table th { text-align: right; }
+  .ms-table td.ms-name, .ms-table th.ms-name {
+    text-align: left; position: sticky; left: 0; z-index: 2;
+    background: #10131c; box-shadow: 1px 0 0 0 rgba(255,255,255,0.08);
+  }
+  .ms-table thead th.ms-name { z-index: 3; background: #0c0e14; }
+  .ms-table tbody tr:nth-child(even) td.ms-name { background: #0e1119; }
+  .ms-table tbody tr:hover td { background: rgba(91,124,250,0.06); }
+  /* Opaque, not rgba: the name column is sticky, so a translucent hover
+     color here would let the data column scrolled underneath it show
+     through — this must fully mask it, not tint it. */
+  .ms-table tbody tr:hover td.ms-name { background: #1c2338; }
+  .ms-table tbody td { color: #cbd5e1; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .ms-table tbody td.ms-name { color: #e2e8f0; font-weight: 500; }
+  .ms-table tbody td.ms-total, .ms-table thead th.ms-total { color: #fff; font-weight: 600; }
+  .ms-table td.ms-period-start, .ms-table th.ms-period-start { border-left: 1px solid rgba(255,255,255,0.07); }
+  .ms-table td.ms-change { font-size: 0.72rem; font-weight: 600; background: rgba(255,255,255,0.012); }
+  .ms-table tfoot td {
+    border-top: 2px solid rgba(255,255,255,0.15); font-weight: 700; color: #fff;
+    background: #10131c;
+  }
+  .ms-table tfoot td.ms-name { position: sticky; left: 0; background: #10131c; }
+  .ms-table tfoot td.ms-change { font-weight: 600; }
+  .report-tab { padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500; color: #6b7488; border-bottom: 2px solid transparent; }
+  .report-tab--active { color: #fff; border-color: #5b7cfa; }
+  .ms-toggle { display: inline-flex; align-items: center; gap: 0.15rem; border-radius: 0.55rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); padding: 0.2rem; }
+</style>
+
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Monthly Summary</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · {{ kind_label }} by category · {{ period.label }}</p>
+  </div>
+  <form method="get" id="ms-filter-form" class="flex flex-wrap items-end gap-2">
+    <input type="hidden" name="kind" value="{{ kind }}">
+    <div>
+      <label for="granularity-select" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">View by</label>
+      <select id="granularity-select" name="granularity" onchange="this.form.submit()" class="!mt-1 !w-auto">
+        {% for value, label in granularity_choices %}
+        <option value="{{ value }}" {% if granularity == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="period-select" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Range</label>
+      <select id="period-select" name="period" onchange="bai.msTogglePeriod(this.value !== 'custom'); this.form.submit()" class="!mt-1 !w-auto">
+        {% for value, label in period_choices %}
+        <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div id="ms-custom-range" class="flex items-end gap-2 {% if period.key != 'custom' %}hidden{% endif %}">
+      <div>
+        <label for="ms-from" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
+        <input id="ms-from" type="date" name="from" value="{{ period.start|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+      </div>
+      <div>
+        <label for="ms-to" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">To</label>
+        <input id="ms-to" type="date" name="to" value="{{ period.end|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+      </div>
+      <button type="submit" class="btn-primary">Apply</button>
+    </div>
+  </form>
+</div>
+<script>
+  window.bai = window.bai || {};
+  bai.msTogglePeriod = (hide) => {
+    document.getElementById("ms-custom-range").classList.toggle("hidden", hide);
+  };
+</script>
+
+<!-- Same-period-last-year comparison -->
+<div class="card mt-4 flex flex-wrap items-center gap-x-8 gap-y-3 p-5">
+  <div>
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">{{ period.label }}</p>
+    <p class="mt-1 text-xl font-bold text-white">{{ organization.currency }} {{ yoy.current_total|floatformat:2|intcomma }}</p>
+  </div>
+  <div class="hidden text-sm text-slate-600 sm:block">vs</div>
+  <div>
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">{{ yoy.prior_start|date:"d M Y" }} – {{ yoy.prior_end|date:"d M Y" }} (last year)</p>
+    <p class="mt-1 text-xl font-bold text-slate-300">{{ organization.currency }} {{ yoy.prior_total|floatformat:2|intcomma }}</p>
+  </div>
+  <div>
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Change</p>
+    {% if yoy.change_pct != None %}
+    <p class="mt-1 text-xl font-bold {% if yoy.change_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if yoy.change_pct >= 0 %}▲{% else %}▼{% endif %} {{ yoy.change_pct|floatformat:1 }}%</p>
+    {% else %}
+    <p class="mt-1 text-xl font-bold text-slate-500">—</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-0">
+  <div class="flex gap-2 overflow-x-auto whitespace-nowrap">
+    <a href="?kind=sales&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="report-tab {% if kind == 'sales' %}report-tab--active{% endif %}">Sales</a>
+    <a href="?kind=purchases&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="report-tab {% if kind == 'purchases' %}report-tab--active{% endif %}">Purchases</a>
+    <a href="?kind=expenses&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="report-tab {% if kind == 'expenses' %}report-tab--active{% endif %}">Expenses</a>
+  </div>
+  <div class="mb-2 flex flex-wrap items-center gap-3">
+    <div id="ms-display-toggle" class="ms-toggle">
+      <button type="button" data-mode="amount" onclick="bai.msSetDisplayMode('amount')" class="granularity-btn granularity-btn--active">Amount</button>
+      <button type="button" data-mode="row" onclick="bai.msSetDisplayMode('row')" class="granularity-btn">% of row</button>
+      <button type="button" data-mode="col" onclick="bai.msSetDisplayMode('col')" class="granularity-btn">% of column</button>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{% url 'finance:monthly_summary_excel' %}?kind={{ kind }}&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Export Excel</a>
+      <a href="{% url 'finance:monthly_summary_pdf' %}?kind={{ kind }}&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Export PDF</a>
+    </div>
+  </div>
+</div>
+
+{% if matrix.truncated %}
+<p class="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">This range has more columns than can be shown at once — showing the first {{ matrix.labels|length }} periods. Pick a shorter range or a coarser view to see the rest.</p>
+{% endif %}
+
+<div class="card mt-4 p-0">
+  <div class="ms-table-wrap">
+    <table class="ms-table w-full">
+      <thead>
+        <tr>
+          <th class="ms-name" rowspan="2">{{ kind_label }}</th>
+          {% for label in matrix.labels %}
+          <th colspan="2" class="ms-period-start">{{ label }}</th>
+          {% endfor %}
+          <th class="ms-total" rowspan="2">Total</th>
+        </tr>
+        <tr>
+          {% for label in matrix.labels %}
+          <th class="ms-subhead ms-period-start">Value</th>
+          <th class="ms-subhead">Δ%</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in matrix.rows %}
+        <tr>
+          <td class="ms-name">{{ row.name }}</td>
+          {% for cell in row.cells %}
+          <td class="ms-value ms-period-start" data-amount="{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}" data-row="{% if cell.row_share != None %}{{ cell.row_share|floatformat:1 }}%{% else %}—{% endif %}" data-col="{% if cell.col_share != None %}{{ cell.col_share|floatformat:1 }}%{% else %}—{% endif %}">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+          <td class="ms-change {% if cell.change == None %}text-slate-600{% elif cell.change >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if cell.change != None %}{% if cell.change >= 0 %}▲{% else %}▼{% endif %} {{ cell.change|floatformat:1 }}%{% else %}—{% endif %}</td>
+          {% endfor %}
+          <td class="ms-total">{{ row.total|floatformat:2|intcomma }}</td>
+        </tr>
+        {% empty %}
+        <tr><td class="ms-name text-slate-500" colspan="{{ matrix.labels|length|add:matrix.labels|length|add:2 }}">No {{ kind }} recorded for {{ period.label }}.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if matrix.rows %}
+      <tfoot>
+        <tr>
+          <td class="ms-name">Total</td>
+          {% for cell in matrix.column_cells %}
+          <td class="ms-value ms-period-start" data-amount="{{ cell.value|floatformat:2|intcomma }}" data-row="{% if cell.row_share != None %}{{ cell.row_share|floatformat:1 }}%{% else %}—{% endif %}" data-col="{% if cell.col_share != None %}{{ cell.col_share|floatformat:1 }}%{% else %}—{% endif %}">{{ cell.value|floatformat:2|intcomma }}</td>
+          <td class="ms-change {% if cell.change == None %}text-slate-500{% elif cell.change >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if cell.change != None %}{% if cell.change >= 0 %}▲{% else %}▼{% endif %} {{ cell.change|floatformat:1 }}%{% else %}—{% endif %}</td>
+          {% endfor %}
+          <td>{{ matrix.grand_total|floatformat:2|intcomma }}</td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+<p class="mt-3 text-xs text-slate-500">Amounts in {{ organization.currency }}. Δ% is the change from the previous column in the same row. "% of row"/"% of column" show each cell's share of its row's or column's total.</p>
+<script>
+  bai.msSetDisplayMode = (mode) => {
+    document.querySelectorAll("#ms-display-toggle button").forEach((btn) => {
+      btn.classList.toggle("granularity-btn--active", btn.dataset.mode === mode);
+    });
+    const key = mode === "row" ? "row" : mode === "col" ? "col" : "amount";
+    document.querySelectorAll(".ms-value").forEach((cell) => {
+      cell.textContent = cell.dataset[key];
+    });
+  };
+</script>
+{% endblock %}

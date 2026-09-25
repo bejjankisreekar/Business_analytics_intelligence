@@ -12,6 +12,7 @@
       <div><label class="block text-xs font-medium text-slate-400">Date</label>{{ transfer_form.date }}</div>
       <div><label class="block text-xs font-medium text-slate-400">Direction</label>{{ transfer_form.direction }}</div>
       <div><label class="block text-xs font-medium text-slate-400">Amount</label>{{ transfer_form.amount }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">{{ transfer_form.bank_account.label }}</label>{{ transfer_form.bank_account }}</div>
       <div><label class="block text-xs font-medium text-slate-400">Note</label>{{ transfer_form.note }}</div>
       <button type="submit" class="btn-primary w-full" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">Save transfer</button>
     </form>

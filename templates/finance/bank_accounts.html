@@ -1,0 +1,98 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Bank Accounts · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Bank Accounts</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · every bank account you hold — opening balance &amp; current closing balance</p>
+  </div>
+  <button onclick="bai.openModal('modal-bank-account')" class="btn-primary">+ Add Bank Account</button>
+</div>
+
+<div class="card mt-6 overflow-x-auto p-5">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Account</th>
+        <th class="pb-2 pr-4 font-medium">Bank</th>
+        <th class="pb-2 pr-4 font-medium">Account No.</th>
+        <th class="pb-2 pr-4 text-right font-medium">Opening Balance</th>
+        <th class="pb-2 pr-4 font-medium">As On</th>
+        <th class="pb-2 pr-4 text-right font-medium">Closing Balance</th>
+        <th class="pb-2 pr-4 font-medium">Status</th>
+        <th class="pb-2 text-right font-medium"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for row in bank_account_rows %}
+      {% with a=row.account %}
+      <tr>
+        <td class="py-2.5 pr-4 {% if not a.is_active %}text-slate-600 line-through{% else %}text-slate-200{% endif %}">
+          <a href="{% url 'finance:bank_account_ledger' a.pk %}" class="hover:text-brand-300">{{ a.name }}</a>
+        </td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ a.display_bank }}</td>
+        <td class="py-2.5 pr-4 text-slate-500">{{ a.account_number|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-300">{{ organization.currency }} {{ a.opening_balance|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ a.opening_balance_as_on|date:"d M Y" }}</td>
+        <td class="py-2.5 pr-4 text-right font-medium {% if row.balance < 0 %}text-red-400{% else %}text-mint-400{% endif %}">{{ organization.currency }} {{ row.balance|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4">
+          <span class="rounded-full px-2 py-0.5 text-[11px] font-medium {% if a.is_active %}bg-mint-500/10 text-mint-400{% else %}bg-white/5 text-slate-500{% endif %}">
+            {% if a.is_active %}Active{% else %}Inactive{% endif %}
+          </span>
+        </td>
+        <td class="py-2.5 text-right">
+          <div class="flex items-center justify-end gap-3">
+            <a href="{% url 'finance:bank_account_ledger' a.pk %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Ledger</a>
+            <a href="{% url 'finance:edit_bank_account' a.pk %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Edit</a>
+            <form method="post" action="{% url 'finance:toggle_bank_account' a.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="text-xs font-medium text-slate-500 hover:text-white">{% if a.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+            </form>
+            <form method="post" action="{% url 'finance:delete_bank_account' a.pk %}" onsubmit="return confirm('Delete this bank account? Past entries logged against it keep their amount but lose this attribution.');">
+              {% csrf_token %}
+              <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endwith %}
+      {% empty %}
+      <tr><td colspan="8" class="py-8 text-center text-slate-500">No bank accounts yet — add one above.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal: Add bank account -->
+<div id="modal-bank-account" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-bank-account')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Add a bank account</h3>
+      <button onclick="bai.closeModal('modal-bank-account')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p class="mt-1 text-xs text-slate-500">Once added, this account shows up as a choice wherever you log something paid "Via Bank".</p>
+    <form method="post" action="{% url 'finance:add_bank_account' %}" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <div><label class="block text-xs font-medium text-slate-400">{{ bank_account_form.name.label }}</label>{{ bank_account_form.name }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">{{ bank_account_form.bank_name.label }}</label>{{ bank_account_form.bank_name }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">{{ bank_account_form.other_bank_name.label }}</label>{{ bank_account_form.other_bank_name }}</div>
+      <div><label class="block text-xs font-medium text-slate-400">{{ bank_account_form.account_number.label }}</label>{{ bank_account_form.account_number }}</div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div><label class="block text-xs font-medium text-slate-400">{{ bank_account_form.opening_balance.label }}</label>{{ bank_account_form.opening_balance }}</div>
+        <div><label class="block text-xs font-medium text-slate-400">{{ bank_account_form.opening_balance_as_on.label }}</label>{{ bank_account_form.opening_balance_as_on }}</div>
+      </div>
+      <button type="submit" class="btn-primary w-full">Save bank account</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+</script>
+{% endblock %}

@@ -15,6 +15,7 @@ from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from .models import (
+    BankAccount,
     CashTransfer,
     Category,
     ExpenseEntry,
@@ -258,6 +259,163 @@ def category_breakdown(model, start: datetime.date, end: datetime.date, field: s
     lookup = f"{field}__name"
     rows = qs.values(lookup).annotate(total=Sum("amount")).order_by("-total")
     return [{"name": row[lookup] or "Uncategorized", "amount": row["total"]} for row in rows]
+
+
+MATRIX_MAX_PERIODS = 400
+
+
+def _matrix_bucket_key(d: datetime.date, granularity: str) -> datetime.date:
+    """The first day of the bucket `d` falls into, for a given granularity."""
+    if granularity == "daily":
+        return d
+    if granularity == "weekly":
+        return d - datetime.timedelta(days=d.weekday())
+    if granularity == "quarterly":
+        q_start_month = ((d.month - 1) // 3) * 3 + 1
+        return datetime.date(d.year, q_start_month, 1)
+    if granularity == "yearly":
+        return datetime.date(d.year, 1, 1)
+    return d.replace(day=1)
+
+
+def _matrix_next_bucket(d: datetime.date, granularity: str) -> datetime.date:
+    """The bucket start immediately after `d` (itself a bucket start)."""
+    if granularity == "daily":
+        return d + datetime.timedelta(days=1)
+    if granularity == "weekly":
+        return d + datetime.timedelta(weeks=1)
+    months_ahead = {"quarterly": 3, "yearly": 12}.get(granularity, 1)
+    month_index = d.month - 1 + months_ahead
+    return datetime.date(d.year + month_index // 12, month_index % 12 + 1, 1)
+
+
+def _matrix_bucket_label(d: datetime.date, granularity: str) -> str:
+    if granularity == "daily":
+        return d.strftime("%d %b %Y")
+    if granularity == "weekly":
+        return week_label(d)
+    if granularity == "quarterly":
+        return f"Q{(d.month - 1) // 3 + 1} {d.year}"
+    if granularity == "yearly":
+        return str(d.year)
+    return d.strftime("%b %Y")
+
+
+def _pct_change(prev, curr):
+    """None when there's no meaningful baseline (previous period had
+    nothing recorded) — showing 'infinite' growth reads as a bug, not an
+    insight."""
+    if not prev:
+        return None
+    return float((curr - prev) / prev * 100)
+
+
+def _share(value, denom):
+    if not denom:
+        return None
+    return float(value / denom * 100)
+
+
+def _matrix_cells(values: list) -> list[dict]:
+    """One dict per period: the raw amount plus its % change from the
+    period immediately before it in the same row (None for the first
+    column, or when the prior period was zero)."""
+    cells = []
+    prev = None
+    for v in values:
+        cells.append({"value": v, "change": _pct_change(prev, v) if prev is not None else None})
+        prev = v
+    return cells
+
+
+def category_period_matrix(model, field: str, start: datetime.date, end: datetime.date, granularity: str = "monthly") -> dict:
+    """Category-by-period spreadsheet for an arbitrary date range — every
+    category with activity in range down the side, one column per
+    day/week/month/quarter/year across the top. Backs the Monthly Summary
+    report's Sales/Purchases/Expenses tabs. Column count is capped (a huge
+    custom range at daily granularity would otherwise blow up the table);
+    `truncated` tells the view whether the range was cut short.
+
+    Each cell carries its raw amount, its % change from the previous
+    period in the same row, and its share of that row's total and of its
+    column's total — the row/column-% toggle and the period-over-period
+    change columns on the report are just different views of these same
+    numbers, computed once here."""
+    if start > end:
+        start, end = end, start
+
+    end_key = _matrix_bucket_key(end, granularity)
+    buckets = []
+    cur = _matrix_bucket_key(start, granularity)
+    while cur <= end_key and len(buckets) < MATRIX_MAX_PERIODS:
+        buckets.append(cur)
+        cur = _matrix_next_bucket(cur, granularity)
+    truncated = cur <= end_key
+
+    bucket_index = {b: i for i, b in enumerate(buckets)}
+    lookup = f"{field}__name"
+    by_name: dict[str, list] = {}
+    rows_qs = (
+        model.objects.filter(date__gte=start, date__lte=end)
+        .values(lookup, "date")
+        .annotate(total=Sum("amount"))
+    )
+    for row in rows_qs:
+        i = bucket_index.get(_matrix_bucket_key(row["date"], granularity))
+        if i is None:
+            continue
+        name = row[lookup] or "Uncategorized"
+        by_name.setdefault(name, [ZERO] * len(buckets))[i] += row["total"]
+
+    rows = [{"name": name, "values": values, "total": sum(values)} for name, values in by_name.items()]
+    rows.sort(key=lambda r: -r["total"])
+
+    column_totals = [sum(r["values"][i] for r in rows) for i in range(len(buckets))]
+    grand_total = sum(column_totals)
+
+    for r in rows:
+        r["cells"] = _matrix_cells(r["values"])
+        for i, cell in enumerate(r["cells"]):
+            cell["row_share"] = _share(cell["value"], r["total"])
+            cell["col_share"] = _share(cell["value"], column_totals[i])
+        del r["values"]
+
+    column_cells = _matrix_cells(column_totals)
+    for i, cell in enumerate(column_cells):
+        cell["row_share"] = _share(cell["value"], grand_total)
+        cell["col_share"] = _share(cell["value"], column_totals[i])
+
+    labels = [_matrix_bucket_label(b, granularity) for b in buckets]
+    return {
+        "labels": labels,
+        "rows": rows,
+        "column_cells": column_cells,
+        "grand_total": grand_total,
+        "truncated": truncated,
+    }
+
+
+def _shift_years(d: datetime.date, years: int) -> datetime.date:
+    try:
+        return d.replace(year=d.year + years)
+    except ValueError:
+        # 29 Feb falling on a non-leap year one year over/back.
+        return d.replace(month=2, day=28, year=d.year + years)
+
+
+def year_over_year_comparison(model, start: datetime.date, end: datetime.date) -> dict:
+    """This exact date range's total vs the same range one year earlier —
+    the side-by-side grand-total comparison on the Monthly Summary report."""
+    prior_start, prior_end = _shift_years(start, -1), _shift_years(end, -1)
+    current_total = _sum(model.objects.filter(date__gte=start, date__lte=end))
+    prior_total = _sum(model.objects.filter(date__gte=prior_start, date__lte=prior_end))
+    return {
+        "current_total": current_total,
+        "prior_total": prior_total,
+        "prior_start": prior_start,
+        "prior_end": prior_end,
+        "change_pct": _pct_change(prior_total, current_total),
+    }
 
 
 def cost_tree(model, start: datetime.date, end: datetime.date, category_field: str = "category") -> list[dict]:
@@ -1345,6 +1503,126 @@ def account_ledger_entries(account: str) -> list[dict]:
         if t.direction == in_direction:
             rows.append({"source": {"kind": "transfer", "pk": t.pk}, "date": t.date, "created_at": t.created_at, "particular": label, "debit": t.amount, "credit": ZERO})
         elif t.direction == out_direction:
+            rows.append({"source": {"kind": "transfer", "pk": t.pk}, "date": t.date, "created_at": t.created_at, "particular": label, "debit": ZERO, "credit": t.amount})
+
+    rows.sort(key=lambda row: (row["date"], row["created_at"]))
+
+    balance = ZERO
+    for row in rows:
+        balance += row["debit"] - row["credit"]
+        row["balance"] = balance
+    return rows
+
+
+def bank_account_balance_as_of(account: BankAccount, as_of: datetime.date) -> Decimal:
+    """One bank account's own closing balance: its opening balance plus
+    every sale/partner-investment tagged to it (in) minus every expense/
+    purchase/partner-withdrawal tagged to it (out), plus/minus any
+    CashTransfer that named it. Purely an attribution layer on top of the
+    payment_mode-based cash/bank split — entries never tagged to any
+    account (payment_mode=BANK but no bank_account picked) aren't counted
+    here, so this never double-counts against cash_and_bank_as_of."""
+    if as_of < account.opening_balance_as_on:
+        return account.opening_balance
+
+    start = account.opening_balance_as_on
+
+    def by_account(model, extra=None):
+        qs = model.objects.filter(bank_account=account, date__gte=start, date__lte=as_of)
+        if extra:
+            qs = qs.filter(**extra)
+        return _sum(qs)
+
+    money_in = (
+        by_account(SalesEntry)
+        + by_account(PartnerTransaction, {"kind": PartnerTransaction.Kind.INVESTMENT})
+    )
+    money_out = (
+        by_account(ExpenseEntry)
+        + by_account(PurchaseEntry)
+        + by_account(PartnerTransaction, {"kind": PartnerTransaction.Kind.WITHDRAWAL})
+    )
+    transfers = CashTransfer.objects.filter(bank_account=account, date__gte=start, date__lte=as_of)
+    to_this = _sum(transfers.filter(direction=CashTransfer.Direction.CASH_TO_BANK))
+    from_this = _sum(transfers.filter(direction=CashTransfer.Direction.BANK_TO_CASH))
+
+    return account.opening_balance + money_in - money_out + to_this - from_this
+
+
+def bank_account_rows(as_of: datetime.date | None = None) -> list[dict]:
+    """Every bank account with its computed closing balance, for the Bank
+    Accounts directory page."""
+    as_of = as_of or datetime.date.today()
+    return [
+        {"account": a, "balance": bank_account_balance_as_of(a, as_of)}
+        for a in BankAccount.objects.all()
+    ]
+
+
+def bank_account_ledger_entries(account: BankAccount) -> list[dict]:
+    """One bank account's own running-balance ledger: its opening balance,
+    every sale/expense/purchase/partner transaction tagged to it, and every
+    CashTransfer that named it — mirrors account_ledger_entries, but scoped
+    to a specific BankAccount instead of the whole PaymentMode.BANK pool."""
+    rows = [{
+        "source": {"kind": "opening"},
+        "date": account.opening_balance_as_on,
+        "created_at": datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc),
+        "particular": "Opening balance",
+        "debit": account.opening_balance if account.opening_balance >= 0 else ZERO,
+        "credit": -account.opening_balance if account.opening_balance < 0 else ZERO,
+    }]
+
+    for s in SalesEntry.objects.filter(
+        bank_account=account, date__gte=account.opening_balance_as_on
+    ).select_related("channel", "subcategory"):
+        rows.append({
+            "source": {"kind": "sale", "pk": s.pk},
+            "date": s.date,
+            "created_at": s.created_at,
+            "particular": s.note or (s.channel.name if s.channel else "Revenue"),
+            "debit": s.amount,
+            "credit": ZERO,
+        })
+
+    for e in ExpenseEntry.objects.filter(
+        bank_account=account, date__gte=account.opening_balance_as_on
+    ).select_related("category", "subcategory"):
+        rows.append({
+            "source": {"kind": "expense", "pk": e.pk},
+            "date": e.date,
+            "created_at": e.created_at,
+            "particular": e.note or (e.category.name if e.category else "Expense"),
+            "debit": ZERO,
+            "credit": e.amount,
+        })
+
+    for pu in PurchaseEntry.objects.filter(
+        bank_account=account, date__gte=account.opening_balance_as_on
+    ).select_related("category", "subcategory"):
+        rows.append({
+            "source": {"kind": "purchase", "pk": pu.pk},
+            "date": pu.date,
+            "created_at": pu.created_at,
+            "particular": pu.note or (pu.category.name if pu.category else "Purchase"),
+            "debit": ZERO,
+            "credit": pu.amount,
+        })
+
+    for t in PartnerTransaction.objects.filter(
+        bank_account=account, date__gte=account.opening_balance_as_on
+    ).select_related("partner"):
+        label = t.note or f"{t.partner} — {t.get_kind_display()}"
+        if t.kind == PartnerTransaction.Kind.INVESTMENT:
+            rows.append({"source": {"kind": "partner_txn", "pk": t.pk}, "date": t.date, "created_at": t.created_at, "particular": label, "debit": t.amount, "credit": ZERO})
+        else:
+            rows.append({"source": {"kind": "partner_txn", "pk": t.pk}, "date": t.date, "created_at": t.created_at, "particular": label, "debit": ZERO, "credit": t.amount})
+
+    for t in CashTransfer.objects.filter(bank_account=account, date__gte=account.opening_balance_as_on):
+        label = t.note or t.get_direction_display()
+        if t.direction == CashTransfer.Direction.CASH_TO_BANK:
+            rows.append({"source": {"kind": "transfer", "pk": t.pk}, "date": t.date, "created_at": t.created_at, "particular": label, "debit": t.amount, "credit": ZERO})
+        else:
             rows.append({"source": {"kind": "transfer", "pk": t.pk}, "date": t.date, "created_at": t.created_at, "particular": label, "debit": ZERO, "credit": t.amount})
 
     rows.sort(key=lambda row: (row["date"], row["created_at"]))

@@ -1,7 +1,7 @@
 <html>
 <head>
 <style>
-  @page { size: A4; margin: 1.3cm 1.5cm; }
+  @page { size: {% block page_size %}A4{% endblock %}; margin: 1.3cm 1.5cm; }
   body { font-family: Helvetica, Arial, sans-serif; color: #1a2036; font-size: {{ font_px|default:9 }}px; }
   h1 { font-size: 17px; margin: 0 0 2px 0; letter-spacing: 0.5px; text-align: center; }
   .muted { color: #666; font-size: 8px; }

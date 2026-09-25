@@ -9,6 +9,8 @@ from apps.billing import services as billing_services
 from apps.billing.models import Invoice, Payment, Plan
 from apps.finance import services as finance_services
 from apps.finance.models import (
+    BankAccount,
+    BankChoices,
     CashTransfer,
     Category,
     Customer,
@@ -532,4 +534,185 @@ class CostTreeTests(TestCase):
         self.assertContains(resp, "Where the money goes")
         # Every chart embeds names via to_json: none may be able to close the <script> block.
         self.assertNotContains(resp, 'Salaries </script>')
-        self.assertContains(resp, r"Salaries \u003c/script\u003e")
+        self.assertContains(resp, "Salaries \\u003c/script\\u003e")
+
+
+class BankAccountTests(TestCase):
+    """Multiple named bank accounts (ICICI, HDFC, ...), each with its own
+    opening balance and a closing balance computed from whichever
+    sales/expenses/purchases/transfers were tagged to it -- purely an
+    attribution layer on top of the existing cash/bank split, so it must
+    never change cash_and_bank_as_of's totals."""
+
+    def setUp(self):
+        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+            org_data={"name": "Bank Account Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
+            admin_data={"email": "owner@bankaccounttest.example", "password": "ownerpass123"},
+        )
+        billing_services.start_trial(self.org, Plan.objects.get(slug="free"))
+        self.client_ = Client()
+        self.client_.force_login(self.owner)
+
+    def tearDown(self):
+        delete_organization_and_tenant(self.org)
+
+    def test_closing_balance_reflects_only_entries_tagged_to_that_account(self):
+        with schema_context(self.org.schema_name):
+            FinanceSettings.objects.update(
+                opening_balance=Decimal("0"), opening_bank_balance=Decimal("0"),
+                opening_date=datetime.date(2024, 4, 1),
+            )
+            icici = BankAccount.objects.create(
+                name="Current - ICICI", bank_name=BankChoices.ICICI,
+                opening_balance=Decimal("1000"), opening_balance_as_on=datetime.date(2024, 4, 1),
+            )
+            hdfc = BankAccount.objects.create(
+                name="Salary - HDFC", bank_name=BankChoices.HDFC,
+                opening_balance=Decimal("500"), opening_balance_as_on=datetime.date(2024, 4, 1),
+            )
+            SalesEntry.objects.create(
+                date=datetime.date(2024, 4, 5), amount=Decimal("2000"),
+                payment_mode=PaymentMode.BANK, bank_account=icici,
+            )
+            ExpenseEntry.objects.create(
+                date=datetime.date(2024, 4, 6), amount=Decimal("300"),
+                payment_mode=PaymentMode.BANK, bank_account=icici,
+            )
+            # Untagged BANK-mode entry -- counts in the overall bank total but
+            # not against any specific account.
+            ExpenseEntry.objects.create(date=datetime.date(2024, 4, 7), amount=Decimal("50"), payment_mode=PaymentMode.BANK)
+
+            as_of = datetime.date(2024, 4, 30)
+            self.assertEqual(finance_services.bank_account_balance_as_of(icici, as_of), Decimal("2700"))
+            self.assertEqual(finance_services.bank_account_balance_as_of(hdfc, as_of), Decimal("500"))
+
+            # The attribution layer must never change the totals cash_and_bank_as_of computes.
+            _, bank_total = finance_services.cash_and_bank_as_of(as_of)
+            self.assertEqual(bank_total, Decimal("2000") - Decimal("300") - Decimal("50"))
+
+    def test_bank_accounts_page_lists_accounts_with_closing_balance(self):
+        with schema_context(self.org.schema_name):
+            BankAccount.objects.create(
+                name="Current - ICICI", bank_name=BankChoices.ICICI, opening_balance=Decimal("1500"),
+            )
+        resp = self.client_.get("/app/bank-accounts/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Current - ICICI")
+        self.assertContains(resp, "ICICI Bank")
+        self.assertContains(resp, "1,500")
+
+    def test_add_bank_account_requires_other_bank_name_when_other_selected(self):
+        resp = self.client_.post("/app/bank-accounts/add/", {
+            "name": "Misc Account", "bank_name": BankChoices.OTHER, "other_bank_name": "",
+            "account_number": "", "opening_balance": "0", "opening_balance_as_on": "2024-04-01",
+        }, follow=True)
+        self.assertContains(resp, "Couldn")
+        with schema_context(self.org.schema_name):
+            self.assertFalse(BankAccount.objects.filter(name="Misc Account").exists())
+
+    def test_add_edit_toggle_delete_bank_account(self):
+        resp = self.client_.post("/app/bank-accounts/add/", {
+            "name": "Current - HDFC", "bank_name": BankChoices.HDFC, "other_bank_name": "",
+            "account_number": "1234", "opening_balance": "100", "opening_balance_as_on": "2024-04-01",
+        }, follow=True)
+        self.assertContains(resp, "Bank account added.")
+        with schema_context(self.org.schema_name):
+            account = BankAccount.objects.get(name="Current - HDFC")
+
+        resp = self.client_.post(f"/app/bank-accounts/{account.pk}/edit/", {
+            "name": "Current - HDFC", "bank_name": BankChoices.HDFC, "other_bank_name": "",
+            "account_number": "5678", "opening_balance": "150", "opening_balance_as_on": "2024-04-01",
+        }, follow=True)
+        self.assertContains(resp, "Bank account updated.")
+        with schema_context(self.org.schema_name):
+            account.refresh_from_db()
+            self.assertEqual(account.account_number, "5678")
+            self.assertEqual(account.opening_balance, Decimal("150"))
+
+        self.client_.post(f"/app/bank-accounts/{account.pk}/toggle/", follow=True)
+        with schema_context(self.org.schema_name):
+            account.refresh_from_db()
+            self.assertFalse(account.is_active)
+
+        resp = self.client_.get(f"/app/bank-accounts/{account.pk}/ledger/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Current - HDFC")
+
+        self.client_.post(f"/app/bank-accounts/{account.pk}/delete/", follow=True)
+        with schema_context(self.org.schema_name):
+            self.assertFalse(BankAccount.objects.filter(pk=account.pk).exists())
+
+    def test_bulk_sale_row_lets_a_bank_account_be_tagged(self):
+        with schema_context(self.org.schema_name):
+            icici = BankAccount.objects.create(name="Current - ICICI", bank_name=BankChoices.ICICI)
+        day = datetime.date.today()
+        resp = self.client_.post("/app/daily/bulk-sales/", {
+            "selected_date": day.isoformat(),
+            "sale-TOTAL_FORMS": "1", "sale-INITIAL_FORMS": "0",
+            "sale-MIN_NUM_FORMS": "0", "sale-MAX_NUM_FORMS": "1000",
+            "sale-0-date": day.isoformat(), "sale-0-amount": "500",
+            "sale-0-payment_mode": PaymentMode.BANK, "sale-0-bank_account": str(icici.pk),
+        }, follow=True)
+        self.assertContains(resp, "Logged 1 sale.")
+        with schema_context(self.org.schema_name):
+            entry = SalesEntry.objects.get(amount=Decimal("500"))
+            self.assertEqual(entry.bank_account_id, icici.pk)
+
+    def test_bank_account_is_dropped_when_via_is_cash(self):
+        """A stray bank_account on a Cash entry would silently count toward
+        that account's ledger even though the money never touched it
+        (bank_account_balance_as_of filters by bank_account alone, not
+        payment_mode) -- the form must clear it rather than save it."""
+        with schema_context(self.org.schema_name):
+            icici = BankAccount.objects.create(name="Current - ICICI", bank_name=BankChoices.ICICI)
+        day = datetime.date.today()
+        resp = self.client_.post("/app/daily/bulk-sales/", {
+            "selected_date": day.isoformat(),
+            "sale-TOTAL_FORMS": "1", "sale-INITIAL_FORMS": "0",
+            "sale-MIN_NUM_FORMS": "0", "sale-MAX_NUM_FORMS": "1000",
+            "sale-0-date": day.isoformat(), "sale-0-amount": "750",
+            "sale-0-payment_mode": PaymentMode.CASH, "sale-0-bank_account": str(icici.pk),
+        }, follow=True)
+        self.assertContains(resp, "Logged 1 sale.")
+        with schema_context(self.org.schema_name):
+            entry = SalesEntry.objects.get(amount=Decimal("750"))
+            self.assertIsNone(entry.bank_account_id)
+
+    def test_bulk_expense_and_purchase_rows_also_tag_and_drop_bank_account(self):
+        """Same bank_account attribution/clearing behaviour as the Revenue
+        bulk row, checked on the other two bulk-entry tables too."""
+        with schema_context(self.org.schema_name):
+            icici = BankAccount.objects.create(name="Current - ICICI", bank_name=BankChoices.ICICI)
+        day = datetime.date.today()
+
+        resp = self.client_.post("/app/daily/bulk-expenses/", {
+            "selected_date": day.isoformat(),
+            "expense-TOTAL_FORMS": "2", "expense-INITIAL_FORMS": "0",
+            "expense-MIN_NUM_FORMS": "0", "expense-MAX_NUM_FORMS": "1000",
+            "expense-0-date": day.isoformat(), "expense-0-amount": "200",
+            "expense-0-payment_mode": PaymentMode.BANK, "expense-0-bank_account": str(icici.pk),
+            "expense-1-date": day.isoformat(), "expense-1-amount": "300",
+            "expense-1-payment_mode": PaymentMode.CASH, "expense-1-bank_account": str(icici.pk),
+        }, follow=True)
+        self.assertContains(resp, "Logged 2 expenses.")
+        with schema_context(self.org.schema_name):
+            bank_expense = ExpenseEntry.objects.get(amount=Decimal("200"))
+            cash_expense = ExpenseEntry.objects.get(amount=Decimal("300"))
+            self.assertEqual(bank_expense.bank_account_id, icici.pk)
+            self.assertIsNone(cash_expense.bank_account_id)
+
+        resp = self.client_.post("/app/daily/bulk-purchases/", {
+            "selected_date": day.isoformat(),
+            "purchase-TOTAL_FORMS": "2", "purchase-INITIAL_FORMS": "0",
+            "purchase-MIN_NUM_FORMS": "0", "purchase-MAX_NUM_FORMS": "1000",
+            "purchase-0-date": day.isoformat(), "purchase-0-amount": "400",
+            "purchase-0-payment_mode": PaymentMode.BANK, "purchase-0-bank_account": str(icici.pk),
+            "purchase-1-date": day.isoformat(), "purchase-1-amount": "600",
+            "purchase-1-payment_mode": PaymentMode.CASH, "purchase-1-bank_account": str(icici.pk),
+        }, follow=True)
+        self.assertContains(resp, "Logged 2 purchases.")
+        with schema_context(self.org.schema_name):
+            bank_purchase = PurchaseEntry.objects.get(amount=Decimal("400"))
+            cash_purchase = PurchaseEntry.objects.get(amount=Decimal("600"))
+            self.assertEqual(bank_purchase.bank_account_id, icici.pk)
+            self.assertIsNone(cash_purchase.bank_account_id)
