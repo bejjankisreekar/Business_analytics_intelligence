@@ -46,6 +46,7 @@ from .forms import (
     ResetClientPasswordForm,
     ServiceActionForm,
     SubscriptionActionForm,
+    SubscriptionEditForm,
 )
 
 logger = logging.getLogger(__name__)
@@ -791,6 +792,95 @@ class CancelAutopayView(SuperAdminRequiredMixin, View):
         billing_services.cancel_autopay(org, using=env)
         messages.success(request, f"Autopay turned off for {org.name}.")
         return redirect("superadmin:service_control", env=env, pk=pk)
+
+
+class SubscriptionListView(SuperAdminRequiredMixin, TemplateView):
+    """Every org's current subscription in one place — plan, price/discount,
+    final amount, and autopay status/amount — instead of having to open each
+    org's own detail page to see or correct any of it."""
+
+    template_name = "superadmin/subscription_list.html"
+
+    def get_context_data(self, **kwargs):
+        env = kwargs["env"]
+        context = super().get_context_data(**kwargs)
+        context["env_key"] = env
+        context["env_label"] = _env_label_or_404(env)
+
+        qs = Subscription.objects.using(env).filter(is_current=True).select_related("organization", "plan")
+
+        q = self.request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(
+                Q(organization__name__icontains=q)
+                | Q(organization__organization_code__icontains=q)
+                | Q(subscription_id__icontains=q)
+            )
+
+        status = self.request.GET.get("status", "")
+        if status:
+            qs = qs.filter(status=status)
+
+        autopay = self.request.GET.get("autopay", "")
+        if autopay == "on":
+            qs = qs.filter(autopay_enabled=True)
+        elif autopay == "off":
+            qs = qs.filter(autopay_enabled=False)
+
+        context["subscriptions"] = qs.order_by("organization__name")
+        context["q"] = q
+        context["status"] = status
+        context["autopay"] = autopay
+        context["status_choices"] = Subscription.Status.choices
+        return context
+
+
+class SubscriptionEditView(SuperAdminRequiredMixin, View):
+    """Direct in-place correction of one subscription's plan/pricing/status
+    fields, including the autopay_amount override services.enable_autopay()
+    bills on Razorpay — see SubscriptionEditForm. Editing autopay_amount
+    after autopay is already on only takes effect the next time autopay is
+    (re-)enabled; it doesn't modify an already-authorized Razorpay mandate."""
+
+    template_name = "superadmin/subscription_form.html"
+
+    def _get(self, env, pk):
+        return get_object_or_404(
+            Subscription.objects.using(env).select_related("organization", "plan"), pk=pk
+        )
+
+    def _plan_prices_json(self, env):
+        """id -> {monthly, yearly} for every plan selectable in the form,
+        so the page's own JS can fill Price from the chosen plan/cycle
+        without a round-trip — see subscription_form.html."""
+        return json.dumps({
+            str(p.pk): {"monthly": str(p.monthly_price), "yearly": str(p.yearly_price)}
+            for p in Plan.objects.using(env).all()
+        })
+
+    def get(self, request, env, pk):
+        _env_label_or_404(env)
+        sub = self._get(env, pk)
+        form = SubscriptionEditForm(instance=sub, using=env)
+        return render(request, self.template_name, {
+            "form": form, "subscription": sub, "env_key": env, "env_label": ENVIRONMENTS[env],
+            "plan_prices_json": self._plan_prices_json(env),
+        })
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        sub = self._get(env, pk)
+        form = SubscriptionEditForm(request.POST, instance=sub, using=env)
+        if not form.is_valid():
+            messages.error(request, "Couldn't save this subscription — please check the form.")
+            return render(request, self.template_name, {
+                "form": form, "subscription": sub, "env_key": env, "env_label": ENVIRONMENTS[env],
+                "plan_prices_json": self._plan_prices_json(env),
+            })
+
+        form.save(commit=False).save(using=env)
+        messages.success(request, f"Updated {sub.organization.name}'s subscription.")
+        return redirect("superadmin:subscription_list", env=env)
 
 
 class CouponListView(SuperAdminRequiredMixin, TemplateView):

@@ -178,6 +178,14 @@ class Subscription(models.Model):
     razorpay_subscription_id = models.CharField(max_length=50, blank=True, editable=False)
     autopay_enabled = models.BooleanField(default=False)
 
+    # The amount Razorpay actually bills every autopay cycle — set directly
+    # by superadmin (service_control page), independent of price/discount/
+    # final_amount above. Blank falls back to final_amount, but final_amount
+    # is often 0 (e.g. a trial-priced record) or simply the wrong number for
+    # what this org should actually pay on autopay, so this is the one
+    # field services.enable_autopay() trusts when it's set.
+    autopay_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

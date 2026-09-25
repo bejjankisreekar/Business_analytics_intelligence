@@ -1,0 +1,153 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Invoice {{ invoice.invoice_number }} · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<a href="{% url 'finance:billing' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Billing</a>
+
+<div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Invoice {{ invoice.invoice_number }}</h1>
+    <p class="mt-1 text-sm text-slate-400">Issued {{ invoice.invoice_date|date:"d M Y" }}</p>
+  </div>
+  <span class="rounded-full px-3 py-1 text-xs font-medium
+    {% if invoice.status == "PAID" %}bg-mint-500/10 text-mint-400
+    {% elif invoice.status == "OVERDUE" %}bg-red-500/10 text-red-400
+    {% elif invoice.status == "PARTIALLY_PAID" or invoice.status == "ISSUED" %}bg-brand-500/10 text-brand-400
+    {% else %}bg-white/5 text-slate-400{% endif %}">{{ invoice.get_status_display }}</span>
+</div>
+
+<div class="card mt-6 p-6">
+  <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+    <div>
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Billed to</h2>
+      <p class="mt-2 text-sm font-medium text-white">{{ organization.name }}</p>
+      <p class="mt-1 text-xs text-slate-400">
+        {{ organization.address }}{% if organization.address %}<br>{% endif %}
+        {{ organization.city }}{% if organization.city and organization.state %}, {% endif %}{{ organization.state }}
+        {% if organization.city or organization.state %}<br>{% endif %}
+        {{ organization.country }}
+        {% if organization.tax_id %}<br>GST/Tax: {{ organization.tax_id }}{% endif %}
+      </p>
+    </div>
+    <div class="sm:text-right">
+      <dl class="space-y-1.5 text-sm">
+        <div class="flex justify-between gap-4 sm:justify-end"><dt class="text-slate-500">Invoice date</dt><dd class="font-medium text-slate-200">{{ invoice.invoice_date|date:"d M Y" }}</dd></div>
+        <div class="flex justify-between gap-4 sm:justify-end"><dt class="text-slate-500">Due date</dt><dd class="font-medium text-slate-200">{{ invoice.due_date|date:"d M Y" }}</dd></div>
+        {% if invoice.subscription %}
+        <div class="flex justify-between gap-4 sm:justify-end"><dt class="text-slate-500">Plan</dt><dd class="font-medium text-slate-200">{{ invoice.subscription.plan.name }}</dd></div>
+        <div class="flex justify-between gap-4 sm:justify-end"><dt class="text-slate-500">Billing cycle</dt><dd class="font-medium text-slate-200">{{ invoice.subscription.get_billing_cycle_display }}</dd></div>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  {% if invoice.subscription and invoice.subscription.start_date %}
+  <div class="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+    <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Billing period</p>
+    <p class="mt-1 text-sm text-slate-200">
+      This invoice covers
+      <span class="font-semibold text-white">{{ invoice.subscription.start_date|date:"d M Y" }}</span>
+      to
+      <span class="font-semibold text-white">{{ invoice.subscription.end_date|date:"d M Y"|default:"—" }}</span>
+    </p>
+  </div>
+  {% endif %}
+
+  <table class="mt-6 w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="border-b border-white/10 pb-2 font-medium">Description</th>
+        <th class="border-b border-white/10 pb-2 text-right font-medium">Amount</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      <tr>
+        <td class="py-2.5 text-slate-300">Subtotal{% if invoice.subscription %} — {{ invoice.subscription.plan.name }} ({{ invoice.subscription.get_billing_cycle_display }}){% endif %}</td>
+        <td class="py-2.5 text-right text-slate-200">{{ organization.currency }} {{ invoice.subtotal|floatformat:0|intcomma }}</td>
+      </tr>
+      <tr>
+        <td class="py-2.5 text-slate-300">
+          Discount
+          {% if invoice.coupon_redemption %}<span class="ml-1 rounded-full bg-mint-500/10 px-2 py-0.5 text-[11px] font-medium text-mint-400">{{ invoice.coupon_redemption.coupon.code }}</span>{% endif %}
+        </td>
+        <td class="py-2.5 text-right text-slate-200">-{{ organization.currency }} {{ invoice.discount|floatformat:0|intcomma }}</td>
+      </tr>
+      <tr>
+        <td class="py-2.5 text-slate-300">Tax</td>
+        <td class="py-2.5 text-right text-slate-200">{{ organization.currency }} {{ invoice.tax|floatformat:0|intcomma }}</td>
+      </tr>
+      <tr class="border-t-2 border-white/10">
+        <td class="py-2.5 font-semibold text-white">Total</td>
+        <td class="py-2.5 text-right font-semibold text-white">{{ organization.currency }} {{ invoice.total|floatformat:0|intcomma }}</td>
+      </tr>
+      <tr>
+        <td class="py-2.5 text-slate-300">Amount paid</td>
+        <td class="py-2.5 text-right text-slate-200">{{ organization.currency }} {{ invoice.amount_paid|floatformat:0|intcomma }}</td>
+      </tr>
+      <tr class="border-t-2 border-white/10">
+        <td class="py-2.5 font-semibold text-white">Amount due</td>
+        <td class="py-2.5 text-right font-semibold {% if invoice.amount_due > 0 %}text-red-400{% else %}text-white{% endif %}">{{ organization.currency }} {{ invoice.amount_due|floatformat:0|intcomma }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {% if invoice.amount_due > 0 and invoice.status != "CANCELLED" %}
+  <p class="mt-4 text-xs text-slate-500">To pay this invoice, use "Pay Now" on the <a href="{% url 'finance:billing' %}" class="font-medium text-brand-400 hover:text-brand-300">Billing page</a>.</p>
+  {% endif %}
+</div>
+
+{% if can_manage_coupon %}
+<div class="card mt-5 p-5">
+  <h2 class="text-sm font-semibold text-white">Coupon</h2>
+  {% if invoice.coupon_redemption %}
+  <p class="mt-1 text-xs text-slate-500">
+    Currently applied:
+    <span class="rounded-full bg-mint-500/10 px-2 py-0.5 text-[11px] font-medium text-mint-400">{{ invoice.coupon_redemption.coupon.code }}</span>
+    — {{ organization.currency }} {{ invoice.coupon_redemption.discount_amount|floatformat:0|intcomma }} off.
+  </p>
+  <form method="post" action="{% url 'finance:apply_coupon' invoice.pk %}" class="mt-3 flex flex-wrap items-center gap-2">
+    {% csrf_token %}
+    <input type="hidden" name="replace" value="1">
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <input type="text" name="code" placeholder="New code" class="!mt-0 !w-32 !py-1.5 !text-xs uppercase">
+    <button type="submit" class="whitespace-nowrap rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Replace coupon</button>
+  </form>
+  {% else %}
+  <p class="mt-1 text-xs text-slate-500">No coupon applied yet.</p>
+  <form method="post" action="{% url 'finance:apply_coupon' invoice.pk %}" class="mt-3 flex flex-wrap items-center gap-2">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <input type="text" name="code" placeholder="Coupon code" class="!mt-0 !w-32 !py-1.5 !text-xs uppercase">
+    <button type="submit" class="whitespace-nowrap rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Apply coupon</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card mt-5 overflow-x-auto p-5">
+  <h2 class="text-sm font-semibold text-white">Payments against this invoice</h2>
+  <table class="mt-3 w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Date</th>
+        <th class="pb-2 pr-4 font-medium">Amount</th>
+        <th class="pb-2 pr-4 font-medium">Method</th>
+        <th class="pb-2 font-medium">Status</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for p in payments %}
+      <tr>
+        <td class="py-2.5 pr-4 text-slate-300">{{ p.payment_date|date:"d M Y" }}</td>
+        <td class="py-2.5 pr-4 font-medium text-white">{{ organization.currency }} {{ p.amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ p.get_payment_method_display }}</td>
+        <td class="py-2.5 text-slate-400">{{ p.get_status_display }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="py-6 text-center text-slate-500">No payments recorded against this invoice yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

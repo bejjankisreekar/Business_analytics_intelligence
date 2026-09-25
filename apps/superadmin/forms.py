@@ -229,6 +229,47 @@ class SubscriptionActionForm(forms.Form):
         self.fields["auto_renewal"].widget.attrs.pop("class", None)
 
 
+class SubscriptionEditForm(forms.ModelForm):
+    """Direct in-place correction of the org's current subscription — same
+    "fix a wrong value" philosophy as EditKeyDatesForm, not a plan change/
+    renewal event (those go through SubscriptionActionForm, which
+    supersedes with a new history row instead). Lives on its own
+    Subscriptions page so price, discount and the autopay override are all
+    editable in one place instead of being scattered across org detail /
+    service control."""
+
+    price = forms.DecimalField(min_value=0)
+    discount = forms.DecimalField(min_value=0)
+    tax = forms.DecimalField(min_value=0)
+    autopay_amount = forms.DecimalField(required=False, min_value=0)
+
+    class Meta:
+        model = Subscription
+        fields = [
+            "plan", "billing_cycle", "status", "payment_status",
+            "price", "discount", "tax", "autopay_amount", "auto_renewal", "notes",
+        ]
+        widgets = {"notes": forms.Textarea(attrs={"rows": 2})}
+
+    def __init__(self, *args, using="default", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["plan"].queryset = Plan.objects.using(using)
+        self.fields["autopay_amount"].help_text = (
+            "What Razorpay bills every autopay cycle. Tracks the final amount above until you edit it directly."
+        )
+        _style(self.fields)
+        self.fields["auto_renewal"].widget.attrs.pop("class", None)
+        # Opt these out of the site-wide custom-dropdown enhancement
+        # (base.html's bai.enhanceSelects): its trigger button sizes itself
+        # to the selected option's own text ("Complementary" vs "Paid"),
+        # not to the grid column, so the four selects on this page visibly
+        # differ in width and resize on every selection. A plain <select>
+        # with width:100% (already set by _style's sa-input class) doesn't
+        # have that problem, so all four line up and stay put.
+        for name in ("plan", "billing_cycle", "status", "payment_status"):
+            self.fields[name].widget.attrs["data-plain"] = "true"
+
+
 class EditKeyDatesForm(forms.Form):
     """Direct superadmin correction of an org's backdating cutoff and the
     current subscription's trial/billing dates — edits the existing rows

@@ -14,6 +14,9 @@
 {% elif request.resolver_match.url_name == "payment_list" %}
   {% url 'superadmin:payment_list' 'dev' as dev_href %}
   {% url 'superadmin:payment_list' 'prod' as prod_href %}
+{% elif request.resolver_match.url_name in "subscription_list,subscription_edit" %}
+  {% url 'superadmin:subscription_list' 'dev' as dev_href %}
+  {% url 'superadmin:subscription_list' 'prod' as prod_href %}
 {% elif request.resolver_match.url_name in "org_list,org_detail,org_create,org_edit,financial_history" %}
   {% url 'superadmin:org_list' 'dev' as dev_href %}
   {% url 'superadmin:org_list' 'prod' as prod_href %}
@@ -67,6 +70,9 @@
         </a>
         <a href="{% url 'superadmin:plan_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "plan_list,plan_create,plan_edit" %}sa-nav-link--active{% endif %}">
           Plans
+        </a>
+        <a href="{% url 'superadmin:subscription_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "subscription_list,subscription_edit" %}sa-nav-link--active{% endif %}">
+          Subscriptions
         </a>
         <a href="{% url 'superadmin:coupon_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "coupon_list,coupon_create,coupon_edit" %}sa-nav-link--active{% endif %}">
           Coupons

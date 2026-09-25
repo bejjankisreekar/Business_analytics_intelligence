@@ -1,0 +1,137 @@
+{% extends "superadmin/_base.html" %}
+{% block title %}Edit {{ subscription.organization.name }}'s subscription{% endblock %}
+
+{% block sa_content %}
+<a href="{% url 'superadmin:subscription_list' env_key %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ env_label }} subscriptions</a>
+<h1 class="mt-4 text-xl font-bold text-slate-100">{{ subscription.organization.name }}</h1>
+<p class="mt-1 text-[11px] text-slate-600">Subscription {{ subscription.subscription_id }} — direct correction in place. For a plan change/renewal that should keep history, use "Change plan" on the org's own page instead.</p>
+
+{% if form.non_field_errors %}
+<div class="mt-4 rounded border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+  {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+</div>
+{% endif %}
+
+<form method="post" class="sa-card mt-6 max-w-2xl p-6">
+  {% csrf_token %}
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div>
+      <label class="sa-field-label" for="{{ form.plan.id_for_label }}">Plan</label>
+      {{ form.plan }}
+      {% for e in form.plan.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.billing_cycle.id_for_label }}">Billing cycle</label>
+      {{ form.billing_cycle }}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.status.id_for_label }}">Status</label>
+      {{ form.status }}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.payment_status.id_for_label }}">Payment status</label>
+      {{ form.payment_status }}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.price.id_for_label }}">Price (₹)</label>
+      {{ form.price }}
+      {% for e in form.price.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+      <p class="mt-1 text-[11px] text-slate-600">Auto-fills from the selected plan/cycle — edit it afterward for a custom price.</p>
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.discount.id_for_label }}">Discount (₹)</label>
+      {{ form.discount }}
+    </div>
+    <div>
+      <label class="sa-field-label" for="{{ form.tax.id_for_label }}">Tax (₹)</label>
+      {{ form.tax }}
+    </div>
+    <div>
+      <span class="sa-field-label">Final amount (auto-computed)</span>
+      <p class="sa-mono mt-2 text-sm font-semibold text-slate-100">₹<span id="final-amount-preview">{{ subscription.final_amount }}</span></p>
+      <p class="mt-1 text-[11px] text-slate-600">= Price − Discount + Tax. Updates live as you type; saved on submit.</p>
+    </div>
+  </div>
+
+  <div class="mt-6 rounded border border-brand-500/20 bg-brand-500/5 p-4">
+    <label class="sa-field-label" for="{{ form.autopay_amount.id_for_label }}">Autopay amount (₹)</label>
+    {{ form.autopay_amount }}
+    {% for e in form.autopay_amount.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    <p class="mt-1 text-[11px] text-slate-600">{{ form.autopay_amount.help_text }} Only takes effect the next time autopay is (re-)enabled — doesn't change an already-authorized Razorpay mandate.</p>
+  </div>
+
+  <div class="mt-6">
+    <label class="flex items-center gap-2 text-sm text-slate-300">
+      {{ form.auto_renewal }} Auto renewal
+    </label>
+  </div>
+
+  <div class="mt-4">
+    <label class="sa-field-label" for="{{ form.notes.id_for_label }}">Notes</label>
+    {{ form.notes }}
+  </div>
+
+  <div class="mt-6 flex gap-3">
+    <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Save changes</button>
+    <a href="{% url 'superadmin:subscription_list' env_key %}" class="sa-btn-ghost rounded px-4 py-2 text-xs font-semibold">Cancel</a>
+  </div>
+</form>
+
+<script>
+(function () {
+  // id -> {monthly, yearly} for every plan, so picking a plan/cycle here
+  // fills Price and Autopay amount without a round-trip. Mirrors
+  // Plan.monthly_price/yearly_price — the *list* price, not any per-org
+  // discount, since this is a starting point the admin can still edit
+  // afterward.
+  var PLAN_PRICES = {{ plan_prices_json|safe }};
+
+  var planSelect = document.getElementById("{{ form.plan.id_for_label }}");
+  var cycleSelect = document.getElementById("{{ form.billing_cycle.id_for_label }}");
+  var priceInput = document.getElementById("{{ form.price.id_for_label }}");
+  var discountInput = document.getElementById("{{ form.discount.id_for_label }}");
+  var taxInput = document.getElementById("{{ form.tax.id_for_label }}");
+  var autopayInput = document.getElementById("{{ form.autopay_amount.id_for_label }}");
+  var finalAmountOut = document.getElementById("final-amount-preview");
+
+  // Once the admin types into Autopay amount directly, it holds their
+  // override — price/discount/tax edits stop overwriting it. Pre-filled
+  // from a saved value (edit mode) counts as an override too, so loading
+  // this page never silently discards what was already set.
+  var autopayOverridden = autopayInput.value.trim() !== "";
+  autopayInput.addEventListener("input", function () { autopayOverridden = true; });
+
+  // Mirrors Subscription.save() in apps/billing/models.py: final_amount =
+  // price - discount + tax — and, unless overridden, Autopay amount tracks
+  // this too, since that's exactly what it falls back to (services.
+  // enable_autopay). Auto-filling it from the plan's raw price instead
+  // (ignoring discount/tax) was the bug: it drifted from what's actually
+  // billed the moment either field was non-zero.
+  function refreshFinalAmount() {
+    var price = parseFloat(priceInput.value) || 0;
+    var discount = parseFloat(discountInput.value) || 0;
+    var tax = parseFloat(taxInput.value) || 0;
+    var final = (price - discount + tax).toFixed(2);
+    finalAmountOut.textContent = final;
+    if (!autopayOverridden) autopayInput.value = final;
+  }
+
+  function fillPrice() {
+    var prices = PLAN_PRICES[planSelect.value];
+    if (!prices) return;
+    var amount = cycleSelect.value === "YEARLY" ? prices.yearly
+      : cycleSelect.value === "MONTHLY" ? prices.monthly
+      : null; // CUSTOM billing cycle has no plan-defined price — leave Price as-is.
+    if (amount === null) return;
+    priceInput.value = amount;
+    refreshFinalAmount();
+  }
+
+  planSelect.addEventListener("change", fillPrice);
+  cycleSelect.addEventListener("change", fillPrice);
+  [priceInput, discountInput, taxInput].forEach(function (el) {
+    el.addEventListener("input", refreshFinalAmount);
+  });
+})();
+</script>
+{% endblock %}

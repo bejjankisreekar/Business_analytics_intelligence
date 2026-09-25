@@ -45,7 +45,7 @@
       </div>
       {% endif %}
 
-      <form method="post" class="mt-8 space-y-5">
+      <form method="post" id="login-form" class="mt-8 space-y-5">
         {% csrf_token %}
         <div>
           <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-400">Email or username</label>
@@ -58,8 +58,9 @@
           </div>
           {{ form.password }}
         </div>
-        <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110">
-          Sign in
+        <button type="submit" id="login-submit" class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-80">
+          <svg id="login-spinner" class="hidden h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+          <span id="login-submit-label">Sign in</span>
         </button>
       </form>
 
@@ -90,6 +91,26 @@
       btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
     });
     wrap.appendChild(btn);
+  });
+
+  // Show a spinner and lock the button the moment Sign in is clicked, so
+  // there's visible feedback for however long the request takes — reset on
+  // "pageshow" too, since the back/forward cache can restore the page with
+  // the button still showing "Signing in…" from a previous, already-gone
+  // submission (e.g. the user hit back after a failed login elsewhere).
+  const loginForm = document.getElementById("login-form");
+  const loginSubmit = document.getElementById("login-submit");
+  const loginSpinner = document.getElementById("login-spinner");
+  const loginLabel = document.getElementById("login-submit-label");
+  loginForm.addEventListener("submit", () => {
+    loginSubmit.disabled = true;
+    loginSpinner.classList.remove("hidden");
+    loginLabel.textContent = "Signing in…";
+  });
+  window.addEventListener("pageshow", () => {
+    loginSubmit.disabled = false;
+    loginSpinner.classList.add("hidden");
+    loginLabel.textContent = "Sign in";
   });
 </script>
 {% endblock %}

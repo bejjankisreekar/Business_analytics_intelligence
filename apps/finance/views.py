@@ -289,6 +289,42 @@ class BillingView(TenantLoginRequiredMixin, TemplateView):
         return context
 
 
+class InvoiceDetailView(TenantLoginRequiredMixin, TemplateView):
+    """The org's own invoice-formatted view of one of its own invoices —
+    line items, the billing period it covers (its subscription's start/end
+    dates), payments made against it, and a coupon can be applied or
+    (unlike the Billing page's plain "Apply") replaced here. Reached via
+    "View invoice" on the Billing page.
+
+    allow_when_locked=True: same reasoning as BillingView — a lapsed org
+    must still be able to see the very invoice that's blocking them."""
+
+    template_name = "finance/invoice_detail.html"
+    allow_when_locked = True
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        org = self.request.user.organization
+        invoice = get_object_or_404(
+            Invoice.objects.select_related(
+                "coupon_redemption__coupon", "subscription", "subscription__plan"
+            ),
+            pk=kwargs["pk"],
+            organization_id=org.id,
+        )
+        context.update({
+            "active_nav": "billing",
+            "organization": org,
+            "invoice": invoice,
+            "payments": invoice.payments.order_by("-payment_date"),
+            "can_manage_coupon": (
+                invoice.status not in (Invoice.Status.PAID, Invoice.Status.CANCELLED)
+                and invoice.amount_paid == 0
+            ),
+        })
+        return context
+
+
 class CreateInvoicePaymentOrderView(TenantLoginRequiredMixin, View):
     """Creates a Razorpay Order for one of this org's own outstanding
     invoices and hands back just enough for the Checkout popup to open.
@@ -361,7 +397,11 @@ class ApplyCouponView(TenantLoginRequiredMixin, View):
     the amount CreateInvoicePaymentOrderView/Razorpay checkout reads is
     already reduced by the time the customer clicks Pay Now. Works even
     while locked out (allow_when_locked) — the whole point is letting a
-    lapsed org bring their reactivation invoice down before paying it."""
+    lapsed org bring their reactivation invoice down before paying it.
+
+    `replace=1` (only sent by the invoice detail page's "Replace coupon"
+    form) swaps out whatever coupon is already on the invoice instead of
+    rejecting the request — see services.redeem_coupon."""
 
     allow_when_locked = True
 
@@ -369,8 +409,11 @@ class ApplyCouponView(TenantLoginRequiredMixin, View):
         org = request.user.organization
         invoice = get_object_or_404(Invoice, pk=pk, organization_id=org.id)
         code = request.POST.get("code", "")
+        replace = request.POST.get("replace") == "1"
         try:
-            redemption = billing_services.redeem_coupon(organization=org, invoice=invoice, code=code)
+            redemption = billing_services.redeem_coupon(
+                organization=org, invoice=invoice, code=code, replace=replace
+            )
         except billing_services.CouponError as exc:
             messages.error(request, str(exc))
         else:
@@ -379,7 +422,7 @@ class ApplyCouponView(TenantLoginRequiredMixin, View):
                 f"Coupon {redemption.coupon.code} applied — {org.currency} {redemption.discount_amount} off "
                 f"invoice {invoice.invoice_number}.",
             )
-        return redirect("finance:billing")
+        return redirect(request.POST.get("next") or "finance:billing")
 
 
 class CreateAutopaySubscriptionView(TenantLoginRequiredMixin, View):

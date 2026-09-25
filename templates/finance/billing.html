@@ -71,7 +71,7 @@
       <button type="submit" class="rounded-lg border border-white/10 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Turn off autopay</button>
     </form>
     {% elif razorpay_configured %}
-    <button type="button" onclick="bai.enableAutopay(this)" class="btn-primary !px-4 !py-2 text-xs">Turn on autopay</button>
+    <button type="button" onclick="bai.autopayComingSoon()" class="btn-primary !px-4 !py-2 text-xs">Turn on autopay</button>
     {% endif %}
   </div>
 </div>
@@ -79,7 +79,9 @@
 
 <div class="card mt-5 overflow-x-auto p-5">
   <h2 class="text-sm font-semibold text-white">Invoices</h2>
+  {% if not razorpay_configured %}
   <p class="mt-1 text-[11px] text-slate-500">"QR Pay Now" (shown on invoices due for exactly {{ organization.currency }} {{ razorpay_payment_button_amount }}) opens a QR code to pay manually via UPI — it isn't linked to any invoice automatically, so we confirm those by hand afterward.</p>
+  {% endif %}
   <table class="mt-3 w-full text-left text-sm">
     <thead>
       <tr class="text-[11px] uppercase tracking-wide text-slate-500">
@@ -90,7 +92,7 @@
         <th class="pb-2 pr-4 font-medium">Due amount</th>
         <th class="pb-2 pr-4 font-medium">Status</th>
         <th class="pb-2 pr-4 font-medium">Coupon</th>
-        <th class="pb-2 text-right font-medium"></th>
+        <th class="pb-2 font-medium"></th>
       </tr>
     </thead>
     <tbody class="divide-y divide-white/5">
@@ -123,10 +125,17 @@
           <span class="text-xs text-slate-600">—</span>
           {% endif %}
         </td>
-        <td class="py-2.5 text-right">
-          {% if inv.amount_due > 0 and inv.status != "CANCELLED" and inv.amount_due == razorpay_payment_button_amount %}
-          <a href="{% static 'img/upi-qr.png' %}" target="_blank" rel="noopener" class="btn-primary !px-3 !py-1.5 text-xs" title="Scan this QR to pay {{ organization.currency }} {{ razorpay_payment_button_amount }} via UPI — not linked to this invoice automatically, we'll confirm it manually.">QR Pay Now</a>
-          {% endif %}
+        <td class="py-2.5 whitespace-nowrap">
+          <div class="flex items-center gap-2">
+            <a href="{% url 'finance:invoice_detail' inv.pk %}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">View invoice</a>
+            {% if inv.amount_due > 0 and inv.status != "CANCELLED" %}
+              {% if razorpay_configured %}
+              <button type="button" onclick="bai.payInvoice('{{ inv.pk }}', this)" class="btn-primary !px-3 !py-1.5 text-xs">Pay Now</button>
+              {% elif inv.amount_due == razorpay_payment_button_amount %}
+              <a href="{% static 'img/upi-qr.png' %}" target="_blank" rel="noopener" class="btn-primary !px-3 !py-1.5 text-xs" title="Scan this QR to pay {{ organization.currency }} {{ razorpay_payment_button_amount }} via UPI — not linked to this invoice automatically, we'll confirm it manually.">QR Pay Now</a>
+              {% endif %}
+            {% endif %}
+          </div>
         </td>
       </tr>
       {% empty %}
@@ -161,6 +170,17 @@
     </tbody>
   </table>
 </div>
+
+<div id="modal-autopay-soon" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-autopay-soon')">
+  <div class="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Autopay is coming soon</h3>
+      <button onclick="bai.closeModal('modal-autopay-soon')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p class="mt-2 text-sm text-slate-400">For now, please pay each invoice manually with Pay Now.</p>
+    <button onclick="bai.closeModal('modal-autopay-soon')" class="btn-primary mt-5 w-full !py-2 text-xs">Got it</button>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -168,6 +188,8 @@
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
   window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
 
   function baiCsrfToken() {
     // CSRF_COOKIE_HTTPONLY is on in this app, so the cookie itself isn't
@@ -238,6 +260,8 @@
       reset();
     }
   };
+
+  bai.autopayComingSoon = () => bai.openModal("modal-autopay-soon");
 
   bai.enableAutopay = async (btn) => {
     const originalLabel = btn.textContent;

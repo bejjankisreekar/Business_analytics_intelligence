@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
 from apps.accounts.models import User
@@ -84,7 +84,16 @@ def create_organization_with_tenant_schema_and_admin(*, org_data: dict, admin_da
             is_staff=False,
         )
         admin.set_password(admin_data["password"])
-        admin.save(using=using)
+        try:
+            admin.save(using=using)
+        except IntegrityError as exc:
+            # The signup form already checked email/username uniqueness, but
+            # that's a TOCTOU gap — someone else could take either between
+            # that check and this save (e.g. a near-simultaneous signup).
+            # Catch it here instead of letting a raw IntegrityError 500.
+            raise OrganizationSignupError(
+                "That email or username was just taken by someone else. Please go back and try again."
+            ) from exc
 
         return org, admin
 

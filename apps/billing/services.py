@@ -401,7 +401,9 @@ class CouponError(Exception):
 
 
 @transaction.atomic
-def redeem_coupon(*, organization, invoice: Invoice, code: str, using: str = "default") -> CouponRedemption:
+def redeem_coupon(
+    *, organization, invoice: Invoice, code: str, using: str = "default", replace: bool = False
+) -> CouponRedemption:
     """Apply a coupon code to one of this org's own outstanding invoices:
     validates the code, computes its discount off the invoice's subtotal,
     folds that into Invoice.discount (stacking with any manual discount
@@ -410,6 +412,12 @@ def redeem_coupon(*, organization, invoice: Invoice, code: str, using: str = "de
     and Razorpay checkout read, so no other code needs to know a coupon
     was involved. Raises CouponError with a customer-facing message on
     any failure; nothing is written unless redemption fully succeeds.
+
+    `replace=True` (the invoice detail page's "Replace coupon", not the
+    Billing page's plain "Apply") first reverts whatever coupon is already
+    on this invoice — subtracting its discount back out of Invoice.discount
+    and deleting its CouponRedemption — before applying the new code, so an
+    invoice only ever has one coupon's discount folded in at a time.
     """
     code = (code or "").strip().upper()
     if not code:
@@ -419,7 +427,9 @@ def redeem_coupon(*, organization, invoice: Invoice, code: str, using: str = "de
         raise CouponError("This invoice is already settled — a coupon can't be applied to it.")
     if invoice.amount_paid and invoice.amount_paid > 0:
         raise CouponError("A payment has already been made against this invoice, so a coupon can no longer be applied.")
-    if CouponRedemption.objects.using(using).filter(invoice=invoice).exists():
+
+    existing = CouponRedemption.objects.using(using).filter(invoice=invoice).first()
+    if existing and not replace:
         raise CouponError("A coupon has already been applied to this invoice.")
 
     coupon = Coupon.objects.using(using).filter(code=code).first()
@@ -429,9 +439,18 @@ def redeem_coupon(*, organization, invoice: Invoice, code: str, using: str = "de
         raise CouponError("That coupon isn't active or has expired.")
 
     if coupon.max_redemptions_per_org is not None:
-        already_used = CouponRedemption.objects.using(using).filter(coupon=coupon, organization=organization).count()
+        already_used = (
+            CouponRedemption.objects.using(using)
+            .filter(coupon=coupon, organization=organization)
+            .exclude(pk=existing.pk if existing else None)
+            .count()
+        )
         if already_used >= coupon.max_redemptions_per_org:
             raise CouponError("You've already used this coupon the maximum number of times.")
+
+    if existing:
+        invoice.discount = (invoice.discount or Decimal("0")) - existing.discount_amount
+        existing.delete(using=using)
 
     return _apply_coupon(coupon, organization, invoice, using=using)
 
@@ -489,26 +508,35 @@ class AutopayError(Exception):
     """Raised with a message safe to show the customer directly."""
 
 
-def get_or_create_razorpay_plan(plan: Plan, billing_cycle: str, *, using: str = "default") -> str:
-    """Razorpay's own Plan id for `plan`'s price at `billing_cycle`,
-    creating it on Razorpay (and caching the id on our Plan row) the first
-    time it's needed — Razorpay has no upsert, so this cache is what makes
-    repeated calls idempotent instead of spawning a new Plan every time."""
-    field = "razorpay_yearly_plan_id" if billing_cycle == Subscription.BillingCycle.YEARLY else "razorpay_monthly_plan_id"
-    existing = getattr(plan, field)
-    if existing:
-        return existing
-
-    amount = plan.yearly_price if billing_cycle == Subscription.BillingCycle.YEARLY else plan.monthly_price
+def get_or_create_razorpay_plan(plan: Plan, billing_cycle: str, amount: Decimal, *, using: str = "default") -> str:
+    """Razorpay's own Plan id to bill `amount` at `billing_cycle` — this is
+    the subscription's actual current price (Subscription.final_amount:
+    price minus any org-specific discount, plus tax), NOT necessarily
+    `plan`'s list price, since two orgs on the same Plan can be paying
+    different amounts. The cache on our Plan row (razorpay_monthly_plan_id/
+    razorpay_yearly_plan_id) — Razorpay has no upsert, so this is what makes
+    repeated calls idempotent instead of spawning a new Plan every time — is
+    only safe to reuse when `amount` matches the Plan's own list price; a
+    discounted subscription always gets its own (uncached) Razorpay Plan
+    instead, so its mandate reflects what it's actually paying."""
     if not amount:
-        raise AutopayError("This plan has no price set for autopay to bill against.")
-    period = "yearly" if billing_cycle == Subscription.BillingCycle.YEARLY else "monthly"
+        raise AutopayError("This subscription has no price set for autopay to bill against.")
 
+    field = "razorpay_yearly_plan_id" if billing_cycle == Subscription.BillingCycle.YEARLY else "razorpay_monthly_plan_id"
+    list_price = plan.yearly_price if billing_cycle == Subscription.BillingCycle.YEARLY else plan.monthly_price
+    at_list_price = amount == list_price
+    if at_list_price:
+        existing = getattr(plan, field)
+        if existing:
+            return existing
+
+    period = "yearly" if billing_cycle == Subscription.BillingCycle.YEARLY else "monthly"
     razorpay_plan = razorpay_client.create_plan(
         name=f"{plan.name} ({period})", amount=amount, currency="INR", period=period
     )
-    setattr(plan, field, razorpay_plan["id"])
-    plan.save(using=using, update_fields=[field, "updated_at"])
+    if at_list_price:
+        setattr(plan, field, razorpay_plan["id"])
+        plan.save(using=using, update_fields=[field, "updated_at"])
     return razorpay_plan["id"]
 
 
@@ -528,7 +556,8 @@ def enable_autopay(organization, *, using: str = "default") -> dict:
     if sub.autopay_enabled and sub.razorpay_subscription_id:
         raise AutopayError("Autopay is already on for this organization.")
 
-    razorpay_plan_id = get_or_create_razorpay_plan(sub.plan, sub.billing_cycle, using=using)
+    amount = sub.autopay_amount if sub.autopay_amount is not None else sub.final_amount
+    razorpay_plan_id = get_or_create_razorpay_plan(sub.plan, sub.billing_cycle, amount, using=using)
     razorpay_sub = razorpay_client.create_subscription(
         razorpay_plan_id=razorpay_plan_id,
         total_count=AUTOPAY_TOTAL_CYCLES,

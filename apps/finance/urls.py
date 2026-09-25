@@ -45,6 +45,7 @@ from .views import (
     EditVendorView,
     ExpenseCategoryTrendView,
     FinanceSettingsView,
+    InvoiceDetailView,
     LedgersView,
     PartnerLedgerView,
     PurchaseExpenseIntelligenceView,
@@ -69,6 +70,7 @@ app_name = "finance"
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
     path("billing/", BillingView.as_view(), name="billing"),
+    path("billing/invoices/<int:pk>/", InvoiceDetailView.as_view(), name="invoice_detail"),
     path(
         "billing/invoices/<int:pk>/pay/order/",
         CreateInvoicePaymentOrderView.as_view(),

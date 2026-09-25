@@ -49,7 +49,7 @@
       </div>
       {% endif %}
 
-      <form method="post" class="mt-8 space-y-6">
+      <form method="post" id="signup-form" class="mt-8 space-y-6">
         {% csrf_token %}
 
         <div>
@@ -117,8 +117,9 @@
           </div>
         </div>
 
-        <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110">
-          Create organization &amp; sign in
+        <button type="submit" id="signup-submit" class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-80">
+          <svg id="signup-spinner" class="hidden h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+          <span id="signup-submit-label">Create organization &amp; sign in</span>
         </button>
       </form>
 
@@ -226,6 +227,24 @@
 
   initCombobox("{{ form.business_type.id_for_label }}", "business-type-combobox", "business-type-search", "business-type-options");
   initCombobox("{{ form.size.id_for_label }}", "size-combobox", "size-search", "size-options");
+
+  // Signup provisions a whole tenant schema server-side, so this can take
+  // noticeably longer than a login — same spinner/lock/pageshow-reset
+  // pattern as the login page.
+  const signupForm = document.getElementById("signup-form");
+  const signupSubmit = document.getElementById("signup-submit");
+  const signupSpinner = document.getElementById("signup-spinner");
+  const signupLabel = document.getElementById("signup-submit-label");
+  signupForm.addEventListener("submit", () => {
+    signupSubmit.disabled = true;
+    signupSpinner.classList.remove("hidden");
+    signupLabel.textContent = "Creating your organization…";
+  });
+  window.addEventListener("pageshow", () => {
+    signupSubmit.disabled = false;
+    signupSpinner.classList.add("hidden");
+    signupLabel.textContent = "Create organization & sign in";
+  });
 </script>
 {% endblock %}
 
