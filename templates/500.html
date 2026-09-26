@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Something went wrong · Business Analytics Intelligence{% endblock %}
 
 {% block body %}
@@ -7,7 +8,7 @@
 
   <div class="relative mx-auto w-full max-w-lg text-center">
     <a href="/" class="inline-flex items-center gap-2.5">
-      <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-mint-500 text-sm font-extrabold text-white shadow-lg shadow-brand-600/30">BI</span>
+      <img src="{% static 'img/logo.png' %}" alt="" class="h-9 w-9 rounded-xl object-contain">
       <span class="text-[15px] font-semibold tracking-tight text-white">Business<span class="text-brand-400">Analytics</span>Intelligence</span>
     </a>
 

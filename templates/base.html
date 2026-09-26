@@ -36,7 +36,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="icon" href="data:,">
+<link rel="icon" href="{% static 'img/logo.png' %}" type="image/png">
 <style>
   body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
   .bg-grid {
@@ -95,6 +95,18 @@
   /* Long emails/URLs/IDs in label-value grids wrap instead of widening the page. */
   dl > div { min-width: 0; }
   dt, dd { overflow-wrap: anywhere; }
+
+  /* Themed scrollbars (page scroll and any overflow-x-auto table/panel)
+     instead of the browser's default light/basic bars, on both engines. */
+  * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.18) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(255,255,255,0.14);
+    border-radius: 999px; border: 2px solid transparent; background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.28); }
+  ::-webkit-scrollbar-corner { background: transparent; }
 </style>
 <script>
   // Keep the scroll position when a form re-loads the same page (period / category / date

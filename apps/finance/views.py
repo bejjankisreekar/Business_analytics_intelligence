@@ -1219,7 +1219,7 @@ class ReportsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
 
 
 MONTHLY_SUMMARY_KINDS = {
-    "sales": (SalesEntry, "channel", "Sales"),
+    "sales": (SalesEntry, "channel", "Revenue"),
     "purchases": (PurchaseEntry, "category", "Purchases"),
     "expenses": (ExpenseEntry, "category", "Expenses"),
 }
@@ -1262,7 +1262,73 @@ def _monthly_summary_query(request):
         "period": period,
         "matrix": matrix,
         "yoy": yoy,
+        # Whether subcategory rows should be expanded — carried as ?expand=1
+        # from the report page's "Expand all" toggle into the Excel/PDF
+        # export links, so what you see is what gets downloaded.
+        "expand_all": request.GET.get("expand") == "1",
     }
+
+
+class ReportLineDetailView(TenantLoginRequiredMixin, View):
+    """JSON list of the individual entries behind one Financial Reports
+    row — e.g. clicking "Salaries & Wages" or "Revenue" shows exactly
+    which transactions add up to that figure, instead of just the total.
+
+    `category` filters to one category/channel name ("__uncategorized__"
+    for entries with none); `gst_rate` filters to one GST rate instead
+    ("untaxed" for no category or a 0% rate). Omit both for the kind's
+    grand total (e.g. P&L's Revenue / Cost of Goods rows)."""
+
+    MAX_ENTRIES = 300
+
+    def get(self, request, *args, **kwargs):
+        kind = request.GET.get("kind", "sales")
+        if kind not in MONTHLY_SUMMARY_KINDS:
+            return JsonResponse({"error": "invalid kind"}, status=400)
+        try:
+            start = datetime.date.fromisoformat(request.GET.get("from", ""))
+            end = datetime.date.fromisoformat(request.GET.get("to", ""))
+        except ValueError:
+            return JsonResponse({"error": "from and to are required"}, status=400)
+
+        model, field, _ = MONTHLY_SUMMARY_KINDS[kind]
+        qs = model.objects.filter(date__gte=start, date__lte=end)
+
+        category = request.GET.get("category")
+        if category == "__uncategorized__":
+            qs = qs.filter(**{f"{field}__isnull": True})
+        elif category:
+            qs = qs.filter(**{f"{field}__name": category})
+
+        gst_rate = request.GET.get("gst_rate")
+        if gst_rate == "untaxed":
+            qs = qs.filter(Q(**{f"{field}__isnull": True}) | Q(**{f"{field}__gst_rate": 0}))
+        elif gst_rate == "taxed":
+            qs = qs.filter(**{f"{field}__isnull": False, f"{field}__gst_rate__gt": 0})
+        elif gst_rate:
+            qs = qs.filter(**{f"{field}__gst_rate": gst_rate})
+
+        qs = qs.select_related(field, "subcategory").order_by("-date", "-created_at")
+        total_count = qs.count()
+        total = qs.aggregate(t=Sum("amount"))["t"] or services.ZERO
+
+        entries = []
+        for e in qs[: self.MAX_ENTRIES]:
+            top = getattr(e, field)
+            entries.append({
+                "date": e.date.isoformat(),
+                "name": e.subcategory.name if e.subcategory_id else (top.name if top else "Uncategorized"),
+                "note": e.note,
+                "amount": e.amount,
+            })
+
+        payload = {
+            "total": total,
+            "count": total_count,
+            "truncated": total_count > self.MAX_ENTRIES,
+            "entries": entries,
+        }
+        return JsonResponse(json.loads(to_json(payload)))
 
 
 class MonthlySummaryView(TenantLoginRequiredMixin, TemplateView):
@@ -1298,6 +1364,7 @@ class MonthlySummaryExcelView(TenantLoginRequiredMixin, View):
 
         data = _monthly_summary_query(request)
         matrix, kind, kind_label, period = data["matrix"], data["kind"], data["kind_label"], data["period"]
+        expand_all = data["expand_all"]
 
         wb = Workbook()
         ws = wb.active
@@ -1309,8 +1376,16 @@ class MonthlySummaryExcelView(TenantLoginRequiredMixin, View):
             cell.font = Font(bold=True)
             cell.alignment = Alignment(horizontal="center")
 
+        subrow_font = Font(italic=True, color="666666")
         for row in matrix["rows"]:
             ws.append([row["name"]] + [cell["value"] for cell in row["cells"]] + [row["total"]])
+            if expand_all and row["has_subrows"]:
+                for subrow in row["subrows"]:
+                    ws.append([subrow["name"]] + [cell["value"] for cell in subrow["cells"]] + [subrow["total"]])
+                    name_cell = ws.cell(row=ws.max_row, column=1)
+                    name_cell.alignment = Alignment(indent=1)
+                    for cell in ws[ws.max_row]:
+                        cell.font = subrow_font
 
         ws.append(["Total"] + [cell["value"] for cell in matrix["column_cells"]] + [matrix["grand_total"]])
         for cell in ws[ws.max_row]:
@@ -1349,6 +1424,7 @@ class MonthlySummaryPdfView(TenantLoginRequiredMixin, View):
             "period": period,
             "matrix": data["matrix"],
             "yoy": data["yoy"],
+            "expand_all": data["expand_all"],
             "font_px": 7 if len(data["matrix"]["labels"]) > 8 else 9,
         }
         filename = f"monthly-summary-{data['kind']}-{period.start}-{period.end}.pdf"

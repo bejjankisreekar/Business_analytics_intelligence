@@ -5,6 +5,9 @@
 {% block app_content %}
 <style>
   #period-select + .bai-select-trigger { min-width: 12rem; }
+  .rpt-row { cursor: pointer; transition: background .12s; }
+  .rpt-row:hover { background: rgba(91,124,250,0.07); }
+  .rpt-row:hover td:first-child { color: #cbd5e1; }
 </style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
@@ -33,25 +36,25 @@
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-base font-semibold text-white">Profit &amp; Loss Statement</h2>
-        <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}</p>
+        <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }} · Amounts in {{ organization.currency }}</p>
       </div>
       <a href="{% url 'finance:pnl_pdf' %}?period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
     </div>
     <table class="mt-5 w-full text-sm">
       <tbody class="divide-y divide-white/5">
-        <tr><td class="py-2.5 text-slate-300">Revenue</td><td class="py-2.5 text-right font-medium text-white">{{ organization.currency }} {{ pnl.revenue|floatformat:2|intcomma }}</td></tr>
-        <tr><td class="py-2.5 text-slate-300">Cost of Goods / Purchases</td><td class="py-2.5 text-right font-medium text-red-400">({{ organization.currency }} {{ pnl.cogs|floatformat:2|intcomma }})</td></tr>
-        <tr class="border-t border-white/10"><td class="py-2.5 font-semibold text-white">Gross Profit</td><td class="py-2.5 text-right font-semibold text-white">{{ organization.currency }} {{ pnl.gross_profit|floatformat:2|intcomma }}</td></tr>
+        <tr class="rpt-row" onclick="bai.openLineDetail({kind:'sales', label:'Revenue'})"><td class="py-2.5 text-slate-300">Revenue</td><td class="py-2.5 text-right font-medium text-white">{{ pnl.revenue|floatformat:2|intcomma }}</td></tr>
+        <tr class="rpt-row" onclick="bai.openLineDetail({kind:'purchases', label:'Cost of Goods / Purchases'})"><td class="py-2.5 text-slate-300">Cost of Goods / Purchases</td><td class="py-2.5 text-right font-medium text-red-400">({{ pnl.cogs|floatformat:2|intcomma }})</td></tr>
+        <tr class="border-t border-white/10"><td class="py-2.5 font-semibold text-white">Gross Profit</td><td class="py-2.5 text-right font-semibold text-white">{{ pnl.gross_profit|floatformat:2|intcomma }}</td></tr>
 
         <tr><td colspan="2" class="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Operating expenses</td></tr>
         {% for row in pnl.opex_rows %}
-        <tr><td class="py-2 pl-4 text-slate-400">{{ row.name }}</td><td class="py-2 text-right text-slate-300">({{ organization.currency }} {{ row.amount|floatformat:2|intcomma }})</td></tr>
+        <tr class="rpt-row" onclick="bai.openLineDetail({kind:'expenses', category:'{{ row.name|escapejs }}', label:'{{ row.name|escapejs }}'})"><td class="py-2 pl-4 text-slate-400">{{ row.name }}</td><td class="py-2 text-right text-slate-300">({{ row.amount|floatformat:2|intcomma }})</td></tr>
         {% empty %}
         <tr><td class="py-2 pl-4 text-slate-500" colspan="2">No expenses recorded for this period.</td></tr>
         {% endfor %}
-        <tr class="border-t border-white/10"><td class="py-2.5 font-medium text-slate-300">Total operating expenses</td><td class="py-2.5 text-right font-medium text-red-400">({{ organization.currency }} {{ pnl.total_opex|floatformat:2|intcomma }})</td></tr>
+        <tr class="rpt-row border-t border-white/10" onclick="bai.openLineDetail({kind:'expenses', label:'Total operating expenses'})"><td class="py-2.5 font-medium text-slate-300">Total operating expenses</td><td class="py-2.5 text-right font-medium text-red-400">({{ pnl.total_opex|floatformat:2|intcomma }})</td></tr>
 
-        <tr class="border-t-2 border-white/20"><td class="py-3 text-base font-bold text-white">Net Profit</td><td class="py-3 text-right text-base font-bold {% if pnl.net_profit >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ pnl.net_profit|floatformat:2|intcomma }}</td></tr>
+        <tr class="border-t-2 border-white/20"><td class="py-3 text-base font-bold text-white">Net Profit</td><td class="py-3 text-right text-base font-bold {% if pnl.net_profit >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ pnl.net_profit|floatformat:2|intcomma }}</td></tr>
         <tr><td class="pb-1 text-xs text-slate-500">Net margin</td><td class="pb-1 text-right text-xs text-slate-500">{{ pnl.net_margin_pct|floatformat:1 }}%</td></tr>
       </tbody>
     </table>
@@ -77,7 +80,7 @@
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-base font-semibold text-white">Balance Sheet</h2>
-        <p class="text-xs text-slate-500">As of {{ balance_sheet.as_of|date:"d M Y" }} · simplified, cash-basis</p>
+        <p class="text-xs text-slate-500">As of {{ balance_sheet.as_of|date:"d M Y" }} · simplified, cash-basis · Amounts in {{ organization.currency }}</p>
       </div>
       <a href="{% url 'finance:balance_sheet_pdf' %}?period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
     </div>
@@ -86,9 +89,9 @@
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Assets</p>
         <table class="mt-2 w-full text-sm">
           <tbody class="divide-y divide-white/5">
-            <tr><td class="py-2 text-slate-300">Cash in hand</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ balance_sheet.cash|floatformat:2|intcomma }}</td></tr>
-            <tr><td class="py-2 text-slate-300">Bank balance</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ balance_sheet.bank|floatformat:2|intcomma }}</td></tr>
-            <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Assets</td><td class="py-2 text-right font-semibold text-white">{{ organization.currency }} {{ balance_sheet.total_assets|floatformat:2|intcomma }}</td></tr>
+            <tr><td class="py-2 text-slate-300">Cash in hand</td><td class="py-2 text-right text-white">{{ balance_sheet.cash|floatformat:2|intcomma }}</td></tr>
+            <tr><td class="py-2 text-slate-300">Bank balance</td><td class="py-2 text-right text-white">{{ balance_sheet.bank|floatformat:2|intcomma }}</td></tr>
+            <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Assets</td><td class="py-2 text-right font-semibold text-white">{{ balance_sheet.total_assets|floatformat:2|intcomma }}</td></tr>
           </tbody>
         </table>
       </div>
@@ -96,13 +99,13 @@
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Liabilities &amp; Equity</p>
         <table class="mt-2 w-full text-sm">
           <tbody class="divide-y divide-white/5">
-            <tr><td class="py-2 text-slate-300">Total Liabilities</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ balance_sheet.total_liabilities|floatformat:2|intcomma }}</td></tr>
-            <tr><td class="py-2 text-slate-300">Opening Capital</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ balance_sheet.opening_balance|floatformat:2|intcomma }}</td></tr>
-            <tr><td class="py-2 text-slate-300">Retained Earnings</td><td class="py-2 text-right {% if balance_sheet.retained_earnings >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ balance_sheet.retained_earnings|floatformat:2|intcomma }}</td></tr>
+            <tr><td class="py-2 text-slate-300">Total Liabilities</td><td class="py-2 text-right text-white">{{ balance_sheet.total_liabilities|floatformat:2|intcomma }}</td></tr>
+            <tr><td class="py-2 text-slate-300">Opening Capital</td><td class="py-2 text-right text-white">{{ balance_sheet.opening_balance|floatformat:2|intcomma }}</td></tr>
+            <tr><td class="py-2 text-slate-300">Retained Earnings</td><td class="py-2 text-right {% if balance_sheet.retained_earnings >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ balance_sheet.retained_earnings|floatformat:2|intcomma }}</td></tr>
             {% if balance_sheet.partner_capital %}
-            <tr><td class="py-2 text-slate-300">Partner Capital</td><td class="py-2 text-right {% if balance_sheet.partner_capital >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ balance_sheet.partner_capital|floatformat:2|intcomma }}</td></tr>
+            <tr><td class="py-2 text-slate-300">Partner Capital</td><td class="py-2 text-right {% if balance_sheet.partner_capital >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ balance_sheet.partner_capital|floatformat:2|intcomma }}</td></tr>
             {% endif %}
-            <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Equity</td><td class="py-2 text-right font-semibold text-white">{{ organization.currency }} {{ balance_sheet.total_equity|floatformat:2|intcomma }}</td></tr>
+            <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Equity</td><td class="py-2 text-right font-semibold text-white">{{ balance_sheet.total_equity|floatformat:2|intcomma }}</td></tr>
           </tbody>
         </table>
       </div>
@@ -124,22 +127,22 @@
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-base font-semibold text-white">Cash Flow Statement</h2>
-        <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }} · operating activities</p>
+        <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }} · operating activities · Amounts in {{ organization.currency }}</p>
       </div>
       <a href="{% url 'finance:cash_flow_pdf' %}?period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
     </div>
     <table class="mt-5 w-full text-sm">
       <tbody class="divide-y divide-white/5">
         <tr><td class="py-2.5 text-slate-400" colspan="2">Opening cash balance</td></tr>
-        <tr><td class="py-1 pl-4 text-slate-300">As of {{ period.start|date:"d M Y" }}</td><td class="py-1 text-right text-white">{{ organization.currency }} {{ cash_flow.opening_cash|floatformat:2|intcomma }}</td></tr>
+        <tr><td class="py-1 pl-4 text-slate-300">As of {{ period.start|date:"d M Y" }}</td><td class="py-1 text-right text-white">{{ cash_flow.opening_cash|floatformat:2|intcomma }}</td></tr>
 
         <tr><td class="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500" colspan="2">Operating activities</td></tr>
-        <tr><td class="py-2 pl-4 text-slate-300">Cash received from revenue</td><td class="py-2 text-right text-mint-400">+{{ organization.currency }} {{ cash_flow.cash_in_from_sales|floatformat:2|intcomma }}</td></tr>
-        <tr><td class="py-2 pl-4 text-slate-300">Cash paid for purchases</td><td class="py-2 text-right text-red-400">-{{ organization.currency }} {{ cash_flow.cash_out_purchases|floatformat:2|intcomma }}</td></tr>
-        <tr><td class="py-2 pl-4 text-slate-300">Cash paid for expenses</td><td class="py-2 text-right text-red-400">-{{ organization.currency }} {{ cash_flow.cash_out_expenses|floatformat:2|intcomma }}</td></tr>
-        <tr class="border-t border-white/10"><td class="py-2.5 font-medium text-slate-300">Net change in cash</td><td class="py-2.5 text-right font-medium {% if cash_flow.net_change_in_cash >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ cash_flow.net_change_in_cash|floatformat:2|intcomma }}</td></tr>
+        <tr class="rpt-row" onclick="bai.openLineDetail({kind:'sales', label:'Cash received from revenue'})"><td class="py-2 pl-4 text-slate-300">Cash received from revenue</td><td class="py-2 text-right text-mint-400">+{{ cash_flow.cash_in_from_sales|floatformat:2|intcomma }}</td></tr>
+        <tr class="rpt-row" onclick="bai.openLineDetail({kind:'purchases', label:'Cash paid for purchases'})"><td class="py-2 pl-4 text-slate-300">Cash paid for purchases</td><td class="py-2 text-right text-red-400">-{{ cash_flow.cash_out_purchases|floatformat:2|intcomma }}</td></tr>
+        <tr class="rpt-row" onclick="bai.openLineDetail({kind:'expenses', label:'Cash paid for expenses'})"><td class="py-2 pl-4 text-slate-300">Cash paid for expenses</td><td class="py-2 text-right text-red-400">-{{ cash_flow.cash_out_expenses|floatformat:2|intcomma }}</td></tr>
+        <tr class="border-t border-white/10"><td class="py-2.5 font-medium text-slate-300">Net change in cash</td><td class="py-2.5 text-right font-medium {% if cash_flow.net_change_in_cash >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{{ cash_flow.net_change_in_cash|floatformat:2|intcomma }}</td></tr>
 
-        <tr class="border-t-2 border-white/20"><td class="py-3 text-base font-bold text-white">Closing cash balance</td><td class="py-3 text-right text-base font-bold text-white">{{ organization.currency }} {{ cash_flow.closing_cash|floatformat:2|intcomma }}</td></tr>
+        <tr class="border-t-2 border-white/20"><td class="py-3 text-base font-bold text-white">Closing cash balance</td><td class="py-3 text-right text-base font-bold text-white">{{ cash_flow.closing_cash|floatformat:2|intcomma }}</td></tr>
       </tbody>
     </table>
   </div>
@@ -164,7 +167,7 @@
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-base font-semibold text-white">GST Summary</h2>
-        <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}{% if organization.tax_id %} · GSTIN {{ organization.tax_id }}{% endif %}</p>
+        <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}{% if organization.tax_id %} · GSTIN {{ organization.tax_id }}{% endif %} · Amounts in {{ organization.currency }}</p>
       </div>
       <a href="{% url 'finance:gst_pdf' %}?period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
     </div>
@@ -174,12 +177,12 @@
         <table class="mt-2 w-full text-sm">
           <tbody class="divide-y divide-white/5">
             {% for row in gst.sales_rows %}
-            <tr><td class="py-2 text-slate-300">{{ row.rate|floatformat:-2 }}% · {{ organization.currency }} {{ row.taxable_value|floatformat:0|intcomma }}</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ row.tax|floatformat:2|intcomma }}</td></tr>
+            <tr class="rpt-row" onclick="bai.openLineDetail({kind:'sales', gstRate:'{{ row.rate }}', label:'{{ row.rate|floatformat:-2 }}% revenue'})"><td class="py-2 text-slate-300">{{ row.rate|floatformat:-2 }}% · {{ row.taxable_value|floatformat:0|intcomma }}</td><td class="py-2 text-right text-white">{{ row.tax|floatformat:2|intcomma }}</td></tr>
             {% empty %}
             <tr><td colspan="2" class="py-2 text-slate-500">No GST-rated revenue categories in this period.</td></tr>
             {% endfor %}
-            <tr><td class="py-2 text-slate-500">Untaxed / uncategorized revenue</td><td class="py-2 text-right text-slate-500">{{ organization.currency }} {{ gst.untaxed_sales|floatformat:0|intcomma }}</td></tr>
-            <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Output Tax</td><td class="py-2 text-right font-semibold text-white">{{ organization.currency }} {{ gst.output_tax|floatformat:2|intcomma }}</td></tr>
+            <tr class="rpt-row" onclick="bai.openLineDetail({kind:'sales', gstRate:'untaxed', label:'Untaxed / uncategorized revenue'})"><td class="py-2 text-slate-500">Untaxed / uncategorized revenue</td><td class="py-2 text-right text-slate-500">{{ gst.untaxed_sales|floatformat:0|intcomma }}</td></tr>
+            <tr class="rpt-row border-t border-white/10" onclick="bai.openLineDetail({kind:'sales', gstRate:'taxed', label:'Total Output Tax — taxed revenue'})"><td class="py-2 font-semibold text-white">Total Output Tax</td><td class="py-2 text-right font-semibold text-white">{{ gst.output_tax|floatformat:2|intcomma }}</td></tr>
           </tbody>
         </table>
       </div>
@@ -188,19 +191,19 @@
         <table class="mt-2 w-full text-sm">
           <tbody class="divide-y divide-white/5">
             {% for row in gst.purchase_rows %}
-            <tr><td class="py-2 text-slate-300">{{ row.rate|floatformat:-2 }}% · {{ organization.currency }} {{ row.taxable_value|floatformat:0|intcomma }}</td><td class="py-2 text-right text-white">{{ organization.currency }} {{ row.tax|floatformat:2|intcomma }}</td></tr>
+            <tr class="rpt-row" onclick="bai.openLineDetail({kind:'purchases', gstRate:'{{ row.rate }}', label:'{{ row.rate|floatformat:-2 }}% purchases'})"><td class="py-2 text-slate-300">{{ row.rate|floatformat:-2 }}% · {{ row.taxable_value|floatformat:0|intcomma }}</td><td class="py-2 text-right text-white">{{ row.tax|floatformat:2|intcomma }}</td></tr>
             {% empty %}
             <tr><td colspan="2" class="py-2 text-slate-500">No GST-rated purchase categories in this period.</td></tr>
             {% endfor %}
-            <tr><td class="py-2 text-slate-500">Untaxed / uncategorized purchases</td><td class="py-2 text-right text-slate-500">{{ organization.currency }} {{ gst.untaxed_purchases|floatformat:0|intcomma }}</td></tr>
-            <tr class="border-t border-white/10"><td class="py-2 font-semibold text-white">Total Input Tax Credit</td><td class="py-2 text-right font-semibold text-white">{{ organization.currency }} {{ gst.input_tax|floatformat:2|intcomma }}</td></tr>
+            <tr class="rpt-row" onclick="bai.openLineDetail({kind:'purchases', gstRate:'untaxed', label:'Untaxed / uncategorized purchases'})"><td class="py-2 text-slate-500">Untaxed / uncategorized purchases</td><td class="py-2 text-right text-slate-500">{{ gst.untaxed_purchases|floatformat:0|intcomma }}</td></tr>
+            <tr class="rpt-row border-t border-white/10" onclick="bai.openLineDetail({kind:'purchases', gstRate:'taxed', label:'Total Input Tax Credit — taxed purchases'})"><td class="py-2 font-semibold text-white">Total Input Tax Credit</td><td class="py-2 text-right font-semibold text-white">{{ gst.input_tax|floatformat:2|intcomma }}</td></tr>
           </tbody>
         </table>
       </div>
     </div>
     <div class="mt-5 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center justify-between">
       <span class="text-sm font-semibold text-white">Net GST Payable</span>
-      <span class="text-base font-bold {% if gst.net_gst_payable >= 0 %}text-red-400{% else %}text-mint-400{% endif %}">{{ organization.currency }} {{ gst.net_gst_payable|floatformat:2|intcomma }}</span>
+      <span class="text-base font-bold {% if gst.net_gst_payable >= 0 %}text-red-400{% else %}text-mint-400{% endif %}">{{ gst.net_gst_payable|floatformat:2|intcomma }}</span>
     </div>
     <p class="mt-4 text-xs text-slate-500">
       Computed from the GST rate assigned to each revenue channel / purchase category under
@@ -209,6 +212,39 @@
     </p>
   </div>
 </section>
+
+<!-- Line-item drill-down: what makes up a clicked row's amount -->
+<div id="line-detail-modal" class="modal-overlay fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="line-detail-title" onclick="if (event.target === this) bai.closeModal('line-detail-modal')">
+  <div class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 shadow-2xl" style="background:#0a0e1a">
+    <div class="flex items-start justify-between gap-4 border-b border-white/5 p-5">
+      <div class="min-w-0">
+        <h3 id="line-detail-title" class="truncate text-base font-semibold text-white"></h3>
+        <p id="line-detail-sub" class="mt-0.5 text-xs text-slate-500"></p>
+      </div>
+      <button type="button" onclick="bai.closeModal('line-detail-modal')" aria-label="Close" class="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="overflow-y-auto p-5">
+      <p id="line-detail-loading" class="py-10 text-center text-sm text-slate-500">Loading…</p>
+      <p id="line-detail-empty" class="hidden py-10 text-center text-sm text-slate-500">Nothing recorded for this line in this period.</p>
+      <div id="line-detail-table-wrap" class="hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <th class="pb-2 pr-3">Date</th>
+              <th class="pb-2 pr-3">Category</th>
+              <th class="pb-2 pr-3">Note</th>
+              <th class="pb-2 text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="line-detail-tbody"></tbody>
+        </table>
+        <p id="line-detail-truncated" class="mt-3 hidden text-xs text-amber-300">Showing the first 300 entries — narrow the period to see the rest.</p>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -280,6 +316,56 @@
   ]);
 
   window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+
+  // Row click-through: what makes up a Financial Reports line's amount.
+  bai.reportPeriod = { from: "{{ period.start|date:'Y-m-d' }}", to: "{{ period.end|date:'Y-m-d' }}" };
+  bai.escapeHtml = (s) => String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  bai.fmtAmount = (n) => Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  bai.openLineDetail = (opts) => {
+    document.getElementById("line-detail-title").textContent = opts.label;
+    document.getElementById("line-detail-sub").textContent = "{{ period.label|escapejs }}";
+    document.getElementById("line-detail-loading").classList.remove("hidden");
+    document.getElementById("line-detail-empty").classList.add("hidden");
+    document.getElementById("line-detail-table-wrap").classList.add("hidden");
+    bai.openModal("line-detail-modal");
+
+    const params = new URLSearchParams({ kind: opts.kind, from: bai.reportPeriod.from, to: bai.reportPeriod.to });
+    const category = opts.category === "Uncategorized" ? "__uncategorized__" : opts.category;
+    if (category) params.set("category", category);
+    if (opts.gstRate) params.set("gst_rate", opts.gstRate);
+
+    fetch("{% url 'finance:report_line_detail' %}?" + params.toString())
+      .then((r) => r.json())
+      .then((data) => {
+        document.getElementById("line-detail-loading").classList.add("hidden");
+        const count = data.count || 0;
+        document.getElementById("line-detail-sub").textContent =
+          "{{ period.label|escapejs }} · " + count + (count === 1 ? " entry" : " entries") +
+          " · total {{ organization.currency }} " + bai.fmtAmount(data.total || 0);
+        if (!count) {
+          document.getElementById("line-detail-empty").classList.remove("hidden");
+          return;
+        }
+        document.getElementById("line-detail-tbody").innerHTML = data.entries.map((e) => `
+          <tr class="border-b border-white/5">
+            <td class="py-2 pr-3 whitespace-nowrap text-slate-400">${new Date(e.date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
+            <td class="py-2 pr-3 text-slate-200">${bai.escapeHtml(e.name)}</td>
+            <td class="py-2 pr-3 max-w-[14rem] truncate text-slate-500">${bai.escapeHtml(e.note) || "—"}</td>
+            <td class="py-2 text-right font-medium text-white">${bai.fmtAmount(e.amount)}</td>
+          </tr>`).join("");
+        document.getElementById("line-detail-truncated").classList.toggle("hidden", !data.truncated);
+        document.getElementById("line-detail-table-wrap").classList.remove("hidden");
+      })
+      .catch(() => {
+        document.getElementById("line-detail-loading").classList.add("hidden");
+        document.getElementById("line-detail-empty").textContent = "Couldn't load details — try again.";
+        document.getElementById("line-detail-empty").classList.remove("hidden");
+      });
+  };
+
   bai.showTab = (tab) => {
     try { sessionStorage.setItem("bai.reportsTab", JSON.stringify({ tab, t: Date.now() })); } catch (e) { /* not persisted */ }
     ["pnl", "bs", "cf", "gst"].forEach((t) => {

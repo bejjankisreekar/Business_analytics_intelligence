@@ -41,9 +41,53 @@
   }
   .ms-table tfoot td.ms-name { position: sticky; left: 0; background: #10131c; }
   .ms-table tfoot td.ms-change { font-weight: 600; }
-  .report-tab { padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500; color: #6b7488; border-bottom: 2px solid transparent; }
-  .report-tab--active { color: #fff; border-color: #5b7cfa; }
+  .ms-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.014); }
+  .ms-table tbody tr:nth-child(even):hover td { background: rgba(91,124,250,0.06); }
+  .ms-table thead tr:first-child th.ms-name { border-top-left-radius: 0.9rem; }
+  .report-tab {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.55rem 0.9rem; margin-bottom: -1px;
+    font-size: 0.83rem; font-weight: 500; color: #6b7488;
+    border-radius: 0.55rem 0.55rem 0 0; border-bottom: 2px solid transparent;
+    transition: background .15s, color .15s;
+  }
+  .report-tab:hover { color: #cbd5e1; background: rgba(255,255,255,0.03); }
+  .report-tab svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+  .report-tab--active { color: #fff; border-color: #5b7cfa; background: rgba(91,124,250,0.1); }
+  .report-tab--active:hover { color: #fff; }
   .ms-toggle { display: inline-flex; align-items: center; gap: 0.15rem; border-radius: 0.55rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); padding: 0.2rem; }
+  .ms-export-btn {
+    display: inline-flex; align-items: center; gap: 0.4rem; border-radius: 0.55rem;
+    border: 1px solid rgba(255,255,255,0.1); padding: 0.45rem 0.85rem;
+    font-size: 0.78rem; font-weight: 500; color: #cbd5e1; transition: background .15s, border-color .15s;
+  }
+  .ms-export-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); }
+  .ms-export-btn svg { width: 0.95rem; height: 0.95rem; flex-shrink: 0; color: #8b93ab; }
+  .ms-yoy-tile { flex: 1 1 0; min-width: 9rem; }
+  .ms-yoy-arrow { display: flex; align-items: center; justify-content: center; color: #3a4262; flex: none; }
+  .ms-yoy-arrow svg { width: 1.15rem; height: 1.15rem; }
+  .ms-change-pill {
+    display: inline-flex; align-items: center; gap: 0.3rem; border-radius: 999px;
+    padding: 0.2rem 0.6rem; font-size: 0.95rem; font-weight: 700;
+  }
+  .ms-change-pill--up { background: rgba(52,217,184,0.12); color: #34d9b8; }
+  .ms-change-pill--down { background: rgba(248,113,113,0.12); color: #f87171; }
+  .ms-change-pill--flat { background: rgba(255,255,255,0.06); color: #8b93ab; }
+  .ms-expand-btn {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 1.1rem; height: 1.1rem; margin-right: 0.35rem; border-radius: 0.3rem;
+    color: #6b7488; transition: transform .15s, background .15s, color .15s;
+  }
+  .ms-expand-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .ms-expand-btn svg { width: 0.85rem; height: 0.85rem; transition: transform .15s; }
+  .ms-expand-btn[aria-expanded="true"] svg { transform: rotate(90deg); }
+  .ms-name-cell { display: flex; align-items: center; }
+  .ms-name-spacer { display: inline-block; width: 1.45rem; flex: none; }
+  .ms-subrow.hidden { display: none; }
+  .ms-subrow td.ms-name { padding-left: 2.35rem; font-weight: 400; color: #9aa4bd; font-size: 0.79rem; }
+  .ms-subrow td { color: #8b93ab; }
+  .ms-subrow:hover td { background: rgba(91,124,250,0.045); }
+  .ms-subrow:hover td.ms-name { background: #171c2c; }
 </style>
 
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -90,41 +134,64 @@
 </script>
 
 <!-- Same-period-last-year comparison -->
-<div class="card mt-4 flex flex-wrap items-center gap-x-8 gap-y-3 p-5">
-  <div>
+<div class="card mt-4 flex flex-wrap items-stretch gap-4 p-5">
+  <div class="ms-yoy-tile">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">{{ period.label }}</p>
-    <p class="mt-1 text-xl font-bold text-white">{{ organization.currency }} {{ yoy.current_total|floatformat:2|intcomma }}</p>
+    <p class="mt-1.5 text-2xl font-bold text-white">{{ organization.currency }} {{ yoy.current_total|floatformat:2|intcomma }}</p>
   </div>
-  <div class="hidden text-sm text-slate-600 sm:block">vs</div>
-  <div>
+  <div class="ms-yoy-arrow hidden sm:flex">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+  </div>
+  <div class="ms-yoy-tile">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">{{ yoy.prior_start|date:"d M Y" }} – {{ yoy.prior_end|date:"d M Y" }} (last year)</p>
-    <p class="mt-1 text-xl font-bold text-slate-300">{{ organization.currency }} {{ yoy.prior_total|floatformat:2|intcomma }}</p>
+    <p class="mt-1.5 text-2xl font-bold text-slate-300">{{ organization.currency }} {{ yoy.prior_total|floatformat:2|intcomma }}</p>
   </div>
-  <div>
+  <div class="flex w-full flex-col items-start justify-center gap-1 border-t border-white/5 pt-4 sm:ml-auto sm:w-auto sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Change</p>
     {% if yoy.change_pct != None %}
-    <p class="mt-1 text-xl font-bold {% if yoy.change_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if yoy.change_pct >= 0 %}▲{% else %}▼{% endif %} {{ yoy.change_pct|floatformat:1 }}%</p>
+    <p class="ms-change-pill {% if yoy.change_pct > 0 %}ms-change-pill--up{% elif yoy.change_pct < 0 %}ms-change-pill--down{% else %}ms-change-pill--flat{% endif %}">{% if yoy.change_pct > 0 %}▲{% elif yoy.change_pct < 0 %}▼{% else %}—{% endif %} {{ yoy.change_pct|floatformat:1 }}%</p>
     {% else %}
-    <p class="mt-1 text-xl font-bold text-slate-500">—</p>
+    <p class="ms-change-pill ms-change-pill--flat">—</p>
     {% endif %}
   </div>
 </div>
 
 <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-0">
-  <div class="flex gap-2 overflow-x-auto whitespace-nowrap">
-    <a href="?kind=sales&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="report-tab {% if kind == 'sales' %}report-tab--active{% endif %}">Sales</a>
-    <a href="?kind=purchases&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="report-tab {% if kind == 'purchases' %}report-tab--active{% endif %}">Purchases</a>
-    <a href="?kind=expenses&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="report-tab {% if kind == 'expenses' %}report-tab--active{% endif %}">Expenses</a>
+  <div class="flex gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+    <a href="?kind=sales&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="report-tab {% if kind == 'sales' %}report-tab--active{% endif %}">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.706 2.602-7.201.116-.48-.230-.949-.724-.949H4.5m0 0L3.106 4.835m0 0L4.5 14.25m0 0L6 17.25m10.5-3a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM8.25 18.75a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
+      Revenue
+    </a>
+    <a href="?kind=purchases&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="report-tab {% if kind == 'purchases' %}report-tab--active{% endif %}">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+      Purchases
+    </a>
+    <a href="?kind=expenses&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="report-tab {% if kind == 'expenses' %}report-tab--active{% endif %}">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
+      Expenses
+    </a>
   </div>
   <div class="mb-2 flex flex-wrap items-center gap-3">
+    {% if matrix.has_any_subrows %}
+    <button type="button" id="ms-expand-all-btn" data-expanded="{% if expand_all %}true{% else %}false{% endif %}" onclick="bai.msToggleAllExpanded()" class="ms-export-btn">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 5.25l7.5 7.5 7.5-7.5m-15 6l7.5 7.5 7.5-7.5"/></svg>
+      <span class="ms-expand-all-label">{% if expand_all %}Collapse all{% else %}Expand all{% endif %}</span>
+    </button>
+    {% endif %}
     <div id="ms-display-toggle" class="ms-toggle">
       <button type="button" data-mode="amount" onclick="bai.msSetDisplayMode('amount')" class="granularity-btn granularity-btn--active">Amount</button>
       <button type="button" data-mode="row" onclick="bai.msSetDisplayMode('row')" class="granularity-btn">% of row</button>
       <button type="button" data-mode="col" onclick="bai.msSetDisplayMode('col')" class="granularity-btn">% of column</button>
     </div>
     <div class="flex items-center gap-2">
-      <a href="{% url 'finance:monthly_summary_excel' %}?kind={{ kind }}&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Export Excel</a>
-      <a href="{% url 'finance:monthly_summary_pdf' %}?kind={{ kind }}&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Export PDF</a>
+      <a id="ms-export-excel" href="{% url 'finance:monthly_summary_excel' %}?kind={{ kind }}&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}{% if expand_all %}&expand=1{% endif %}" class="ms-export-btn">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+        Export Excel
+      </a>
+      <a id="ms-export-pdf" href="{% url 'finance:monthly_summary_pdf' %}?kind={{ kind }}&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}{% if expand_all %}&expand=1{% endif %}" class="ms-export-btn">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+        Export PDF
+      </a>
     </div>
   </div>
 </div>
@@ -133,7 +200,7 @@
 <p class="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">This range has more columns than can be shown at once — showing the first {{ matrix.labels|length }} periods. Pick a shorter range or a coarser view to see the rest.</p>
 {% endif %}
 
-<div class="card mt-4 p-0">
+<div class="card mt-4 overflow-hidden p-0">
   <div class="ms-table-wrap">
     <table class="ms-table w-full">
       <thead>
@@ -154,13 +221,34 @@
       <tbody>
         {% for row in matrix.rows %}
         <tr>
-          <td class="ms-name">{{ row.name }}</td>
+          <td class="ms-name">
+            <span class="ms-name-cell">
+              {% if row.has_subrows %}
+              <button type="button" class="ms-expand-btn" aria-expanded="{% if expand_all %}true{% else %}false{% endif %}" aria-label="Show subcategories" onclick="bai.msToggleSubrows(this, {{ forloop.counter }})">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+              </button>
+              {% else %}
+              <span class="ms-name-spacer"></span>
+              {% endif %}
+              {{ row.name }}
+            </span>
+          </td>
           {% for cell in row.cells %}
           <td class="ms-value ms-period-start" data-amount="{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}" data-row="{% if cell.row_share != None %}{{ cell.row_share|floatformat:1 }}%{% else %}—{% endif %}" data-col="{% if cell.col_share != None %}{{ cell.col_share|floatformat:1 }}%{% else %}—{% endif %}">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
           <td class="ms-change {% if cell.change == None %}text-slate-600{% elif cell.change >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if cell.change != None %}{% if cell.change >= 0 %}▲{% else %}▼{% endif %} {{ cell.change|floatformat:1 }}%{% else %}—{% endif %}</td>
           {% endfor %}
           <td class="ms-total">{{ row.total|floatformat:2|intcomma }}</td>
         </tr>
+        {% for subrow in row.subrows %}
+        <tr class="ms-subrow ms-subrow-{{ forloop.parentloop.counter }}{% if not expand_all %} hidden{% endif %}">
+          <td class="ms-name">{{ subrow.name }}</td>
+          {% for cell in subrow.cells %}
+          <td class="ms-value ms-period-start" data-amount="{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}" data-row="{% if cell.row_share != None %}{{ cell.row_share|floatformat:1 }}%{% else %}—{% endif %}" data-col="{% if cell.col_share != None %}{{ cell.col_share|floatformat:1 }}%{% else %}—{% endif %}">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+          <td class="ms-change {% if cell.change == None %}text-slate-600{% elif cell.change >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if cell.change != None %}{% if cell.change >= 0 %}▲{% else %}▼{% endif %} {{ cell.change|floatformat:1 }}%{% else %}—{% endif %}</td>
+          {% endfor %}
+          <td class="ms-total">{{ subrow.total|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endfor %}
         {% empty %}
         <tr><td class="ms-name text-slate-500" colspan="{{ matrix.labels|length|add:matrix.labels|length|add:2 }}">No {{ kind }} recorded for {{ period.label }}.</td></tr>
         {% endfor %}
@@ -182,6 +270,33 @@
 </div>
 <p class="mt-3 text-xs text-slate-500">Amounts in {{ organization.currency }}. Δ% is the change from the previous column in the same row. "% of row"/"% of column" show each cell's share of its row's or column's total.</p>
 <script>
+  bai.msToggleSubrows = (btn, idx) => {
+    const expanded = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", String(!expanded));
+    document.querySelectorAll(".ms-subrow-" + idx).forEach((tr) => tr.classList.toggle("hidden", expanded));
+  };
+  // Drives both the on-page rows and the Export Excel/PDF links (via
+  // ?expand=1), so whichever state is showing on screen is what downloads.
+  bai.msSetAllExpanded = (expand) => {
+    document.querySelectorAll(".ms-expand-btn").forEach((btn) => btn.setAttribute("aria-expanded", String(expand)));
+    document.querySelectorAll(".ms-subrow").forEach((tr) => tr.classList.toggle("hidden", !expand));
+    const allBtn = document.getElementById("ms-expand-all-btn");
+    if (allBtn) {
+      allBtn.dataset.expanded = String(expand);
+      allBtn.querySelector(".ms-expand-all-label").textContent = expand ? "Collapse all" : "Expand all";
+    }
+    ["ms-export-excel", "ms-export-pdf"].forEach((id) => {
+      const a = document.getElementById(id);
+      if (!a) return;
+      const url = new URL(a.href, window.location.origin);
+      if (expand) url.searchParams.set("expand", "1"); else url.searchParams.delete("expand");
+      a.href = url.pathname + url.search;
+    });
+  };
+  bai.msToggleAllExpanded = () => {
+    const allBtn = document.getElementById("ms-expand-all-btn");
+    bai.msSetAllExpanded(allBtn.dataset.expanded !== "true");
+  };
   bai.msSetDisplayMode = (mode) => {
     document.querySelectorAll("#ms-display-toggle button").forEach((btn) => {
       btn.classList.toggle("granularity-btn--active", btn.dataset.mode === mode);

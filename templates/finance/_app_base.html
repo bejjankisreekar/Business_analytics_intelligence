@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load humanize text_tags %}
+{% load humanize text_tags static %}
 
 {% block body %}
 <div class="flex min-h-screen bg-grid">
@@ -7,52 +7,67 @@
   <div id="nav-backdrop" onclick="baiNav.closeDrawer()" class="fixed inset-0 z-30 hidden bg-black/60 lg:hidden"></div>
   <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col overflow-y-auto border-r border-white/5 bg-ink-900 backdrop-blur transition-transform duration-200 lg:z-30 lg:translate-x-0 lg:bg-ink-900/95">
     <div class="flex items-center gap-2.5 px-6 py-6">
-      <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-mint-500 text-sm font-extrabold text-white shadow-lg shadow-brand-600/30">BI</span>
+      <img src="{% static 'img/logo.png' %}" alt="" class="h-11 w-11 rounded-xl object-contain">
       <span class="text-[13px] font-semibold leading-tight text-white">Business Analytics<br>Intelligence</span>
     </div>
-    <nav class="flex-1 space-y-1 px-4" onclick="if (event.target.closest('a')) baiNav.closeDrawer()">
+    <nav class="flex-1 space-y-5 px-4" onclick="if (event.target.closest('a')) baiNav.closeDrawer()">
       {% if not request.billing_locked %}
-      <a href="{% url 'finance:dashboard' %}" class="app-nav-link {% if active_nav == 'dashboard' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.5V6a1.5 1.5 0 011.5-1.5h4A1.5 1.5 0 0110 6v7.5M3 13.5v4.5A1.5 1.5 0 004.5 19.5h4A1.5 1.5 0 0010 18v-4.5M3 13.5h7M14 19.5V11a1.5 1.5 0 011.5-1.5h4A1.5 1.5 0 0121 11v8.5M14 19.5h7M14 19.5v-3.75"/></svg>
-        Dashboard
-      </a>
-      <a href="{% url 'finance:analytics' %}" class="app-nav-link {% if active_nav == 'analytics' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v16.5A1.5 1.5 0 004.5 21H21M7 15.75l3.75-4.5 3 3 4.5-6"/></svg>
-        Analytics Intelligence
-      </a>
-      <a href="{% url 'finance:sales_intelligence' %}" class="app-nav-link {% if active_nav == 'sales_intelligence' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.706 2.602-7.201.116-.48-.230-.949-.724-.949H4.5m0 0L3.106 4.835m0 0L4.5 14.25m0 0L6 17.25m10.5-3a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM8.25 18.75a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
-        Revenue Intelligence
-      </a>
-      <a href="{% url 'finance:purchase_expense_intelligence' %}" class="app-nav-link {% if active_nav == 'purchase_expense_intelligence' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
-        Cost Intelligence
-      </a>
-      <a href="{% url 'finance:daily_report' %}" class="app-nav-link {% if active_nav == 'daily_report' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-        Daily Report
-      </a>
-      <a href="{% url 'finance:reports' %}" class="app-nav-link {% if active_nav == 'reports' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
-        Financial Reports
-      </a>
-      <a href="{% url 'finance:monthly_summary' %}" class="app-nav-link {% if active_nav == 'monthly_summary' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75h16.5v16.5H3.75V3.75zM3.75 9h16.5M3.75 14.25h16.5M9 3.75v16.5M14.25 3.75v16.5"/></svg>
-        Monthly Summary
-      </a>
-      <a href="{% url 'finance:cash_position' %}" class="app-nav-link {% if active_nav == 'cash_position' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-4-4c0 1.66 1.79 3 4 3s4-1.34 4-3-1.79-2.5-4-2.5-4-.84-4-2.5S9.79 6 12 6s4 1.34 4 3M4.5 4.5h15A1.5 1.5 0 0121 6v12a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18V6a1.5 1.5 0 011.5-1.5z"/></svg>
-        Cash Position
-      </a>
-      <a href="{% url 'finance:ledgers' %}" class="app-nav-link {% if active_nav == 'ledgers' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5A2.5 2.5 0 0014.5 7H19M12 4.5A2.5 2.5 0 019.5 7H5m7-2.5V21m0 0H6.5A1.5 1.5 0 015 19.5v-15A1.5 1.5 0 016.5 3h7.379a1.5 1.5 0 011.06.44l3.622 3.62a1.5 1.5 0 01.439 1.061V19.5a1.5 1.5 0 01-1.5 1.5H12z"/></svg>
-        Ledgers
-      </a>
+      <div class="space-y-1">
+        <p class="app-nav-label">Overview</p>
+        <a href="{% url 'finance:dashboard' %}" class="app-nav-link {% if active_nav == 'dashboard' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.5V6a1.5 1.5 0 011.5-1.5h4A1.5 1.5 0 0110 6v7.5M3 13.5v4.5A1.5 1.5 0 004.5 19.5h4A1.5 1.5 0 0010 18v-4.5M3 13.5h7M14 19.5V11a1.5 1.5 0 011.5-1.5h4A1.5 1.5 0 0121 11v8.5M14 19.5h7M14 19.5v-3.75"/></svg>
+          Dashboard
+        </a>
+      </div>
+
+      <div class="space-y-1">
+        <p class="app-nav-label">Intelligence</p>
+        <a href="{% url 'finance:analytics' %}" class="app-nav-link {% if active_nav == 'analytics' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v16.5A1.5 1.5 0 004.5 21H21M7 15.75l3.75-4.5 3 3 4.5-6"/></svg>
+          Analytics Intelligence
+        </a>
+        <a href="{% url 'finance:sales_intelligence' %}" class="app-nav-link {% if active_nav == 'sales_intelligence' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.706 2.602-7.201.116-.48-.230-.949-.724-.949H4.5m0 0L3.106 4.835m0 0L4.5 14.25m0 0L6 17.25m10.5-3a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM8.25 18.75a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
+          Revenue Intelligence
+        </a>
+        <a href="{% url 'finance:purchase_expense_intelligence' %}" class="app-nav-link {% if active_nav == 'purchase_expense_intelligence' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+          Cost Intelligence
+        </a>
+      </div>
+
+      <div class="space-y-1">
+        <p class="app-nav-label">Reports</p>
+        <a href="{% url 'finance:daily_report' %}" class="app-nav-link {% if active_nav == 'daily_report' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          Daily Report
+        </a>
+        <a href="{% url 'finance:reports' %}" class="app-nav-link {% if active_nav == 'reports' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
+          Financial Reports
+        </a>
+        <a href="{% url 'finance:monthly_summary' %}" class="app-nav-link {% if active_nav == 'monthly_summary' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75h16.5v16.5H3.75V3.75zM3.75 9h16.5M3.75 14.25h16.5M9 3.75v16.5M14.25 3.75v16.5"/></svg>
+          Monthly Summary
+        </a>
+        <a href="{% url 'finance:cash_position' %}" class="app-nav-link {% if active_nav == 'cash_position' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-4-4c0 1.66 1.79 3 4 3s4-1.34 4-3-1.79-2.5-4-2.5-4-.84-4-2.5S9.79 6 12 6s4 1.34 4 3M4.5 4.5h15A1.5 1.5 0 0121 6v12a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18V6a1.5 1.5 0 011.5-1.5z"/></svg>
+          Cash Position
+        </a>
+        <a href="{% url 'finance:ledgers' %}" class="app-nav-link {% if active_nav == 'ledgers' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5A2.5 2.5 0 0014.5 7H19M12 4.5A2.5 2.5 0 019.5 7H5m7-2.5V21m0 0H6.5A1.5 1.5 0 015 19.5v-15A1.5 1.5 0 016.5 3h7.379a1.5 1.5 0 011.06.44l3.622 3.62a1.5 1.5 0 01.439 1.061V19.5a1.5 1.5 0 01-1.5 1.5H12z"/></svg>
+          Ledgers
+        </a>
+      </div>
       {% endif %}
-      <a href="{% url 'finance:billing' %}" class="app-nav-link {% if active_nav == 'billing' %}app-nav-link--active{% endif %}">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3M3.75 6h16.5a1.5 1.5 0 011.5 1.5v9a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5v-9a1.5 1.5 0 011.5-1.5z"/></svg>
-        Billing
-      </a>
+
+      <div class="space-y-1">
+        <p class="app-nav-label">Account</p>
+        <a href="{% url 'finance:billing' %}" class="app-nav-link {% if active_nav == 'billing' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3M3.75 6h16.5a1.5 1.5 0 011.5 1.5v9a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5v-9a1.5 1.5 0 011.5-1.5z"/></svg>
+          Billing
+        </a>
+      </div>
     </nav>
     <div class="space-y-1 border-t border-white/5 px-4 py-3 lg:hidden" onclick="if (event.target.closest('a')) baiNav.closeDrawer()">
       {% if not request.billing_locked %}<a href="{% url 'accounts:profile' %}" class="app-nav-link">Profile</a>{% endif %}
@@ -80,7 +95,7 @@
       <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/></svg>
     </button>
     <a href="{% url 'finance:dashboard' %}" class="flex min-w-0 items-center gap-2">
-      <span class="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-mint-500 text-xs font-extrabold text-white">BI</span>
+      <img src="{% static 'img/logo.png' %}" alt="" class="h-10 w-10 flex-none rounded-lg object-contain">
       <span class="min-w-0 leading-tight">
         <span class="block truncate text-base font-semibold text-white">{{ request.user.organization.name }}</span>
         <span class="block truncate font-mono text-[10px] text-slate-500">{{ request.user.organization.organization_code }}</span>
@@ -222,20 +237,25 @@
 
 {% block extra_head %}
 <style>
+  .app-nav-label {
+    padding: 0 0.75rem; margin-bottom: 0.35rem;
+    font-size: 0.66rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #5b6483;
+  }
   .app-nav-link {
-    display: flex; align-items: center; gap: 0.6rem;
-    border-radius: 0.65rem; padding: 0.55rem 0.75rem;
-    font-size: 0.83rem; font-weight: 500; color: #9aa4bd;
+    display: flex; align-items: center; gap: 0.65rem;
+    border-radius: 0.55rem; padding: 0.5rem 0.75rem;
+    font-size: 0.83rem; font-weight: 500; color: #aeb6cc;
     transition: background .15s, color .15s;
   }
-  .app-nav-link:hover { background: rgba(255,255,255,0.05); color: #fff; }
+  .app-nav-link:hover { background: rgba(255,255,255,0.045); color: #fff; }
   .app-nav-link--active {
-    background: linear-gradient(90deg, rgba(91,124,250,0.22), rgba(91,124,250,0.05));
-    color: #fff; border-radius: 0 0.65rem 0.65rem 0;
-    box-shadow: inset 3px 0 0 0 #7c9dff;
+    background: #1a2036; color: #fff; font-weight: 600;
+    box-shadow: inset 2px 0 0 0 #5b7cfa;
   }
-  .app-nav-link--active svg { color: #a8bcff; }
-  .app-nav-link svg { width: 1.15rem; height: 1.15rem; flex-shrink: 0; }
+  .app-nav-link--active svg { color: #7c9dff; }
+  .app-nav-link svg { width: 1.1rem; height: 1.1rem; flex-shrink: 0; color: #6b7390; }
+  .app-nav-link:hover svg { color: #cdd3e6; }
   .report-tab { flex-shrink: 0; white-space: nowrap; }
   .card { border-radius: 1rem; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); }
   .card-link { transition: border-color .15s, background .15s; cursor: pointer; }

@@ -355,9 +355,13 @@ def category_period_matrix(model, field: str, start: datetime.date, end: datetim
     bucket_index = {b: i for i, b in enumerate(buckets)}
     lookup = f"{field}__name"
     by_name: dict[str, list] = {}
+    # Keyed by top-level name -> {subcategory name (or "Uncategorized"): values}.
+    # Fetched alongside the top-level totals (one extra grouped query) so each
+    # row can offer a drill-down without a second round trip when expanded.
+    sub_by_name: dict[str, dict[str, list]] = {}
     rows_qs = (
         model.objects.filter(date__gte=start, date__lte=end)
-        .values(lookup, "date")
+        .values(lookup, "subcategory__name", "date")
         .annotate(total=Sum("amount"))
     )
     for row in rows_qs:
@@ -366,6 +370,9 @@ def category_period_matrix(model, field: str, start: datetime.date, end: datetim
             continue
         name = row[lookup] or "Uncategorized"
         by_name.setdefault(name, [ZERO] * len(buckets))[i] += row["total"]
+        sub_name = row["subcategory__name"] or "Uncategorized"
+        sub_values = sub_by_name.setdefault(name, {}).setdefault(sub_name, [ZERO] * len(buckets))
+        sub_values[i] += row["total"]
 
     rows = [{"name": name, "values": values, "total": sum(values)} for name, values in by_name.items()]
     rows.sort(key=lambda r: -r["total"])
@@ -380,6 +387,24 @@ def category_period_matrix(model, field: str, start: datetime.date, end: datetim
             cell["col_share"] = _share(cell["value"], column_totals[i])
         del r["values"]
 
+        sub_values_by_name = sub_by_name.get(r["name"], {})
+        # Only worth expanding when at least one entry actually carries a
+        # subcategory — a category where everything is "Uncategorized" has
+        # nothing new to show underneath itself.
+        r["has_subrows"] = any(name != "Uncategorized" for name in sub_values_by_name)
+        subrows = [
+            {"name": name, "values": values, "total": sum(values)}
+            for name, values in sub_values_by_name.items()
+        ] if r["has_subrows"] else []
+        subrows.sort(key=lambda sr: -sr["total"])
+        for sr in subrows:
+            sr["cells"] = _matrix_cells(sr["values"])
+            for i, cell in enumerate(sr["cells"]):
+                cell["row_share"] = _share(cell["value"], sr["total"])
+                cell["col_share"] = _share(cell["value"], column_totals[i])
+            del sr["values"]
+        r["subrows"] = subrows
+
     column_cells = _matrix_cells(column_totals)
     for i, cell in enumerate(column_cells):
         cell["row_share"] = _share(cell["value"], grand_total)
@@ -392,6 +417,7 @@ def category_period_matrix(model, field: str, start: datetime.date, end: datetim
         "column_cells": column_cells,
         "grand_total": grand_total,
         "truncated": truncated,
+        "has_any_subrows": any(r["has_subrows"] for r in rows),
     }
 
 

@@ -338,27 +338,31 @@
           {% csrf_token %}
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label for="{{ contact_form.name.id_for_label }}" class="block text-xs font-medium text-slate-400">Name</label>
+              <label for="{{ contact_form.name.id_for_label }}" class="block text-xs font-medium text-slate-400">Name <span class="text-red-400">*</span></label>
               <input type="text" name="{{ contact_form.name.html_name }}" id="{{ contact_form.name.id_for_label }}" value="{{ contact_form.name.value|default:'' }}"
                      class="mt-1.5 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" placeholder="Your name">
               {% for error in contact_form.name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
             </div>
             <div>
-              <label for="{{ contact_form.organization_name.id_for_label }}" class="block text-xs font-medium text-slate-400">Organization name</label>
+              <label for="{{ contact_form.organization_name.id_for_label }}" class="block text-xs font-medium text-slate-400">Organization name <span class="text-red-400">*</span></label>
               <input type="text" name="{{ contact_form.organization_name.html_name }}" id="{{ contact_form.organization_name.id_for_label }}" value="{{ contact_form.organization_name.value|default:'' }}"
                      class="mt-1.5 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" placeholder="Your business">
               {% for error in contact_form.organization_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
             </div>
           </div>
           <div class="mt-4">
-            <label for="{{ contact_form.phone.id_for_label }}" class="block text-xs font-medium text-slate-400">Phone number</label>
+            <label for="{{ contact_form.phone.id_for_label }}" class="block text-xs font-medium text-slate-400">Phone number <span class="text-red-400">*</span></label>
             <input type="tel" name="{{ contact_form.phone.html_name }}" id="{{ contact_form.phone.id_for_label }}" value="{{ contact_form.phone.value|default:'' }}"
                    class="mt-1.5 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" placeholder="+91 98765 43210">
             {% for error in contact_form.phone.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
           </div>
           <div class="mt-4">
-            <label for="{{ contact_form.message.id_for_label }}" class="block text-xs font-medium text-slate-400">Message</label>
-            <textarea name="{{ contact_form.message.html_name }}" id="{{ contact_form.message.id_for_label }}" rows="4"
+            <div class="flex items-center justify-between">
+              <label for="{{ contact_form.message.id_for_label }}" class="block text-xs font-medium text-slate-400">Message <span class="text-red-400">*</span></label>
+              <span id="contact-message-count" class="text-xs text-slate-500">{{ contact_form.message.value|default:''|length }}/240</span>
+            </div>
+            <textarea name="{{ contact_form.message.html_name }}" id="{{ contact_form.message.id_for_label }}" rows="4" maxlength="240"
+                      oninput="document.getElementById('contact-message-count').textContent = this.value.length + '/240'"
                       class="mt-1.5 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" placeholder="How can we help?">{{ contact_form.message.value|default:'' }}</textarea>
             {% for error in contact_form.message.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
           </div>

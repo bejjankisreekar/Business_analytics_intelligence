@@ -20,6 +20,15 @@
     {% for cell in row.cells %}<td class="right">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}–{% endif %}</td>{% endfor %}
     <td class="right" style="font-weight:bold;">{{ row.total|floatformat:2|intcomma }}</td>
   </tr>
+  {% if expand_all and row.has_subrows %}
+  {% for subrow in row.subrows %}
+  <tr class="divider">
+    <td style="padding-left:16px; color:#666; font-style:italic;">{{ subrow.name }}</td>
+    {% for cell in subrow.cells %}<td class="right" style="color:#666; font-style:italic;">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}–{% endif %}</td>{% endfor %}
+    <td class="right" style="color:#666; font-style:italic;">{{ subrow.total|floatformat:2|intcomma }}</td>
+  </tr>
+  {% endfor %}
+  {% endif %}
   {% empty %}
   <tr><td colspan="{{ matrix.labels|length|add:2 }}" class="muted">No {{ kind_label|lower }} recorded for this period.</td></tr>
   {% endfor %}

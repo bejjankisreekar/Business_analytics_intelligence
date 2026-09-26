@@ -2,9 +2,11 @@ import logging
 
 from django.conf import settings
 from django.contrib import messages
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.shortcuts import redirect
+from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.views.generic import TemplateView
 
 from apps.billing.models import Plan
@@ -37,17 +39,26 @@ class LandingPageView(TemplateView):
         contact = form.save()
         if settings.CONTACT_EMAIL:
             try:
-                send_mail(
-                    subject=f"New contact form submission — {contact.organization_name}",
-                    message=(
-                        f"Name: {contact.name}\n"
-                        f"Organization: {contact.organization_name}\n"
-                        f"Phone: {contact.phone}\n\n"
-                        f"Message:\n{contact.message}"
-                    ),
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[settings.CONTACT_EMAIL],
+                text_body = (
+                    f"New contact form submission — {contact.organization_name}\n\n"
+                    f"Name: {contact.name}\n"
+                    f"Organization: {contact.organization_name}\n"
+                    f"Phone: {contact.phone}\n\n"
+                    f"Message:\n{contact.message}"
                 )
+                html_body = render_to_string("emails/contact_submission.html", {
+                    "site_name": settings.SITE_NAME,
+                    "contact": contact,
+                    "received_at": timezone.localtime(contact.created_at).strftime("%d %b %Y, %I:%M %p"),
+                })
+                email_message = EmailMultiAlternatives(
+                    subject=f"New contact form submission — {contact.organization_name}",
+                    body=text_body,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[settings.CONTACT_EMAIL],
+                )
+                email_message.attach_alternative(html_body, "text/html")
+                email_message.send()
             except Exception:
                 logger.exception("Failed to send contact form notification email for submission %s", contact.pk)
         else:
