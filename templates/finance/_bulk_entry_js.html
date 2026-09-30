@@ -1,0 +1,150 @@
+<script>
+  window.bai = window.bai || {};
+  window.baiBulkPrefixes = (window.baiBulkPrefixes || []).concat({{ bulk_prefixes_json|default:"[]"|safe }});
+  const BULK_MAIN_FIELD = Object.fromEntries(window.baiBulkPrefixes.map((p) => [p.prefix, p.main_field]));
+
+  // Category -> Sub-category -> Item, one column each (e.g. Expenses >
+  // Salaries & Wages > Priya). The row's real `subcategory`
+  // <select> holds what actually gets saved — the item when one is picked,
+  // otherwise the sub-category — so it is hidden and driven by the two
+  // visible selects.
+  bai.wireSubcategory = function (mainId, subId) {
+    const mainEl = document.getElementById(mainId);
+    const realEl = document.getElementById(subId);
+    if (!mainEl || !realEl || realEl.dataset.cascade) return;
+    realEl.dataset.cascade = "1";
+    const subCell = realEl.closest("td");
+    const detailCell = subCell.nextElementSibling;
+
+    const mk = (cell, placeholder) => {
+      const s = document.createElement("select");
+      s.dataset.placeholder = placeholder;
+      cell.appendChild(s);
+      return s;
+    };
+    const parentSel = mk(subCell, "Select sub-category");
+    const childSel = mk(detailCell, "Select item");
+
+    // An empty level stays visible but disabled, so the three columns always
+    // line up and it's obvious the level exists but has nothing under it.
+    const fill = (sel, items, value) => {
+      sel.innerHTML = "";
+      sel.add(new Option(items.length ? sel.dataset.placeholder : "—", ""));
+      items.forEach((o) => sel.add(new Option(o.name, o.id)));
+      sel.disabled = !items.length;
+      sel.value = value || "";
+    };
+    const locate = (id) => {
+      for (const subs of Object.values(bai.SUBCATEGORY_MAP)) {
+        for (const p of subs) {
+          if (p.id === id) return { parent: p.id, child: "" };
+          if (p.children.some((c) => c.id === id)) return { parent: p.id, child: id };
+        }
+      }
+      return { parent: "", child: "" };
+    };
+    const render = (parentId, childId) => {
+      const subs = bai.SUBCATEGORY_MAP[mainEl.value] || [];
+      fill(parentSel, subs, parentId);
+      const kids = (subs.find((s) => s.id === parentSel.value) || {}).children || [];
+      fill(childSel, kids, childId);
+      realEl.value = childSel.value || parentSel.value || "";
+    };
+    // The select enhancer wraps every <select> in its own trigger markup, and
+    // it runs after this — so the real field can only be hidden (wrapper and
+    // all, or it leaves a stray empty dropdown behind) once that has happened.
+    const init = locate(realEl.value);
+    setTimeout(() => {
+      (realEl.closest(".bai-select-wrap") || realEl).style.display = "none";
+      render(init.parent, init.child);
+      mainEl.addEventListener("change", () => render("", ""));
+      parentSel.addEventListener("change", () => render(parentSel.value, ""));
+      childSel.addEventListener("change", () => { realEl.value = childSel.value || parentSel.value || ""; });
+    }, 0);
+  };
+
+  bai.addFormsetRow = (prefix) => {
+    const totalInput = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+    const index = parseInt(totalInput.value, 10);
+    const tpl = document.getElementById(`${prefix}-empty-row`);
+    const html = tpl.innerHTML.replace(/__prefix__/g, index);
+    document.getElementById(`${prefix}-formset-body`).insertAdjacentHTML("beforeend", html);
+    totalInput.value = index + 1;
+    bai.wireSubcategory(`id_${prefix}-${index}-${BULK_MAIN_FIELD[prefix]}`, `id_${prefix}-${index}-subcategory`);
+    bai.syncBankField(document.getElementById(`id_${prefix}-${index}-payment_mode`));
+  };
+
+  // A bank account only makes sense once "Via" is Bank — disabled (not
+  // hidden, which would shift every later cell in the row left and break
+  // column alignment) and cleared the rest of the time.
+  bai.syncBankField = (paymentModeSelect) => {
+    if (!paymentModeSelect) return;
+    const row = paymentModeSelect.closest("tr");
+    const bankSelect = row && row.querySelector('select[name$="-bank_account"]');
+    if (!bankSelect) return;
+    const isBank = paymentModeSelect.value === "BANK";
+    bankSelect.disabled = !isBank;
+    if (!isBank) bankSelect.value = "";
+    else bankSelect.value = bankSelect.value; // re-run the trigger's disabled sync (see base.html's enhanceSelect)
+  };
+  bai.wireBankToggle = (prefix) => {
+    const body = document.getElementById(`${prefix}-formset-body`);
+    if (!body || body.dataset.bankWired) return;
+    body.dataset.bankWired = "1";
+    body.addEventListener("change", (e) => {
+      if (e.target.matches('select[name$="-payment_mode"]')) bai.syncBankField(e.target);
+    });
+    body.querySelectorAll('select[name$="-payment_mode"]').forEach(bai.syncBankField);
+  };
+
+  bai.wireBulkFormset = (prefix, mainField) => {
+    const totalInput = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+    const total = totalInput ? parseInt(totalInput.value, 10) : 0;
+    for (let i = 0; i < total; i++) {
+      bai.wireSubcategory(`id_${prefix}-${i}-${mainField}`, `id_${prefix}-${i}-subcategory`);
+    }
+  };
+
+  // Live section totals: every row's net amount that isn't ticked for removal.
+  // Revenue rows derive net from Gross - Discount (and refresh their own Net
+  // cell); Expense/Purchase rows have a single Amount field as before.
+  bai.rowNet = (row, prefix) => {
+    if (prefix !== "sale") {
+      const amount = row.querySelector('input[name$="-amount"]');
+      return amount ? parseFloat(amount.value) : NaN;
+    }
+    const gross = row.querySelector('input[name$="-gross_amount"]');
+    const discount = row.querySelector('input[name$="-discount"]');
+    const g = gross ? parseFloat(gross.value) : NaN;
+    const d = discount && discount.value ? parseFloat(discount.value) : 0;
+    const net = isNaN(g) ? NaN : g - d;
+    const netCell = row.querySelector(".net-cell");
+    if (netCell) netCell.textContent = isNaN(net) ? "0.00" : net.toFixed(2);
+    return net;
+  };
+  bai.updateTotals = (prefix) => {
+    const CURRENCY = "{{ organization.currency|escapejs }}";
+    let total = 0, count = 0;
+    document.querySelectorAll(`#${prefix}-formset-body tr`).forEach((row) => {
+      const remove = row.querySelector('input[name$="-DELETE"]');
+      const value = bai.rowNet(row, prefix);
+      if (!isNaN(value) && value > 0 && !(remove && remove.checked)) { total += value; count += 1; }
+    });
+    const money = total.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const totalEl = document.getElementById(`total-${prefix}`);
+    const countEl = document.getElementById(`total-count-${prefix}`);
+    const tabEl = document.getElementById(`tab-total-${prefix}`);
+    if (totalEl) totalEl.textContent = `${CURRENCY} ${money}`;
+    if (countEl) countEl.textContent = `${count} ${count === 1 ? "entry" : "entries"}`;
+    if (tabEl) tabEl.textContent = count ? `· ${total.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "";
+  };
+
+  window.baiBulkPrefixes.forEach(({ prefix, main_field }) => {
+    const body = document.getElementById(`${prefix}-formset-body`);
+    if (!body) return;
+    ["input", "change"].forEach((evt) => body.addEventListener(evt, () => bai.updateTotals(prefix)));
+    bai.updateTotals(prefix);
+    bai.wireBulkFormset(prefix, main_field);
+    bai.wireBankToggle(prefix);
+  });
+</script>

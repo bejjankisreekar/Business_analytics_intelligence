@@ -51,15 +51,17 @@
       {% endif %}
       {{ sale_formset.management_form }}
       <div class="overflow-x-auto">
-        <table class="bulk-table w-full text-left text-sm">
+        <table class="bulk-table bulk-table--wide w-full text-left text-sm">
           <thead>
             <tr class="text-[11px] uppercase tracking-wide text-slate-500">
               <th data-col="Category" class="px-1 pb-1.5 font-medium">Category</th>
               <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">Sub-category</th>
-              <th data-col="Detail" class="px-1 pb-1.5 font-medium">Detail</th>
+              <th data-col="Item" class="px-1 pb-1.5 font-medium">Item</th>
               <th data-col="Customer" class="px-1 pb-1.5 font-medium">Customer</th>
               <th data-col="Qty" class="px-1 pb-1.5 font-medium">Qty</th>
-              <th data-col="Amount" class="px-1 pb-1.5 font-medium">Amount</th>
+              <th data-col="Gross" class="px-1 pb-1.5 font-medium">Gross</th>
+              <th data-col="Discount" class="px-1 pb-1.5 font-medium">Discount</th>
+              <th data-col="Net" class="px-1 pb-1.5 font-medium">Net</th>
               <th data-col="Via" class="px-1 pb-1.5 font-medium">Via</th>
               <th data-col="Bank" class="px-1 pb-1.5 font-medium">Bank</th>
               <th data-col="Note" class="px-1 pb-1.5 font-medium">Note</th>
@@ -101,7 +103,7 @@
             <tr class="text-[11px] uppercase tracking-wide text-slate-500">
               <th data-col="Category" class="px-1 pb-1.5 font-medium">Category</th>
               <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">Sub-category</th>
-              <th data-col="Detail" class="px-1 pb-1.5 font-medium">Detail</th>
+              <th data-col="Item" class="px-1 pb-1.5 font-medium">Item</th>
               <th data-col="Amount" class="px-1 pb-1.5 font-medium">Amount</th>
               <th data-col="Via" class="px-1 pb-1.5 font-medium">Via</th>
               <th data-col="Bank" class="px-1 pb-1.5 font-medium">Bank</th>
@@ -144,7 +146,7 @@
             <tr class="text-[11px] uppercase tracking-wide text-slate-500">
               <th data-col="Category" class="px-1 pb-1.5 font-medium">Category</th>
               <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">Sub-category</th>
-              <th data-col="Detail" class="px-1 pb-1.5 font-medium">Detail</th>
+              <th data-col="Item" class="px-1 pb-1.5 font-medium">Item</th>
               <th data-col="Vendor" class="px-1 pb-1.5 font-medium">Vendor</th>
               <th data-col="Qty" class="px-1 pb-1.5 font-medium">Qty</th>
               <th data-col="Amount" class="px-1 pb-1.5 font-medium">Amount</th>
@@ -179,167 +181,17 @@
   window.bai = window.bai || {};
   bai.SUBCATEGORY_MAP = {{ subcategory_map_json|default:"{}"|safe }};
 
-  // Category -> Sub-category -> Detail, one column each (e.g. OPD
-  // Consultation > Cardiology > Dr. Rao). The row's real `subcategory`
-  // <select> holds what actually gets saved — the detail when one is picked,
-  // otherwise the sub-category — so it is hidden and driven by the two
-  // visible selects.
-  bai.wireSubcategory = function (mainId, subId) {
-    const mainEl = document.getElementById(mainId);
-    const realEl = document.getElementById(subId);
-    if (!mainEl || !realEl || realEl.dataset.cascade) return;
-    realEl.dataset.cascade = "1";
-    const subCell = realEl.closest("td");
-    const detailCell = subCell.nextElementSibling;
-
-    const mk = (cell, placeholder) => {
-      const s = document.createElement("select");
-      s.dataset.placeholder = placeholder;
-      cell.appendChild(s);
-      return s;
-    };
-    const parentSel = mk(subCell, "Select sub-category");
-    const childSel = mk(detailCell, "Select detail");
-
-    // An empty level stays visible but disabled, so the three columns always
-    // line up and it's obvious the level exists but has nothing under it.
-    const fill = (sel, items, value) => {
-      sel.innerHTML = "";
-      sel.add(new Option(items.length ? sel.dataset.placeholder : "—", ""));
-      items.forEach((o) => sel.add(new Option(o.name, o.id)));
-      sel.disabled = !items.length;
-      sel.value = value || "";
-    };
-    const locate = (id) => {
-      for (const subs of Object.values(bai.SUBCATEGORY_MAP)) {
-        for (const p of subs) {
-          if (p.id === id) return { parent: p.id, child: "" };
-          if (p.children.some((c) => c.id === id)) return { parent: p.id, child: id };
-        }
-      }
-      return { parent: "", child: "" };
-    };
-    const render = (parentId, childId) => {
-      const subs = bai.SUBCATEGORY_MAP[mainEl.value] || [];
-      fill(parentSel, subs, parentId);
-      const kids = (subs.find((s) => s.id === parentSel.value) || {}).children || [];
-      fill(childSel, kids, childId);
-      realEl.value = childSel.value || parentSel.value || "";
-    };
-    // The select enhancer wraps every <select> in its own trigger markup, and
-    // it runs after this — so the real field can only be hidden (wrapper and
-    // all, or it leaves a stray empty dropdown behind) once that has happened.
-    const init = locate(realEl.value);
-    setTimeout(() => {
-      (realEl.closest(".bai-select-wrap") || realEl).style.display = "none";
-      render(init.parent, init.child);
-      mainEl.addEventListener("change", () => render("", ""));
-      parentSel.addEventListener("change", () => render(parentSel.value, ""));
-      childSel.addEventListener("change", () => { realEl.value = childSel.value || parentSel.value || ""; });
-    }, 0);
-  };
-
   bai.showBulkTab = (type) => {
     ["sale", "expense", "purchase"].forEach((t) => {
       document.getElementById("bulk-tab-" + t).classList.toggle("hidden", t !== type);
       document.getElementById("bulk-tab-btn-" + t).classList.toggle("report-tab--active", t === type);
     });
   };
-
-  bai.addFormsetRow = (prefix) => {
-    const totalInput = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
-    const index = parseInt(totalInput.value, 10);
-    const tpl = document.getElementById(`${prefix}-empty-row`);
-    const html = tpl.innerHTML.replace(/__prefix__/g, index);
-    document.getElementById(`${prefix}-formset-body`).insertAdjacentHTML("beforeend", html);
-    totalInput.value = index + 1;
-    const mainField = prefix === "sale" ? "channel" : "category";
-    bai.wireSubcategory(`id_${prefix}-${index}-${mainField}`, `id_${prefix}-${index}-subcategory`);
-    bai.syncBankField(document.getElementById(`id_${prefix}-${index}-payment_mode`));
-  };
-
-  // A bank account only makes sense once "Via" is Bank — disabled (not
-  // hidden, which would shift every later cell in the row left and break
-  // column alignment) and cleared the rest of the time.
-  bai.syncBankField = (paymentModeSelect) => {
-    if (!paymentModeSelect) return;
-    const row = paymentModeSelect.closest("tr");
-    const bankSelect = row && row.querySelector('select[name$="-bank_account"]');
-    if (!bankSelect) return;
-    const isBank = paymentModeSelect.value === "BANK";
-    bankSelect.disabled = !isBank;
-    if (!isBank) bankSelect.value = "";
-    else bankSelect.value = bankSelect.value; // re-run the trigger's disabled sync (see base.html's enhanceSelect)
-  };
-  bai.wireBankToggle = (prefix) => {
-    const body = document.getElementById(`${prefix}-formset-body`);
-    if (!body || body.dataset.bankWired) return;
-    body.dataset.bankWired = "1";
-    body.addEventListener("change", (e) => {
-      if (e.target.matches('select[name$="-payment_mode"]')) bai.syncBankField(e.target);
-    });
-    body.querySelectorAll('select[name$="-payment_mode"]').forEach(bai.syncBankField);
-  };
-
-  bai.wireBulkFormset = (prefix, mainField) => {
-    const totalInput = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
-    const total = totalInput ? parseInt(totalInput.value, 10) : 0;
-    for (let i = 0; i < total; i++) {
-      bai.wireSubcategory(`id_${prefix}-${i}-${mainField}`, `id_${prefix}-${i}-subcategory`);
-    }
-  };
-
-  // Live section totals: every row's amount that isn't ticked for removal.
-  const CURRENCY = "{{ organization.currency|escapejs }}";
-  bai.updateTotals = (prefix) => {
-    let total = 0, count = 0;
-    document.querySelectorAll(`#${prefix}-formset-body tr`).forEach((row) => {
-      const amount = row.querySelector('input[name$="-amount"]');
-      const remove = row.querySelector('input[name$="-DELETE"]');
-      const value = amount ? parseFloat(amount.value) : NaN;
-      if (!isNaN(value) && value > 0 && !(remove && remove.checked)) { total += value; count += 1; }
-    });
-    const money = total.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    document.getElementById(`total-${prefix}`).textContent = `${CURRENCY} ${money}`;
-    document.getElementById(`total-count-${prefix}`).textContent = `${count} ${count === 1 ? "entry" : "entries"}`;
-    document.getElementById(`tab-total-${prefix}`).textContent = count ? `· ${total.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "";
-  };
-  ["sale", "expense", "purchase"].forEach((prefix) => {
-    const body = document.getElementById(`${prefix}-formset-body`);
-    ["input", "change"].forEach((evt) => body.addEventListener(evt, () => bai.updateTotals(prefix)));
-    bai.updateTotals(prefix);
-  });
-
-  bai.wireBulkFormset("sale", "channel");
-  bai.wireBulkFormset("expense", "category");
-  bai.wireBulkFormset("purchase", "category");
-  bai.wireBankToggle("sale");
-  bai.wireBankToggle("expense");
-  bai.wireBankToggle("purchase");
 </script>
+{% include "finance/_bulk_entry_js.html" with bulk_prefixes_json=bulk_prefixes_json %}
 <style>
   .report-tab { padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500; color: #6b7488; border-bottom: 2px solid transparent; }
   .report-tab--active { color: #fff; border-color: #5b7cfa; }
-  /* Fixed layout: every column gets a set width so the dropdowns line up in a
-     grid instead of each one sizing itself to its longest option. */
-  .bulk-table { table-layout: fixed; min-width: 68rem; }
-  .bulk-table input, .bulk-table select { margin-top: 0; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
-  .bulk-table th[data-col="Qty"] { width: 4.5rem; }
-  .bulk-table th[data-col="Amount"] { width: 7rem; }
-  .bulk-table th[data-col="Via"] { width: 6.5rem; }
-  .bulk-table th[data-col="Bank"] { width: 8rem; }
-  .bulk-table th[data-col="Remove"], .bulk-table th[data-col="On credit"] { width: 4.5rem; }
-  .bulk-table .bai-select-trigger { margin-top: 0; width: 100%; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
-  .bulk-table select, .bulk-table input { width: 100%; }
-  @media (max-width: 1023px) {
-    .bulk-table, .bulk-table tbody { display: block; min-width: 0; table-layout: auto; }
-    .bulk-table thead { display: none; }
-    .bulk-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; padding: 0.85rem; margin-bottom: 0.75rem; border: 1px solid rgba(255,255,255,0.08); border-radius: 0.75rem; background: rgba(255,255,255,0.02); }
-    .bulk-table td { display: block; padding: 0 !important; width: auto !important; min-width: 0; }
-    .bulk-table td::before { content: attr(data-label); display: block; margin-bottom: 0.2rem; font-size: 10px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7488; }
-    .bulk-table td[data-label="Note"], .bulk-table td[data-label="Remove"], .bulk-table td[data-label="On credit"] { grid-column: 1 / -1; }
-    .bulk-table td[data-label="Remove"], .bulk-table td[data-label="On credit"] { display: flex; align-items: center; gap: 0.5rem; }
-    .bulk-table td[data-label="Remove"]::before, .bulk-table td[data-label="On credit"]::before { margin: 0; order: 2; }
-  }
 </style>
+{% include "finance/_bulk_table_style.html" %}
 {% endblock %}

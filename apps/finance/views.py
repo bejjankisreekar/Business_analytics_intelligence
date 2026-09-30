@@ -1,6 +1,7 @@
 import calendar
 import csv
 import datetime
+import io
 import json
 from decimal import Decimal
 
@@ -21,7 +22,7 @@ from apps.billing import services as billing_services
 from apps.billing.models import Invoice, Payment
 from apps.organizations.models import Organization
 
-from . import services
+from . import imports, services
 from .forms import (
     BankAccountEditForm,
     BankAccountForm,
@@ -47,6 +48,7 @@ from .forms import (
     SubcategoryForm,
     VendorEditForm,
     VendorForm,
+    sales_import_formset,
 )
 from .models import (
     BankAccount,
@@ -891,6 +893,11 @@ def _bulk_entry_context(request, selected_date, *, active_bulk_tab="sale", sale_
         "next_date": selected_date + datetime.timedelta(days=1),
         "report": report,
         "subcategory_map_json": to_json(services.subcategory_map()),
+        "bulk_prefixes_json": to_json([
+            {"prefix": "sale", "main_field": "channel"},
+            {"prefix": "expense", "main_field": "category"},
+            {"prefix": "purchase", "main_field": "category"},
+        ]),
         "active_bulk_tab": active_bulk_tab,
         "min_date": min_date,
         "sale_formset": sale_formset or SalesEntryFormSet(
@@ -1090,13 +1097,17 @@ def _describe_saved(entries, kind: str) -> list[dict]:
             label = e.category.name if e.category else kind.capitalize()
         if e.subcategory:
             label = f"{label} · {e.subcategory.name}"
-        rows.append({
+        row = {
             "date": e.date,
             "label": label,
             "amount": e.amount,
             "payment_mode": e.get_payment_mode_display(),
             "note": e.note,
-        })
+        }
+        if kind == "sale":
+            row["gross_amount"] = e.gross_amount
+            row["discount"] = e.discount
+        rows.append(row)
     return rows
 
 
@@ -1115,6 +1126,122 @@ class BulkAddSalesView(TenantLoginRequiredMixin, View):
         messages.error(request, "Couldn't save one or more sale rows — the errors are highlighted below.")
         context = _bulk_entry_context(request, selected_date, active_bulk_tab="sale", sale_formset=formset)
         return render(request, "finance/daily_bulk_entry.html", context)
+
+
+def _import_review_context(request, headers, data_rows, mapping) -> dict:
+    """Build the review-screen context for a parsed import file: an
+    editable SalesEntryFormSet pre-filled from `mapping`'s reading of
+    `data_rows`, paired row-by-row with why each one might need a manual
+    look before saving (see imports.build_initial_rows)."""
+    min_date = _historical_min_date(request)
+    initial_rows, warnings = imports.build_initial_rows(headers, data_rows, mapping)
+    formset = sales_import_formset(len(initial_rows))(
+        queryset=SalesEntry.objects.none(), initial=initial_rows, prefix="sale",
+        form_kwargs={"min_date": min_date},
+    )
+    return {
+        "active_nav": "daily_report",
+        "organization": request.user.organization,
+        "min_date": min_date,
+        "sale_formset": formset,
+        "rows": list(zip(formset, warnings)),
+        "row_count": len(initial_rows),
+        "flagged_count": sum(1 for w in warnings if w),
+        "headers": headers,
+        "mapping_fields": [
+            (field, label, required, mapping.get(field))
+            for field, label, required in imports.TARGET_FIELDS
+        ],
+        "raw_data_json": to_json({"headers": headers, "rows": data_rows}),
+        "subcategory_map_json": to_json(services.subcategory_map()),
+        "bulk_prefixes_json": to_json([{"prefix": "sale", "main_field": "channel"}]),
+    }
+
+
+class ImportSalesUploadView(TenantLoginRequiredMixin, View):
+    """Upload → parse → map-and-review for Revenue entries. The uploaded
+    file is only ever read into memory (imports.parse_upload) — never saved
+    to disk or a session; re-mapping columns re-posts the already-parsed
+    grid back to this same view via a hidden field instead of re-uploading."""
+
+    def get(self, request, *args, **kwargs):
+        return render(request, "finance/import_sales_upload.html", {
+            "active_nav": "daily_report",
+            "target_fields": imports.TARGET_FIELDS,
+            "max_rows": imports.MAX_IMPORT_ROWS,
+            "max_upload_mb": imports.MAX_UPLOAD_BYTES // (1024 * 1024),
+        })
+
+    def post(self, request, *args, **kwargs):
+        raw_json = request.POST.get("raw_data")
+        if raw_json:
+            try:
+                payload = json.loads(raw_json)
+                headers, data_rows = payload["headers"], payload["rows"]
+            except (ValueError, KeyError, TypeError):
+                messages.error(request, "Something went wrong reading that data — please upload the file again.")
+                return redirect("finance:import_sales")
+            mapping = {
+                field: request.POST.get(f"map_{field}") or None for field, _label, _required in imports.TARGET_FIELDS
+            }
+        else:
+            uploaded = request.FILES.get("file")
+            if not uploaded:
+                messages.error(request, "Choose a CSV or Excel file first.")
+                return self.get(request, *args, **kwargs)
+            try:
+                headers, data_rows = imports.parse_upload(uploaded)
+            except imports.ImportParseError as exc:
+                messages.error(request, str(exc))
+                return self.get(request, *args, **kwargs)
+            mapping = imports.guess_column_mapping(headers)
+
+        context = _import_review_context(request, headers, data_rows, mapping)
+        return render(request, "finance/import_sales_review.html", context)
+
+
+class ImportSalesCommitView(TenantLoginRequiredMixin, View):
+    """Saves the reviewed/edited import formset — the exact same save path
+    (_save_bulk_formset) Bulk Entry itself uses, so historical-window limits,
+    bank-account clearing and gross/discount handling all apply identically."""
+
+    def post(self, request, *args, **kwargs):
+        total = int(request.POST.get("sale-TOTAL_FORMS") or 0)
+        formset = sales_import_formset(total)(
+            request.POST, queryset=SalesEntry.objects.none(), prefix="sale",
+            form_kwargs={"min_date": _historical_min_date(request)},
+        )
+        if formset.is_valid():
+            count, saved = _save_bulk_formset(formset, request)
+            if count:
+                messages.success(request, f"Imported {count} revenue entr{'y' if count == 1 else 'ies'}.")
+            else:
+                messages.warning(request, "Nothing was saved — every row was empty or removed.")
+            return redirect("finance:daily_bulk_entry")
+        messages.error(request, "Couldn't save one or more rows — fix the highlighted errors and save again.")
+        return render(request, "finance/import_sales_review.html", {
+            "active_nav": "daily_report",
+            "organization": request.user.organization,
+            "sale_formset": formset,
+            "rows": list(zip(formset, [[]] * total)),
+            "row_count": total,
+            "flagged_count": 0,
+            "subcategory_map_json": to_json(services.subcategory_map()),
+            "bulk_prefixes_json": to_json([{"prefix": "sale", "main_field": "channel"}]),
+        })
+
+
+class ImportSalesSampleView(TenantLoginRequiredMixin, View):
+    """A ready-to-fill example file for the Import Revenue upload page —
+    every header matches a mapping target field exactly, so a client can
+    literally fill it in and upload it back unchanged."""
+
+    def get(self, request, *args, **kwargs):
+        buffer = io.StringIO()
+        csv.writer(buffer).writerows(imports.SAMPLE_ROWS)
+        response = HttpResponse(buffer.getvalue(), content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="revenue_import_sample.csv"'
+        return response
 
 
 class BulkAddExpensesView(TenantLoginRequiredMixin, View):
@@ -1479,6 +1606,218 @@ class StatementPdfView(TenantLoginRequiredMixin, PeriodMixin, View):
             filename = f"cash-flow-{period.start}-{period.end}.pdf"
 
         return _render_statement_pdf(request, template, context, filename)
+
+
+CATEGORY_KIND_FOR_REPORT_KIND = {
+    "sales": Category.Kind.SALES,
+    "expenses": Category.Kind.EXPENSE,
+    "purchases": Category.Kind.PURCHASE,
+}
+
+
+def _category_statement_query(request) -> dict:
+    """Parses ?kind=&category=&subcategory=&from=&to= the same way for the
+    Category Statement page and its Excel/CSV/PDF exports, so the three
+    never drift apart (mirrors _monthly_summary_query's pattern). Date
+    range defaults to this calendar month, same convention as
+    _ledger_filter_context — an explicit ?from=&to= (emptied) means "all
+    time" instead."""
+    kind = request.GET.get("kind", "sales")
+    if kind not in MONTHLY_SUMMARY_KINDS:
+        kind = "sales"
+    model, field, label = MONTHLY_SUMMARY_KINDS[kind]
+
+    category_id = request.GET.get("category") or None
+    subcategory_id = request.GET.get("subcategory") or None
+    category = Category.objects.filter(pk=category_id).first() if category_id else None
+    subcategory = Subcategory.objects.filter(pk=subcategory_id).first() if subcategory_id else None
+
+    default_range = "from" not in request.GET and "to" not in request.GET
+    if default_range:
+        today = datetime.date.today()
+        date_from = today.replace(day=1)
+        date_to = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+    else:
+        def _parse(name):
+            raw = request.GET.get(name)
+            try:
+                return datetime.date.fromisoformat(raw) if raw else None
+            except ValueError:
+                return None
+        date_from, date_to = _parse("from"), _parse("to")
+        if date_from and date_to and date_from > date_to:
+            date_from, date_to = date_to, date_from
+
+    result = (
+        services.category_statement_entries(model, field, category_id, subcategory_id, date_from, date_to)
+        if category_id else {"entries": [], "totals": {"gross": 0, "discount": 0, "amount": 0, "quantity": 0, "count": 0}}
+    )
+
+    return {
+        "kind": kind,
+        "kind_label": label,
+        "model": model,
+        "categories": Category.objects.filter(kind=CATEGORY_KIND_FOR_REPORT_KIND[kind], is_active=True).order_by("name"),
+        "category": category,
+        "subcategory": subcategory,
+        "category_id": category_id or "",
+        "subcategory_id": subcategory_id or "",
+        "date_from": date_from,
+        "date_to": date_to,
+        "default_range": default_range,
+        "entries": result["entries"],
+        "totals": result["totals"],
+    }
+
+
+class CategoryStatementView(TenantLoginRequiredMixin, View):
+    """A statement for one Category — optionally narrowed to a Sub-category
+    or a specific Item — over a date range: total(s) at the top, then every
+    entry behind that total, with an Excel/CSV/PDF export of the same."""
+
+    def get(self, request, *args, **kwargs):
+        data = _category_statement_query(request)
+        page = _paginate(request, data["entries"])
+        context = {
+            "active_nav": "category_statement",
+            "organization": request.user.organization,
+            "subcategory_map_json": to_json(services.subcategory_map()),
+            **data,
+        }
+        context["entries"] = page["page_obj"].object_list
+        context.update(page)
+        return render(request, "finance/category_statement.html", context)
+
+
+class CategoryStatementExcelView(TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font
+        from openpyxl.utils import get_column_letter
+
+        data = _category_statement_query(request)
+        is_sales = data["kind"] == "sales"
+        org = request.user.organization
+        column_count = 11 if is_sales else 9
+        last_col_letter = get_column_letter(column_count)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = data["kind_label"][:31]
+
+        # Letterhead — organization, report name/filters, date range — so an
+        # exported file still identifies itself once it's out of context.
+        report_title = f"Category Statement · {data['kind_label']}"
+        if data["category"]:
+            report_title += f" · {data['category'].name}"
+        if data["subcategory"]:
+            report_title += f" · {data['subcategory'].name}"
+        if data["date_from"] and data["date_to"]:
+            date_range = f"{data['date_from']:%d %b %Y} – {data['date_to']:%d %b %Y}"
+        elif data["date_from"]:
+            date_range = f"From {data['date_from']:%d %b %Y}"
+        elif data["date_to"]:
+            date_range = f"Until {data['date_to']:%d %b %Y}"
+        else:
+            date_range = "All time"
+
+        def _letterhead_row(text, font, alignment=Alignment(horizontal="center")):
+            ws.append([text])
+            row = ws.max_row
+            ws.merge_cells(f"A{row}:{last_col_letter}{row}")
+            cell = ws.cell(row=row, column=1)
+            cell.font = font
+            cell.alignment = alignment
+
+        _letterhead_row(org.name, Font(bold=True, size=14))
+        _letterhead_row(report_title, Font(bold=True, size=11))
+        _letterhead_row(date_range, Font(italic=True, size=9, color="666666"))
+        ws.append([])
+
+        header = ["Date", "Sub-category", "Item", "Customer/Vendor", "Qty"]
+        if is_sales:
+            header += ["Gross", "Discount"]
+        header += ["Net" if is_sales else "Amount", "Via", "Bank", "Note"]
+        ws.append(header)
+        header_row = ws.max_row
+        for cell in ws[header_row]:
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal="center")
+        for e in data["entries"]:
+            row = [e["date"], e["subcategory"], e["item"], e["customer"] or e["vendor"], e["quantity"]]
+            if is_sales:
+                row += [e["gross_amount"], e["discount"]]
+            row += [e["amount"], e["payment_mode"], e["bank_account"], e["note"]]
+            ws.append(row)
+        total_row = ["Total", "", "", "", data["totals"]["quantity"]]
+        if is_sales:
+            total_row += [data["totals"]["gross"], data["totals"]["discount"]]
+        total_row += [data["totals"]["amount"], "", "", ""]
+        ws.append(total_row)
+        for cell in ws[ws.max_row]:
+            cell.font = Font(bold=True)
+        amount_min_col, amount_max_col = (6, 8) if is_sales else (6, 6)
+        for row in ws.iter_rows(min_row=header_row + 1, min_col=amount_min_col, max_col=amount_max_col):
+            for cell in row:
+                cell.number_format = "#,##0.00"
+        widths = [12, 16, 16, 18, 6] + ([10, 10] if is_sales else []) + [10, 8, 14, 24]
+        for i, width in enumerate(widths, start=1):
+            ws.column_dimensions[get_column_letter(i)].width = width
+        ws.freeze_panes = f"A{header_row + 1}"
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        filename = f"category-statement-{data['kind']}-{data['date_from']}-{data['date_to']}.xlsx"
+        response = HttpResponse(
+            buffer.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class CategoryStatementCsvView(TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        data = _category_statement_query(request)
+        is_sales = data["kind"] == "sales"
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+
+        header = ["Date", "Sub-category", "Item", "Customer/Vendor", "Qty"]
+        if is_sales:
+            header += ["Gross", "Discount"]
+        header += ["Net" if is_sales else "Amount", "Via", "Bank", "Note"]
+        writer.writerow(header)
+
+        for e in data["entries"]:
+            row = [e["date"], e["subcategory"], e["item"], e["customer"] or e["vendor"], e["quantity"] or ""]
+            if is_sales:
+                row += [e["gross_amount"] or "", e["discount"] or ""]
+            row += [e["amount"], e["payment_mode"], e["bank_account"], e["note"]]
+            writer.writerow(row)
+
+        total_row = ["Total", "", "", "", data["totals"]["quantity"]]
+        if is_sales:
+            total_row += [data["totals"]["gross"], data["totals"]["discount"]]
+        total_row += [data["totals"]["amount"], "", "", ""]
+        writer.writerow(total_row)
+
+        filename = f"category-statement-{data['kind']}-{data['date_from']}-{data['date_to']}.csv"
+        response = HttpResponse(buffer.getvalue(), content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class CategoryStatementPdfView(TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        data = _category_statement_query(request)
+        context = {"organization": request.user.organization, **data}
+        filename = f"category-statement-{data['kind']}-{data['date_from']}-{data['date_to']}.pdf"
+        return _render_statement_pdf(
+            request, "finance/pdf/category_statement_pdf.html", context, filename,
+            fallback_url_name="finance:category_statement",
+        )
 
 
 MONTH_NAMES = {

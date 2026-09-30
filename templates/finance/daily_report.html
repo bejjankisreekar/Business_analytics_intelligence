@@ -40,6 +40,7 @@
 <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
   <div class="flex flex-nowrap items-center gap-3 overflow-x-auto pb-1">
     <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">▦ Bulk Entry — enter the whole day at once</a>
+    <a href="{% url 'finance:import_sales' %}" class="btn-primary inline-flex shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">⇪ Import Revenue (CSV/Excel)</a>
     <button onclick="bai.openModal('modal-transfer')" class="btn-primary shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">⇄ Cash / Bank transfer</button>
   </div>
   {% if selected_mode == 'all' %}

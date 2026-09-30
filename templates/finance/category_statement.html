@@ -1,0 +1,186 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Category Statement · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<a href="{% url 'finance:reports' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Financial Reports</a>
+
+<h1 class="mt-2 text-2xl font-bold text-white">Category Statement</h1>
+<p class="mt-1 max-w-2xl text-sm text-slate-400">{{ organization.name }} · pick a category — or drill into one sub-category or a specific item (e.g. one doctor, one employee) — and a date range, to see every entry behind the total.</p>
+
+<div class="mt-4 flex gap-2 overflow-x-auto whitespace-nowrap border-b border-white/5">
+  <a href="?kind=sales" class="report-tab {% if kind == 'sales' %}report-tab--active{% endif %}">Revenue</a>
+  <a href="?kind=expenses" class="report-tab {% if kind == 'expenses' %}report-tab--active{% endif %}">Expenses</a>
+  <a href="?kind=purchases" class="report-tab {% if kind == 'purchases' %}report-tab--active{% endif %}">Purchases</a>
+</div>
+
+<form method="get" class="card mt-4 flex flex-wrap items-end gap-3 p-4">
+  <input type="hidden" name="kind" value="{{ kind }}">
+  <div>
+    <label for="cs-category" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Category</label>
+    <select id="cs-category" name="category" data-plain class="!mt-1">
+      <option value="">— Select category —</option>
+      {% for c in categories %}
+      <option value="{{ c.id }}" {% if c.id|stringformat:"s" == category_id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="cs-subcategory" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Sub-category / Item</label>
+    <select id="cs-subcategory" name="subcategory" data-plain data-initial="{{ subcategory_id }}" class="!mt-1"></select>
+  </div>
+  <div>
+    <label for="cs-from" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
+    <input id="cs-from" type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+  </div>
+  <div>
+    <label for="cs-to" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">To</label>
+    <input id="cs-to" type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+  </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <button type="submit" class="btn-primary">Apply</button>
+  </div>
+  {% if default_range %}<p class="w-full text-xs text-slate-500">This month by default — pick a different range above, or clear both dates and Apply for all time.</p>{% endif %}
+</form>
+
+{% if not category %}
+<div class="card mt-5 p-8 text-center text-sm text-slate-400">Pick a category above to see its statement.</div>
+{% else %}
+<div class="mt-5 grid grid-cols-1 gap-4 {% if kind == 'sales' %}sm:grid-cols-3{% endif %}">
+  {% if kind == "sales" %}
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Gross</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ totals.gross|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Discount</p>
+    <p class="mt-1.5 text-xl font-bold text-amber-400">{{ organization.currency }} {{ totals.discount|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium text-slate-500">Total Net</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ totals.amount|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">{{ totals.count }} entr{{ totals.count|pluralize:"y,ies" }}</p>
+  </div>
+  {% else %}
+  <div class="card p-5 text-center">
+    <p class="text-xs font-medium text-slate-500">Total Amount</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ totals.amount|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">{{ totals.count }} entr{{ totals.count|pluralize:"y,ies" }} · {{ category.name }}{% if subcategory %} · {{ subcategory.name }}{% endif %}</p>
+  </div>
+  {% endif %}
+</div>
+
+<div class="mt-4 flex flex-wrap items-center gap-2">
+  <a href="{% url 'finance:category_statement_excel' %}?kind={{ kind }}&category={{ category_id }}&subcategory={{ subcategory_id }}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}" class="btn-primary" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">⬇ Excel</a>
+  <a href="{% url 'finance:category_statement_csv' %}?kind={{ kind }}&category={{ category_id }}&subcategory={{ subcategory_id }}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ CSV</a>
+  <a href="{% url 'finance:category_statement_pdf' %}?kind={{ kind }}&category={{ category_id }}&subcategory={{ subcategory_id }}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ PDF</a>
+</div>
+
+<div class="card mt-4 overflow-x-auto p-5">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+        <th class="pb-2 pr-4 font-medium">Date</th>
+        <th class="pb-2 pr-4 font-medium">Sub-category</th>
+        <th class="pb-2 pr-4 font-medium">Item</th>
+        <th class="pb-2 pr-4 font-medium">{% if kind == 'purchases' %}Vendor{% else %}Customer{% endif %}</th>
+        <th class="pb-2 pr-4 text-right font-medium">Qty</th>
+        {% if kind == "sales" %}
+        <th class="pb-2 pr-4 text-right font-medium">Gross</th>
+        <th class="pb-2 pr-4 text-right font-medium">Discount</th>
+        {% endif %}
+        <th class="pb-2 pr-4 text-right font-medium">{% if kind == 'sales' %}Net{% else %}Amount{% endif %}</th>
+        <th class="pb-2 pr-4 font-medium">Via</th>
+        <th class="pb-2 font-medium">Note</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for e in entries %}
+      <tr>
+        <td class="py-2.5 pr-4 text-slate-400">{{ e.date|date:"d M Y" }}</td>
+        <td class="py-2.5 pr-4 text-slate-300">{{ e.subcategory|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-slate-300">{{ e.item|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-slate-300">{{ e.customer|default:e.vendor|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-400">{{ e.quantity|default:"—" }}</td>
+        {% if kind == "sales" %}
+        <td class="py-2.5 pr-4 text-right text-slate-300">{{ organization.currency }} {{ e.gross_amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right text-amber-400">{{ organization.currency }} {{ e.discount|floatformat:0|intcomma }}</td>
+        {% endif %}
+        <td class="py-2.5 pr-4 text-right font-medium text-white">{{ organization.currency }} {{ e.amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ e.payment_mode }}</td>
+        <td class="py-2.5 text-slate-500">{{ e.note|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" class="py-8 text-center text-slate-500">No entries in this range.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if entries %}
+    <tfoot>
+      <tr class="border-t border-white/10 font-semibold">
+        <td class="py-2.5 pr-4 text-slate-300" colspan="4">Total ({{ totals.count }} entr{{ totals.count|pluralize:"y,ies" }})</td>
+        <td class="py-2.5 pr-4 text-right text-slate-300">{{ totals.quantity }}</td>
+        {% if kind == "sales" %}
+        <td class="py-2.5 pr-4 text-right text-slate-200">{{ organization.currency }} {{ totals.gross|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right text-amber-400">{{ organization.currency }} {{ totals.discount|floatformat:0|intcomma }}</td>
+        {% endif %}
+        <td class="py-2.5 pr-4 text-right text-white">{{ organization.currency }} {{ totals.amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4"></td>
+        <td class="py-2.5"></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+{% include "finance/_pager.html" with pg=page_obj pq=page_query param="page" numbers=page_numbers %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.CS_SUBCATEGORY_MAP = {{ subcategory_map_json|default:"{}"|safe }};
+
+  bai.csUpdateSubcategoryOptions = () => {
+    const catSel = document.getElementById("cs-category");
+    const subSel = document.getElementById("cs-subcategory");
+    const keep = subSel.dataset.initial || "";
+    subSel.dataset.initial = "";
+    const subs = bai.CS_SUBCATEGORY_MAP[catSel.value] || [];
+    subSel.innerHTML = "";
+    subSel.add(new Option("— Whole category —", ""));
+    subs.forEach((s) => {
+      subSel.add(new Option(s.name, s.id));
+      (s.children || []).forEach((c) => subSel.add(new Option("— " + c.name, c.id)));
+    });
+    subSel.value = keep;
+  };
+  document.getElementById("cs-category").addEventListener("change", bai.csUpdateSubcategoryOptions);
+  bai.csUpdateSubcategoryOptions();
+</script>
+<style>
+  .report-tab { padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500; color: #6b7488; border-bottom: 2px solid transparent; }
+  .report-tab--active { color: #fff; border-color: #5b7cfa; }
+
+  /* #cs-category/#cs-subcategory stay data-plain (JS rebuilds their options
+     directly, which the bai-select-trigger enhancer doesn't support) — but
+     that leaves them as bare <select> elements, and Tailwind's preflight
+     reset (padding:0 on all form controls) loads after _app_base.html's own
+     shared `select { padding:... }` rule, winning the tie and leaving these
+     two flat and unstyled next to the date inputs. Re-asserting the exact
+     same look here, at higher specificity, is simpler than fighting load
+     order. */
+  #cs-category, #cs-subcategory {
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    width: 100%; margin-top: 0.3rem; border-radius: 0.6rem;
+    border: 1px solid rgba(255,255,255,0.1); background-color: rgba(255,255,255,0.03);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa4bd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 0.8rem center; background-size: 1rem;
+    padding: 0.65rem 2.25rem 0.65rem 0.85rem !important;
+    font-size: 0.83rem; color: #fff; cursor: pointer; outline: none;
+    transition: border-color .15s, background-color .15s, box-shadow .15s;
+  }
+  #cs-category:hover, #cs-subcategory:hover { border-color: rgba(255,255,255,0.24); background-color: rgba(255,255,255,0.06); }
+  #cs-category:focus, #cs-subcategory:focus { border-color: #5b7cfa; box-shadow: 0 0 0 3px rgba(91,124,250,0.15); }
+  #cs-category option, #cs-subcategory option { background: #111627; color: #fff; padding: 0.5rem; }
+</style>
+{% endblock %}

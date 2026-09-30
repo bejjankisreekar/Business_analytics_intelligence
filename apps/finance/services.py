@@ -63,6 +63,75 @@ def subcategory_map() -> dict:
     return out
 
 
+def category_statement_entries(
+    model, field: str, category_id, subcategory_id, date_from: datetime.date | None, date_to: datetime.date | None
+) -> dict:
+    """Line items (not just aggregates) for one Category — optionally
+    narrowed to a Sub-category (rolls up all its children too, via
+    `_subtree_ids`) or one specific child "Item" — over a date range.
+    Backs the Category Statement report/exports; works for SalesEntry,
+    ExpenseEntry or PurchaseEntry alike, since `getattr(e, name, default)`
+    quietly fills in whatever field a given model doesn't have (e.g.
+    Expense/Purchase have no `gross_amount`/`discount`/`customer`)."""
+    qs = model.objects.filter(**{field: category_id})
+    if subcategory_id:
+        sub = Subcategory.objects.filter(pk=subcategory_id).first()
+        if sub:
+            qs = qs.filter(subcategory_id__in=_subtree_ids(sub))
+    if date_from:
+        qs = qs.filter(date__gte=date_from)
+    if date_to:
+        qs = qs.filter(date__lte=date_to)
+    select = ["subcategory", "subcategory__parent", "bank_account"]
+    if model is SalesEntry:
+        select.append("customer")
+    qs = qs.select_related(*select).order_by("date", "created_at")
+
+    entries = []
+    total_gross = total_discount = total_amount = ZERO
+    total_quantity = 0
+    for e in qs:
+        subcategory = getattr(e, "subcategory", None)
+        if subcategory and subcategory.parent_id:
+            subcategory_name, item_name = subcategory.parent.name, subcategory.name
+        else:
+            subcategory_name, item_name = (subcategory.name if subcategory else ""), ""
+        customer = getattr(e, "customer", None)
+        bank_account = getattr(e, "bank_account", None)
+        gross_amount = getattr(e, "gross_amount", None)
+        discount = getattr(e, "discount", None)
+        quantity = getattr(e, "quantity", None)
+        entries.append({
+            "date": e.date,
+            "subcategory": subcategory_name,
+            "item": item_name,
+            "customer": customer.name if customer else "",
+            "vendor": getattr(e, "vendor", "") or "",
+            "quantity": quantity,
+            "gross_amount": gross_amount,
+            "discount": discount,
+            "amount": e.amount,
+            "payment_mode": e.get_payment_mode_display(),
+            "bank_account": bank_account.name if bank_account else "",
+            "note": e.note,
+        })
+        total_gross += gross_amount or ZERO
+        total_discount += discount or ZERO
+        total_amount += e.amount
+        total_quantity += quantity or 0
+
+    return {
+        "entries": entries,
+        "totals": {
+            "gross": total_gross,
+            "discount": total_discount,
+            "amount": total_amount,
+            "quantity": total_quantity,
+            "count": len(entries),
+        },
+    }
+
+
 def _sum(qs) -> Decimal:
     return qs.aggregate(total=Sum("amount"))["total"] or ZERO
 

@@ -72,16 +72,44 @@ class ClearBankAccountUnlessBankMixin:
         return cleaned_data
 
 
-class SalesEntryForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
+class RequireCategoryMixin:
+    """Category is required going forward — an entry with no category can't
+    be reported on correctly (it's silently missing from every category
+    breakdown). Set `category_field` to the model field name ("channel" for
+    Sales, "category" for Expense/Purchase).
+
+    An already-uncategorized row from before this was enforced can still be
+    re-saved without being forced to fix it right now — only a genuinely new
+    row, or an existing row whose category is being actively cleared to
+    blank, gets blocked."""
+
+    category_field = ""
+
+    def clean(self):
+        cleaned_data = super().clean()
+        value = cleaned_data.get(self.category_field)
+        if not value:
+            original_id = getattr(self.instance, f"{self.category_field}_id", None)
+            already_blank = not self.instance._state.adding and original_id is None
+            if not already_blank:
+                self.add_error(self.category_field, "Required — pick a category so this entry is reported on correctly.")
+        return cleaned_data
+
+
+class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
+    category_field = "channel"
+
     class Meta:
         model = SalesEntry
         fields = [
-            "date", "channel", "subcategory", "customer", "quantity", "amount",
+            "date", "channel", "subcategory", "customer", "quantity", "gross_amount", "discount",
             "payment_mode", "bank_account", "note",
         ]
         labels = {
             "subcategory": "Sub-category (optional)",
             "quantity": "Qty (optional)",
+            "gross_amount": "Gross amount",
+            "discount": "Discount (optional)",
             "bank_account": "Bank",
         }
         widgets = {
@@ -103,13 +131,34 @@ class SalesEntryForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin,
         self.fields["customer"].required = False
         self.fields["quantity"].required = False
         self.fields["quantity"].widget.attrs["placeholder"] = "Qty"
-        self.fields["amount"].widget.attrs["placeholder"] = "0.00"
+        # Both fields carry a model-level default=0 (so a fresh SalesEntry
+        # created without discount info still gets a sane gross/discount) —
+        # but that default becomes this form field's fallback "initial" for
+        # has_changed() comparisons, which makes a genuinely untouched blank
+        # Bulk Entry row look "changed" (0 vs "") and forces full validation
+        # on rows the user never filled in. Clearing it here restores the
+        # normal blank-row-is-ignored behavior the other fields already have.
+        self.fields["gross_amount"].initial = None
+        self.fields["gross_amount"].widget.attrs["placeholder"] = "0.00"
+        self.fields["discount"].initial = None
+        self.fields["discount"].required = False
+        self.fields["discount"].widget.attrs["placeholder"] = "0.00"
         self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
         self.fields["bank_account"].required = False
         self.fields["bank_account"].empty_label = "— Bank —"
 
+    def clean(self):
+        cleaned_data = super().clean()
+        gross = cleaned_data.get("gross_amount")
+        discount = cleaned_data.get("discount") or Decimal("0")
+        if gross is not None and discount > gross:
+            self.add_error("discount", "Can't exceed the gross amount.")
+        return cleaned_data
 
-class ExpenseEntryForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
+
+class ExpenseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
+    category_field = "category"
+
     class Meta:
         model = ExpenseEntry
         fields = ["date", "category", "subcategory", "amount", "payment_mode", "bank_account", "note"]
@@ -134,7 +183,9 @@ class ExpenseEntryForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixi
         self.fields["bank_account"].empty_label = "— Bank —"
 
 
-class PurchaseEntryForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
+class PurchaseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
+    category_field = "category"
+
     on_credit = forms.BooleanField(
         required=False,
         label="Not paid yet (on credit)",
@@ -195,6 +246,13 @@ class PurchaseEntryForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMix
 SalesEntryFormSet = forms.modelformset_factory(SalesEntry, form=SalesEntryForm, extra=5, can_delete=True)
 ExpenseEntryFormSet = forms.modelformset_factory(ExpenseEntry, form=ExpenseEntryForm, extra=3, can_delete=True)
 PurchaseEntryFormSet = forms.modelformset_factory(PurchaseEntry, form=PurchaseEntryForm, extra=3, can_delete=True)
+
+
+def sales_import_formset(extra: int):
+    """A SalesEntryFormSet sized to hold exactly `extra` unsaved rows — used
+    by the CSV/Excel import review screen, where every row comes from the
+    uploaded file's `initial=` data rather than a handful of blank ones."""
+    return forms.modelformset_factory(SalesEntry, form=SalesEntryForm, extra=extra, can_delete=True)
 
 
 class CashTransferForm(HistoricalWindowFormMixin, forms.ModelForm):

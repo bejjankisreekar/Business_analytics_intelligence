@@ -194,6 +194,11 @@ class SalesEntry(models.Model):
         Customer, on_delete=models.SET_NULL, null=True, blank=True, related_name="sales_entries"
     )
     quantity = models.PositiveIntegerField(null=True, blank=True)
+    # `amount` stays the net figure everything else in the app reads (reports,
+    # dashboards, GST, ledgers) — gross_amount/discount are the entry-time inputs
+    # a discounted sale is captured from; save() below derives amount from them.
+    gross_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     payment_mode = models.CharField(max_length=10, choices=PaymentMode.choices, default=PaymentMode.CASH)
     bank_account = models.ForeignKey(
@@ -209,6 +214,18 @@ class SalesEntry(models.Model):
 
     def __str__(self) -> str:
         return f"Sale {self.date} — {self.amount}"
+
+    def save(self, *args, **kwargs):
+        # A caller that sets gross_amount (Bulk Entry, import) gets amount
+        # derived from it. A caller that only ever set amount directly (e.g.
+        # RecordReceivablePaymentView, which has no discount concept) gets
+        # gross_amount backfilled to match instead, so Gross/Net never
+        # disagree with the amount actually recorded.
+        if self.gross_amount:
+            self.amount = self.gross_amount - self.discount
+        elif self.amount:
+            self.gross_amount = self.amount
+        super().save(*args, **kwargs)
 
 
 class ExpenseEntry(models.Model):

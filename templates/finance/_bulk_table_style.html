@@ -1,0 +1,33 @@
+<style>
+  /* Fixed layout: every column gets a set width so the dropdowns line up in a
+     grid instead of each one sizing itself to its longest option. Dropdown
+     columns (Category/Sub-category/Item/Customer/Vendor) get a generous
+     width regardless of their header text, so the picked option isn't
+     truncated — a fixed-name column shouldn't dictate a cramped widget. */
+  .bulk-table { table-layout: fixed; min-width: 76rem; }
+  .bulk-table--wide { min-width: 112rem; }
+  .net-cell { display: inline-block; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
+  .bulk-table input, .bulk-table select { margin-top: 0; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
+  .bulk-table th[data-col="Check"] { width: 3rem; }
+  .bulk-table th[data-col="Date"] { width: 8rem; }
+  .bulk-table th[data-col="Category"], .bulk-table th[data-col="Sub-category"], .bulk-table th[data-col="Item"],
+  .bulk-table th[data-col="Customer"], .bulk-table th[data-col="Vendor"] { width: 11rem; }
+  .bulk-table th[data-col="Note"] { width: 11rem; }
+  .bulk-table th[data-col="Qty"] { width: 4.5rem; }
+  .bulk-table th[data-col="Amount"], .bulk-table th[data-col="Gross"], .bulk-table th[data-col="Discount"], .bulk-table th[data-col="Net"] { width: 6.5rem; }
+  .bulk-table th[data-col="Via"] { width: 7rem; }
+  .bulk-table th[data-col="Bank"] { width: 9rem; }
+  .bulk-table th[data-col="Remove"], .bulk-table th[data-col="On credit"] { width: 4.5rem; }
+  .bulk-table .bai-select-trigger { margin-top: 0; width: 100%; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
+  .bulk-table select, .bulk-table input { width: 100%; }
+  @media (max-width: 1023px) {
+    .bulk-table, .bulk-table tbody { display: block; min-width: 0; table-layout: auto; }
+    .bulk-table thead { display: none; }
+    .bulk-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; padding: 0.85rem; margin-bottom: 0.75rem; border: 1px solid rgba(255,255,255,0.08); border-radius: 0.75rem; background: rgba(255,255,255,0.02); }
+    .bulk-table td { display: block; padding: 0 !important; width: auto !important; min-width: 0; }
+    .bulk-table td::before { content: attr(data-label); display: block; margin-bottom: 0.2rem; font-size: 10px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7488; }
+    .bulk-table td[data-label="Note"], .bulk-table td[data-label="Remove"], .bulk-table td[data-label="On credit"] { grid-column: 1 / -1; }
+    .bulk-table td[data-label="Remove"], .bulk-table td[data-label="On credit"] { display: flex; align-items: center; gap: 0.5rem; }
+    .bulk-table td[data-label="Remove"]::before, .bulk-table td[data-label="On credit"]::before { margin: 0; order: 2; }
+  }
+</style>

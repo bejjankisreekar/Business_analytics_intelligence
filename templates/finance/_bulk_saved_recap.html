@@ -19,7 +19,10 @@
           <td class="py-1.5 pr-4 text-slate-200">{{ row.label }}</td>
           <td class="py-1.5 pr-4 text-slate-500">{{ row.note|default:"—" }}</td>
           <td class="py-1.5 pr-4 text-slate-400">{{ row.payment_mode }}</td>
-          <td class="py-1.5 text-right font-medium text-white">{{ organization.currency }} {{ row.amount|floatformat:0|intcomma }}</td>
+          <td class="py-1.5 text-right font-medium text-white">
+            {{ organization.currency }} {{ row.amount|floatformat:0|intcomma }}
+            {% if row.discount %}<span class="block text-[10px] font-normal text-slate-500">Gross {{ row.gross_amount|floatformat:0|intcomma }} − {{ row.discount|floatformat:0|intcomma }} discount</span>{% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>

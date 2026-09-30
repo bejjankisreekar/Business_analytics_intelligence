@@ -1,0 +1,97 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Import Revenue — Review · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<a href="{% url 'finance:import_sales' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Upload</a>
+
+<h1 class="mt-2 text-2xl font-bold text-white">Review before saving</h1>
+<p class="mt-1 max-w-2xl text-sm text-slate-400">
+  {{ row_count }} row{{ row_count|pluralize }} read from the file.
+  {% if flagged_count %}<span class="font-medium text-amber-400">{{ flagged_count }} need{{ flagged_count|pluralize:"s," }} a look</span> — check the ⚠ rows below.{% else %}Nothing looks off, but take a look before saving.{% endif %}
+  Nothing is saved yet.
+</p>
+
+{% if headers %}
+<details class="card mt-4 p-5">
+  <summary class="cursor-pointer text-sm font-semibold text-slate-200">Column mapping — wrong? adjust and re-apply</summary>
+  <form method="post" action="{% url 'finance:import_sales' %}" class="mt-3">
+    {% csrf_token %}
+    <input type="hidden" name="raw_data" value="{{ raw_data_json }}">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {% for field, label, required, current in mapping_fields %}
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ label }}{% if required %} *{% endif %}</label>
+        <select name="map_{{ field }}" class="mt-1 w-full sel-wide">
+          <option value="">— not in file —</option>
+          {% for header in headers %}
+          <option value="{{ header }}" {% if header == current %}selected{% endif %}>{{ header }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn-primary mt-3">Re-apply mapping</button>
+  </form>
+</details>
+{% endif %}
+
+<div class="card mt-4 p-5">
+  <form method="post" action="{% url 'finance:import_sales_commit' %}">
+    {% csrf_token %}
+    {{ sale_formset.management_form }}
+    {% if sale_formset.non_form_errors %}
+    <div class="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-200">
+      {% for error in sale_formset.non_form_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="overflow-x-auto">
+      <table class="bulk-table bulk-table--wide w-full text-left text-sm">
+        <thead>
+          <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+            <th data-col="Check" class="px-1 pb-1.5 font-medium">Check</th>
+            <th data-col="Date" class="px-1 pb-1.5 font-medium">Date</th>
+            <th data-col="Category" class="px-1 pb-1.5 font-medium">Category</th>
+            <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">Sub-category</th>
+            <th data-col="Item" class="px-1 pb-1.5 font-medium">Item</th>
+            <th data-col="Customer" class="px-1 pb-1.5 font-medium">Customer</th>
+            <th data-col="Qty" class="px-1 pb-1.5 font-medium">Qty</th>
+            <th data-col="Gross" class="px-1 pb-1.5 font-medium">Gross</th>
+            <th data-col="Discount" class="px-1 pb-1.5 font-medium">Discount</th>
+            <th data-col="Net" class="px-1 pb-1.5 font-medium">Net</th>
+            <th data-col="Via" class="px-1 pb-1.5 font-medium">Via</th>
+            <th data-col="Bank" class="px-1 pb-1.5 font-medium">Bank</th>
+            <th data-col="Note" class="px-1 pb-1.5 font-medium">Note</th>
+            <th data-col="Remove" class="px-1 pb-1.5 font-medium">Remove</th>
+          </tr>
+        </thead>
+        <tbody id="sale-formset-body">
+          {% for form, warnings in rows %}
+          <tr>
+            <td data-label="Check" class="px-1 py-1 align-top">
+              {% if warnings or form.errors %}<span class="text-amber-400" title="{{ warnings|join:'; ' }}">⚠</span>{% else %}<span class="text-mint-400">✓</span>{% endif %}
+            </td>
+            {% include "finance/_bulk_sale_row.html" with show_date=True %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <template id="sale-empty-row"><tr><td data-label="Check" class="px-1 py-1"></td>{% include "finance/_bulk_sale_row.html" with form=sale_formset.empty_form show_date=True %}</tr></template>
+    <div class="mt-3 flex items-center gap-3">
+      <button type="button" onclick="bai.addFormsetRow('sale')" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">+ Add row</button>
+      <button type="submit" class="btn-primary" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">Save all entries</button>
+      <p class="ml-auto text-sm text-slate-400"><span id="total-count-sale"></span> · Total <span class="text-base font-bold text-white" id="total-sale"></span></p>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.SUBCATEGORY_MAP = {{ subcategory_map_json|default:"{}"|safe }};
+</script>
+{% include "finance/_bulk_entry_js.html" with bulk_prefixes_json=bulk_prefixes_json %}
+{% include "finance/_bulk_table_style.html" %}
+{% endblock %}

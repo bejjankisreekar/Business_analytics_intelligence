@@ -1,0 +1,42 @@
+{% extends "finance/_app_base.html" %}
+{% block title %}Import Revenue · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<a href="{% url 'finance:daily_report' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Daily Report</a>
+
+<h1 class="mt-2 text-2xl font-bold text-white">Import Revenue</h1>
+<p class="mt-1 max-w-3xl text-sm text-slate-400">Upload a CSV or Excel export from your billing/POS software (or any spreadsheet) instead of typing each day's revenue by hand. The file is only read to fill in the rows below — it is never saved. You'll get to check and edit every row, and nothing is recorded until you press Save.</p>
+
+<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+  <div class="card p-5">
+    <p class="text-sm font-semibold text-slate-200">Columns it looks for</p>
+    <p class="mt-1 text-xs text-slate-500">Your file's column names don't need to match exactly — on the next screen you can point each of these at whichever column actually has it, or leave it blank.</p>
+    <table class="mt-3 w-full text-left text-sm">
+      <tbody class="divide-y divide-white/5">
+        {% for field, label, required in target_fields %}
+        <tr>
+          <td class="py-1.5 pr-4 text-slate-300">{{ label }}</td>
+          <td class="py-1.5 text-xs {% if required %}text-amber-400{% else %}text-slate-500{% endif %}">{% if required %}Required{% else %}Optional{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card p-5">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <label class="block text-sm font-medium text-slate-300">File (.csv or .xlsx)</label>
+      <input type="file" name="file" accept=".csv,.xlsx,.xlsm" required class="mt-1.5 w-full rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-200">
+      <p class="mt-1.5 text-xs text-slate-500">Up to {{ max_rows }} rows and {{ max_upload_mb }} MB per file.</p>
+      <button type="submit" class="btn-primary mt-4">Upload &amp; preview</button>
+    </form>
+
+    <div class="mt-5 border-t border-white/10 pt-4">
+      <p class="text-sm font-semibold text-slate-200">Not sure how the file should look?</p>
+      <p class="mt-1 text-xs text-slate-500">Download this example, fill it in with your own rows (or match its column names in your own export), and upload it above.</p>
+      <a href="{% url 'finance:import_sales_sample' %}" class="btn-primary mt-3 inline-flex" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">⇩ Download sample CSV</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
