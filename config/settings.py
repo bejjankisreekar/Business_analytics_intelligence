@@ -33,7 +33,7 @@ if _RENDER_HOST:
     if f"https://{_RENDER_HOST}" not in CSRF_TRUSTED_ORIGINS:
         CSRF_TRUSTED_ORIGINS.append(f"https://{_RENDER_HOST}")
 
-SITE_NAME = "Business Analytics Intelligence"
+SITE_NAME = "Prism Pulse Intelligence & Analytics"
 
 INSTALLED_APPS = [
     "django.contrib.admin",

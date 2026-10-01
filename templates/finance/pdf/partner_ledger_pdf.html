@@ -1,0 +1,42 @@
+{% extends "finance/pdf/_base_pdf.html" %}
+{% load humanize %}
+{% block page_size %}A4{% endblock %}
+{% block subtitle %}{{ partner.name }} · Partner Ledger ({{ date_range }}){% endblock %}
+{% block statement %}
+<table>
+  <tr>
+    <td class="section-label" style="width:20%;">Date</td>
+    <td class="section-label" style="width:40%;">Particular</td>
+    <td class="section-label right" style="width:13%;">Invested</td>
+    <td class="section-label right" style="width:13%;">Withdrawn</td>
+    <td class="section-label right" style="width:14%; padding-right:8px;">Net Capital</td>
+  </tr>
+  {% if opening_bf is not None %}
+  <tr class="divider">
+    <td>{{ date_from|date:"d M Y" }}</td>
+    <td style="font-style:italic; color:#666;" colspan="3">Balance brought forward</td>
+    <td class="right" style="padding-right:8px;">{{ opening_bf|floatformat:2|intcomma }}</td>
+  </tr>
+  {% endif %}
+  {% for e in entries %}
+  <tr class="divider">
+    <td>{{ e.date|date:"d M Y" }}</td>
+    <td>{{ e.particular }}</td>
+    <td class="right">{% if e.debit %}{{ e.debit|floatformat:2|intcomma }}{% else %}–{% endif %}</td>
+    <td class="right">{% if e.credit %}{{ e.credit|floatformat:2|intcomma }}{% else %}–{% endif %}</td>
+    <td class="right" style="padding-right:8px;">{{ e.balance|floatformat:2|intcomma }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="5" class="muted">No investments or withdrawals in this range.</td></tr>
+  {% endfor %}
+  {% if entries %}
+  <tr class="thick">
+    <td colspan="2">Total</td>
+    <td class="right">{{ total_debit|floatformat:2|intcomma }}</td>
+    <td class="right">{{ total_credit|floatformat:2|intcomma }}</td>
+    <td class="right" style="padding-right:8px;">{{ closing_balance|floatformat:2|intcomma }}</td>
+  </tr>
+  {% endif %}
+</table>
+<p class="muted" style="margin-top:10px;">Amounts in {{ organization.currency }}.</p>
+{% endblock %}

@@ -1,5 +1,5 @@
 {% extends "finance/_app_base.html" %}
-{% load humanize %}
+{% load humanize static %}
 {% block title %}Dashboard · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
@@ -119,39 +119,40 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/chart-theme.js' %}"></script>
 <script>Chart.defaults.locale = "en-IN";</script>
 <script>
-  Chart.defaults.color = "#9aa4bd";
-  Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
-  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+  baiChartTheme.onThemeChange((c) => {
+    const charts = [];
 
-  const palette = { brand: "#5b7cfa", brandFill: "rgba(91,124,250,0.15)", mint: "#34d9b8", mintFill: "rgba(52,217,184,0.15)", red: "#f87171", redFill: "rgba(248,113,113,0.15)" };
+    charts.push(new Chart(document.getElementById("chartDaily"), {
+      type: "line",
+      data: {
+        labels: {{ chart_daily_labels|safe }},
+        datasets: [
+          { label: "Revenue", data: {{ chart_daily_sales|safe }}, borderColor: c.mint, backgroundColor: c.mintFill, tension: .35, fill: true, pointRadius: 0 },
+          { label: "Expenses", data: {{ chart_daily_expenses|safe }}, borderColor: c.red, backgroundColor: c.redFill, tension: .35, fill: true, pointRadius: 0 },
+          { label: "Purchases", data: {{ chart_daily_purchases|safe }}, borderColor: c.brand, backgroundColor: c.brandFill, tension: .35, fill: true, pointRadius: 0 },
+        ],
+      },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    }));
 
-  new Chart(document.getElementById("chartDaily"), {
-    type: "line",
-    data: {
-      labels: {{ chart_daily_labels|safe }},
-      datasets: [
-        { label: "Revenue", data: {{ chart_daily_sales|safe }}, borderColor: palette.mint, backgroundColor: palette.mintFill, tension: .35, fill: true, pointRadius: 0 },
-        { label: "Expenses", data: {{ chart_daily_expenses|safe }}, borderColor: palette.red, backgroundColor: palette.redFill, tension: .35, fill: true, pointRadius: 0 },
-        { label: "Purchases", data: {{ chart_daily_purchases|safe }}, borderColor: palette.brand, backgroundColor: palette.brandFill, tension: .35, fill: true, pointRadius: 0 },
-      ],
-    },
-    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
-      plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+    {% if expense_breakdown|length > 1 %}
+    charts.push(new Chart(document.getElementById("chartExpenseBreakdown"), {
+      type: "doughnut",
+      data: {
+        labels: {{ chart_expense_labels|safe }},
+        datasets: [{ data: {{ chart_expense_values|safe }}, backgroundColor: c.donut, borderWidth: 0 }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } },
+    }));
+    {% endif %}
+
+    return charts;
   });
-
-  {% if expense_breakdown|length > 1 %}
-  new Chart(document.getElementById("chartExpenseBreakdown"), {
-    type: "doughnut",
-    data: {
-      labels: {{ chart_expense_labels|safe }},
-      datasets: [{ data: {{ chart_expense_values|safe }}, backgroundColor: ["#5b7cfa","#34d9b8","#f87171","#fbbf24","#a78bfa","#38bdf8","#fb923c","#f472b6"], borderWidth: 0 }],
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } },
-  });
-  {% endif %}
 
   window.bai = window.bai || {};
   bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");

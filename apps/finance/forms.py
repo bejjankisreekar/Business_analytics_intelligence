@@ -269,9 +269,11 @@ class CashTransferForm(HistoricalWindowFormMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["date"].initial = self.initial.get("date", datetime.date.today())
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
+        self.fields["direction"].widget.attrs["class"] = "sel-wide"
         self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
         self.fields["bank_account"].required = False
         self.fields["bank_account"].empty_label = "— Which bank? —"
+        self.fields["bank_account"].widget.attrs["class"] = "sel-wide"
 
 
 MONTH_CHOICES = [

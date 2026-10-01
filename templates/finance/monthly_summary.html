@@ -35,6 +35,13 @@
   .ms-table tbody td.ms-total, .ms-table thead th.ms-total { color: #fff; font-weight: 600; }
   .ms-table td.ms-period-start, .ms-table th.ms-period-start { border-left: 1px solid rgba(255,255,255,0.07); }
   .ms-table td.ms-change { font-size: 0.72rem; font-weight: 600; background: rgba(255,255,255,0.012); }
+  .ms-table.ms-hide-change .ms-change { display: none; }
+  /* .ms-table tbody/tfoot td's own color rules above are more specific than
+     the shared .stat-up/.stat-down classes (app_base.html) alone, so they'd
+     otherwise win and leave every Δ% gray/white regardless of direction —
+     redeclare the colors here at matching specificity. */
+  .ms-table tbody td.stat-up, .ms-table tfoot td.stat-up { color: #34d9b8; }
+  .ms-table tbody td.stat-down, .ms-table tfoot td.stat-down { color: #f87171; }
   .ms-table tfoot td {
     border-top: 2px solid rgba(255,255,255,0.15); font-weight: 700; color: #fff;
     background: #10131c;
@@ -43,6 +50,10 @@
   .ms-table tfoot td.ms-change { font-weight: 600; }
   .ms-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.014); }
   .ms-table tbody tr:nth-child(even):hover td { background: rgba(91,124,250,0.06); }
+  /* Ties in specificity with the :hover td.ms-name rule above and is
+     declared later, so it was winning on even rows and replacing the
+     sticky column's required opaque background with this translucent tint. */
+  .ms-table tbody tr:nth-child(even):hover td.ms-name { background: #1c2338; }
   .ms-table thead tr:first-child th.ms-name { border-top-left-radius: 0.9rem; }
   .report-tab {
     display: inline-flex; align-items: center; gap: 0.45rem;
@@ -86,6 +97,8 @@
   .ms-subrow.hidden { display: none; }
   .ms-subrow td.ms-name { padding-left: 2.35rem; font-weight: 400; color: #9aa4bd; font-size: 0.79rem; }
   .ms-subrow td { color: #8b93ab; }
+  .ms-subrow td.stat-up { color: #34d9b8; }
+  .ms-subrow td.stat-down { color: #f87171; }
   .ms-subrow:hover td { background: rgba(91,124,250,0.045); }
   .ms-subrow:hover td.ms-name { background: #171c2c; }
 </style>
@@ -180,8 +193,7 @@
     {% endif %}
     <div id="ms-display-toggle" class="ms-toggle">
       <button type="button" data-mode="amount" onclick="bai.msSetDisplayMode('amount')" class="granularity-btn granularity-btn--active">Amount</button>
-      <button type="button" data-mode="row" onclick="bai.msSetDisplayMode('row')" class="granularity-btn">% of row</button>
-      <button type="button" data-mode="col" onclick="bai.msSetDisplayMode('col')" class="granularity-btn">% of column</button>
+      <button type="button" data-mode="change" onclick="bai.msSetDisplayMode('change')" class="granularity-btn">Amount + % change</button>
     </div>
     <div class="flex items-center gap-2">
       <a id="ms-export-excel" href="{% url 'finance:monthly_summary_excel' %}?kind={{ kind }}&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}{% if expand_all %}&expand=1{% endif %}" class="ms-export-btn">
@@ -202,19 +214,19 @@
 
 <div class="card mt-4 overflow-hidden p-0">
   <div class="ms-table-wrap">
-    <table class="ms-table w-full">
+    <table class="ms-table ms-hide-change w-full" id="ms-table">
       <thead>
         <tr>
           <th class="ms-name" rowspan="2">{{ kind_label }}</th>
           {% for label in matrix.labels %}
-          <th colspan="2" class="ms-period-start">{{ label }}</th>
+          <th colspan="1" class="ms-period-head ms-period-start">{{ label }}</th>
           {% endfor %}
           <th class="ms-total" rowspan="2">Total</th>
         </tr>
         <tr>
           {% for label in matrix.labels %}
           <th class="ms-subhead ms-period-start">Value</th>
-          <th class="ms-subhead">Δ%</th>
+          <th class="ms-subhead ms-change">Δ%</th>
           {% endfor %}
         </tr>
       </thead>
@@ -234,7 +246,7 @@
             </span>
           </td>
           {% for cell in row.cells %}
-          <td class="ms-value ms-period-start" data-amount="{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}" data-row="{% if cell.row_share != None %}{{ cell.row_share|floatformat:1 }}%{% else %}—{% endif %}" data-col="{% if cell.col_share != None %}{{ cell.col_share|floatformat:1 }}%{% else %}—{% endif %}">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+          <td class="ms-period-start">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
           <td class="ms-change {% if cell.change == None %}text-slate-600{% elif cell.change >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if cell.change != None %}{% if cell.change >= 0 %}▲{% else %}▼{% endif %} {{ cell.change|floatformat:1 }}%{% else %}—{% endif %}</td>
           {% endfor %}
           <td class="ms-total">{{ row.total|floatformat:2|intcomma }}</td>
@@ -243,7 +255,7 @@
         <tr class="ms-subrow ms-subrow-{{ forloop.parentloop.counter }}{% if not expand_all %} hidden{% endif %}">
           <td class="ms-name">{{ subrow.name }}</td>
           {% for cell in subrow.cells %}
-          <td class="ms-value ms-period-start" data-amount="{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}" data-row="{% if cell.row_share != None %}{{ cell.row_share|floatformat:1 }}%{% else %}—{% endif %}" data-col="{% if cell.col_share != None %}{{ cell.col_share|floatformat:1 }}%{% else %}—{% endif %}">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+          <td class="ms-period-start">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
           <td class="ms-change {% if cell.change == None %}text-slate-600{% elif cell.change >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if cell.change != None %}{% if cell.change >= 0 %}▲{% else %}▼{% endif %} {{ cell.change|floatformat:1 }}%{% else %}—{% endif %}</td>
           {% endfor %}
           <td class="ms-total">{{ subrow.total|floatformat:2|intcomma }}</td>
@@ -258,7 +270,7 @@
         <tr>
           <td class="ms-name">Total</td>
           {% for cell in matrix.column_cells %}
-          <td class="ms-value ms-period-start" data-amount="{{ cell.value|floatformat:2|intcomma }}" data-row="{% if cell.row_share != None %}{{ cell.row_share|floatformat:1 }}%{% else %}—{% endif %}" data-col="{% if cell.col_share != None %}{{ cell.col_share|floatformat:1 }}%{% else %}—{% endif %}">{{ cell.value|floatformat:2|intcomma }}</td>
+          <td class="ms-period-start">{{ cell.value|floatformat:2|intcomma }}</td>
           <td class="ms-change {% if cell.change == None %}text-slate-500{% elif cell.change >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if cell.change != None %}{% if cell.change >= 0 %}▲{% else %}▼{% endif %} {{ cell.change|floatformat:1 }}%{% else %}—{% endif %}</td>
           {% endfor %}
           <td>{{ matrix.grand_total|floatformat:2|intcomma }}</td>
@@ -268,7 +280,7 @@
     </table>
   </div>
 </div>
-<p class="mt-3 text-xs text-slate-500">Amounts in {{ organization.currency }}. Δ% is the change from the previous column in the same row. "% of row"/"% of column" show each cell's share of its row's or column's total.</p>
+<p class="mt-3 text-xs text-slate-500">Amounts in {{ organization.currency }}. Δ% is the change from the previous column in the same row.</p>
 <script>
   bai.msToggleSubrows = (btn, idx) => {
     const expanded = btn.getAttribute("aria-expanded") === "true";
@@ -301,9 +313,14 @@
     document.querySelectorAll("#ms-display-toggle button").forEach((btn) => {
       btn.classList.toggle("granularity-btn--active", btn.dataset.mode === mode);
     });
-    const key = mode === "row" ? "row" : mode === "col" ? "col" : "amount";
-    document.querySelectorAll(".ms-value").forEach((cell) => {
-      cell.textContent = cell.dataset[key];
+    const showChange = mode === "change";
+    document.getElementById("ms-table").classList.toggle("ms-hide-change", !showChange);
+    // The period header's colspan must track which columns are actually
+    // visible beneath it — CSS alone can hide the Δ% cells, but a stale
+    // colspan="2" still reserves their width, which desyncs every header
+    // from its data column from that point rightward.
+    document.querySelectorAll("#ms-table .ms-period-head").forEach((th) => {
+      th.colSpan = showChange ? 2 : 1;
     });
   };
 </script>

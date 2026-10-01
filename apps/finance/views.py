@@ -593,6 +593,7 @@ class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView)
         channel_breakdown = services.category_breakdown(SalesEntry, period.start, period.end, field="channel")
         product_revenue = services.category_breakdown(SalesEntry, period.start, period.end, field="subcategory")[:10]
         payment_breakdown = services.payment_mode_breakdown(period.start, period.end, models=(SalesEntry,))
+        gdn_totals = services.gross_discount_net_totals(period.start, period.end)
         sales_insights = services.sales_insights(fs.fy_start_month, weekday)
         vs_prev_week = services.sales_vs_previous_week()
         vs_prev_month = services.sales_vs_previous_month()
@@ -621,6 +622,9 @@ class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView)
             "chart_product_revenue_values": to_json([r["amount"] for r in product_revenue]),
             "chart_payment_labels": to_json([r["name"] for r in payment_breakdown]),
             "chart_payment_values": to_json([r["amount"] for r in payment_breakdown]),
+            "gdn_totals": gdn_totals,
+            "chart_gdn_labels": to_json(["Net Revenue", "Discount Given"]),
+            "chart_gdn_values": to_json([gdn_totals["net"], gdn_totals["discount"]]),
             "chart_perf_labels": to_json([r["month"] for r in perf_trend]),
             "chart_perf_revenue": to_json([r["revenue"] for r in perf_trend]),
             "chart_perf_profit": to_json([r["profit"] for r in perf_trend]),
@@ -1524,8 +1528,12 @@ class MonthlySummaryExcelView(TenantLoginRequiredMixin, View):
 
         ws.freeze_panes = "B2"
         ws.column_dimensions["A"].width = 28
+        # 14 was too tight for larger organizations — a long grand total
+        # like "15,732,160.20" (13 characters) only just fits a width-14
+        # column with no padding margin, so Excel renders it as "###"
+        # until the user manually widens it. 17 leaves real headroom.
         for i in range(2, len(header) + 1):
-            ws.column_dimensions[get_column_letter(i)].width = 14
+            ws.column_dimensions[get_column_letter(i)].width = 17
 
         buffer = BytesIO()
         wb.save(buffer)
@@ -1545,6 +1553,33 @@ class MonthlySummaryPdfView(TenantLoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         data = _monthly_summary_query(request)
         period = data["period"]
+        n_cols = len(data["matrix"]["labels"])
+        # xhtml2pdf's table layout doesn't reliably shrink-to-fit the way a
+        # browser does — with many periods and no explicit column widths it
+        # lets each number overflow its column instead of wrapping, so
+        # adjacent columns visually overlap. Pin every column to an explicit
+        # percentage (name/total columns get a fixed share, periods split
+        # the rest evenly) and scale the font down as columns multiply, so
+        # a cramped column wraps onto a second line instead of overlapping.
+        if n_cols <= 8:
+            font_px = 9
+        elif n_cols <= 14:
+            font_px = 7
+        elif n_cols <= 20:
+            font_px = 6
+        else:
+            font_px = 5
+        # The name/total columns need less room than their 14%/7% default
+        # once there are many period columns competing for the same page
+        # width — give most of that back to the data columns so each one
+        # has enough space for a full amount without overflowing.
+        if n_cols <= 8:
+            name_col_pct, total_col_pct = 14, 7
+        elif n_cols <= 20:
+            name_col_pct, total_col_pct = 12, 6
+        else:
+            name_col_pct, total_col_pct = 10, 5
+        data_col_pct = round(max(100 - name_col_pct - total_col_pct, 0) / max(n_cols, 1), 2)
         context = {
             "organization": request.user.organization,
             "kind_label": data["kind_label"],
@@ -1552,7 +1587,10 @@ class MonthlySummaryPdfView(TenantLoginRequiredMixin, View):
             "matrix": data["matrix"],
             "yoy": data["yoy"],
             "expand_all": data["expand_all"],
-            "font_px": 7 if len(data["matrix"]["labels"]) > 8 else 9,
+            "font_px": font_px,
+            "name_col_pct": name_col_pct,
+            "total_col_pct": total_col_pct,
+            "data_col_pct": data_col_pct,
         }
         filename = f"monthly-summary-{data['kind']}-{period.start}-{period.end}.pdf"
         return _render_statement_pdf(
@@ -2105,9 +2143,11 @@ def _paginate(request, items, param="page", newest_last=False):
     }
 
 
-def _ledger_filter_context(request, entries):
+def _ledger_filter_context(request, entries, paginate=True):
     """Read ?from=&to=&q= and narrow `entries` with services.filter_ledger.
-    Returns the filtered ledger plus the values the filter form needs."""
+    Returns the filtered ledger plus the values the filter form needs.
+    `paginate=False` (for exports, which need every matched row rather than
+    one page of them) skips the pagination step entirely."""
     def parse(name):
         raw = request.GET.get(name)
         try:
@@ -2128,9 +2168,10 @@ def _ledger_filter_context(request, entries):
             date_from, date_to = date_to, date_from
     query = (request.GET.get("q") or "").strip()
     result = services.filter_ledger(entries, date_from, date_to, query)
-    page = _paginate(request, result["entries"])
-    result["entries"] = list(page["page_obj"].object_list)
-    result.update(page)
+    if paginate:
+        page = _paginate(request, result["entries"])
+        result["entries"] = list(page["page_obj"].object_list)
+        result.update(page)
     result.update({
         "date_from": date_from,
         "date_to": date_to,
@@ -2751,4 +2792,119 @@ class PartnerLedgerView(TenantLoginRequiredMixin, TemplateView):
             "net_capital": flt["closing_balance"],
         })
         return context
+
+
+def _partner_ledger_export_data(request, pk):
+    """Same filtering as PartnerLedgerView, but every matched row (no
+    pagination) — shared by the Excel/CSV/PDF exports below."""
+    partner = get_object_or_404(Partner, pk=pk)
+    flt = _ledger_filter_context(request, services.partner_ledger_entries(partner), paginate=False)
+    if flt["date_from"] and flt["date_to"]:
+        date_range = f"{flt['date_from']:%d %b %Y} – {flt['date_to']:%d %b %Y}"
+    elif flt["date_from"]:
+        date_range = f"From {flt['date_from']:%d %b %Y}"
+    elif flt["date_to"]:
+        date_range = f"Until {flt['date_to']:%d %b %Y}"
+    else:
+        date_range = "All time"
+    return {
+        "organization": request.user.organization,
+        "partner": partner,
+        "date_range": date_range,
+        **flt,
+    }
+
+
+class PartnerLedgerExcelView(TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font
+        from openpyxl.utils import get_column_letter
+
+        data = _partner_ledger_export_data(request, kwargs["pk"])
+        org = data["organization"]
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Partner Ledger"
+
+        def _letterhead_row(text, font, alignment=Alignment(horizontal="center")):
+            ws.append([text])
+            row = ws.max_row
+            ws.merge_cells(f"A{row}:E{row}")
+            cell = ws.cell(row=row, column=1)
+            cell.font = font
+            cell.alignment = alignment
+
+        _letterhead_row(org.name, Font(bold=True, size=14))
+        _letterhead_row(f"{data['partner'].name} · Partner Ledger", Font(bold=True, size=11))
+        _letterhead_row(data["date_range"], Font(italic=True, size=9, color="666666"))
+        ws.append([])
+
+        header = ["Date", "Particular", "Invested", "Withdrawn", "Net Capital"]
+        ws.append(header)
+        header_row = ws.max_row
+        for cell in ws[header_row]:
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal="center")
+
+        if data["opening_bf"] is not None:
+            ws.append([data["date_from"], "Balance brought forward", None, None, data["opening_bf"]])
+            for cell in ws[ws.max_row]:
+                cell.font = Font(italic=True)
+
+        for e in data["entries"]:
+            ws.append([e["date"], e["particular"], e["debit"] or None, e["credit"] or None, e["balance"]])
+
+        ws.append(["Total", "", data["total_debit"], data["total_credit"], data["closing_balance"]])
+        for cell in ws[ws.max_row]:
+            cell.font = Font(bold=True)
+
+        for row in ws.iter_rows(min_row=header_row + 1, min_col=3, max_col=5):
+            for cell in row:
+                cell.number_format = "#,##0.00"
+        widths = [12, 32, 14, 14, 14]
+        for i, width in enumerate(widths, start=1):
+            ws.column_dimensions[get_column_letter(i)].width = width
+        ws.freeze_panes = f"A{header_row + 1}"
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        filename = f"partner-ledger-{data['partner'].name}-{data['date_from']}-{data['date_to']}.xlsx"
+        response = HttpResponse(
+            buffer.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class PartnerLedgerCsvView(TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        data = _partner_ledger_export_data(request, kwargs["pk"])
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+
+        writer.writerow(["Date", "Particular", "Invested", "Withdrawn", "Net Capital"])
+        if data["opening_bf"] is not None:
+            writer.writerow([data["date_from"], "Balance brought forward", "", "", data["opening_bf"]])
+        for e in data["entries"]:
+            writer.writerow([e["date"], e["particular"], e["debit"] or "", e["credit"] or "", e["balance"]])
+        writer.writerow(["Total", "", data["total_debit"], data["total_credit"], data["closing_balance"]])
+
+        filename = f"partner-ledger-{data['partner'].name}-{data['date_from']}-{data['date_to']}.csv"
+        response = HttpResponse(buffer.getvalue(), content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class PartnerLedgerPdfView(TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        data = _partner_ledger_export_data(request, kwargs["pk"])
+        filename = f"partner-ledger-{data['partner'].name}-{data['date_from']}-{data['date_to']}.pdf"
+        return _render_statement_pdf(
+            request, "finance/pdf/partner_ledger_pdf.html", data, filename,
+            fallback_url_name="finance:partner_ledger",
+        )
 

@@ -4,26 +4,57 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ SITE_NAME }}{% endblock %}</title>
+<script>
+  // Set the theme before first paint so there's no flash of the wrong
+  // theme. Kept inline (not in theme.js) since it must run synchronously,
+  // before any CSS is applied.
+  (function () {
+    var theme = "dark";
+    try { theme = localStorage.getItem("bai-theme") || "dark"; } catch (e) { /* storage unavailable */ }
+    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.style.colorScheme = theme === "light" ? "light" : "dark";
+  })();
+</script>
+<link rel="stylesheet" href="{% static 'css/theme.css' %}">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
     theme: {
       extend: {
         colors: {
+          // Wired to CSS variables (see static/css/theme.css) so every
+          // bg-ink-900, text-slate-400, etc. across the whole app flips
+          // automatically between the dark/light themes. The
+          // rgb(var(--x) / <alpha-value>) form is Tailwind's documented
+          // technique for theme-able colors that still support opacity
+          // modifiers (e.g. bg-ink-900/95).
           ink: {
-            950: '#05070d',
-            900: '#0a0e1a',
-            800: '#111627',
-            700: '#1a2036',
+            950: 'rgb(var(--ink-950) / <alpha-value>)',
+            900: 'rgb(var(--ink-900) / <alpha-value>)',
+            800: 'rgb(var(--ink-800) / <alpha-value>)',
+            700: 'rgb(var(--ink-700) / <alpha-value>)',
           },
           brand: {
-            400: '#7c9dff',
-            500: '#5b7cfa',
-            600: '#4361ee',
+            400: 'rgb(var(--brand-400) / <alpha-value>)',
+            500: 'rgb(var(--brand-500) / <alpha-value>)',
+            600: 'rgb(var(--brand-600) / <alpha-value>)',
           },
           mint: {
-            400: '#34d9b8',
-            500: '#1fc4a0',
+            400: 'rgb(var(--mint-400) / <alpha-value>)',
+            500: 'rgb(var(--mint-500) / <alpha-value>)',
+          },
+          slate: {
+            50: 'rgb(var(--slate-50) / <alpha-value>)',
+            100: 'rgb(var(--slate-100) / <alpha-value>)',
+            200: 'rgb(var(--slate-200) / <alpha-value>)',
+            300: 'rgb(var(--slate-300) / <alpha-value>)',
+            400: 'rgb(var(--slate-400) / <alpha-value>)',
+            500: 'rgb(var(--slate-500) / <alpha-value>)',
+            600: 'rgb(var(--slate-600) / <alpha-value>)',
+            700: 'rgb(var(--slate-700) / <alpha-value>)',
+            800: 'rgb(var(--slate-800) / <alpha-value>)',
+            900: 'rgb(var(--slate-900) / <alpha-value>)',
+            950: 'rgb(var(--slate-950) / <alpha-value>)',
           },
         },
         fontFamily: {
@@ -140,6 +171,7 @@
     } catch (e) { /* ignore */ }
   })();
 </script>
+<script src="{% static 'js/theme.js' %}"></script>
 {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-ink-950 text-slate-200 antialiased">

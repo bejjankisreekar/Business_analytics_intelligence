@@ -1,5 +1,5 @@
 {% extends "finance/_app_base.html" %}
-{% load humanize %}
+{% load humanize static %}
 {% block title %}Financial Reports · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
@@ -8,6 +8,8 @@
   .rpt-row { cursor: pointer; transition: background .12s; }
   .rpt-row:hover { background: rgba(91,124,250,0.07); }
   .rpt-row:hover td:first-child { color: #cbd5e1; }
+  html[data-theme="light"] .rpt-row:hover { background: rgba(67,97,238,0.08); }
+  html[data-theme="light"] .rpt-row:hover td:first-child { color: #1e293b; }
 </style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
@@ -215,7 +217,7 @@
 
 <!-- Line-item drill-down: what makes up a clicked row's amount -->
 <div id="line-detail-modal" class="modal-overlay fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="line-detail-title" onclick="if (event.target === this) bai.closeModal('line-detail-modal')">
-  <div class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 shadow-2xl" style="background:#0a0e1a">
+  <div class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-900 shadow-2xl">
     <div class="flex items-start justify-between gap-4 border-b border-white/5 p-5">
       <div class="min-w-0">
         <h3 id="line-detail-title" class="truncate text-base font-semibold text-white"></h3>
@@ -249,71 +251,75 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/chart-theme.js' %}"></script>
 <script>Chart.defaults.locale = "en-IN";</script>
 <script>
-  Chart.defaults.color = "#9aa4bd";
-  Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
+  baiChartTheme.onThemeChange((c) => {
+    const charts = [];
 
-  new Chart(document.getElementById("chartPnl"), {
-    type: "bar",
-    data: {
-      labels: ["Revenue", "COGS", "Operating expenses", "Net profit"],
-      datasets: [{
-        data: [{{ pnl.revenue }}, -{{ pnl.cogs }}, -{{ pnl.total_opex }}, {{ pnl.net_profit }}],
-        backgroundColor: ["#34d9b8", "#f87171", "#f87171", {{ pnl.net_profit }} >= 0 ? "#5b7cfa" : "#f87171"],
-        borderRadius: 6,
-      }],
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
-
-  new Chart(document.getElementById("chartCashFlow"), {
-    type: "bar",
-    data: {
-      labels: ["Cash in (revenue)", "Cash out (purchases)", "Cash out (expenses)", "Net change"],
-      datasets: [{
-        data: [{{ cash_flow.cash_in_from_sales }}, -{{ cash_flow.cash_out_purchases }}, -{{ cash_flow.cash_out_expenses }}, {{ cash_flow.net_change_in_cash }}],
-        backgroundColor: ["#34d9b8", "#f87171", "#f87171", {{ cash_flow.net_change_in_cash }} >= 0 ? "#5b7cfa" : "#f87171"],
-        borderRadius: 6,
-      }],
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
-
-  // Doughnut of slices, dropping any that are zero/negative so the ring only shows real shares.
-  function shareDoughnut(canvasId, slices) {
-    const shown = slices.filter((s) => Number(s.value) > 0);
-    const total = shown.reduce((a, s) => a + Number(s.value), 0);
-    new Chart(document.getElementById(canvasId), {
-      type: "doughnut",
-      data: { labels: shown.map((s) => s.label), datasets: [{ data: shown.map((s) => s.value), backgroundColor: shown.map((s) => s.color), borderWidth: 0, hoverOffset: 8 }] },
-      options: {
-        responsive: true, maintainAspectRatio: false, cutout: "62%",
-        plugins: {
-          legend: { position: "right", labels: { boxWidth: 10, usePointStyle: true, color: "#cbd5e1", font: { size: 11 },
-            generateLabels: (chart) => chart.data.labels.map((label, i) => {
-              const v = chart.data.datasets[0].data[i];
-              return { text: `${label}: ${total ? ((v / total) * 100).toFixed(1) : "0.0"}%`, fillStyle: chart.data.datasets[0].backgroundColor[i],
-                       strokeStyle: chart.data.datasets[0].backgroundColor[i], fontColor: "#cbd5e1", pointStyle: "circle", index: i };
-            }) } },
-          tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${Number(ctx.raw).toLocaleString("en-IN", { maximumFractionDigits: 0 })} ({{ organization.currency }})` } },
-        },
+    charts.push(new Chart(document.getElementById("chartPnl"), {
+      type: "bar",
+      data: {
+        labels: ["Revenue", "COGS", "Operating expenses", "Net profit"],
+        datasets: [{
+          data: [{{ pnl.revenue }}, -{{ pnl.cogs }}, -{{ pnl.total_opex }}, {{ pnl.net_profit }}],
+          backgroundColor: [c.mint, c.red, c.red, {{ pnl.net_profit }} >= 0 ? c.brand : c.red],
+          borderRadius: 6,
+        }],
       },
-    });
-  }
-  shareDoughnut("chartPnlShare", [
-    { label: "Cost of goods", value: {{ pnl.cogs }}, color: "#f87171" },
-    { label: "Operating expenses", value: {{ pnl.total_opex }}, color: "#fbbf24" },
-    { label: "Net profit", value: {{ pnl.net_profit }}, color: "#34d9b8" },
-  ]);
-  shareDoughnut("chartCashOutShare", [
-    { label: "Purchases", value: {{ cash_flow.cash_out_purchases }}, color: "#f87171" },
-    { label: "Expenses", value: {{ cash_flow.cash_out_expenses }}, color: "#fbbf24" },
-    { label: "Partner withdrawals", value: {{ cash_flow.partner_withdrawn }}, color: "#a78bfa" },
-    { label: "Left over", value: {{ cash_flow.net_change_in_cash }}, color: "#34d9b8" },
-  ]);
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    }));
+
+    charts.push(new Chart(document.getElementById("chartCashFlow"), {
+      type: "bar",
+      data: {
+        labels: ["Cash in (revenue)", "Cash out (purchases)", "Cash out (expenses)", "Net change"],
+        datasets: [{
+          data: [{{ cash_flow.cash_in_from_sales }}, -{{ cash_flow.cash_out_purchases }}, -{{ cash_flow.cash_out_expenses }}, {{ cash_flow.net_change_in_cash }}],
+          backgroundColor: [c.mint, c.red, c.red, {{ cash_flow.net_change_in_cash }} >= 0 ? c.brand : c.red],
+          borderRadius: 6,
+        }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    }));
+
+    // Doughnut of slices, dropping any that are zero/negative so the ring only shows real shares.
+    function shareDoughnut(canvasId, slices) {
+      const shown = slices.filter((s) => Number(s.value) > 0);
+      const total = shown.reduce((a, s) => a + Number(s.value), 0);
+      charts.push(new Chart(document.getElementById(canvasId), {
+        type: "doughnut",
+        data: { labels: shown.map((s) => s.label), datasets: [{ data: shown.map((s) => s.value), backgroundColor: shown.map((s) => s.color), borderWidth: 0, hoverOffset: 8 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: "62%",
+          plugins: {
+            legend: { position: "right", labels: { boxWidth: 10, usePointStyle: true, color: c.text, font: { size: 11 },
+              generateLabels: (chart) => chart.data.labels.map((label, i) => {
+                const v = chart.data.datasets[0].data[i];
+                return { text: `${label}: ${total ? ((v / total) * 100).toFixed(1) : "0.0"}%`, fillStyle: chart.data.datasets[0].backgroundColor[i],
+                         strokeStyle: chart.data.datasets[0].backgroundColor[i], fontColor: c.text, pointStyle: "circle", index: i };
+              }) } },
+            tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${Number(ctx.raw).toLocaleString("en-IN", { maximumFractionDigits: 0 })} ({{ organization.currency }})` } },
+          },
+        },
+      }));
+    }
+    shareDoughnut("chartPnlShare", [
+      { label: "Cost of goods", value: {{ pnl.cogs }}, color: c.red },
+      { label: "Operating expenses", value: {{ pnl.total_opex }}, color: c.amber },
+      { label: "Net profit", value: {{ pnl.net_profit }}, color: c.mint },
+    ]);
+    shareDoughnut("chartCashOutShare", [
+      { label: "Purchases", value: {{ cash_flow.cash_out_purchases }}, color: c.red },
+      { label: "Expenses", value: {{ cash_flow.cash_out_expenses }}, color: c.amber },
+      { label: "Partner withdrawals", value: {{ cash_flow.partner_withdrawn }}, color: "#a78bfa" },
+      { label: "Left over", value: {{ cash_flow.net_change_in_cash }}, color: c.mint },
+    ]);
+
+    return charts;
+  });
 
   window.bai = window.bai || {};
   bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");

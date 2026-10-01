@@ -1,4 +1,4 @@
-# Business Analytics Intelligence
+# Prism Pulse Intelligence & Analytics
 
 A multi-tenant SaaS that turns daily sales, expense and purchase entries into
 business analytics — margins, trends, cash flow and full financial statements,

@@ -1,5 +1,5 @@
 {% extends "finance/_app_base.html" %}
-{% load humanize %}
+{% load humanize static %}
 {% block title %}Revenue Intelligence · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
@@ -10,6 +10,9 @@
   .unit-badge--amount { color: #34d9b8; background: rgba(52,217,184,0.1); border-color: rgba(52,217,184,0.3); }
   .unit-badge--count { color: #7c9dff; background: rgba(91,124,250,0.12); border-color: rgba(91,124,250,0.35); }
   .unit-badge--pct { color: #fbbf24; background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.3); }
+  html[data-theme="light"] .unit-badge--amount { color: #0d8a6b; background: rgba(13,138,107,0.1); border-color: rgba(13,138,107,0.3); }
+  html[data-theme="light"] .unit-badge--count { color: #3b5bdb; background: rgba(67,97,238,0.1); border-color: rgba(67,97,238,0.3); }
+  html[data-theme="light"] .unit-badge--pct { color: #b45309; background: rgba(180,83,9,0.1); border-color: rgba(180,83,9,0.3); }
 </style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
@@ -153,6 +156,11 @@
     <p class="text-xs text-slate-500">Cash vs bank, {{ period.label }} <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
     <div class="mt-4 h-64"><canvas id="chartPaymentMode"></canvas></div>
   </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Gross, discount &amp; net</h3>
+    <p class="text-xs text-slate-500">Of {{ organization.currency }} {{ gdn_totals.gross|floatformat:0|intcomma }} billed, {{ period.label }} <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
+    <div class="mt-4 h-64"><canvas id="chartGrossDiscountNet"></canvas></div>
+  </div>
 </div>
 
 {% if subcategory_groups %}
@@ -203,7 +211,7 @@
 
 <!-- Revenue channel daily-trend popup -->
 <div id="channel-trend-modal" class="modal-overlay fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="channel-trend-title" onclick="if (event.target === this) bai.closeModal('channel-trend-modal')">
-  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 p-6 shadow-2xl" style="background:#0a0e1a">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
     <div class="flex items-start justify-between gap-4">
       <div>
         <h3 id="channel-trend-title" class="text-lg font-semibold text-white"></h3>
@@ -228,15 +236,18 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/chart-theme.js' %}"></script>
 <script>Chart.defaults.locale = "en-IN";</script>
 <script>
-  Chart.defaults.color = "#9aa4bd";
-  Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
-  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
-
-  const palette = { brand: "#5b7cfa", brandFill: "rgba(91,124,250,0.15)", mint: "#34d9b8", mintFill: "rgba(52,217,184,0.15)", red: "#f87171", redFill: "rgba(248,113,113,0.15)" };
+  const palette = baiChartTheme.applyDefaults();
   const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } };
-  const donutColors = ["#5b7cfa","#34d9b8","#f87171","#fbbf24","#a78bfa","#38bdf8","#fb923c","#f472b6"];
+  const donutColors = palette.donut;
+
+  // Charts built once at load; re-styled (not rebuilt) on theme toggle —
+  // see the baiChartTheme.restyle call at the bottom of this script.
+  const staticCharts = [];
+  let breakdownChartInstances = [];
+  let drilldownChartInstances = [];
 
   window.bai = window.bai || {};
   bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
@@ -284,13 +295,14 @@
       }
       document.getElementById("chartChannelTrend").classList.remove("hidden");
       if (channelTrendChart) channelTrendChart.destroy();
+      const cc = baiChartTheme.colors();
       channelTrendChart = new Chart(document.getElementById("chartChannelTrend"), {
         type: "bar",
-        data: { labels: data.labels, datasets: [{ data: data.values, backgroundColor: palette.mint, borderRadius: 4 }] },
+        data: { labels: data.labels, datasets: [{ data: data.values, backgroundColor: cc.mint, borderRadius: 4 }] },
         options: {
           responsive: true, maintainAspectRatio: false,
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => "{{ organization.currency }} " + Number(ctx.raw).toLocaleString("en-IN") } } },
-          scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } },
+          scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } }, y: { grid: { color: cc.grid } } },
         },
       });
     }).catch(() => {
@@ -298,7 +310,7 @@
     });
   }
 
-  new Chart(document.getElementById("chartRevenueProfit"), {
+  staticCharts.push(new Chart(document.getElementById("chartRevenueProfit"), {
     type: "line",
     data: { labels: {{ chart_perf_labels|safe }}, datasets: [
       { label: "Revenue", data: {{ chart_perf_revenue|safe }}, borderColor: palette.brand, backgroundColor: palette.brandFill, tension: .35, fill: true, pointRadius: 2 },
@@ -306,48 +318,56 @@
     ] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
       plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
+      scales: { x: { grid: { display: false } }, y: { grid: { color: palette.grid } } } },
+  }));
 
-
-  new Chart(document.getElementById("chartOrders"), {
+  staticCharts.push(new Chart(document.getElementById("chartOrders"), {
     type: "line",
     data: { labels: {{ chart_perf_labels|safe }}, datasets: [{ label: "Orders", data: {{ chart_perf_orders|safe }}, borderColor: palette.brand, backgroundColor: palette.brandFill, tension: .35, fill: true, pointRadius: 2 }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true } } },
-  });
+      scales: { x: { grid: { display: false } }, y: { grid: { color: palette.grid }, beginAtZero: true } } },
+  }));
 
-  new Chart(document.getElementById("chartAov"), {
+  staticCharts.push(new Chart(document.getElementById("chartAov"), {
     type: "line",
     data: { labels: {{ chart_perf_labels|safe }}, datasets: [{ label: "Avg order value", data: {{ chart_perf_aov|safe }}, borderColor: palette.mint, backgroundColor: palette.mintFill, tension: .35, fill: true, pointRadius: 2 }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
+      scales: { x: { grid: { display: false } }, y: { grid: { color: palette.grid } } } },
+  }));
 
-  new Chart(document.getElementById("chartMargin"), {
+  staticCharts.push(new Chart(document.getElementById("chartMargin"), {
     type: "line",
-    data: { labels: {{ chart_perf_labels|safe }}, datasets: [{ label: "Gross margin %", data: {{ chart_perf_margin|safe }}, borderColor: "#fbbf24", backgroundColor: "rgba(251,191,36,0.15)", tension: .35, fill: true, pointRadius: 2 }] },
+    data: { labels: {{ chart_perf_labels|safe }}, datasets: [{ label: "Gross margin %", data: {{ chart_perf_margin|safe }}, borderColor: palette.amber, backgroundColor: palette.amberFill, tension: .35, fill: true, pointRadius: 2 }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { callback: (v) => v + "%" } } } },
-  });
+      scales: { x: { grid: { display: false } }, y: { grid: { color: palette.grid }, ticks: { callback: (v) => v + "%" } } } },
+  }));
 
   {% if sales_insights.rows|length > 1 %}
-  new Chart(document.getElementById("chartInsights"), {
+  staticCharts.push(new Chart(document.getElementById("chartInsights"), {
     type: "bar",
     data: { labels: {{ chart_insights_labels|safe }}, datasets: [
       { label: "{{ sales_insights.last_month_label }}", data: {{ chart_insights_last_month|safe }}, backgroundColor: "rgba(154,164,189,0.35)", borderRadius: 4 },
       { label: "{{ sales_insights.this_month_label }}", data: {{ chart_insights_this_month|safe }}, backgroundColor: palette.mint, borderRadius: 4 },
     ] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-      scales: { x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 45, minRotation: 0 } }, y: { grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true } } },
-  });
+      scales: { x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 45, minRotation: 0 } }, y: { grid: { color: palette.grid }, beginAtZero: true } } },
+  }));
   {% endif %}
 
-  new Chart(document.getElementById("chartPaymentMode"), {
+  staticCharts.push(new Chart(document.getElementById("chartPaymentMode"), {
     type: "pie",
     data: { labels: {{ chart_payment_labels|safe }}, datasets: [{ data: {{ chart_payment_values|safe }}, backgroundColor: [palette.mint, palette.brand], borderWidth: 0 }] },
     options: donutOpts,
-  });
+  }));
+
+  // Net + Discount always sum to Gross (discount is deducted from gross at
+  // entry time) — that's the true part-to-whole split a pie can show; the
+  // Gross total itself is in the card's subtitle rather than a third slice.
+  staticCharts.push(new Chart(document.getElementById("chartGrossDiscountNet"), {
+    type: "doughnut",
+    data: { labels: {{ chart_gdn_labels|safe }}, datasets: [{ data: {{ chart_gdn_values|safe }}, backgroundColor: [palette.mint, palette.amber], borderWidth: 0 }] },
+    options: donutOpts,
+  }));
 
   {% if subcategory_groups %}
   const drilldownData = {
@@ -382,7 +402,7 @@
       card.append(title, sub, box);
       if (n === 0) card.classList.add("lg:col-span-2");
       host.appendChild(card);
-      new Chart(canvas, {
+      breakdownChartInstances.push(new Chart(canvas, {
         type: "bar",
         data: { labels: node.labels, datasets: [{ data: node.values, backgroundColor: node.labels.map((_, i) => donutColors[i % donutColors.length]), borderRadius: 4 }] },
         options: {
@@ -391,9 +411,9 @@
             const share = total ? ((Number(ctx.raw) / total) * 100).toFixed(1) : "0.0";
             return ` ${Number(ctx.raw).toLocaleString("en-IN")} (${share}%)`;
           } } } },
-          scales: { x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 }, title: { display: true, text: "Amount ({{ organization.currency }})" } }, y: { grid: { display: false } } },
+          scales: { x: { grid: { color: palette.grid }, ticks: { precision: 0 }, title: { display: true, text: "Amount ({{ organization.currency }})" } }, y: { grid: { display: false } } },
         },
-      });
+      }));
     });
   })();
   {% endif %}
@@ -408,8 +428,9 @@
     },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
       plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" }, title: { display: true, text: "Amount ({{ organization.currency }})" } } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: palette.grid }, title: { display: true, text: "Amount ({{ organization.currency }})" } } } },
   });
+  drilldownChartInstances.push(drilldownChart);
   const childChartsEl = document.getElementById("drilldownChildCharts");
   const drilldownChildCharts = drilldownData.daily.series.map((s, i) => {
     const card = document.createElement("div");
@@ -418,12 +439,14 @@
       <p class="text-xs text-slate-500">Revenue trend <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
       <div class="mt-4 h-56"><canvas></canvas></div>`;
     childChartsEl.appendChild(card);
-    return new Chart(card.querySelector("canvas"), {
+    const childChart = new Chart(card.querySelector("canvas"), {
       type: "bar",
       data: { labels: drilldownData.daily.labels, datasets: [{ data: s.data, backgroundColor: donutColors[i % donutColors.length], borderRadius: 4 }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-        scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: palette.grid } } } },
     });
+    drilldownChartInstances.push(childChart);
+    return childChart;
   });
 
   window.bai = window.bai || {};
@@ -476,5 +499,15 @@
     // A chart built while its panel was hidden has no size; re-measure once visible.
     if (bai.vsCharts[view]) bai.vsCharts[view].resize();
   };
+
+  document.addEventListener("bai:themechange", () => {
+    baiChartTheme.restyle([
+      ...staticCharts,
+      channelTrendChart,
+      ...breakdownChartInstances,
+      ...drilldownChartInstances,
+      ...Object.values(bai.vsCharts || {}),
+    ]);
+  });
 </script>
 {% endblock %}

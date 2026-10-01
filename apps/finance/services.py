@@ -379,12 +379,6 @@ def _pct_change(prev, curr):
     return float((curr - prev) / prev * 100)
 
 
-def _share(value, denom):
-    if not denom:
-        return None
-    return float(value / denom * 100)
-
-
 def _matrix_cells(values: list) -> list[dict]:
     """One dict per period: the raw amount plus its % change from the
     period immediately before it in the same row (None for the first
@@ -405,11 +399,8 @@ def category_period_matrix(model, field: str, start: datetime.date, end: datetim
     custom range at daily granularity would otherwise blow up the table);
     `truncated` tells the view whether the range was cut short.
 
-    Each cell carries its raw amount, its % change from the previous
-    period in the same row, and its share of that row's total and of its
-    column's total — the row/column-% toggle and the period-over-period
-    change columns on the report are just different views of these same
-    numbers, computed once here."""
+    Each cell carries its raw amount and its % change from the previous
+    period in the same row."""
     if start > end:
         start, end = end, start
 
@@ -451,9 +442,6 @@ def category_period_matrix(model, field: str, start: datetime.date, end: datetim
 
     for r in rows:
         r["cells"] = _matrix_cells(r["values"])
-        for i, cell in enumerate(r["cells"]):
-            cell["row_share"] = _share(cell["value"], r["total"])
-            cell["col_share"] = _share(cell["value"], column_totals[i])
         del r["values"]
 
         sub_values_by_name = sub_by_name.get(r["name"], {})
@@ -468,16 +456,10 @@ def category_period_matrix(model, field: str, start: datetime.date, end: datetim
         subrows.sort(key=lambda sr: -sr["total"])
         for sr in subrows:
             sr["cells"] = _matrix_cells(sr["values"])
-            for i, cell in enumerate(sr["cells"]):
-                cell["row_share"] = _share(cell["value"], sr["total"])
-                cell["col_share"] = _share(cell["value"], column_totals[i])
             del sr["values"]
         r["subrows"] = subrows
 
     column_cells = _matrix_cells(column_totals)
-    for i, cell in enumerate(column_cells):
-        cell["row_share"] = _share(cell["value"], grand_total)
-        cell["col_share"] = _share(cell["value"], column_totals[i])
 
     labels = [_matrix_bucket_label(b, granularity) for b in buckets]
     return {
@@ -721,6 +703,22 @@ def payment_mode_breakdown(start: datetime.date, end: datetime.date, models=None
             totals[row["payment_mode"]] = totals.get(row["payment_mode"], ZERO) + row["total"]
     labels = dict(PaymentMode.choices)
     return [{"name": labels[mode], "amount": amount} for mode, amount in totals.items()]
+
+
+def gross_discount_net_totals(start: datetime.date, end: datetime.date) -> dict:
+    """Revenue split into what was billed (gross), what was discounted
+    away, and what was actually kept (net) for the period — Net + Discount
+    always equals Gross (discount is deducted from gross at entry time,
+    see SalesEntry.save()), so {net, discount} is the true part-to-whole
+    breakdown of gross a pie/donut chart should plot."""
+    totals = SalesEntry.objects.filter(date__gte=start, date__lte=end).aggregate(
+        gross=Sum("gross_amount"), discount=Sum("discount"), net=Sum("amount")
+    )
+    return {
+        "gross": totals["gross"] or ZERO,
+        "discount": totals["discount"] or ZERO,
+        "net": totals["net"] or ZERO,
+    }
 
 
 def vendor_breakdown(start: datetime.date, end: datetime.date) -> list[dict]:

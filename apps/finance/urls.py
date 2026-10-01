@@ -62,6 +62,9 @@ from .views import (
     MonthlySummaryExcelView,
     MonthlySummaryPdfView,
     MonthlySummaryView,
+    PartnerLedgerCsvView,
+    PartnerLedgerExcelView,
+    PartnerLedgerPdfView,
     PartnerLedgerView,
     PurchaseExpenseIntelligenceView,
     RecordPayablePaymentView,
@@ -208,4 +211,19 @@ urlpatterns = [
     path("partners/transactions/<uuid:pk>/edit/", EditPartnerTransactionView.as_view(), name="edit_partner_transaction"),
     path("partners/transactions/<uuid:pk>/delete/", DeletePartnerTransactionView.as_view(), name="delete_partner_transaction"),
     path("cash-position/partners/<uuid:pk>/", PartnerLedgerView.as_view(), name="partner_ledger"),
+    path(
+        "cash-position/partners/<uuid:pk>/export.xlsx",
+        PartnerLedgerExcelView.as_view(),
+        name="partner_ledger_excel",
+    ),
+    path(
+        "cash-position/partners/<uuid:pk>/export.csv",
+        PartnerLedgerCsvView.as_view(),
+        name="partner_ledger_csv",
+    ),
+    path(
+        "cash-position/partners/<uuid:pk>/export.pdf",
+        PartnerLedgerPdfView.as_view(),
+        name="partner_ledger_pdf",
+    ),
 ]

@@ -1,5 +1,5 @@
 {% extends "superadmin/_base.html" %}
-{% load humanize %}
+{% load humanize static %}
 {% block title %}Superadmin console{% endblock %}
 
 {% block sa_content %}
@@ -52,37 +52,42 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/chart-theme.js' %}"></script>
 <script>
-  Chart.defaults.color = "#9aa4bd";
-  Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
-  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
-
   const revenueData = {{ revenue_chart|safe }};
   const paymentStatusData = {{ payment_status_chart|safe }};
 
-  new Chart(document.getElementById("chartRevenue"), {
-    type: "bar",
-    data: {
-      labels: revenueData.labels,
-      datasets: [
-        { label: "Production", data: revenueData.prod, backgroundColor: "#f59e0b", borderRadius: 4 },
-        { label: "Development", data: revenueData.dev, backgroundColor: "rgba(148,163,184,0.35)", borderRadius: 4 },
-      ],
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true } },
-    },
-  });
+  baiChartTheme.onThemeChange((c) => {
+    const charts = [];
+    const light = document.documentElement.getAttribute("data-theme") === "light";
+    const amber = light ? "#b45309" : "#f59e0b";
 
-  new Chart(document.getElementById("chartPaymentStatus"), {
-    type: "doughnut",
-    data: {
-      labels: paymentStatusData.labels,
-      datasets: [{ data: paymentStatusData.values, backgroundColor: ["#34d9b8", "#f59e0b", "#f87171", "#94a3b8", "#a78bfa"], borderWidth: 0 }],
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } },
+    charts.push(new Chart(document.getElementById("chartRevenue"), {
+      type: "bar",
+      data: {
+        labels: revenueData.labels,
+        datasets: [
+          { label: "Production", data: revenueData.prod, backgroundColor: amber, borderRadius: 4 },
+          { label: "Development", data: revenueData.dev, backgroundColor: light ? "rgba(100,116,139,0.35)" : "rgba(148,163,184,0.35)", borderRadius: 4 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid }, beginAtZero: true } },
+      },
+    }));
+
+    charts.push(new Chart(document.getElementById("chartPaymentStatus"), {
+      type: "doughnut",
+      data: {
+        labels: paymentStatusData.labels,
+        datasets: [{ data: paymentStatusData.values, backgroundColor: [c.mint, amber, c.red, "#94a3b8", "#a78bfa"], borderWidth: 0 }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } },
+    }));
+
+    return charts;
   });
 </script>
 {% endblock %}

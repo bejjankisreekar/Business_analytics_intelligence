@@ -29,32 +29,35 @@
   </tr>
 </table>
 <p class="muted" style="margin:2px 0 6px 0;">{{ totals.count }} entr{{ totals.count|pluralize:"y,ies" }}</p>
-<table>
+<table repeat="1" style="width:100%;">
+  <thead>
   <tr>
     {% if kind == "sales" %}
     <td class="section-label" style="width:7%;">Date</td>
-    <td class="section-label" style="width:9%;">Sub-category</td>
+    <td class="section-label" style="width:10%;">Sub-category</td>
     <td class="section-label" style="width:9%;">Item</td>
-    <td class="section-label" style="width:9%;">Customer/Vendor</td>
+    <td class="section-label" style="width:10%;">Customer/Vendor</td>
+    <td class="section-label right" style="width:3%;">Qty</td>
+    <td class="section-label right" style="width:8%;">Gross</td>
+    <td class="section-label right" style="width:8%;">Discount</td>
+    <td class="section-label right" style="width:8%; padding-right:8px;">Net</td>
+    <td class="section-label" style="width:5%;">Via</td>
+    <td class="section-label" style="width:4%;">Bank</td>
+    <td class="section-label" style="width:28%; padding-right:8px;">Note</td>
+    {% else %}
+    <td class="section-label" style="width:8%;">Date</td>
+    <td class="section-label" style="width:12%;">Sub-category</td>
+    <td class="section-label" style="width:11%;">Item</td>
+    <td class="section-label" style="width:11%;">Customer/Vendor</td>
     <td class="section-label right" style="width:4%;">Qty</td>
-    <td class="section-label right" style="width:9%;">Gross</td>
-    <td class="section-label right" style="width:9%;">Discount</td>
-    <td class="section-label right" style="width:9%; padding-right:8px;">Net</td>
+    <td class="section-label right" style="width:10%; padding-right:8px;">Amount</td>
     <td class="section-label" style="width:6%;">Via</td>
     <td class="section-label" style="width:5%;">Bank</td>
-    <td class="section-label" style="width:24%; padding-right:8px;">Note</td>
-    {% else %}
-    <td class="section-label" style="width:9%;">Date</td>
-    <td class="section-label" style="width:12%;">Sub-category</td>
-    <td class="section-label" style="width:12%;">Item</td>
-    <td class="section-label" style="width:11%;">Customer/Vendor</td>
-    <td class="section-label right" style="width:5%;">Qty</td>
-    <td class="section-label right" style="width:12%; padding-right:8px;">Amount</td>
-    <td class="section-label" style="width:7%;">Via</td>
-    <td class="section-label" style="width:6%;">Bank</td>
-    <td class="section-label" style="width:26%; padding-right:8px;">Note</td>
+    <td class="section-label" style="width:33%; padding-right:8px;">Note</td>
     {% endif %}
   </tr>
+  </thead>
+  <tbody>
   {% for e in entries %}
   <tr class="divider">
     <td>{{ e.date|date:"d M Y" }}</td>
@@ -69,12 +72,14 @@
     <td class="right" style="padding-right:8px;">{{ e.amount|floatformat:2|intcomma }}</td>
     <td>{{ e.payment_mode }}</td>
     <td>{{ e.bank_account|default:"—" }}</td>
-    <td style="padding-right:8px;">{{ e.note|default:"" }}</td>
+    <td style="padding-right:8px;">{{ e.note|default:"—" }}</td>
   </tr>
   {% empty %}
   <tr><td colspan="{% if kind == 'sales' %}11{% else %}9{% endif %}" class="muted">No entries in this range.</td></tr>
   {% endfor %}
+  </tbody>
   {% if entries %}
+  <tfoot>
   <tr class="thick">
     <td colspan="4">Total</td>
     <td class="right">{{ totals.quantity }}</td>
@@ -85,6 +90,7 @@
     <td class="right" style="padding-right:8px;">{{ totals.amount|floatformat:2|intcomma }}</td>
     <td colspan="3"></td>
   </tr>
+  </tfoot>
   {% endif %}
 </table>
 <p class="muted" style="margin-top:10px;">Amounts in {{ organization.currency }}.</p>

@@ -70,7 +70,7 @@
   {% endif %}
 </div>
 
-<div class="mt-4 flex flex-wrap items-center gap-2">
+<div class="mt-4 flex flex-wrap items-center justify-end gap-3">
   <a href="{% url 'finance:category_statement_excel' %}?kind={{ kind }}&category={{ category_id }}&subcategory={{ subcategory_id }}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}" class="btn-primary" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">⬇ Excel</a>
   <a href="{% url 'finance:category_statement_csv' %}?kind={{ kind }}&category={{ category_id }}&subcategory={{ subcategory_id }}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ CSV</a>
   <a href="{% url 'finance:category_statement_pdf' %}?kind={{ kind }}&category={{ category_id }}&subcategory={{ subcategory_id }}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ PDF</a>

@@ -6,22 +6,35 @@
   .lp-link:hover { color: #fff; background: rgba(255,255,255,0.05); }
   .lp-link--active { color: #fff; background: rgba(255,255,255,0.07); }
   #lp-header.is-scrolled { background: rgba(5,7,13,0.85); box-shadow: 0 10px 30px -18px rgba(0,0,0,0.8); }
+
+  /* "Go to dashboard" pill: always inverted relative to the header, in
+     either theme (white-on-dark header / dark-on-light header). */
+  .cta-invert { background: #fff; color: #05070d; }
+  .cta-invert:hover { background: #f1f5f9; }
+
+  html[data-theme="light"] .lp-link { color: #64748b; }
+  html[data-theme="light"] .lp-link:hover { color: #0f172a; background: rgba(15,23,42,0.045); }
+  html[data-theme="light"] .lp-link--active { color: #0f172a; background: rgba(15,23,42,0.06); }
+  html[data-theme="light"] #lp-header.is-scrolled { background: rgba(244,246,250,0.85); box-shadow: 0 10px 30px -18px rgba(15,23,42,0.25); }
+  html[data-theme="light"] .cta-invert { background: #0f172a; color: #fff; }
+  html[data-theme="light"] .cta-invert:hover { background: #1e293b; }
 </style>
 
 <header id="lp-header" class="sticky top-0 z-40 border-b border-white/5 bg-ink-950/60 backdrop-blur-xl transition-colors duration-200">
   <nav class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8" aria-label="Main">
     <!-- Brand -->
-    <a href="{% url 'core:landing' %}" class="flex flex-none items-center gap-3" aria-label="Business Analytics Intelligence — home">
+    <a href="{% url 'core:landing' %}" class="flex flex-none items-center gap-3" aria-label="Prism Pulse Intelligence &amp; Analytics — home">
       <img src="{% static 'img/logo.png' %}" alt="" class="h-11 w-11 rounded-xl object-contain">
       <span class="leading-none">
-        <span class="block text-[15px] font-semibold tracking-tight text-white">Business Analytics</span>
-        <span class="mt-1 block text-[10px] font-medium uppercase tracking-[0.28em] text-brand-400">Intelligence</span>
+        <span class="block text-[24px] font-semibold tracking-tight text-white">Prism Pulse</span>
+        <span class="mt-1 block text-[10px] font-medium uppercase tracking-[0.28em] text-brand-400">Intelligence &amp; Analytics</span>
       </span>
     </a>
 
     <!-- Section links -->
     <div class="hidden items-center gap-1 md:flex">
       <a href="{% url 'core:landing' %}#features" data-nav="features" class="lp-link">Features</a>
+      <a href="{% url 'core:landing' %}#demo" data-nav="demo" class="lp-link">Product tour</a>
       <a href="{% url 'core:landing' %}#how-it-works" data-nav="how-it-works" class="lp-link">How it works</a>
       <a href="{% url 'core:landing' %}#pricing" data-nav="pricing" class="lp-link">Pricing</a>
       <a href="{% url 'core:landing' %}#security" data-nav="security" class="lp-link">Security</a>
@@ -31,17 +44,18 @@
     <!-- Actions -->
     <div class="flex items-center gap-2 sm:gap-3">
       {% if request.user.is_authenticated %}
-        <a href="{% url 'finance:dashboard' %}" class="inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-ink-950 transition hover:bg-slate-100">
+        <a href="{% url 'finance:dashboard' %}" class="cta-invert inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition">
           Go to dashboard
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
         </a>
       {% else %}
         <a href="{% url 'accounts:login' %}" class="hidden rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white sm:inline-flex">Sign in</a>
-        <a href="{% url 'accounts:signup' %}" class="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 ring-1 ring-white/10 transition hover:brightness-110">
+        <a href="{% url 'accounts:signup' %}" class="keep-white inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 ring-1 ring-white/10 transition hover:brightness-110">
           Start free
           <svg class="hidden h-4 w-4 sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
         </a>
       {% endif %}
+      {% include "includes/_theme_toggle.html" %}
       <button type="button" id="lp-menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="lp-menu"
               class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-slate-300 transition hover:bg-white/5 hover:text-white md:hidden">
         <svg id="lp-icon-open" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/></svg>
@@ -54,6 +68,7 @@
   <div id="lp-menu" class="hidden border-t border-white/5 bg-ink-950/95 backdrop-blur-xl md:hidden">
     <div class="mx-auto max-w-7xl space-y-1 px-4 py-4 sm:px-6">
       <a href="{% url 'core:landing' %}#features" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">Features</a>
+      <a href="{% url 'core:landing' %}#demo" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">Product tour</a>
       <a href="{% url 'core:landing' %}#how-it-works" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">How it works</a>
       <a href="{% url 'core:landing' %}#pricing" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">Pricing</a>
       <a href="{% url 'core:landing' %}#security" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">Security</a>
@@ -61,7 +76,7 @@
       {% if not request.user.is_authenticated %}
       <div class="mt-3 grid grid-cols-2 gap-3 border-t border-white/5 pt-4">
         <a href="{% url 'accounts:login' %}" class="rounded-lg border border-white/10 px-4 py-2.5 text-center text-sm font-semibold text-slate-200 hover:bg-white/5">Sign in</a>
-        <a href="{% url 'accounts:signup' %}" class="rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white">Start free</a>
+        <a href="{% url 'accounts:signup' %}" class="keep-white rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white">Start free</a>
       </div>
       {% endif %}
     </div>

@@ -11,6 +11,9 @@
 </div>
 
 <!-- Search + as-of date -->
+<style>
+  #ld-per + .bai-select-trigger { padding: 0.65rem 1rem; font-size: 0.9rem; }
+</style>
 <form method="get" class="card mt-5 flex flex-wrap items-end gap-3 p-4">
   <div class="min-w-[14rem] flex-1">
     <label for="ld-q" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">{% if has_customers %}Search customers &amp; vendors{% else %}Search vendors{% endif %}</label>
@@ -22,7 +25,7 @@
   </div>
   <div>
     <label for="ld-per" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Rows per page</label>
-    <select id="ld-per" name="per_page" onchange="this.form.submit()" class="!mt-1 !w-auto" data-plain>
+    <select id="ld-per" name="per_page" onchange="this.form.submit()" class="!mt-1 !w-auto">
       {% for n in page_sizes %}<option value="{{ n }}" {% if n == per_page %}selected{% endif %}>{{ n }}</option>{% endfor %}
     </select>
   </div>

@@ -1,5 +1,5 @@
 {% extends "finance/_app_base.html" %}
-{% load humanize %}
+{% load humanize static %}
 {% block title %}Analytics Intelligence · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
@@ -202,7 +202,7 @@
 
 <!-- Sub-category details, opened by clicking a quantity chart -->
 <div id="qty-detail" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="qty-detail-title" onclick="if (event.target === this) bai.closeQtyDetail()">
-  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 p-6 shadow-2xl" style="background:#0a0e1a">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
     <div class="flex items-start justify-between gap-4">
       <div>
         <h3 id="qty-detail-title" class="text-lg font-semibold text-white"></h3>
@@ -219,13 +219,9 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/chart-theme.js' %}"></script>
 <script>Chart.defaults.locale = "en-IN";</script>
 <script>
-  Chart.defaults.color = "#9aa4bd";
-  Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
-  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
-
-  const palette = { brand: "#5b7cfa", brandFill: "rgba(91,124,250,0.15)", mint: "#34d9b8", mintFill: "rgba(52,217,184,0.15)", red: "#f87171", redFill: "rgba(248,113,113,0.15)" };
   const dailyLabels = {{ chart_daily_labels|safe }};
 
   const granularityData = {
@@ -234,113 +230,11 @@
     monthly: { labels: {{ chart_monthly_labels|safe }}, sales: {{ chart_monthly_sales|safe }}, expenses: {{ chart_monthly_expenses|safe }}, purchases: {{ chart_monthly_purchases|safe }} },
   };
 
-  const salesTrendChart = new Chart(document.getElementById("chartSalesTrend"), {
-    type: "bar",
-    data: {
-      labels: granularityData.daily.labels,
-      datasets: [
-        { label: "Revenue", data: granularityData.daily.sales, backgroundColor: palette.mint, borderRadius: 4 },
-      ],
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
+  // Re-assigned (not re-declared) on every theme-change re-render, so
+  // bai.setGranularity below keeps working against whichever instance is
+  // current.
+  let salesTrendChart, salesTrendFullChart;
 
-  const salesTrendFullChart = new Chart(document.getElementById("chartSalesTrendFull"), {
-    type: "bar",
-    data: {
-      labels: granularityData.daily.labels,
-      datasets: [
-        { label: "Revenue", data: granularityData.daily.sales, backgroundColor: palette.mint, borderRadius: 4 },
-        { label: "Expenses", data: granularityData.daily.expenses, backgroundColor: palette.red, borderRadius: 4 },
-        { label: "Purchases", data: granularityData.daily.purchases, backgroundColor: palette.brand, borderRadius: 4 },
-      ],
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
-
-  new Chart(document.getElementById("chartNetProfit"), {
-    type: "bar",
-    data: { labels: dailyLabels, datasets: [{ label: "Net profit", data: {{ chart_daily_net|safe }},
-      backgroundColor: ({{ chart_daily_net|safe }}).map(v => v >= 0 ? palette.mint : palette.red), borderRadius: 4 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
-
-  new Chart(document.getElementById("chartCash"), {
-    type: "line",
-    data: { labels: {{ chart_cash_labels|safe }}, datasets: [{ label: "Cash balance", data: {{ chart_cash_balance|safe }},
-      borderColor: palette.brand, backgroundColor: palette.brandFill, tension: .35, fill: true, pointRadius: 0 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
-
-  const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } },
-    transitions: { active: { animation: { duration: 250, easing: "easeOutQuart" } } } };
-  const donutColors = ["#5b7cfa","#34d9b8","#f87171","#fbbf24","#a78bfa","#38bdf8","#fb923c","#f472b6"];
-
-  {% if purchase_breakdown|length > 1 %}
-  new Chart(document.getElementById("chartPurchaseBreakdown"), {
-    type: "doughnut",
-    data: { labels: {{ chart_purchase_labels|safe }}, datasets: [{ data: {{ chart_purchase_values|safe }}, backgroundColor: donutColors, borderWidth: 0, hoverOffset: 14, hoverBorderWidth: 0 }] },
-    options: donutOpts,
-  });
-  {% endif %}
-
-  new Chart(document.getElementById("chartMonthly"), {
-    type: "bar",
-    data: { labels: {{ chart_trend_labels|safe }}, datasets: [
-      { label: "Revenue", data: {{ chart_trend_sales|safe }}, backgroundColor: palette.mint, borderRadius: 4 },
-      { label: "Expenses", data: {{ chart_trend_expenses|safe }}, backgroundColor: palette.red, borderRadius: 4 },
-      { label: "Net", data: {{ chart_trend_net|safe }}, backgroundColor: palette.brand, borderRadius: 4 },
-    ] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
-
-  new Chart(document.getElementById("chartWeekday"), {
-    type: "bar",
-    data: { labels: {{ chart_weekday_labels|safe }}, datasets: [{ label: "Avg revenue", data: {{ chart_weekday_avg|safe }},
-      backgroundColor: palette.mint, borderRadius: 4 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(255,255,255,0.05)" } } } },
-  });
-
-  {% if channel_breakdown|length > 1 %}
-  new Chart(document.getElementById("chartChannelBreakdown"), {
-    type: "bar",
-    data: { labels: {{ chart_channel_labels|safe }}, datasets: [{ data: {{ chart_channel_values|safe }}, backgroundColor: donutColors, borderRadius: 4 }] },
-    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
-  });
-  {% endif %}
-
-  new Chart(document.getElementById("chartPaymentMode"), {
-    type: "pie",
-    data: { labels: {{ chart_payment_labels|safe }}, datasets: [{ data: {{ chart_payment_values|safe }}, backgroundColor: [palette.mint, palette.brand], borderWidth: 0, hoverOffset: 14, hoverBorderWidth: 0 }] },
-    options: donutOpts,
-  });
-
-  {% if expense_breakdown|length > 1 %}
-  new Chart(document.getElementById("chartTopExpenses"), {
-    type: "bar",
-    data: { labels: {{ chart_expense_labels|safe }}, datasets: [{ data: {{ chart_expense_values|safe }}, backgroundColor: palette.red, borderRadius: 4 }] },
-    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
-  });
-  {% endif %}
-
-  {% if product_revenue %}
-  new Chart(document.getElementById("chartProductRevenue"), {
-    type: "bar",
-    data: { labels: {{ chart_product_revenue_labels|safe }}, datasets: [{ data: {{ chart_product_revenue_values|safe }}, backgroundColor: donutColors, borderRadius: 4 }] },
-    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { color: "rgba(255,255,255,0.05)" } }, y: { grid: { display: false } } } },
-  });
-  {% endif %}
-
-  // Quantity charts: one chart per category, switchable between pie and bar.
   window.bai = window.bai || {};
   bai.qtyCharts = {};
   const qtyType = { PQ: "pie", PP: "pie" };
@@ -349,7 +243,8 @@
   } catch (e) { /* storage unavailable: default to pie */ }
 
   function buildQuantityChart(canvasId, labels, values, type, meta) {
-    const colors = labels.map((_, i) => donutColors[i % donutColors.length]);
+    const c = baiChartTheme.colors();
+    const colors = labels.map((_, i) => c.donut[i % c.donut.length]);
     const total = values.reduce((a, b) => a + Number(b), 0);
     const tooltip = { callbacks: { label: (ctx) => {
       const share = total ? ((Number(ctx.raw) / total) * 100).toFixed(1) : "0.0";
@@ -368,7 +263,7 @@
           indexAxis: "y", responsive: true, maintainAspectRatio: false, ...clickable,
           plugins: { legend: { display: false }, tooltip },
           scales: {
-            x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 }, title: { display: true, text: QTY_WORD_CAP } },
+            x: { grid: { color: c.grid }, ticks: { precision: 0 }, title: { display: true, text: QTY_WORD_CAP } },
             y: { grid: { display: false } },
           },
         },
@@ -385,7 +280,7 @@
             position: "right",
             onClick: (evt, item) => open(item.index),
             labels: {
-              boxWidth: 10, boxHeight: 10, padding: 10, usePointStyle: true, color: "#cbd5e1", font: { size: 11 },
+              boxWidth: 10, boxHeight: 10, padding: 10, usePointStyle: true, color: c.text, font: { size: 11 },
               generateLabels: (chart) => {
                 const { labels, datasets } = chart.data;
                 const ds = datasets[0];
@@ -393,7 +288,7 @@
                   text: `${label}: ${ds.data[i]}`,
                   fillStyle: ds.backgroundColor[i],
                   strokeStyle: ds.backgroundColor[i],
-                  fontColor: "#cbd5e1",
+                  fontColor: c.text,
                   pointStyle: "circle",
                   index: i,
                 }));
@@ -526,19 +421,6 @@
   bai.closeQtyDetail = () => { qtyModal.classList.add("hidden"); qtyModal.classList.remove("flex"); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") bai.closeQtyDetail(); });
 
-  {% for group in product_quantity_groups %}
-  registerQuantityChart("PQ", "chartPQ-{{ forloop.counter }}", {{ group.labels_json|safe }}, {{ group.values_json|safe }}, { kind: "sale", category: "{{ group.category|escapejs }}" });
-  {% endfor %}
-  {% for group in purchase_quantity_groups %}
-  registerQuantityChart("PP", "chartPP-{{ forloop.counter }}", {{ group.labels_json|safe }}, {{ group.values_json|safe }}, { kind: "purchase", category: "{{ group.category|escapejs }}" });
-  {% endfor %}
-  ["PQ", "PP"].forEach((k) => {
-    ["pie", "bar"].forEach((t) => {
-      const btn = document.getElementById(`qty-btn-${k}-${t}`);
-      if (btn) btn.classList.toggle("granularity-btn--active", t === qtyType[k]);
-    });
-  });
-
   window.bai = window.bai || {};
   bai.setGranularity = (key) => {
     const g = granularityData[key];
@@ -557,5 +439,133 @@
     });
   };
 
+  baiChartTheme.onThemeChange((c) => {
+    const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } },
+      transitions: { active: { animation: { duration: 250, easing: "easeOutQuart" } } } };
+
+    const charts = [];
+
+    salesTrendChart = new Chart(document.getElementById("chartSalesTrend"), {
+      type: "bar",
+      data: {
+        labels: granularityData.daily.labels,
+        datasets: [
+          { label: "Revenue", data: granularityData.daily.sales, backgroundColor: c.mint, borderRadius: 4 },
+        ],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    });
+    charts.push(salesTrendChart);
+
+    salesTrendFullChart = new Chart(document.getElementById("chartSalesTrendFull"), {
+      type: "bar",
+      data: {
+        labels: granularityData.daily.labels,
+        datasets: [
+          { label: "Revenue", data: granularityData.daily.sales, backgroundColor: c.mint, borderRadius: 4 },
+          { label: "Expenses", data: granularityData.daily.expenses, backgroundColor: c.red, borderRadius: 4 },
+          { label: "Purchases", data: granularityData.daily.purchases, backgroundColor: c.brand, borderRadius: 4 },
+        ],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    });
+    charts.push(salesTrendFullChart);
+
+    charts.push(new Chart(document.getElementById("chartNetProfit"), {
+      type: "bar",
+      data: { labels: dailyLabels, datasets: [{ label: "Net profit", data: {{ chart_daily_net|safe }},
+        backgroundColor: ({{ chart_daily_net|safe }}).map(v => v >= 0 ? c.mint : c.red), borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    }));
+
+    charts.push(new Chart(document.getElementById("chartCash"), {
+      type: "line",
+      data: { labels: {{ chart_cash_labels|safe }}, datasets: [{ label: "Cash balance", data: {{ chart_cash_balance|safe }},
+        borderColor: c.brand, backgroundColor: c.brandFill, tension: .35, fill: true, pointRadius: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    }));
+
+    {% if purchase_breakdown|length > 1 %}
+    charts.push(new Chart(document.getElementById("chartPurchaseBreakdown"), {
+      type: "doughnut",
+      data: { labels: {{ chart_purchase_labels|safe }}, datasets: [{ data: {{ chart_purchase_values|safe }}, backgroundColor: c.donut, borderWidth: 0, hoverOffset: 14, hoverBorderWidth: 0 }] },
+      options: donutOpts,
+    }));
+    {% endif %}
+
+    charts.push(new Chart(document.getElementById("chartMonthly"), {
+      type: "bar",
+      data: { labels: {{ chart_trend_labels|safe }}, datasets: [
+        { label: "Revenue", data: {{ chart_trend_sales|safe }}, backgroundColor: c.mint, borderRadius: 4 },
+        { label: "Expenses", data: {{ chart_trend_expenses|safe }}, backgroundColor: c.red, borderRadius: 4 },
+        { label: "Net", data: {{ chart_trend_net|safe }}, backgroundColor: c.brand, borderRadius: 4 },
+      ] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    }));
+
+    charts.push(new Chart(document.getElementById("chartWeekday"), {
+      type: "bar",
+      data: { labels: {{ chart_weekday_labels|safe }}, datasets: [{ label: "Avg revenue", data: {{ chart_weekday_avg|safe }},
+        backgroundColor: c.mint, borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    }));
+
+    {% if channel_breakdown|length > 1 %}
+    charts.push(new Chart(document.getElementById("chartChannelBreakdown"), {
+      type: "bar",
+      data: { labels: {{ chart_channel_labels|safe }}, datasets: [{ data: {{ chart_channel_values|safe }}, backgroundColor: c.donut, borderRadius: 4 }] },
+      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { color: c.grid } }, y: { grid: { display: false } } } },
+    }));
+    {% endif %}
+
+    charts.push(new Chart(document.getElementById("chartPaymentMode"), {
+      type: "pie",
+      data: { labels: {{ chart_payment_labels|safe }}, datasets: [{ data: {{ chart_payment_values|safe }}, backgroundColor: [c.mint, c.brand], borderWidth: 0, hoverOffset: 14, hoverBorderWidth: 0 }] },
+      options: donutOpts,
+    }));
+
+    {% if expense_breakdown|length > 1 %}
+    charts.push(new Chart(document.getElementById("chartTopExpenses"), {
+      type: "bar",
+      data: { labels: {{ chart_expense_labels|safe }}, datasets: [{ data: {{ chart_expense_values|safe }}, backgroundColor: c.red, borderRadius: 4 }] },
+      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { color: c.grid } }, y: { grid: { display: false } } } },
+    }));
+    {% endif %}
+
+    {% if product_revenue %}
+    charts.push(new Chart(document.getElementById("chartProductRevenue"), {
+      type: "bar",
+      data: { labels: {{ chart_product_revenue_labels|safe }}, datasets: [{ data: {{ chart_product_revenue_values|safe }}, backgroundColor: c.donut, borderRadius: 4 }] },
+      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { color: c.grid } }, y: { grid: { display: false } } } },
+    }));
+    {% endif %}
+
+    // Quantity charts: one chart per category, switchable between pie and bar.
+    bai.qtyCharts = {};
+    {% for group in product_quantity_groups %}
+    registerQuantityChart("PQ", "chartPQ-{{ forloop.counter }}", {{ group.labels_json|safe }}, {{ group.values_json|safe }}, { kind: "sale", category: "{{ group.category|escapejs }}" });
+    {% endfor %}
+    {% for group in purchase_quantity_groups %}
+    registerQuantityChart("PP", "chartPP-{{ forloop.counter }}", {{ group.labels_json|safe }}, {{ group.values_json|safe }}, { kind: "purchase", category: "{{ group.category|escapejs }}" });
+    {% endfor %}
+    ["PQ", "PP"].forEach((k) => {
+      ["pie", "bar"].forEach((t) => {
+        const btn = document.getElementById(`qty-btn-${k}-${t}`);
+        if (btn) btn.classList.toggle("granularity-btn--active", t === qtyType[k]);
+      });
+    });
+    charts.push(...Object.values(bai.qtyCharts).map((e) => e.chart));
+
+    return charts;
+  });
 </script>
 {% endblock %}

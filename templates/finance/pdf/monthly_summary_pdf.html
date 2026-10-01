@@ -8,24 +8,24 @@
   {{ organization.currency }} {{ yoy.prior_total|floatformat:2|intcomma }}
   {% if yoy.change_pct != None %}({% if yoy.change_pct >= 0 %}+{% endif %}{{ yoy.change_pct|floatformat:1 }}% vs this period){% endif %}
 </p>
-<table>
+<table style="table-layout: fixed;">
   <tr>
-    <td class="section-label">{{ kind_label }}</td>
-    {% for label in matrix.labels %}<td class="section-label right">{{ label }}</td>{% endfor %}
-    <td class="section-label right">Total</td>
+    <td class="section-label" style="width:{{ name_col_pct }}%; font-size:{{ font_px }}px;">{{ kind_label }}</td>
+    {% for label in matrix.labels %}<td class="section-label right" style="width:{{ data_col_pct }}%; font-size:{{ font_px }}px;">{{ label }}</td>{% endfor %}
+    <td class="section-label right" style="width:{{ total_col_pct }}%; font-size:{{ font_px }}px;">Total</td>
   </tr>
   {% for row in matrix.rows %}
   <tr class="divider">
-    <td>{{ row.name }}</td>
-    {% for cell in row.cells %}<td class="right">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}–{% endif %}</td>{% endfor %}
-    <td class="right" style="font-weight:bold;">{{ row.total|floatformat:2|intcomma }}</td>
+    <td style="width:{{ name_col_pct }}%;">{{ row.name }}</td>
+    {% for cell in row.cells %}<td class="right" style="width:{{ data_col_pct }}%;">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}–{% endif %}</td>{% endfor %}
+    <td class="right" style="width:{{ total_col_pct }}%;">{{ row.total|floatformat:2|intcomma }}</td>
   </tr>
   {% if expand_all and row.has_subrows %}
   {% for subrow in row.subrows %}
   <tr class="divider">
-    <td style="padding-left:16px; color:#666; font-style:italic;">{{ subrow.name }}</td>
-    {% for cell in subrow.cells %}<td class="right" style="color:#666; font-style:italic;">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}–{% endif %}</td>{% endfor %}
-    <td class="right" style="color:#666; font-style:italic;">{{ subrow.total|floatformat:2|intcomma }}</td>
+    <td style="width:{{ name_col_pct }}%; padding-left:16px; color:#666; font-style:italic;">{{ subrow.name }}</td>
+    {% for cell in subrow.cells %}<td class="right" style="width:{{ data_col_pct }}%; color:#666; font-style:italic;">{% if cell.value %}{{ cell.value|floatformat:2|intcomma }}{% else %}–{% endif %}</td>{% endfor %}
+    <td class="right" style="width:{{ total_col_pct }}%; color:#666; font-style:italic;">{{ subrow.total|floatformat:2|intcomma }}</td>
   </tr>
   {% endfor %}
   {% endif %}
@@ -33,9 +33,9 @@
   <tr><td colspan="{{ matrix.labels|length|add:2 }}" class="muted">No {{ kind_label|lower }} recorded for this period.</td></tr>
   {% endfor %}
   <tr class="thick">
-    <td>Total</td>
-    {% for cell in matrix.column_cells %}<td class="right">{{ cell.value|floatformat:2|intcomma }}</td>{% endfor %}
-    <td class="right">{{ matrix.grand_total|floatformat:2|intcomma }}</td>
+    <td style="width:{{ name_col_pct }}%; font-size:{{ font_px }}px;">Total</td>
+    {% for cell in matrix.column_cells %}<td class="right" style="width:{{ data_col_pct }}%; font-size:{{ font_px }}px; font-weight:normal;">{{ cell.value|floatformat:2|intcomma }}</td>{% endfor %}
+    <td class="right" style="width:{{ total_col_pct }}%; font-size:{{ font_px }}px;">{{ matrix.grand_total|floatformat:2|intcomma }}</td>
   </tr>
 </table>
 <p class="muted" style="margin-top:10px;">Amounts in {{ organization.currency }}.</p>

@@ -1,4 +1,7 @@
 <!-- Date range + search -->
+<style>
+  #lf-per + .bai-select-trigger { padding: 0.65rem 1rem; font-size: 0.9rem; }
+</style>
 <form method="get" class="card mt-5 flex flex-wrap items-end gap-3 p-4">
   <div>
     <label for="lf-from" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
@@ -14,7 +17,7 @@
   </div>
   <div>
     <label for="lf-per" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Rows per page</label>
-    <select id="lf-per" name="per_page" onchange="this.form.submit()" class="!mt-1 !w-auto" data-plain>
+    <select id="lf-per" name="per_page" onchange="this.form.submit()" class="!mt-1 !w-auto">
       {% for n in page_sizes %}<option value="{{ n }}" {% if n == per_page %}selected{% endif %}>{{ n }}</option>{% endfor %}
     </select>
   </div>

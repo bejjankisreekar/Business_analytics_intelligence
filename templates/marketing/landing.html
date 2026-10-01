@@ -19,12 +19,12 @@
         <span class="block bg-gradient-to-r from-brand-400 to-mint-400 bg-clip-text text-transparent">every single day.</span>
       </h1>
       <p class="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-400">
-        Log daily revenue and expenses in seconds. Business Analytics Intelligence turns that
-        raw data into margins, trends and alerts — so you always know what's working and
-        what's quietly eating your profit.
+        Log daily sales, purchases and expenses in seconds. Prism Pulse Intelligence &amp; Analytics turns
+        that raw data into margins, ledgers, receivables and auto-generated insights — so you
+        always know what's working and what's quietly eating your profit.
       </p>
       <div class="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-        <a href="{% url 'accounts:signup' %}" class="w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-7 py-3.5 text-center text-sm font-semibold text-white shadow-xl shadow-brand-600/30 transition hover:brightness-110 sm:w-auto">
+        <a href="{% url 'accounts:signup' %}" class="keep-white w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-7 py-3.5 text-center text-sm font-semibold text-white shadow-xl shadow-brand-600/30 transition hover:brightness-110 sm:w-auto">
           Create your organization — it's free
         </a>
         <a href="{% url 'accounts:login' %}" class="w-full rounded-xl border border-white/10 bg-white/5 px-7 py-3.5 text-center text-sm font-semibold text-white transition hover:bg-white/10 sm:w-auto">
@@ -87,6 +87,7 @@
       <span>Services</span>
       <span>Wholesale &amp; Distribution</span>
       <span>Manufacturing</span>
+      <span>Hospitals</span>
     </div>
   </section>
 
@@ -94,43 +95,43 @@
   <section id="features" class="mx-auto max-w-7xl px-6 py-24 lg:px-8">
     <div class="mx-auto max-w-2xl text-center">
       <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Everything you need to understand your business</h2>
-      <p class="mt-4 text-base text-slate-400">Three simple habits — log revenue, log expenses, read the insights — replace spreadsheets, guesswork and end-of-month surprises.</p>
+      <p class="mt-4 text-base text-slate-400">From the first daily entry to a full set of ledgers, invoices and reports — replace spreadsheets, guesswork and end-of-month surprises.</p>
     </div>
     <div class="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:border-brand-500/30 hover:bg-white/[0.05]">
         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v8m-4-5v5m8-9v9M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
         </div>
-        <h3 class="mt-5 text-lg font-semibold text-white">Daily revenue tracking</h3>
-        <p class="mt-2 text-sm leading-relaxed text-slate-400">Record revenue by day, channel or outlet in seconds — from a phone, tablet, or desktop.</p>
+        <h3 class="mt-5 text-lg font-semibold text-white">Fast daily entry &amp; imports</h3>
+        <p class="mt-2 text-sm leading-relaxed text-slate-400">Log sales, purchases and expenses one by one or in bulk — or import a batch of sales straight from a spreadsheet.</p>
       </div>
       <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:border-brand-500/30 hover:bg-white/[0.05]">
         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m-7 4h8m-9 4h10M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
         </div>
-        <h3 class="mt-5 text-lg font-semibold text-white">Expense tracking</h3>
-        <p class="mt-2 text-sm leading-relaxed text-slate-400">Capture every cost against a category so you can see exactly where the money goes.</p>
+        <h3 class="mt-5 text-lg font-semibold text-white">Customer, vendor &amp; bank ledgers</h3>
+        <p class="mt-2 text-sm leading-relaxed text-slate-400">Running-balance ledgers for every customer, vendor, bank account and partner, plus an aging report for what's owed and due.</p>
       </div>
       <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:border-brand-500/30 hover:bg-white/[0.05]">
         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
         </div>
-        <h3 class="mt-5 text-lg font-semibold text-white">Trends &amp; margins</h3>
-        <p class="mt-2 text-sm leading-relaxed text-slate-400">Automatic day-over-day and month-over-month comparisons, profit margin and burn rate.</p>
+        <h3 class="mt-5 text-lg font-semibold text-white">Sales &amp; purchase intelligence</h3>
+        <p class="mt-2 text-sm leading-relaxed text-slate-400">Channel and product breakdowns, best-selling days, payment-mode mix and auto-generated insights on what's gaining or losing momentum.</p>
       </div>
       <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:border-brand-500/30 hover:bg-white/[0.05]">
         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75h6m-6 3.75h3.75M9 3.75h6a2.25 2.25 0 012.25 2.25v12A2.25 2.25 0 0115 20.25H9A2.25 2.25 0 016.75 18V6A2.25 2.25 0 019 3.75zM9 6.75h6"/></svg>
         </div>
-        <h3 class="mt-5 text-lg font-semibold text-white">Smart alerts</h3>
-        <p class="mt-2 text-sm leading-relaxed text-slate-400">Get flagged the moment expenses spike or revenue dips below your normal range.</p>
+        <h3 class="mt-5 text-lg font-semibold text-white">Receivables, payables &amp; cash position</h3>
+        <p class="mt-2 text-sm leading-relaxed text-slate-400">Track what customers owe you and what you owe vendors, record payments against them, and see a live snapshot of cash in hand and upcoming obligations.</p>
       </div>
       <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:border-brand-500/30 hover:bg-white/[0.05]">
         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
         </div>
-        <h3 class="mt-5 text-lg font-semibold text-white">One dashboard, every device</h3>
-        <p class="mt-2 text-sm leading-relaxed text-slate-400">Check performance from your phone at the counter or your laptop at home.</p>
+        <h3 class="mt-5 text-lg font-semibold text-white">Reports &amp; PDF exports</h3>
+        <p class="mt-2 text-sm leading-relaxed text-slate-400">Monthly summaries, category statements and full reports, every one exportable to PDF whenever you need them on paper.</p>
       </div>
       <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:border-brand-500/30 hover:bg-white/[0.05]">
         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400">
@@ -139,6 +140,257 @@
         <h3 class="mt-5 text-lg font-semibold text-white">Private, isolated workspace</h3>
         <p class="mt-2 text-sm leading-relaxed text-slate-400">Every organization gets its own isolated data store — never shared, never mixed.</p>
       </div>
+    </div>
+  </section>
+
+  <!-- Product Tour -->
+  <section id="demo" class="border-t border-white/5 py-24">
+    <div class="mx-auto max-w-7xl px-6 lg:px-8">
+      <div class="mx-auto max-w-2xl text-center">
+        <span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-slate-300">
+          <span class="h-1.5 w-1.5 rounded-full bg-mint-400"></span>
+          No sign-up required to look around
+        </span>
+        <h2 class="mt-5 text-3xl font-bold tracking-tight text-white sm:text-4xl">Product tour</h2>
+        <p class="mt-4 text-base text-slate-400">Real numbers from a live account — Apollo Hospitals, a multi-department hospital running its daily revenue and costs through the app.</p>
+      </div>
+
+      <div class="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-2">
+
+        <!-- Panel: Analytics Dashboard -->
+        <div class="rounded-2xl border border-white/10 bg-ink-900/80 shadow-xl shadow-black/30">
+          <div class="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
+            <span class="h-2.5 w-2.5 rounded-full bg-red-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-yellow-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-mint-400/70"></span>
+            <span class="ml-3 text-xs text-slate-500">Apollo Hospitals · Analytics</span>
+          </div>
+          <div class="p-5">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div class="rounded-xl border border-white/5 bg-white/[0.03] p-3">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500">Revenue</p>
+                <p class="mt-1 text-sm font-bold text-white">₹31,76,768</p>
+              </div>
+              <div class="rounded-xl border border-white/5 bg-white/[0.03] p-3">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500">Net profit</p>
+                <p class="mt-1 text-sm font-bold text-mint-400">₹21,73,862</p>
+              </div>
+              <div class="rounded-xl border border-white/5 bg-white/[0.03] p-3">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500">Margin</p>
+                <p class="mt-1 text-sm font-bold text-white">68.4%</p>
+              </div>
+              <div class="rounded-xl border border-white/5 bg-white/[0.03] p-3">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500">vs last month</p>
+                <p class="mt-1 text-sm font-bold text-mint-400">▲ 43.1%</p>
+              </div>
+            </div>
+            <p class="mt-5 text-[11px] font-medium uppercase tracking-wide text-slate-500">Revenue, last 6 months</p>
+            <div class="mt-2 flex h-28 items-end gap-2">
+              <div class="flex-1 rounded-t bg-gradient-to-t from-brand-600/70 to-brand-400/80" style="height:100%" title="Apr · ₹39,45,893"></div>
+              <div class="flex-1 rounded-t bg-gradient-to-t from-brand-600/70 to-brand-400/80" style="height:99%" title="May · ₹39,33,952"></div>
+              <div class="flex-1 rounded-t bg-gradient-to-t from-brand-600/70 to-brand-400/80" style="height:83%" title="Jun · ₹32,78,649"></div>
+              <div class="flex-1 rounded-t bg-gradient-to-t from-brand-600/70 to-brand-400/80" style="height:78%" title="Jul · ₹30,64,089"></div>
+              <div class="flex-1 rounded-t bg-gradient-to-t from-brand-600/70 to-brand-400/80" style="height:88%" title="Aug · ₹34,84,109"></div>
+              <div class="flex-1 rounded-t bg-gradient-to-t from-mint-500/70 to-mint-400/90" style="height:81%" title="Sep · ₹31,76,768"></div>
+            </div>
+            <div class="mt-1.5 flex gap-2 text-center text-[10px] text-slate-500">
+              <span class="flex-1">Apr</span><span class="flex-1">May</span><span class="flex-1">Jun</span>
+              <span class="flex-1">Jul</span><span class="flex-1">Aug</span><span class="flex-1">Sep</span>
+            </div>
+          </div>
+          <div class="border-t border-white/5 px-5 py-4">
+            <h3 class="text-sm font-semibold text-white">Analytics Dashboard</h3>
+            <p class="mt-1 text-xs leading-relaxed text-slate-400">Every month's revenue and profit, plotted automatically — six months of performance in one glance.</p>
+          </div>
+        </div>
+
+        <!-- Panel: Revenue Intelligence -->
+        <div class="rounded-2xl border border-white/10 bg-ink-900/80 shadow-xl shadow-black/30">
+          <div class="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
+            <span class="h-2.5 w-2.5 rounded-full bg-red-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-yellow-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-mint-400/70"></span>
+            <span class="ml-3 text-xs text-slate-500">Apollo Hospitals · Revenue Intelligence</span>
+          </div>
+          <div class="space-y-3 p-5">
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">IPD Admission</span><span class="font-semibold text-white">₹10,87,277</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-brand-500 to-mint-400" style="width:100%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">Surgery &amp; Operation Theatre</span><span class="font-semibold text-white">₹8,11,750</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-brand-500 to-mint-400" style="width:75%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">Insurance / TPA Claims</span><span class="font-semibold text-white">₹4,51,473</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-brand-500 to-mint-400" style="width:42%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">Pharmacy Sales</span><span class="font-semibold text-white">₹3,57,750</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-brand-500 to-mint-400" style="width:33%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">Radiology &amp; Imaging</span><span class="font-semibold text-white">₹1,39,369</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-brand-500 to-mint-400" style="width:13%"></div></div>
+            </div>
+            <div class="rounded-lg border border-mint-500/20 bg-mint-500/5 px-3 py-2 text-xs text-mint-300">
+              IPD Admission drives 34% of this month's revenue.
+            </div>
+          </div>
+          <div class="border-t border-white/5 px-5 py-4">
+            <h3 class="text-sm font-semibold text-white">Revenue Intelligence</h3>
+            <p class="mt-1 text-xs leading-relaxed text-slate-400">See exactly which department is driving revenue, with auto-generated insights on what's moving.</p>
+          </div>
+        </div>
+
+        <!-- Panel: Cost Intelligence -->
+        <div class="rounded-2xl border border-white/10 bg-ink-900/80 shadow-xl shadow-black/30">
+          <div class="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
+            <span class="h-2.5 w-2.5 rounded-full bg-red-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-yellow-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-mint-400/70"></span>
+            <span class="ml-3 text-xs text-slate-500">Apollo Hospitals · Cost Intelligence</span>
+          </div>
+          <div class="space-y-3 p-5">
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">Salaries &amp; Wages</span><span class="font-semibold text-white">₹4,13,904</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-red-500 to-yellow-400" style="width:100%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">Doctor Fees &amp; Consultant Payouts</span><span class="font-semibold text-white">₹37,260</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-red-500 to-yellow-400" style="width:9%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">Electricity &amp; Utilities</span><span class="font-semibold text-white">₹36,127</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-red-500 to-yellow-400" style="width:9%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">Taxes</span><span class="font-semibold text-white">₹33,433</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-red-500 to-yellow-400" style="width:8%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">Housekeeping &amp; Sanitation</span><span class="font-semibold text-white">₹33,170</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-red-500 to-yellow-400" style="width:8%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-xs"><span class="text-slate-300">Equipment Maintenance &amp; AMC</span><span class="font-semibold text-white">₹20,800</span></div>
+              <div class="mt-1 h-2 rounded-full bg-white/5"><div class="h-2 rounded-full bg-gradient-to-r from-red-500 to-yellow-400" style="width:5%"></div></div>
+            </div>
+          </div>
+          <div class="border-t border-white/5 px-5 py-4">
+            <h3 class="text-sm font-semibold text-white">Cost Intelligence</h3>
+            <p class="mt-1 text-xs leading-relaxed text-slate-400">Every cost category tracked and compared month to month, so creeping expenses get caught early.</p>
+          </div>
+        </div>
+
+        <!-- Panel: Vendor Ledgers -->
+        <div class="rounded-2xl border border-white/10 bg-ink-900/80 shadow-xl shadow-black/30">
+          <div class="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
+            <span class="h-2.5 w-2.5 rounded-full bg-red-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-yellow-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-mint-400/70"></span>
+            <span class="ml-3 text-xs text-slate-500">Apollo Hospitals · Vendor Ledgers</span>
+          </div>
+          <div class="divide-y divide-white/5">
+            <div class="flex items-center justify-between px-5 py-2.5 text-xs">
+              <span class="text-slate-300">Philips Medical Systems</span><span class="font-semibold text-yellow-400">₹21,19,722</span>
+            </div>
+            <div class="flex items-center justify-between px-5 py-2.5 text-xs">
+              <span class="text-slate-300">Siemens Healthineers</span><span class="font-semibold text-yellow-400">₹11,52,590</span>
+            </div>
+            <div class="flex items-center justify-between px-5 py-2.5 text-xs">
+              <span class="text-slate-300">MedPlus Pharma Distributors</span><span class="font-semibold text-white">₹2,75,564</span>
+            </div>
+            <div class="flex items-center justify-between px-5 py-2.5 text-xs">
+              <span class="text-slate-300">Godrej Interio</span><span class="font-semibold text-white">₹1,24,665</span>
+            </div>
+            <div class="flex items-center justify-between px-5 py-2.5 text-xs">
+              <span class="text-slate-300">3M Healthcare India</span><span class="font-semibold text-white">₹1,06,947</span>
+            </div>
+            <div class="flex items-center justify-between px-5 py-2.5 text-xs">
+              <span class="text-slate-300">Trident Linen Supplies</span><span class="font-semibold text-white">₹31,169</span>
+            </div>
+          </div>
+          <div class="border-t border-white/5 px-5 py-4">
+            <h3 class="text-sm font-semibold text-white">Vendor Ledgers</h3>
+            <p class="mt-1 text-xs leading-relaxed text-slate-400">A running balance for every vendor and equipment supplier — always current, no spreadsheet required.</p>
+          </div>
+        </div>
+
+        <!-- Panel: Aging Report -->
+        <div class="rounded-2xl border border-white/10 bg-ink-900/80 shadow-xl shadow-black/30">
+          <div class="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
+            <span class="h-2.5 w-2.5 rounded-full bg-red-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-yellow-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-mint-400/70"></span>
+            <span class="ml-3 text-xs text-slate-500">Apollo Hospitals · Aging Report</span>
+          </div>
+          <div class="overflow-x-auto p-5">
+            <table class="w-full min-w-[480px] text-left text-xs">
+              <thead>
+                <tr class="text-slate-500">
+                  <th class="pb-2 font-medium">Vendor</th>
+                  <th class="pb-2 font-medium">Current</th>
+                  <th class="pb-2 font-medium">1–30d</th>
+                  <th class="pb-2 font-medium">31–60d</th>
+                  <th class="pb-2 font-medium text-red-400">90d+</th>
+                </tr>
+              </thead>
+              <tbody class="text-slate-300">
+                <tr class="border-t border-white/5"><td class="py-2">Philips Medical</td><td>₹4,15,000</td><td>₹8,58,700</td><td>—</td><td class="text-red-400">₹8,46,022</td></tr>
+                <tr class="border-t border-white/5"><td class="py-2">Siemens Healthineers</td><td>₹3,40,000</td><td>—</td><td>—</td><td class="text-red-400">₹8,12,590</td></tr>
+                <tr class="border-t border-white/5"><td class="py-2">MedPlus Pharma</td><td>—</td><td>₹1,45,000</td><td>—</td><td class="text-red-400">₹1,30,564</td></tr>
+                <tr class="border-t border-white/5"><td class="py-2">Godrej Interio</td><td>—</td><td>—</td><td>₹68,974</td><td class="text-red-400">₹55,690</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="border-t border-white/5 px-5 py-4">
+            <h3 class="text-sm font-semibold text-white">Aging Report</h3>
+            <p class="mt-1 text-xs leading-relaxed text-slate-400">Know exactly how overdue each payable is, down to the bucket — before it becomes a vendor relationship problem.</p>
+          </div>
+        </div>
+
+        <!-- Panel: Monthly & Yearly Reports -->
+        <div class="rounded-2xl border border-white/10 bg-ink-900/80 shadow-xl shadow-black/30">
+          <div class="flex items-center gap-1.5 border-b border-white/5 px-4 py-3">
+            <span class="h-2.5 w-2.5 rounded-full bg-red-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-yellow-400/70"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-mint-400/70"></span>
+            <span class="ml-3 text-xs text-slate-500">Apollo Hospitals · Monthly Summary</span>
+          </div>
+          <div class="overflow-x-auto p-5">
+            <table class="w-full min-w-[440px] text-left text-xs">
+              <thead>
+                <tr class="text-slate-500">
+                  <th class="pb-2 font-medium">Month</th>
+                  <th class="pb-2 font-medium">Revenue</th>
+                  <th class="pb-2 font-medium">Bills</th>
+                  <th class="pb-2 font-medium">Avg. bill value</th>
+                </tr>
+              </thead>
+              <tbody class="text-slate-300">
+                <tr class="border-t border-white/5"><td class="py-2">Apr 2026</td><td class="text-white">₹39,45,893</td><td>261</td><td>₹15,118</td></tr>
+                <tr class="border-t border-white/5"><td class="py-2">May 2026</td><td class="text-white">₹39,33,952</td><td>277</td><td>₹14,202</td></tr>
+                <tr class="border-t border-white/5"><td class="py-2">Jun 2026</td><td class="text-white">₹32,78,649</td><td>275</td><td>₹11,922</td></tr>
+                <tr class="border-t border-white/5"><td class="py-2">Jul 2026</td><td class="text-white">₹30,64,089</td><td>269</td><td>₹11,391</td></tr>
+                <tr class="border-t border-white/5"><td class="py-2">Aug 2026</td><td class="text-white">₹34,84,109</td><td>265</td><td>₹13,148</td></tr>
+                <tr class="border-t border-white/5"><td class="py-2">Sep 2026</td><td class="text-mint-400">₹31,76,768</td><td>183</td><td>₹17,359</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="border-t border-white/5 px-5 py-4">
+            <h3 class="text-sm font-semibold text-white">Monthly &amp; Yearly Reports</h3>
+            <p class="mt-1 text-xs leading-relaxed text-slate-400">Revenue, bill volume and average bill size, laid out month by month — the report your accountant asks for.</p>
+          </div>
+        </div>
+
+      </div>
+
+      <p class="mt-10 text-center text-sm text-slate-500">
+        Like what you see?
+        <a href="{% url 'accounts:signup' %}" class="font-semibold text-brand-400 hover:text-brand-300">Create your organization</a>
+        and it's set up with your own data in minutes.
+      </p>
     </div>
   </section>
 
@@ -151,17 +403,17 @@
       </div>
       <div class="mt-16 grid grid-cols-1 gap-10 sm:grid-cols-3">
         <div class="relative text-center">
-          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-bold text-white shadow-lg shadow-brand-600/30">1</div>
+          <div class="keep-white mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-bold text-white shadow-lg shadow-brand-600/30">1</div>
           <h3 class="mt-5 text-base font-semibold text-white">Log revenue &amp; expenses</h3>
           <p class="mt-2 text-sm leading-relaxed text-slate-400">Add today's revenue and costs in a simple form — no accounting background needed.</p>
         </div>
         <div class="relative text-center">
-          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-bold text-white shadow-lg shadow-brand-600/30">2</div>
+          <div class="keep-white mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-bold text-white shadow-lg shadow-brand-600/30">2</div>
           <h3 class="mt-5 text-base font-semibold text-white">We crunch the numbers</h3>
-          <p class="mt-2 text-sm leading-relaxed text-slate-400">Business Analytics Intelligence turns raw entries into trends, margins and comparisons automatically.</p>
+          <p class="mt-2 text-sm leading-relaxed text-slate-400">Prism Pulse Intelligence &amp; Analytics turns raw entries into trends, margins and comparisons automatically.</p>
         </div>
         <div class="relative text-center">
-          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-bold text-white shadow-lg shadow-brand-600/30">3</div>
+          <div class="keep-white mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-bold text-white shadow-lg shadow-brand-600/30">3</div>
           <h3 class="mt-5 text-base font-semibold text-white">Make confident decisions</h3>
           <p class="mt-2 text-sm leading-relaxed text-slate-400">See exactly what's driving growth — or draining profit — before it becomes a problem.</p>
         </div>
@@ -218,7 +470,7 @@
                   </div>
                 </div>
 
-                <a href="{% url 'accounts:signup' %}" class="block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110">
+                <a href="{% url 'accounts:signup' %}" class="keep-white block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110">
                   Get started
                 </a>
               </div>
@@ -289,7 +541,7 @@
       <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Start understanding your business today</h2>
       <p class="mx-auto mt-4 max-w-xl text-base text-slate-400">Set up your organization in under a minute. No credit card required.</p>
       <div class="mt-8">
-        <a href="{% url 'accounts:signup' %}" class="inline-block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-8 py-3.5 text-sm font-semibold text-white shadow-xl shadow-brand-600/30 transition hover:brightness-110">
+        <a href="{% url 'accounts:signup' %}" class="keep-white inline-block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-8 py-3.5 text-sm font-semibold text-white shadow-xl shadow-brand-600/30 transition hover:brightness-110">
           Create your organization
         </a>
       </div>
@@ -366,7 +618,7 @@
                       class="mt-1.5 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" placeholder="How can we help?">{{ contact_form.message.value|default:'' }}</textarea>
             {% for error in contact_form.message.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
           </div>
-          <button type="submit" class="mt-6 w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 sm:w-auto">
+          <button type="submit" class="keep-white mt-6 w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 sm:w-auto">
             Send message
           </button>
         </form>
@@ -376,7 +628,7 @@
 
   <footer class="border-t border-white/5 py-10">
     <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 text-xs text-slate-500 sm:flex-row lg:px-8">
-      <p>© {% now "Y" %} Business Analytics Intelligence. All rights reserved.</p>
+      <p>© {% now "Y" %} Prism Pulse Intelligence &amp; Analytics. All rights reserved.</p>
       <div class="flex items-center gap-6">
         <a href="{% url 'accounts:login' %}" class="hover:text-slate-300">Sign in</a>
         <a href="{% url 'accounts:signup' %}" class="hover:text-slate-300">Sign up</a>

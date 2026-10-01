@@ -1,0 +1,265 @@
+/* Light/dark theme tokens.
+   Dark is the default (matches the app's original look); html[data-theme="light"]
+   overrides the same variables. Tailwind's custom "ink"/"brand"/"mint"/"slate"
+   colors are wired to these in base.html's tailwind.config via
+   rgb(var(--x) / <alpha-value>), so every bg-ink-900, text-slate-400, etc.
+   across every template flips automatically with the attribute — no per-
+   template edits needed for those.
+   Values are "R G B" (space-separated) so Tailwind's opacity-modifier syntax
+   (bg-ink-900/95) keeps working. */
+:root {
+  --ink-950: 5 7 13;
+  --ink-900: 10 14 26;
+  --ink-800: 17 22 39;
+  --ink-700: 26 32 54;
+
+  --brand-400: 124 157 255;
+  --brand-500: 91 124 250;
+  --brand-600: 67 97 238;
+
+  --mint-400: 52 217 184;
+  --mint-500: 31 196 160;
+
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --slate-950: 2 6 23;
+
+  /* "white" utilities (text-white, bg-white/N, border-white/N) are used
+     throughout as a foreground/overlay tint on a dark canvas, not literally
+     "the color white" — theme.css's override layer below flips them. These
+     two drive that layer. */
+  --fg-strong: 255 255 255;
+  --tint-rgb: 255 255 255;
+
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --chart-grid-soft: rgba(255, 255, 255, 0.05);
+  --chart-tick: #9aa4bd;
+
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  --ink-950: 244 246 250;
+  --ink-900: 255 255 255;
+  --ink-800: 255 255 255;
+  --ink-700: 234 239 255;
+
+  --brand-400: 59 91 219;
+  --brand-500: 67 97 238;
+  --brand-600: 49 78 212;
+
+  --mint-400: 15 157 121;
+  --mint-500: 13 138 107;
+
+  --slate-50: 15 23 42;
+  --slate-100: 30 41 59;
+  --slate-200: 30 41 59;
+  --slate-300: 51 65 85;
+  --slate-400: 100 116 139;
+  --slate-500: 100 116 139;
+  --slate-600: 148 163 184;
+  --slate-700: 203 213 225;
+  --slate-800: 226 232 240;
+  --slate-900: 241 245 249;
+  --slate-950: 248 250 252;
+
+  --fg-strong: 15 23 42;
+  --tint-rgb: 15 23 42;
+
+  --chart-grid: rgba(15, 23, 42, 0.1);
+  --chart-grid-soft: rgba(15, 23, 42, 0.08);
+  --chart-tick: #475569;
+
+  color-scheme: light;
+}
+
+html, body { background-color: rgb(var(--ink-950)); }
+
+/* ---- Global "white used as dark-canvas foreground tint" override layer ----
+   Elements that must stay literally white regardless of theme (gradient CTA
+   buttons, solid badges, the org-initials avatar) are tagged .keep-white in
+   their templates and excluded here. */
+html[data-theme="light"] .text-white:not(.keep-white) { color: rgb(var(--fg-strong)) !important; }
+html[data-theme="light"] .hover\:text-white:not(.keep-white):hover { color: rgb(var(--fg-strong)) !important; }
+
+html[data-theme="light"] .bg-white\/5:not(.keep-white) { background-color: rgb(var(--tint-rgb) / 0.04) !important; }
+html[data-theme="light"] .bg-white\/10:not(.keep-white) { background-color: rgb(var(--tint-rgb) / 0.06) !important; }
+html[data-theme="light"] .bg-white\/\[0\.02\]:not(.keep-white) { background-color: rgb(var(--tint-rgb) / 0.03) !important; }
+html[data-theme="light"] .bg-white\/\[0\.03\]:not(.keep-white) { background-color: rgb(var(--tint-rgb) / 0.04) !important; }
+html[data-theme="light"] .hover\:bg-white\/5:not(.keep-white):hover { background-color: rgb(var(--tint-rgb) / 0.06) !important; }
+html[data-theme="light"] .hover\:bg-white\/10:not(.keep-white):hover { background-color: rgb(var(--tint-rgb) / 0.08) !important; }
+html[data-theme="light"] .hover\:bg-white\/\[0\.03\]:not(.keep-white):hover { background-color: rgb(var(--tint-rgb) / 0.05) !important; }
+html[data-theme="light"] .hover\:bg-white\/\[0\.05\]:not(.keep-white):hover { background-color: rgb(var(--tint-rgb) / 0.07) !important; }
+
+html[data-theme="light"] .border-white\/5:not(.keep-white) { border-color: rgb(var(--tint-rgb) / 0.08) !important; }
+html[data-theme="light"] .border-white\/10:not(.keep-white) { border-color: rgb(var(--tint-rgb) / 0.12) !important; }
+html[data-theme="light"] .border-white\/15:not(.keep-white) { border-color: rgb(var(--tint-rgb) / 0.16) !important; }
+html[data-theme="light"] .border-white\/20:not(.keep-white) { border-color: rgb(var(--tint-rgb) / 0.2) !important; }
+html[data-theme="light"] .hover\:border-white\/20:not(.keep-white):hover { border-color: rgb(var(--tint-rgb) / 0.22) !important; }
+
+/* ---- base.html: global scrollbars ---- */
+html[data-theme="light"] * { scrollbar-color: rgb(var(--tint-rgb) / 0.22) transparent; }
+html[data-theme="light"] ::-webkit-scrollbar-thumb { background-color: rgb(var(--tint-rgb) / 0.16); }
+html[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background-color: rgb(var(--tint-rgb) / 0.3); }
+
+/* ---- base.html: custom <select> dropdown widget (.bai-select-*) ---- */
+html[data-theme="light"] .bai-select-trigger {
+  border-color: rgb(var(--tint-rgb) / 0.14);
+  background: rgb(var(--tint-rgb) / 0.02);
+  color: rgb(var(--fg-strong));
+}
+html[data-theme="light"] .bai-select-trigger:hover { border-color: rgb(var(--tint-rgb) / 0.3); background-color: rgb(var(--tint-rgb) / 0.045); }
+html[data-theme="light"] .bai-select-trigger-chevron { color: rgb(var(--slate-500)); }
+html[data-theme="light"] .bai-select-panel {
+  border-color: rgb(var(--tint-rgb) / 0.12);
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+}
+html[data-theme="light"] .bai-select-option { color: rgb(var(--slate-300)); }
+html[data-theme="light"] .bai-select-option:hover, html[data-theme="light"] .bai-select-option--active {
+  background: rgb(var(--brand-500) / 0.12); color: rgb(var(--brand-600));
+}
+
+/* ---- Shared report-tab widget (reports.html, category_statement.html,
+   daily_bulk_entry.html, monthly_summary.html each define their own copy of
+   this class with hardcoded dark-theme colors — one override here covers
+   all of them). */
+html[data-theme="light"] .report-tab { color: rgb(var(--slate-500)); }
+html[data-theme="light"] .report-tab:hover { color: rgb(var(--fg-strong)); }
+html[data-theme="light"] .report-tab--active,
+html[data-theme="light"] .report-tab--active:hover { color: rgb(var(--fg-strong)); }
+
+/* ---- category_statement.html: #cs-category/#cs-subcategory stay bare
+   <select> elements (data-plain) with their own hardcoded dark-theme
+   color/background at ID specificity, which otherwise beats the generic
+   light-theme <select> rule in _app_base.html. */
+html[data-theme="light"] #cs-category,
+html[data-theme="light"] #cs-subcategory {
+  color: rgb(var(--fg-strong));
+  background-color: rgb(var(--tint-rgb) / 0.02);
+  border-color: rgb(var(--tint-rgb) / 0.14);
+}
+html[data-theme="light"] #cs-category:hover,
+html[data-theme="light"] #cs-subcategory:hover {
+  border-color: rgb(var(--tint-rgb) / 0.3);
+  background-color: rgb(var(--tint-rgb) / 0.045);
+}
+html[data-theme="light"] #cs-category option,
+html[data-theme="light"] #cs-subcategory option {
+  background: #ffffff;
+  color: rgb(var(--fg-strong));
+}
+
+/* ---- monthly_summary.html: .ms-table matrix (its sticky header row and
+   name column, in particular, are given solid dark backgrounds in the
+   page's own <style> so scrolled content can't show through — all
+   hardcoded, with no light-theme counterpart, so the whole table stayed
+   black regardless of theme). */
+html[data-theme="light"] .ms-table thead th {
+  background: #ffffff;
+  color: rgb(var(--slate-500));
+  border-bottom-color: rgb(var(--tint-rgb) / 0.1);
+}
+html[data-theme="light"] .ms-table th.ms-subhead {
+  color: rgb(var(--slate-600));
+  border-bottom-color: rgb(var(--tint-rgb) / 0.1);
+}
+html[data-theme="light"] .ms-table td.ms-name,
+html[data-theme="light"] .ms-table th.ms-name {
+  background: #ffffff;
+  box-shadow: 1px 0 0 0 rgb(var(--tint-rgb) / 0.1);
+}
+html[data-theme="light"] .ms-table thead th.ms-name { background: #ffffff; }
+/* Opaque, not rgba: this column is sticky, so a translucent striping color
+   here would let the data columns scrolled underneath it show through —
+   same reasoning as the hover rule below, just for even-row striping. */
+html[data-theme="light"] .ms-table tbody tr:nth-child(even) td.ms-name { background: #f8fafc; }
+html[data-theme="light"] .ms-table tbody tr:hover td { background: rgb(var(--brand-500) / 0.06); }
+html[data-theme="light"] .ms-table tbody tr:hover td.ms-name { background: #eef2ff; }
+html[data-theme="light"] .ms-table tbody td { color: rgb(var(--slate-500)); border-bottom-color: rgb(var(--tint-rgb) / 0.07); }
+html[data-theme="light"] .ms-table tbody td.ms-name { color: rgb(var(--fg-strong)); }
+html[data-theme="light"] .ms-table tbody td.ms-total,
+html[data-theme="light"] .ms-table thead th.ms-total { color: rgb(var(--fg-strong)); }
+html[data-theme="light"] .ms-table td.ms-period-start,
+html[data-theme="light"] .ms-table th.ms-period-start { border-left-color: rgb(var(--tint-rgb) / 0.08); }
+html[data-theme="light"] .ms-table td.ms-change { background: rgb(var(--tint-rgb) / 0.015); }
+html[data-theme="light"] .ms-table tfoot td {
+  border-top-color: rgb(var(--tint-rgb) / 0.15);
+  color: rgb(var(--fg-strong));
+  background: #ffffff;
+}
+html[data-theme="light"] .ms-table tfoot td.ms-name { background: #ffffff; }
+html[data-theme="light"] .ms-table tbody tr:nth-child(even) td { background: rgb(var(--tint-rgb) / 0.02); }
+html[data-theme="light"] .ms-table tbody tr:nth-child(even):hover td { background: rgb(var(--brand-500) / 0.06); }
+/* The even-row-hover rule above ties in specificity with the hover rule for
+   .ms-name (both four class/attr selectors deep) and is declared later, so
+   it was winning on even rows and replacing the sticky column's required
+   opaque background with this translucent tint — letting horizontally-
+   scrolled columns bleed through the row label. Pin it back to opaque. */
+html[data-theme="light"] .ms-table tbody tr:nth-child(even):hover td.ms-name { background: #eef2ff; }
+html[data-theme="light"] .ms-subrow td.ms-name { color: rgb(var(--slate-500)); }
+html[data-theme="light"] .ms-subrow td { color: rgb(var(--slate-500)); }
+html[data-theme="light"] .ms-subrow:hover td.ms-name { background: #eef2ff; }
+/* Δ% up/down colors: .ms-table tbody/tfoot td and .ms-subrow td above are
+   more specific than the shared .stat-up/.stat-down classes alone, so they
+   win and leave every change value the same muted gray regardless of
+   direction — redeclare the colors here at matching specificity. */
+html[data-theme="light"] .ms-table tbody td.stat-up,
+html[data-theme="light"] .ms-table tfoot td.stat-up,
+html[data-theme="light"] .ms-subrow td.stat-up { color: #0d8a6b; }
+html[data-theme="light"] .ms-table tbody td.stat-down,
+html[data-theme="light"] .ms-table tfoot td.stat-down,
+html[data-theme="light"] .ms-subrow td.stat-down { color: #dc2626; }
+
+/* ---- monthly_summary.html: toolbar controls around the table (expand-all,
+   export buttons, amount/amount+change toggle) — same hardcoded-dark
+   pattern as the table itself. */
+html[data-theme="light"] .ms-expand-btn { color: rgb(var(--slate-500)); }
+html[data-theme="light"] .ms-expand-btn:hover { background: rgb(var(--tint-rgb) / 0.08); color: rgb(var(--fg-strong)); }
+html[data-theme="light"] .ms-export-btn {
+  color: rgb(var(--slate-300));
+  border-color: rgb(var(--tint-rgb) / 0.12);
+}
+html[data-theme="light"] .ms-export-btn:hover { background: rgb(var(--tint-rgb) / 0.05); border-color: rgb(var(--tint-rgb) / 0.22); }
+html[data-theme="light"] .ms-export-btn svg { color: rgb(var(--slate-500)); }
+html[data-theme="light"] .ms-toggle { background: rgb(var(--tint-rgb) / 0.03); border-color: rgb(var(--tint-rgb) / 0.1); }
+html[data-theme="light"] .ms-change-pill--flat { background: rgb(var(--tint-rgb) / 0.05); color: rgb(var(--slate-500)); }
+
+/* ---- Status/insight banners app-wide (border-{c}-500/30 bg-{c}-500/10
+   text-{c}-200/300, e.g. "Sat is your best day for revenue…" on Revenue
+   Intelligence, or any error/warning/success callout) — these use
+   Tailwind's fixed built-in palette, not this app's themed ink/brand/mint/
+   slate colors, so the pale text made for a dark card stayed exactly as
+   pale against the near-white card in light theme. Darkened to the same
+   red/amber/green already used for light-theme text elsewhere in the app
+   (.stat-down, .sa-btn-primary, .stat-up). */
+html[data-theme="light"] .text-red-200,
+html[data-theme="light"] .text-red-300 { color: #dc2626; }
+html[data-theme="light"] .text-amber-200,
+html[data-theme="light"] .text-amber-300 { color: #b45309; }
+html[data-theme="light"] .text-emerald-300 { color: #0d8a6b; }
+
+/* ---- Theme toggle button (used in every nav shell) ---- */
+.theme-toggle-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; border-radius: 0.6rem; flex-shrink: 0;
+  color: rgb(var(--slate-400)); background: rgb(var(--tint-rgb) / 0.04);
+  border: 1px solid rgb(var(--tint-rgb) / 0.1);
+  cursor: pointer; transition: color .15s, background-color .15s, border-color .15s;
+}
+.theme-toggle-btn:hover { color: rgb(var(--fg-strong)); background: rgb(var(--tint-rgb) / 0.08); }
+.theme-toggle-btn svg { width: 1.15rem; height: 1.15rem; }
+.theme-toggle-btn .icon-sun { display: none; }
+html[data-theme="light"] .theme-toggle-btn .icon-sun { display: block; }
+html[data-theme="light"] .theme-toggle-btn .icon-moon { display: none; }
+
+/* Small floating toggle for auth pages that have no nav chrome. */
+.theme-toggle-floating { position: fixed; top: 1rem; right: 1rem; z-index: 40; }

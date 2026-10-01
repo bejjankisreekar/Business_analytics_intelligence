@@ -155,7 +155,7 @@ class SignupView(FormView):
         login(self.request, admin)
         messages.success(
             self.request,
-            f"Welcome to Business Analytics Intelligence, {org.name}! Your workspace is ready.",
+            f"Welcome to Prism Pulse Intelligence & Analytics, {org.name}! Your workspace is ready.",
         )
         return redirect("finance:dashboard")
 

@@ -31,6 +31,12 @@
 
 {% include "finance/_ledger_filter.html" %}
 
+<div class="mt-4 flex flex-wrap items-center justify-end gap-3">
+  <a href="{% url 'finance:partner_ledger_excel' partner.pk %}?from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}&q={{ query }}" class="btn-primary" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">⬇ Excel</a>
+  <a href="{% url 'finance:partner_ledger_csv' partner.pk %}?from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}&q={{ query }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ CSV</a>
+  <a href="{% url 'finance:partner_ledger_pdf' partner.pk %}?from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}&q={{ query }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ PDF</a>
+</div>
+
 <!-- Ledger table -->
 <div class="card mt-5 overflow-x-auto p-5">
   <table class="w-full text-left text-sm">
