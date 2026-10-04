@@ -1,16 +1,12 @@
+import datetime
+
 from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
 from apps.accounts.models import User
 
 from .models import Organization
-from .tenant import provision_tenant_schema
-from .utils import (
-    drop_tenant_schema,
-    generate_organization_code,
-    normalize_schema_name,
-    schema_exists,
-)
+from .utils import generate_organization_code
 
 
 class OrganizationSignupError(RuntimeError):
@@ -27,20 +23,61 @@ def _unique_slug(name: str, using: str = "default") -> str:
     return slug
 
 
+def _provision_our_database_tenant(org: Organization) -> None:
+    """Seeds default categories + finance settings for a StorageMode.
+    OUR_DATABASE org, directly into our shared Postgres tables — the
+    equivalent of apps.sheets_store.provisioning.provision_sheet_tenant
+    for a GOOGLE_SHEETS org, just immediate (no Drive connection to
+    wait for)."""
+    from apps.finance.models import Category, FinanceSettings
+    from apps.sheets_store.provisioning import (
+        DEFAULT_EXPENSE_CATEGORIES,
+        DEFAULT_PURCHASE_CATEGORIES,
+        DEFAULT_SALES_CHANNELS,
+    )
+
+    FinanceSettings.objects.create(
+        organization=org, fy_start_month=4, opening_balance=0, opening_date=datetime.date.today(),
+    )
+    Category.objects.bulk_create(
+        [Category(organization=org, kind=Category.Kind.EXPENSE, name=name) for name in DEFAULT_EXPENSE_CATEGORIES]
+        + [Category(organization=org, kind=Category.Kind.PURCHASE, name=name) for name in DEFAULT_PURCHASE_CATEGORIES]
+        + [Category(organization=org, kind=Category.Kind.SALES, name=name) for name in DEFAULT_SALES_CHANNELS]
+    )
+
+
 def create_organization_with_tenant_schema_and_admin(*, org_data: dict, admin_data: dict, using: str = "default"):
-    """Create the Organization row, its isolated Postgres schema, and the
-    first (owner) user for it, all on the `using` database alias. Rolls
-    back everything if the schema can't be created.
+    """Create the Organization row and its first (owner) user, on the
+    `using` database alias. Where its finance data actually lives
+    depends on org_data["storage_mode"]:
+
+    - GOOGLE_SHEETS: lives entirely in its own Google Sheet.
+      Provisioning (creating that Sheet) is deferred until the owner
+      connects Google Drive, see GoogleDriveOAuthCallbackView and
+      TenantSchemaMiddleware's connect-database gate — so signing up
+      this way requires Google OAuth to be configured at all.
+    - OUR_DATABASE: lives in our own shared Postgres tables, scoped to
+      this org. Provisioned immediately below — no Google account
+      needed.
+
+    Rolls back everything if the admin user can't be created.
     """
+    storage_mode = org_data.get("storage_mode", Organization.StorageMode.GOOGLE_SHEETS)
+
+    if storage_mode == Organization.StorageMode.GOOGLE_SHEETS:
+        from . import google_drive_client as drive
+
+        if not drive.is_configured():
+            raise OrganizationSignupError(
+                "Signups are temporarily unavailable — Google Drive isn't configured on this "
+                "deployment yet. Contact the site administrator."
+            )
+
     with transaction.atomic(using=using):
         for _ in range(50):
             code = generate_organization_code()
-            if Organization.objects.using(using).filter(organization_code=code).exists():
-                continue
-            schema_name = normalize_schema_name(code)
-            if schema_exists(schema_name, using=using):
-                continue
-            break
+            if not Organization.objects.using(using).filter(organization_code=code).exists():
+                break
         else:
             raise OrganizationSignupError("Unable to allocate a unique organization code.")
 
@@ -48,7 +85,7 @@ def create_organization_with_tenant_schema_and_admin(*, org_data: dict, admin_da
             name=org_data["name"],
             slug=_unique_slug(org_data["name"], using=using),
             organization_code=code,
-            schema_name=schema_name,
+            storage_mode=storage_mode,
             business_type=org_data.get("business_type", Organization.BusinessType.OTHER),
             size=org_data.get("size", Organization.OrganizationSize.SOLO),
             industry=org_data.get("industry", ""),
@@ -64,15 +101,12 @@ def create_organization_with_tenant_schema_and_admin(*, org_data: dict, admin_da
         )
         org.save(using=using)
 
-        try:
-            provision_tenant_schema(
-                org,
-                using=using,
-                fy_start_month=org_data.get("fy_start_month", 4),
-                opening_balance=org_data.get("opening_balance", 0),
-            )
-        except Exception as exc:
-            raise OrganizationSignupError(f"Failed to provision tenant schema: {exc}") from exc
+        if storage_mode == Organization.StorageMode.OUR_DATABASE:
+            try:
+                _provision_our_database_tenant(org)
+            except Exception as exc:
+                raise OrganizationSignupError(f"Failed to provision your database: {exc}") from exc
+        # else GOOGLE_SHEETS: provisioning deferred to the Drive connect step.
 
         admin = User(
             email=User.objects.normalize_email(admin_data["email"]),
@@ -100,11 +134,9 @@ def create_organization_with_tenant_schema_and_admin(*, org_data: dict, admin_da
 
 def delete_organization_and_tenant(org: Organization, using: str = "default") -> None:
     with transaction.atomic(using=using):
-        schema_name = org.schema_name
         User.objects.using(using).filter(organization=org).update(is_active=False, organization=None)
+        # GOOGLE_SHEETS: the org's actual data is its own Google Sheet,
+        # in its own Drive — never ours to delete. OUR_DATABASE: its
+        # finance rows cascade away with the Organization row below —
+        # that data genuinely is ours to manage.
         org.delete(using=using)
-        if schema_name and schema_exists(schema_name, using=using):
-            try:
-                drop_tenant_schema(schema_name, using=using)
-            except Exception as exc:
-                raise OrganizationSignupError(f"Failed to drop tenant schema: {exc}") from exc

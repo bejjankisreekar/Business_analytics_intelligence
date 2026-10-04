@@ -8,7 +8,8 @@ from decimal import Decimal
 from django.test import Client, TestCase, override_settings
 
 from apps.organizations.models import Organization
-from apps.organizations.services import create_organization_with_tenant_schema_and_admin, delete_organization_and_tenant
+from apps.organizations.services import delete_organization_and_tenant
+from apps.organizations.testing import SheetsBackedMixin
 
 from . import invoicing
 from . import payments as payment_services
@@ -16,8 +17,8 @@ from . import services as billing_services
 from .models import Invoice, Payment, PaymentWebhookEvent, Plan, Subscription
 
 
-def _make_org(env="default", name="Billing Test Org"):
-    org, _owner = create_organization_with_tenant_schema_and_admin(
+def _make_org(case, env="default", name="Billing Test Org"):
+    org, _owner = case.create_connected_organization(
         org_data={"name": name, "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
         admin_data={"email": f"owner-{name.lower().replace(' ', '-')}@billingtest.example", "password": "pw12345678"},
         using=env,
@@ -25,9 +26,10 @@ def _make_org(env="default", name="Billing Test Org"):
     return org
 
 
-class InvoiceLifecycleTests(TestCase):
+class InvoiceLifecycleTests(SheetsBackedMixin, TestCase):
     def setUp(self):
-        self.org = _make_org()
+        super().setUp()
+        self.org = _make_org(self)
 
     def tearDown(self):
         delete_organization_and_tenant(self.org)
@@ -92,9 +94,10 @@ class InvoiceLifecycleTests(TestCase):
         self.assertEqual(payment.refunded_amount, Decimal("300.00"))
 
 
-class PaymentIdempotencyTests(TestCase):
+class PaymentIdempotencyTests(SheetsBackedMixin, TestCase):
     def setUp(self):
-        self.org = _make_org(name="Idempotency Org")
+        super().setUp()
+        self.org = _make_org(self, name="Idempotency Org")
 
     def tearDown(self):
         delete_organization_and_tenant(self.org)
@@ -123,9 +126,10 @@ class PaymentIdempotencyTests(TestCase):
         self.assertNotEqual(p1.pk, p2.pk)
 
 
-class PaymentWebhookEventIdempotencyTests(TestCase):
+class PaymentWebhookEventIdempotencyTests(SheetsBackedMixin, TestCase):
     def setUp(self):
-        self.org = _make_org(name="Webhook Org")
+        super().setUp()
+        self.org = _make_org(self, name="Webhook Org")
 
     def tearDown(self):
         delete_organization_and_tenant(self.org)
@@ -156,9 +160,10 @@ class PaymentWebhookEventIdempotencyTests(TestCase):
         self.assertEqual(Payment.objects.filter(transaction_id="txn_no_org").count(), 0)
 
 
-class PaymentWebhookViewTests(TestCase):
+class PaymentWebhookViewTests(SheetsBackedMixin, TestCase):
     def setUp(self):
-        self.org = _make_org(name="Webhook View Org")
+        super().setUp()
+        self.org = _make_org(self, name="Webhook View Org")
 
     def tearDown(self):
         delete_organization_and_tenant(self.org)
@@ -229,7 +234,7 @@ class PaymentWebhookViewTests(TestCase):
         self.assertEqual(PaymentWebhookEvent.objects.filter(event_id="evt_view_dup").count(), 1)
 
 
-class MultiAliasBillingTests(TestCase):
+class MultiAliasBillingTests(SheetsBackedMixin, TestCase):
     """Confirms the `using` parameter actually routes to the given
     database alias, matching how superadmin views call these same
     functions for "dev"/"prod"."""
@@ -237,7 +242,8 @@ class MultiAliasBillingTests(TestCase):
     databases = {"default", "dev", "prod"}
 
     def setUp(self):
-        self.org = _make_org(env="dev", name="Alias Billing Org")
+        super().setUp()
+        self.org = _make_org(self, env="dev", name="Alias Billing Org")
 
     def tearDown(self):
         delete_organization_and_tenant(self.org, using="dev")
@@ -254,14 +260,15 @@ class MultiAliasBillingTests(TestCase):
         self.assertEqual(Invoice.objects.using("prod").filter(invoice_number=invoice.invoice_number).count(), 0)
 
 
-class CouponAndPaymentHoldTests(TestCase):
+class CouponAndPaymentHoldTests(SheetsBackedMixin, TestCase):
     """A superadmin's 'pay 999 instead of 2999' coupon, and a client whose service
     was stopped for a pending payment (only Billing reachable, auto-resume on payment)."""
 
     def setUp(self):
+        super().setUp()
         from apps.billing.models import Coupon
 
-        self.org = _make_org(name="Coupon Hold Org")
+        self.org = _make_org(self, name="Coupon Hold Org")
         self.coupon = Coupon.objects.create(
             code="PAY999", discount_type=Coupon.DiscountType.FIXED_PRICE, discount_value=Decimal("999"),
         )
@@ -322,7 +329,7 @@ class CouponAndPaymentHoldTests(TestCase):
         self.assertFalse(LoginForm({"email": owner.email, "password": "pw12345678"}).is_valid())
 
 
-class RenewalAutomationTests(TestCase):
+class RenewalAutomationTests(SheetsBackedMixin, TestCase):
     """Two things must happen automatically, with no superadmin action:
     (1) a renewal invoice is issued a couple of days BEFORE the billing
     period ends (generate_upcoming_renewal_invoices), and (2) paying it
@@ -331,7 +338,8 @@ class RenewalAutomationTests(TestCase):
     on (renew_subscription_from_invoice)."""
 
     def setUp(self):
-        self.org = _make_org(name="Renewal Automation Org")
+        super().setUp()
+        self.org = _make_org(self, name="Renewal Automation Org")
         self.plan = Plan.objects.get(slug="enterprise")  # non-zero price
 
     def tearDown(self):

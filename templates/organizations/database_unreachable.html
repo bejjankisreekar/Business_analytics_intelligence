@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Can't reach your database · Prism Pulse Intelligence &amp; Analytics{% endblock %}
+
+{% block body %}
+<div class="relative flex min-h-screen items-center justify-center overflow-hidden bg-grid px-6 py-16">
+  <div class="pointer-events-none absolute -top-40 left-1/2 h-[560px] w-[900px] -translate-x-1/2 rounded-full bg-amber-500/10 blur-[120px]"></div>
+
+  <div class="relative mx-auto w-full max-w-lg text-center">
+    <a href="/" class="inline-flex items-center gap-2.5">
+      <img src="{% static 'img/logo.png' %}" alt="" class="h-9 w-9 rounded-xl object-contain">
+      <span class="text-[15px] font-semibold tracking-tight text-white">Prism <span class="text-brand-400">Pulse</span></span>
+    </a>
+
+    <h1 class="mt-12 text-2xl font-bold text-white sm:text-3xl">We couldn't reach your Google Sheet</h1>
+    <p class="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate-400">
+      Your organization's Google Sheet is temporarily unavailable. Try again in a moment — your data is safe.
+    </p>
+
+    <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+      <button type="button" onclick="window.location.reload()" class="keep-white w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 sm:w-auto">
+        Try again
+      </button>
+      <a href="/" class="w-full rounded-xl border border-white/10 bg-white/5 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/10 sm:w-auto">
+        Go to Homepage
+      </a>
+    </div>
+
+    <p class="mt-14 text-xs text-slate-600">© {% now "Y" %} Prism Pulse Intelligence &amp; Analytics</p>
+  </div>
+</div>
+{% endblock %}

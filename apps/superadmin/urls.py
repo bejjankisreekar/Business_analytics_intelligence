@@ -28,8 +28,6 @@ urlpatterns = [
     path("<str:env>/subscriptions/", views.SubscriptionListView.as_view(), name="subscription_list"),
     path("<str:env>/subscriptions/<int:pk>/edit/", views.SubscriptionEditView.as_view(), name="subscription_edit"),
     path("<str:env>/<uuid:pk>/", views.OrganizationDetailView.as_view(), name="org_detail"),
-    path("<str:env>/<uuid:pk>/schema/", views.OrganizationSchemaRenameView.as_view(), name="org_schema_rename"),
-    path("<str:env>/<uuid:pk>/schema/backup/", views.OrganizationSchemaBackupView.as_view(), name="org_schema_backup"),
     path("<str:env>/<uuid:pk>/edit/", views.OrganizationEditView.as_view(), name="org_edit"),
     path(
         "<str:env>/<uuid:pk>/team/<uuid:user_id>/edit/",

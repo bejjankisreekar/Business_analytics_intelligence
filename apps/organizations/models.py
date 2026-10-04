@@ -4,8 +4,11 @@ from django.db import models
 
 
 class Organization(models.Model):
-    """A tenant. Lives in the shared `public` schema; its own operational
-    data (once built) lives in the isolated schema named by `schema_name`.
+    """A tenant. Its own record (this row) lives in our shared Postgres
+    database, alongside auth/billing/superadmin data. Its actual business
+    (finance) data lives entirely in its own Google Sheet, connected via
+    Google OAuth and read/written live through apps.sheets_store — never
+    in our own database. See CloudBackupConnection for that connection.
     """
 
     class ServiceStatus(models.TextChoices):
@@ -41,14 +44,33 @@ class Organization(models.Model):
         LARGE = "LARGE", "51-200 employees"
         ENTERPRISE = "ENTERPRISE", "200+ employees"
 
+    class StorageMode(models.TextChoices):
+        # Finance data lives entirely in the org's own Google Sheet,
+        # read/written live over the Sheets API via its own OAuth grant
+        # (apps.sheets_store) — never written to our database. Gated
+        # behind connecting Google Drive first (TenantSchemaMiddleware).
+        GOOGLE_SHEETS = "GOOGLE_SHEETS", "Your own Google Drive"
+        # Finance data lives in our shared Postgres database, isolated
+        # by the `organization` column every apps.finance model carries
+        # (see SheetAwareManager/SheetAwareModelMixin, which auto-scope
+        # every query/save to the current request's organization when
+        # no Sheets session is active). No Google account needed.
+        OUR_DATABASE = "OUR_DATABASE", "Prism Pulse's own database"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=220, unique=True)
 
-    # Tenant identity — organization_code is the human-facing id,
-    # schema_name is the random, derived PostgreSQL schema for this tenant.
+    # The human-facing tenant id — also used to name the org's Google
+    # Sheet ("<organization_code> Data") and its Drive backup folder,
+    # when storage_mode is GOOGLE_SHEETS.
     organization_code = models.CharField(max_length=12, unique=True)
-    schema_name = models.CharField(max_length=63, unique=True)
+
+    # Where this org's finance data lives — chosen once at signup
+    # (apps.accounts.forms.OrganizationSignupForm) and never changed
+    # after provisioning; there's no built-in way to migrate an org
+    # between the two after the fact.
+    storage_mode = models.CharField(max_length=20, choices=StorageMode.choices, default=StorageMode.GOOGLE_SHEETS)
 
     business_type = models.CharField(
         max_length=30, choices=BusinessType.choices, default=BusinessType.OTHER
@@ -194,3 +216,42 @@ class ServiceStatusChange(models.Model):
 
     def __str__(self) -> str:
         return f"{self.organization_id}: {self.action} ({self.previous_status} -> {self.new_status})"
+
+
+class CloudBackupConnection(models.Model):
+    """An org's own connected Google account. The spreadsheet it points
+    at (`external_file_id`) is this org's live database — every finance
+    read/write goes straight to it over the Sheets API (see
+    apps.sheets_store), never to our own database. Tokens are
+    Fernet-encrypted at rest (apps.organizations.encryption) — never
+    stored in plain text.
+    """
+
+    class Provider(models.TextChoices):
+        GOOGLE_DRIVE = "GOOGLE_DRIVE", "Google Drive"
+
+    organization = models.OneToOneField(
+        Organization, on_delete=models.CASCADE, related_name="cloud_backup"
+    )
+    provider = models.CharField(max_length=20, choices=Provider.choices, default=Provider.GOOGLE_DRIVE)
+
+    access_token_encrypted = models.BinaryField()
+    refresh_token_encrypted = models.BinaryField()
+    token_expires_at = models.DateTimeField()
+
+    # The dedicated app-created folder in the client's Drive everything
+    # gets uploaded into (e.g. "Prism Pulse Backups") — never an arbitrary
+    # folder of theirs, since the drive.file OAuth scope only ever lets us
+    # see files/folders this app itself created.
+    external_folder_id = models.CharField(max_length=128)
+    # The synced Google Sheet's own file id — lets Profile link straight
+    # to it (docs.google.com/spreadsheets/d/<this>/edit) instead of just
+    # the folder. Blank until the first successful sync.
+    external_file_id = models.CharField(max_length=128, blank=True)
+
+    connected_at = models.DateTimeField(auto_now_add=True)
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    last_sync_error = models.CharField(max_length=500, blank=True)
+
+    def __str__(self) -> str:
+        return f"{self.organization_id}: {self.get_provider_display()}"

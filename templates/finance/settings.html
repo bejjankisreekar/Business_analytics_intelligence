@@ -73,6 +73,26 @@
     <p class="mt-1.5 text-xs text-slate-500">{{ bank_accounts|length }} account{{ bank_accounts|length|pluralize }}</p>
     <p class="mt-0.5 text-xs text-slate-600">ICICI, HDFC &amp; more — each with its own opening/closing balance →</p>
   </a>
+
+  {% if drive_connection %}
+  <a href="{% url 'accounts:profile' %}#section-database" class="card card-link p-5 text-left">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 001.8-7.566 5.5 5.5 0 10-10.233-3.154A4.502 4.502 0 003 15z"/></svg>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold text-white">Cloud Backup</h3>
+    <p class="mt-1.5 text-xs text-slate-500">Connected to Google Drive</p>
+    <p class="mt-0.5 text-xs text-slate-600">{% if drive_connection.last_synced_at %}Last synced {{ drive_connection.last_synced_at }}{% else %}Not synced yet{% endif %} — manage →</p>
+  </a>
+  {% elif can_connect_drive %}
+  <a href="{% url 'accounts:connect_drive' %}" class="card card-link p-5 text-left">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 001.8-7.566 5.5 5.5 0 10-10.233-3.154A4.502 4.502 0 003 15z"/></svg>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold text-white">Cloud Backup</h3>
+    <p class="mt-1.5 text-xs text-slate-500">Not connected</p>
+    <p class="mt-0.5 text-xs text-slate-600">Connect Google Drive so your data is always in a file you own →</p>
+  </a>
+  {% endif %}
 </div>
 
 <!-- Modal: Financial Year & Opening Balance -->

@@ -3,12 +3,14 @@ import random
 
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.organizations.drive_sync import get_valid_access_token
 from apps.organizations.models import Organization
-from apps.organizations.utils import schema_context
+from apps.organizations.tenant_context import set_current_organization
+from apps.sheets_store.session import SheetSession, set_active_session
 
 
 class Command(BaseCommand):
-    help = "Seed realistic demo sales/expense/purchase/transfer entries into one organization's tenant schema."
+    help = "Seed realistic demo sales/expense/purchase/transfer entries into one organization's live database."
 
     def add_arguments(self, parser):
         parser.add_argument("--org", required=True, help="Organization code or slug, e.g. 37A256C2 or acme-retail-pvt-ltd")
@@ -23,10 +25,25 @@ class Command(BaseCommand):
         if org is None:
             raise CommandError(f"No organization matches '{options['org']}'.")
 
-        with schema_context(org.schema_name):
-            self._seed(org, months=options["months"], clear=options["clear"])
+        if org.storage_mode == Organization.StorageMode.OUR_DATABASE:
+            set_current_organization(org)
+            try:
+                self._seed(org, months=options["months"], clear=options["clear"])
+            finally:
+                set_current_organization(None)
+        else:
+            connection = getattr(org, "cloud_backup", None)
+            if connection is None or not connection.external_file_id:
+                raise CommandError(f"{org.name} hasn't connected Google Drive yet — nothing to seed.")
 
-        self.stdout.write(self.style.SUCCESS(f"Seeded demo data for {org.name} ({org.schema_name})."))
+            access_token = get_valid_access_token(connection)
+            set_active_session(SheetSession(access_token, connection.external_file_id))
+            try:
+                self._seed(org, months=options["months"], clear=options["clear"])
+            finally:
+                set_active_session(None)
+
+        self.stdout.write(self.style.SUCCESS(f"Seeded demo data for {org.name} ({org.organization_code})."))
 
     def _seed(self, org, *, months: int, clear: bool):
         from apps.finance.models import (
@@ -34,10 +51,9 @@ class Command(BaseCommand):
         )
 
         if clear:
-            SalesEntry.objects.all().delete()
-            ExpenseEntry.objects.all().delete()
-            PurchaseEntry.objects.all().delete()
-            CashTransfer.objects.all().delete()
+            for model in (SalesEntry, ExpenseEntry, PurchaseEntry, CashTransfer):
+                for instance in list(model.objects.all()):
+                    instance.delete()
             self.stdout.write("Cleared existing entries.")
 
         rng = random.Random(42)
@@ -83,6 +99,10 @@ class Command(BaseCommand):
                 sales_rows.append(SalesEntry(
                     date=day,
                     channel=sales_channels.get(channel_name),
+                    # bulk_create() bypasses SalesEntry.save() (the
+                    # gross/discount -> amount derivation), so set both
+                    # explicitly here to keep them consistent.
+                    gross_amount=round(base, 2),
                     amount=round(base, 2),
                     payment_mode=channel_payment_mode.get(channel_name, PaymentMode.CASH),
                     note="",
@@ -141,10 +161,10 @@ class Command(BaseCommand):
 
             day += datetime.timedelta(days=1)
 
-        SalesEntry.objects.bulk_create(sales_rows, batch_size=500)
-        ExpenseEntry.objects.bulk_create(expense_rows, batch_size=500)
-        PurchaseEntry.objects.bulk_create(purchase_rows, batch_size=500)
-        CashTransfer.objects.bulk_create(transfer_rows, batch_size=500)
+        SalesEntry.objects.bulk_create(sales_rows)
+        ExpenseEntry.objects.bulk_create(expense_rows)
+        PurchaseEntry.objects.bulk_create(purchase_rows)
+        CashTransfer.objects.bulk_create(transfer_rows)
 
         self.stdout.write(
             f"  {len(sales_rows)} sales, {len(expense_rows)} expenses, {len(purchase_rows)} purchases, "

@@ -83,6 +83,26 @@
         </div>
 
         <div>
+          <label class="block text-xs font-medium text-slate-200">Where should your data be stored?</label>
+          <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {% for radio in form.storage_mode %}
+            <label class="storage-mode-option">
+              {{ radio.tag }}
+              <span class="storage-mode-option-label">
+                {{ radio.choice_label }}
+                {% if radio.data.value == "GOOGLE_SHEETS" %}
+                <span class="storage-mode-option-hint">Lives in a Google Sheet in your own Drive — you'll connect your Google account next.</span>
+                {% else %}
+                <span class="storage-mode-option-hint">Lives in our managed database — no Google account needed.</span>
+                {% endif %}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+          {% for error in form.storage_mode.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div>
           <div class="space-y-4">
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
@@ -118,6 +138,8 @@
             </div>
           </div>
         </div>
+
+        <p class="text-xs text-slate-500">Whichever you pick, your data is exportable to Excel any time from your profile.</p>
 
         <button type="submit" id="signup-submit" class="keep-white flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-80">
           <svg id="signup-spinner" class="hidden h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
@@ -309,6 +331,22 @@
   }
   .combobox-option:hover, .combobox-option--active { background: rgba(91,124,250,0.18); color: #fff; }
   .combobox-empty { padding: 0.6rem 0.9rem; font-size: 0.8rem; color: #64748b; }
+
+  .storage-mode-option {
+    display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer;
+    border-radius: 0.75rem; border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03); padding: 0.75rem 0.9rem;
+    transition: border-color .15s, background-color .15s;
+  }
+  .storage-mode-option:hover { border-color: rgba(255,255,255,0.24); }
+  .storage-mode-option input[type=radio] { margin-top: 0.2rem; flex: none; accent-color: #5b7cfa; }
+  .storage-mode-option:has(input:checked) { border-color: #5b7cfa; background: rgba(91,124,250,0.1); }
+  .storage-mode-option-label { font-size: 0.85rem; font-weight: 600; color: #fff; }
+  .storage-mode-option-hint { display: block; margin-top: 0.2rem; font-size: 0.75rem; font-weight: 400; color: #94a3b8; }
+
+  html[data-theme="light"] .storage-mode-option { border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.015); }
+  html[data-theme="light"] .storage-mode-option-label { color: #0f172a; }
+  html[data-theme="light"] .storage-mode-option-hint { color: #64748b; }
 
   html[data-theme="light"] input[type=email], html[data-theme="light"] input[type=password], html[data-theme="light"] input[type=text] {
     border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.015); color: #0f172a;

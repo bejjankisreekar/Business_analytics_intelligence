@@ -236,9 +236,9 @@ class DashboardView(TenantLoginRequiredMixin, TemplateView):
 class BillingView(TenantLoginRequiredMixin, TemplateView):
     """The org's own view of its subscription, invoices, and payment
     history — surfaces any pending/overdue amount so they know to pay.
-    apps.billing models live in the same (public-schema) database as
-    Organization/User, not the tenant schema, so this queries the default
-    connection directly, no schema_context needed.
+    apps.billing models live in our own shared database, same as
+    Organization/User — not the org's Google Sheet — so this queries
+    the default connection directly.
 
     allow_when_locked=True: this is the one page a lapsed (unpaid) org can
     still reach — otherwise they could never see or pay the invoice that
@@ -333,8 +333,8 @@ class InvoiceDetailView(TenantLoginRequiredMixin, TemplateView):
 class CreateInvoicePaymentOrderView(TenantLoginRequiredMixin, View):
     """Creates a Razorpay Order for one of this org's own outstanding
     invoices and hands back just enough for the Checkout popup to open.
-    apps.billing models live in the shared public schema, same as
-    BillingView above — queried directly, no schema_context needed."""
+    apps.billing models live in our own shared database, same as
+    BillingView above — queried directly."""
 
     allow_when_locked = True
 
@@ -1868,11 +1868,15 @@ class FinanceSettingsView(TenantLoginRequiredMixin, TemplateView):
     template_name = "finance/settings.html"
 
     def get_context_data(self, **kwargs):
+        from apps.accounts.models import User
+        from apps.organizations import google_drive_client as drive
+
         context = super().get_context_data(**kwargs)
         fs = services.get_finance_settings()
         categories = list(Category.objects.prefetch_related("subcategories").all())
+        user = self.request.user
         context["active_nav"] = "settings"
-        context["organization"] = self.request.user.organization
+        context["organization"] = user.organization
         context["fs"] = fs
         context["fy_start_month_name"] = MONTH_NAMES.get(fs.fy_start_month, "")
         context["form"] = kwargs.get("form") or FinanceSettingsForm(instance=fs)
@@ -1884,6 +1888,9 @@ class FinanceSettingsView(TenantLoginRequiredMixin, TemplateView):
         context["customer_form"] = CustomerForm()
         context["vendors"] = Vendor.objects.all()
         context["bank_accounts"] = BankAccount.objects.all()
+        can_edit_org = bool(user.organization_id) and user.role in (User.Role.OWNER, User.Role.ADMIN)
+        context["can_connect_drive"] = can_edit_org and drive.is_configured()
+        context["drive_connection"] = getattr(user.organization, "cloud_backup", None) if can_edit_org else None
         return context
 
     def post(self, request, *args, **kwargs):

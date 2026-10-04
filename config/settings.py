@@ -18,6 +18,20 @@ SECRET_KEY = (
 DEBUG = config("DJANGO_DEBUG", cast=bool, default=not IS_PRODUCTION)
 TESTING = "test" in sys.argv
 
+# Encrypts stored OAuth tokens (apps.organizations.models.CloudBackupConnection
+# — a client's own connected Google Drive, see apps/organizations/
+# google_drive_client.py). Must be a Fernet key (Fernet.generate_key()) —
+# fails fast in production if unset, same as SECRET_KEY above; a
+# throwaway dev default keeps `runserver`/tests working without a .env.
+SECRETS_ENCRYPTION_KEY = (
+    config("SECRETS_ENCRYPTION_KEY")
+    if IS_PRODUCTION
+    else config(
+        "SECRETS_ENCRYPTION_KEY",
+        default="s7UG1OirqlVskmO1U1vihukSqolCvXE_HRXTFjPT13U=",
+    )
+)
+
 ALLOWED_HOSTS = config("DJANGO_ALLOWED_HOSTS", cast=Csv(), default="localhost,127.0.0.1")
 CSRF_TRUSTED_ORIGINS = config(
     "DJANGO_CSRF_TRUSTED_ORIGINS",
@@ -47,6 +61,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.billing",
     "apps.finance",
+    "apps.sheets_store",
     "apps.core",  # provides the `humanize` template library (Indian digit grouping)
     "apps.superadmin",
 ]
@@ -206,6 +221,20 @@ RAZORPAY_WEBHOOK_SECRET = config("RAZORPAY_WEBHOOK_SECRET", default="")
 # price. Blank hides it. See templates/finance/billing.html.
 RAZORPAY_PAYMENT_BUTTON_ID = config("RAZORPAY_PAYMENT_BUTTON_ID", default="")
 RAZORPAY_PAYMENT_BUTTON_AMOUNT = config("RAZORPAY_PAYMENT_BUTTON_AMOUNT", cast=int, default=899)
+
+# Google Drive — every org's actual finance data lives in its own Google
+# Sheet, created in its own connected Google Drive and read/written live
+# over the Sheets API (see apps.sheets_store). Empty by default so the
+# app still boots without them; google_drive_client.is_configured() gates
+# the whole signup/connect flow. Create these in Google Cloud Console ->
+# APIs & Services -> Credentials -> OAuth client ID (type: Web
+# application), with this authorized redirect URI:
+# <your-site>/accounts/profile/drive/callback/ — and enable the Google
+# Drive API and Google Sheets API for the project. Scope used is
+# drive.file (only files this app creates — never the client's whole
+# Drive).
+GOOGLE_OAUTH_CLIENT_ID = config("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_OAUTH_CLIENT_SECRET = config("GOOGLE_OAUTH_CLIENT_SECRET", default="")
 
 # Gmail SMTP for transactional email (password reset OTPs). Falls back to
 # printing emails to the console when no Gmail account is configured, so

@@ -1,20 +1,32 @@
 """Tenant-scoped models.
 
-These tables are created once in `public` by the normal migration
-(so the schema exists as a template), then cloned into every
-organization's own PostgreSQL schema — see
-apps/organizations/tenant.py. At request time, TenantSchemaMiddleware
-points the DB connection's search_path at the current user's
-organization schema, so every query here transparently reads and
-writes that organization's own isolated copy of these tables.
+Every model below uses `objects = SheetAwareManager()` and mixes in
+SheetAwareModelMixin, which route querying and instance.save()/
+.delete() one of two ways depending on the owning Organization's
+storage_mode:
 
-There is deliberately no `organization` foreign key on any model in
-this file: isolation comes from the schema itself, not a column.
+- GOOGLE_SHEETS: live against that org's own Google Sheet, via
+  apps.sheets_store, whenever a SheetSession is active for the request
+  (see apps/organizations/middleware.py). Never written to our own
+  database. The `organization` column below is never populated for
+  these rows.
+- OUR_DATABASE: a real row in our own shared Postgres tables,
+  transparently scoped to the current request's organization — every
+  query auto-filtered, every new row auto-tagged with it (see
+  apps.organizations.tenant_context, also set by that same middleware).
+
+Both paths share the exact same `apps.finance` views/services code —
+neither the model's own methods nor its callers need to know which
+mode a given org is in.
 """
 import datetime
 import uuid
 
 from django.db import models
+
+from apps.organizations.models import Organization
+from apps.sheets_store.mixin import SheetAwareModelMixin
+from apps.sheets_store.queryset import SheetAwareManager
 
 
 class PaymentMode(models.TextChoices):
@@ -22,7 +34,9 @@ class PaymentMode(models.TextChoices):
     BANK = "BANK", "Bank"
 
 
-class Category(models.Model):
+class Category(SheetAwareModelMixin, models.Model):
+    objects = SheetAwareManager()
+
     class Kind(models.TextChoices):
         SALES = "SALES", "Revenue channel"
         EXPENSE = "EXPENSE", "Expense category"
@@ -30,6 +44,7 @@ class Category(models.Model):
         PRODUCT = "PRODUCT", "Product category"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     kind = models.CharField(max_length=10, choices=Kind.choices)
     name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
@@ -39,16 +54,19 @@ class Category(models.Model):
     )
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["kind", "name"]
         constraints = [
-            models.UniqueConstraint(fields=["kind", "name"], name="finance_category_kind_name_uniq"),
+            models.UniqueConstraint(
+                fields=["organization", "kind", "name"], name="finance_category_org_kind_name_uniq"
+            ),
         ]
 
     def __str__(self) -> str:
         return self.name
 
 
-class Subcategory(models.Model):
+class Subcategory(SheetAwareModelMixin, models.Model):
     """A specific item under a Category — an employee under 'Salaries &
     Wages', a brand under 'New Phone Sales', a vendor under a purchase
     category. Optional on every entry: pick a Category alone for a quick
@@ -60,7 +78,10 @@ class Subcategory(models.Model):
     an ordinary (single-level) Subcategory.
     """
 
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="subcategories")
     parent = models.ForeignKey(
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="children"
@@ -69,11 +90,13 @@ class Subcategory(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["category", "name"]
         verbose_name_plural = "Subcategories"
         constraints = [
             models.UniqueConstraint(
-                fields=["category", "parent", "name"], name="finance_subcategory_category_parent_name_uniq"
+                fields=["organization", "category", "parent", "name"],
+                name="finance_subcategory_org_category_parent_name_uniq",
             ),
         ]
 
@@ -83,24 +106,28 @@ class Subcategory(models.Model):
         return f"{self.category.name} → {self.name}"
 
 
-class Customer(models.Model):
+class Customer(SheetAwareModelMixin, models.Model):
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     name = models.CharField(max_length=150)
     phone = models.CharField(max_length=30, blank=True)
     email = models.CharField(max_length=254, blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["name"]
         constraints = [
-            models.UniqueConstraint(fields=["name"], name="finance_customer_name_uniq"),
+            models.UniqueConstraint(fields=["organization", "name"], name="finance_customer_org_name_uniq"),
         ]
 
     def __str__(self) -> str:
         return self.name
 
 
-class Vendor(models.Model):
+class Vendor(SheetAwareModelMixin, models.Model):
     """A supplier directory entry. `opening_balance` is what was already
     owed to this vendor before using the system — set on creation it seeds
     a matching Payable so it shows up in Cash Position immediately, the
@@ -108,7 +135,10 @@ class Vendor(models.Model):
     position. Purchase/Payable vendor fields stay free text for quick
     logging; this is a separate, optional directory for tracking details."""
 
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     name = models.CharField(max_length=150)
     phone = models.CharField(max_length=30, blank=True)
     details = models.CharField(max_length=255, blank=True)
@@ -117,9 +147,10 @@ class Vendor(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["name"]
         constraints = [
-            models.UniqueConstraint(fields=["name"], name="finance_vendor_name_uniq"),
+            models.UniqueConstraint(fields=["organization", "name"], name="finance_vendor_org_name_uniq"),
         ]
 
     def __str__(self) -> str:
@@ -142,7 +173,7 @@ class BankChoices(models.TextChoices):
     OTHER = "OTHER", "Other"
 
 
-class BankAccount(models.Model):
+class BankAccount(SheetAwareModelMixin, models.Model):
     """One specific bank account the business holds (e.g. "Current A/c —
     ICICI"). Entries logged with PaymentMode.BANK can optionally be tagged
     to one of these, purely as an attribution/reporting layer — it doesn't
@@ -150,7 +181,10 @@ class BankAccount(models.Model):
     elsewhere, it just lets each account's own opening/closing balance be
     tracked, the same way Vendor/Partner track their own opening_balance."""
 
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     name = models.CharField(max_length=150, help_text='e.g. "Current Account" or "Salary Account"')
     bank_name = models.CharField(max_length=20, choices=BankChoices.choices, default=BankChoices.OTHER)
     other_bank_name = models.CharField(
@@ -162,9 +196,10 @@ class BankAccount(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["name"]
         constraints = [
-            models.UniqueConstraint(fields=["name"], name="finance_bankaccount_name_uniq"),
+            models.UniqueConstraint(fields=["organization", "name"], name="finance_bankaccount_org_name_uniq"),
         ]
 
     def __str__(self) -> str:
@@ -177,8 +212,11 @@ class BankAccount(models.Model):
         return self.get_bank_name_display()
 
 
-class SalesEntry(models.Model):
+class SalesEntry(SheetAwareModelMixin, models.Model):
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     date = models.DateField(db_index=True)
     channel = models.ForeignKey(
         Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="sales_entries"
@@ -209,6 +247,7 @@ class SalesEntry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["-date", "-created_at"]
         indexes = [models.Index(fields=["date"])]
 
@@ -221,6 +260,12 @@ class SalesEntry(models.Model):
         # RecordReceivablePaymentView, which has no discount concept) gets
         # gross_amount backfilled to match instead, so Gross/Net never
         # disagree with the amount actually recorded.
+        if self.discount is None:
+            # The Bulk Entry/single-entry forms both make "discount"
+            # optional and leave it blank rather than 0 when untouched
+            # (see SalesEntryForm.__init__) — DecimalField.clean() turns
+            # that blank into None, not the field's own default=0.
+            self.discount = 0
         if self.gross_amount:
             self.amount = self.gross_amount - self.discount
         elif self.amount:
@@ -228,8 +273,11 @@ class SalesEntry(models.Model):
         super().save(*args, **kwargs)
 
 
-class ExpenseEntry(models.Model):
+class ExpenseEntry(SheetAwareModelMixin, models.Model):
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     date = models.DateField(db_index=True)
     category = models.ForeignKey(
         Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_entries"
@@ -247,6 +295,7 @@ class ExpenseEntry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["-date", "-created_at"]
         indexes = [models.Index(fields=["date"])]
 
@@ -254,8 +303,11 @@ class ExpenseEntry(models.Model):
         return f"Expense {self.date} — {self.amount}"
 
 
-class PurchaseEntry(models.Model):
+class PurchaseEntry(SheetAwareModelMixin, models.Model):
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     date = models.DateField(db_index=True)
     category = models.ForeignKey(
         Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="purchase_entries"
@@ -279,6 +331,7 @@ class PurchaseEntry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["-date", "-created_at"]
         indexes = [models.Index(fields=["date"])]
 
@@ -286,7 +339,7 @@ class PurchaseEntry(models.Model):
         return f"Purchase {self.date} — {self.amount}"
 
 
-class Receivable(models.Model):
+class Receivable(SheetAwareModelMixin, models.Model):
     """Money a customer owes the business — an invoice raised but not yet
     (fully) collected. Recording a payment against this creates a real
     SalesEntry for the amount collected, so cash/bank balances, P&L and the
@@ -294,7 +347,10 @@ class Receivable(models.Model):
     is purely a tracking layer of what's still outstanding.
     """
 
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="receivables")
     product_category = models.ForeignKey(
         Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="receivables",
@@ -309,6 +365,7 @@ class Receivable(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["due_date", "-created_at"]
         indexes = [models.Index(fields=["due_date"])]
 
@@ -330,14 +387,17 @@ class Receivable(models.Model):
         return "OPEN"
 
 
-class Payable(models.Model):
+class Payable(SheetAwareModelMixin, models.Model):
     """Money the business owes a vendor — a bill received but not yet
     (fully) paid. Recording a payment against this creates a real
     PurchaseEntry for the amount paid, keeping cash/bank balances, P&L and
     the Cash Flow statement correct without any special-casing.
     """
 
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     vendor = models.CharField(max_length=150)
     product_category = models.ForeignKey(
         Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="payables",
@@ -352,6 +412,7 @@ class Payable(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["due_date", "-created_at"]
         indexes = [models.Index(fields=["due_date"])]
 
@@ -373,18 +434,21 @@ class Payable(models.Model):
         return "OPEN"
 
 
-class CashTransfer(models.Model):
+class CashTransfer(SheetAwareModelMixin, models.Model):
     """A movement of money between the cash-in-hand till and the bank
     account — a deposit or a withdrawal. Balance-neutral overall (it moves
     money between two asset accounts), so it never touches the P&L, only
     the cash-vs-bank split shown on the Balance Sheet and Daily Report.
     """
 
+    objects = SheetAwareManager()
+
     class Direction(models.TextChoices):
         CASH_TO_BANK = "CASH_TO_BANK", "Cash deposited to bank"
         BANK_TO_CASH = "BANK_TO_CASH", "Cash withdrawn from bank"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     date = models.DateField(db_index=True)
     direction = models.CharField(max_length=20, choices=Direction.choices)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
@@ -397,6 +461,7 @@ class CashTransfer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["-date", "-created_at"]
         indexes = [models.Index(fields=["date"])]
         verbose_name = "Cash/bank transfer"
@@ -405,13 +470,16 @@ class CashTransfer(models.Model):
         return f"{self.get_direction_display()} {self.date} — {self.amount}"
 
 
-class Partner(models.Model):
+class Partner(SheetAwareModelMixin, models.Model):
     """A capital partner / co-owner who can put money into the business or
     take money out of it — distinct from a Vendor (money the business owes)
     or Customer (money owed to the business): this is equity, not a
     payable or receivable."""
 
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     name = models.CharField(max_length=150)
     phone = models.CharField(max_length=30, blank=True)
     opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
@@ -419,27 +487,31 @@ class Partner(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["name"]
         constraints = [
-            models.UniqueConstraint(fields=["name"], name="finance_partner_name_uniq"),
+            models.UniqueConstraint(fields=["organization", "name"], name="finance_partner_org_name_uniq"),
         ]
 
     def __str__(self) -> str:
         return self.name
 
 
-class PartnerTransaction(models.Model):
+class PartnerTransaction(SheetAwareModelMixin, models.Model):
     """A partner investing capital into the business or withdrawing their
     capital from it. Real cash/bank movement — unlike CashTransfer (moves
     money between cash and bank, nets to zero) this changes the total
     cash+bank position — but it never touches the P&L, since it's an
     equity movement rather than revenue or an expense."""
 
+    objects = SheetAwareManager()
+
     class Kind(models.TextChoices):
         INVESTMENT = "INVESTMENT", "Investment"
         WITHDRAWAL = "WITHDRAWAL", "Withdrawal"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
     partner = models.ForeignKey(Partner, on_delete=models.PROTECT, related_name="transactions")
     date = models.DateField(default=datetime.date.today, db_index=True)
     kind = models.CharField(max_length=10, choices=Kind.choices)
@@ -453,6 +525,7 @@ class PartnerTransaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        base_manager_name = "objects"
         ordering = ["-date", "-created_at"]
         indexes = [models.Index(fields=["date"])]
 
@@ -460,7 +533,7 @@ class PartnerTransaction(models.Model):
         return f"{self.get_kind_display()} {self.date} — {self.partner} — {self.amount}"
 
 
-class FinanceSettings(models.Model):
+class FinanceSettings(SheetAwareModelMixin, models.Model):
     """Singleton row (per tenant schema) holding report configuration and
     the opening balances the P&L / Balance Sheet / Cash Flow build on top of.
 
@@ -473,13 +546,17 @@ class FinanceSettings(models.Model):
     bookkeeping.
     """
 
+    objects = SheetAwareManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+", unique=True)
     fy_start_month = models.PositiveSmallIntegerField(default=4)
     opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     opening_bank_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     opening_date = models.DateField()
 
     class Meta:
+        base_manager_name = "objects"
         verbose_name = "Finance settings"
         verbose_name_plural = "Finance settings"
 

@@ -56,6 +56,12 @@ class OrganizationSignupForm(forms.Form):
         choices=Organization.OrganizationSize.choices,
         widget=forms.Select(attrs={"class": "sr-only", "tabindex": "-1", "data-custom-combobox": "true"}),
     )
+    storage_mode = forms.ChoiceField(
+        choices=Organization.StorageMode.choices,
+        widget=forms.RadioSelect,
+        error_messages={"required": "Choose where your data should be stored."},
+        label="Where should your data be stored?",
+    )
 
     first_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"placeholder": "First name"}))
     last_name = forms.CharField(

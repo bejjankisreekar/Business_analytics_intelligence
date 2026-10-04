@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 
-from django.test import Client, TestCase
+from django.test import Client
 
 from apps.billing import invoicing
 from apps.billing import payments as payment_services
@@ -27,17 +27,18 @@ from apps.finance.models import (
 )
 from apps.finance.periods import Period
 from apps.organizations.models import Organization
-from apps.organizations.services import create_organization_with_tenant_schema_and_admin, delete_organization_and_tenant
-from apps.organizations.utils import schema_context
+from apps.organizations.services import delete_organization_and_tenant
+from apps.organizations.testing import SheetsBackedTestCase, sheet_session
 
 
-class BillingPageTests(TestCase):
+class BillingPageTests(SheetsBackedTestCase):
     """The client's own view of their subscription/invoices/payments —
-    apps.billing models live on the default alias (public schema), same as
-    Organization/User, so this needs no schema_context."""
+    apps.billing models live on the default alias, same as
+    Organization/User, so this needs no sheet_session."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "Billing Page Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@billingpagetest.example", "password": "ownerpass123"},
         )
@@ -74,7 +75,7 @@ class BillingPageTests(TestCase):
         self.assertContains(resp, "200")
 
     def test_other_organizations_invoices_are_not_visible(self):
-        other_org, other_owner = create_organization_with_tenant_schema_and_admin(
+        other_org, other_owner = self.create_connected_organization(
             org_data={"name": "Other Billing Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@otherbillingorg.example", "password": "ownerpass123"},
         )
@@ -86,7 +87,7 @@ class BillingPageTests(TestCase):
             delete_organization_and_tenant(other_org)
 
 
-class BalanceSheetTests(TestCase):
+class BalanceSheetTests(SheetsBackedTestCase):
     """services.balance_sheet must satisfy Assets == Liabilities + Equity
     at all times — regression coverage for the bug where partner capital
     counted toward total_assets (via cash_and_bank_as_of) but not toward
@@ -94,7 +95,8 @@ class BalanceSheetTests(TestCase):
     partner had invested or withdrawn capital."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "Balance Sheet Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@balancesheettest.example", "password": "ownerpass123"},
         )
@@ -103,7 +105,7 @@ class BalanceSheetTests(TestCase):
         delete_organization_and_tenant(self.org)
 
     def test_balance_sheet_balances_with_partner_capital(self):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             FinanceSettings.objects.update(
                 opening_balance=Decimal("1000"), opening_bank_balance=Decimal("0"),
                 opening_date=datetime.date(2024, 4, 1),
@@ -124,14 +126,15 @@ class BalanceSheetTests(TestCase):
             self.assertEqual(sheet["partner_capital"], Decimal("3800"))
 
 
-class GstSummaryTests(TestCase):
+class GstSummaryTests(SheetsBackedTestCase):
     """Output tax (sales) and input tax credit (purchases) are computed
     from each entry's channel/category `gst_rate`, rate-wise, with
     uncategorized/0%-rated entries reported separately as untaxed rather
     than silently folded into the tax totals."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "GST Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@gsttest.example", "password": "ownerpass123"},
         )
@@ -140,7 +143,7 @@ class GstSummaryTests(TestCase):
         delete_organization_and_tenant(self.org)
 
     def test_gst_summary_nets_output_against_input_tax(self):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             channel_18 = Category.objects.create(kind=Category.Kind.SALES, name="Taxed Channel", gst_rate=Decimal("18"))
             purchase_12 = Category.objects.create(kind=Category.Kind.PURCHASE, name="Stock", gst_rate=Decimal("12"))
             untaxed_channel = Category.objects.create(kind=Category.Kind.SALES, name="Cash counter")
@@ -159,13 +162,14 @@ class GstSummaryTests(TestCase):
             self.assertEqual(summary["taxable_purchases"], Decimal("400"))
 
 
-class AgingReportTests(TestCase):
+class AgingReportTests(SheetsBackedTestCase):
     """receivables_aging/payables_aging bucket every open balance by how
     overdue it is, per customer/vendor, and the bucket totals must add up
     to the same outstanding total Cash Position already shows."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "Aging Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@agingtest.example", "password": "ownerpass123"},
         )
@@ -174,7 +178,7 @@ class AgingReportTests(TestCase):
         delete_organization_and_tenant(self.org)
 
     def test_receivables_aging_buckets_by_days_overdue(self):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             customer = Customer.objects.create(name="Acme Retail")
             as_of = datetime.date(2024, 6, 30)
             Receivable.objects.create(
@@ -195,7 +199,7 @@ class AgingReportTests(TestCase):
             self.assertEqual(aging["totals"]["total"], finance_services.receivables_total_outstanding())
 
     def test_payables_aging_current_bucket_for_not_yet_due(self):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             as_of = datetime.date(2024, 6, 30)
             Payable.objects.create(
                 vendor="Supplier Co", bill_date=datetime.date(2024, 6, 25),
@@ -208,7 +212,7 @@ class AgingReportTests(TestCase):
             self.assertEqual(sum(row[b] for b, _ in aging["buckets"] if b != "current"), Decimal("0"))
 
 
-class AccessLocksAutomaticallyOnLapseTests(TestCase):
+class AccessLocksAutomaticallyOnLapseTests(SheetsBackedTestCase):
     """The billing period ending (Subscription.end_date, shown as 'Billing
     end' in superadmin) must lock the org out of the app on its own —
     no superadmin action required — until a real payment is recorded.
@@ -217,7 +221,8 @@ class AccessLocksAutomaticallyOnLapseTests(TestCase):
     apps/finance/views.py."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "Lapse Lock Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@lapselocktest.example", "password": "ownerpass123"},
         )
@@ -256,13 +261,14 @@ class AccessLocksAutomaticallyOnLapseTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
 
-class NewPagesSmokeTests(TestCase):
+class NewPagesSmokeTests(SheetsBackedTestCase):
     """Basic 200-status coverage for the new pages/exports — catches
     template/URL wiring mistakes (bad {% url %} names, undefined context
     variables) that unit-testing the services layer alone wouldn't."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "Smoke Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@smoketest.example", "password": "ownerpass123"},
         )
@@ -293,7 +299,7 @@ class NewPagesSmokeTests(TestCase):
             "/app/categories/add/", {"kind": "SALES", "name": "Export Sales", "gst_rate": "18"}
         )
         self.assertEqual(resp.status_code, 302)
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             self.assertEqual(Category.objects.get(name="Export Sales").gst_rate, Decimal("18"))
 
     def test_expense_category_saves_without_gst_rate_field_present(self):
@@ -302,17 +308,18 @@ class NewPagesSmokeTests(TestCase):
         this must still save cleanly with gst_rate defaulting to 0."""
         resp = self.client_.post("/app/categories/add/", {"kind": "EXPENSE", "name": "Office Supplies"})
         self.assertEqual(resp.status_code, 302)
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             category = Category.objects.get(name="Office Supplies")
             self.assertEqual(category.gst_rate, Decimal("0"))
 
 
-class TransferEditDeleteTests(TestCase):
+class TransferEditDeleteTests(SheetsBackedTestCase):
     """Cash/bank transfers are logged from the Daily Report and corrected
     there too — a mistyped deposit must be fixable without touching the DB."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "Transfer Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@transfertest.example", "password": "ownerpass123"},
         )
@@ -320,7 +327,7 @@ class TransferEditDeleteTests(TestCase):
         self.client_ = Client()
         self.client_.force_login(self.owner)
         self.day = datetime.date.today()
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             self.transfer = CashTransfer.objects.create(
                 date=self.day, direction=CashTransfer.Direction.CASH_TO_BANK, amount=Decimal("500"), note="orig"
             )
@@ -329,7 +336,7 @@ class TransferEditDeleteTests(TestCase):
         delete_organization_and_tenant(self.org)
 
     def _get(self):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             return CashTransfer.objects.get(pk=self.transfer.pk)
 
     def test_daily_report_offers_edit_and_delete(self):
@@ -356,7 +363,7 @@ class TransferEditDeleteTests(TestCase):
     def test_delete_removes_the_transfer(self):
         resp = self.client_.post(f"/app/transfers/{self.transfer.pk}/delete/")
         self.assertEqual(resp.status_code, 302)
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             self.assertFalse(CashTransfer.objects.filter(pk=self.transfer.pk).exists())
 
     def test_delete_requires_post(self):
@@ -365,13 +372,14 @@ class TransferEditDeleteTests(TestCase):
         self.assertEqual(self._get().amount, Decimal("500"))
 
 
-class LedgerEditDeleteTests(TestCase):
+class LedgerEditDeleteTests(SheetsBackedTestCase):
     """Ledger rows are derived from underlying records, so each ledger offers
     edit/delete on the record behind a row — with guards where money has
     already moved (a paid invoice can't be deleted or re-homed)."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "Ledger Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@ledgertest.example", "password": "ownerpass123"},
         )
@@ -379,7 +387,7 @@ class LedgerEditDeleteTests(TestCase):
         self.client_ = Client()
         self.client_.force_login(self.owner)
         today = datetime.date.today()
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             self.customer = Customer.objects.create(name="Acme Buyer")
             self.other_customer = Customer.objects.create(name="Someone Else")
             self.unpaid = Receivable.objects.create(
@@ -399,7 +407,7 @@ class LedgerEditDeleteTests(TestCase):
         delete_organization_and_tenant(self.org)
 
     def _reload(self, obj):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             return type(obj).objects.filter(pk=obj.pk).first()
 
     def _invoice_post(self, obj, **over):
@@ -409,7 +417,7 @@ class LedgerEditDeleteTests(TestCase):
         return self.client_.post(f"/app/receivables/{obj.pk}/edit/", data)
 
     def test_ledger_rows_carry_their_source_record(self):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             rows = finance_services.customer_ledger_entries(self.customer)
         roles = sorted((r["source"]["kind"], r["source"]["role"]) for r in rows)
         self.assertEqual(roles, [("receivable", "invoice")] * 2 + [("receivable", "payment")])
@@ -476,16 +484,17 @@ class LedgerEditDeleteTests(TestCase):
 
     def _vendor_pk(self):
         from apps.finance.models import Vendor
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             return Vendor.objects.get_or_create(name="Sup Ltd")[0].pk
 
 
-class CostTreeTests(TestCase):
+class CostTreeTests(SheetsBackedTestCase):
     """The drill-down behind Cost Intelligence: category >
     sub-category > name, where every level must add up to its parent."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "Cost Tree Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@costtree.example", "password": "ownerpass123"},
         )
@@ -493,7 +502,7 @@ class CostTreeTests(TestCase):
         self.client_ = Client()
         self.client_.force_login(self.owner)
         self.day = datetime.date.today()
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             self.pay = Category.objects.create(kind="EXPENSE", name="Salaries </script>")
             self.dept = Subcategory.objects.create(category=self.pay, name="Nursing")
             self.emp = Subcategory.objects.create(category=self.pay, parent=self.dept, name="Anita")
@@ -508,7 +517,7 @@ class CostTreeTests(TestCase):
         delete_organization_and_tenant(self.org)
 
     def _tree(self):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             return finance_services.cost_tree(ExpenseEntry, self.day, self.day)
 
     def test_levels_sum_and_sort_largest_first(self):
@@ -537,7 +546,7 @@ class CostTreeTests(TestCase):
         self.assertContains(resp, "Salaries \\u003c/script\\u003e")
 
 
-class BankAccountTests(TestCase):
+class BankAccountTests(SheetsBackedTestCase):
     """Multiple named bank accounts (ICICI, HDFC, ...), each with its own
     opening balance and a closing balance computed from whichever
     sales/expenses/purchases/transfers were tagged to it -- purely an
@@ -545,19 +554,24 @@ class BankAccountTests(TestCase):
     never change cash_and_bank_as_of's totals."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "Bank Account Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "owner@bankaccounttest.example", "password": "ownerpass123"},
         )
         billing_services.start_trial(self.org, Plan.objects.get(slug="free"))
         self.client_ = Client()
         self.client_.force_login(self.owner)
+        with sheet_session(self.org):
+            self.sales_channel = Category.objects.create(kind=Category.Kind.SALES, name="Online")
+            self.expense_category = Category.objects.create(kind=Category.Kind.EXPENSE, name="Misc")
+            self.purchase_category = Category.objects.create(kind=Category.Kind.PURCHASE, name="Stock")
 
     def tearDown(self):
         delete_organization_and_tenant(self.org)
 
     def test_closing_balance_reflects_only_entries_tagged_to_that_account(self):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             FinanceSettings.objects.update(
                 opening_balance=Decimal("0"), opening_bank_balance=Decimal("0"),
                 opening_date=datetime.date(2024, 4, 1),
@@ -591,7 +605,7 @@ class BankAccountTests(TestCase):
             self.assertEqual(bank_total, Decimal("2000") - Decimal("300") - Decimal("50"))
 
     def test_bank_accounts_page_lists_accounts_with_closing_balance(self):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             BankAccount.objects.create(
                 name="Current - ICICI", bank_name=BankChoices.ICICI, opening_balance=Decimal("1500"),
             )
@@ -607,7 +621,7 @@ class BankAccountTests(TestCase):
             "account_number": "", "opening_balance": "0", "opening_balance_as_on": "2024-04-01",
         }, follow=True)
         self.assertContains(resp, "Couldn")
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             self.assertFalse(BankAccount.objects.filter(name="Misc Account").exists())
 
     def test_add_edit_toggle_delete_bank_account(self):
@@ -616,7 +630,7 @@ class BankAccountTests(TestCase):
             "account_number": "1234", "opening_balance": "100", "opening_balance_as_on": "2024-04-01",
         }, follow=True)
         self.assertContains(resp, "Bank account added.")
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             account = BankAccount.objects.get(name="Current - HDFC")
 
         resp = self.client_.post(f"/app/bank-accounts/{account.pk}/edit/", {
@@ -624,13 +638,13 @@ class BankAccountTests(TestCase):
             "account_number": "5678", "opening_balance": "150", "opening_balance_as_on": "2024-04-01",
         }, follow=True)
         self.assertContains(resp, "Bank account updated.")
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             account.refresh_from_db()
             self.assertEqual(account.account_number, "5678")
             self.assertEqual(account.opening_balance, Decimal("150"))
 
         self.client_.post(f"/app/bank-accounts/{account.pk}/toggle/", follow=True)
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             account.refresh_from_db()
             self.assertFalse(account.is_active)
 
@@ -639,22 +653,22 @@ class BankAccountTests(TestCase):
         self.assertContains(resp, "Current - HDFC")
 
         self.client_.post(f"/app/bank-accounts/{account.pk}/delete/", follow=True)
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             self.assertFalse(BankAccount.objects.filter(pk=account.pk).exists())
 
     def test_bulk_sale_row_lets_a_bank_account_be_tagged(self):
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             icici = BankAccount.objects.create(name="Current - ICICI", bank_name=BankChoices.ICICI)
         day = datetime.date.today()
         resp = self.client_.post("/app/daily/bulk-sales/", {
             "selected_date": day.isoformat(),
             "sale-TOTAL_FORMS": "1", "sale-INITIAL_FORMS": "0",
             "sale-MIN_NUM_FORMS": "0", "sale-MAX_NUM_FORMS": "1000",
-            "sale-0-date": day.isoformat(), "sale-0-amount": "500",
+            "sale-0-date": day.isoformat(), "sale-0-channel": str(self.sales_channel.pk), "sale-0-gross_amount": "500",
             "sale-0-payment_mode": PaymentMode.BANK, "sale-0-bank_account": str(icici.pk),
         }, follow=True)
         self.assertContains(resp, "Logged 1 sale.")
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             entry = SalesEntry.objects.get(amount=Decimal("500"))
             self.assertEqual(entry.bank_account_id, icici.pk)
 
@@ -663,25 +677,25 @@ class BankAccountTests(TestCase):
         that account's ledger even though the money never touched it
         (bank_account_balance_as_of filters by bank_account alone, not
         payment_mode) -- the form must clear it rather than save it."""
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             icici = BankAccount.objects.create(name="Current - ICICI", bank_name=BankChoices.ICICI)
         day = datetime.date.today()
         resp = self.client_.post("/app/daily/bulk-sales/", {
             "selected_date": day.isoformat(),
             "sale-TOTAL_FORMS": "1", "sale-INITIAL_FORMS": "0",
             "sale-MIN_NUM_FORMS": "0", "sale-MAX_NUM_FORMS": "1000",
-            "sale-0-date": day.isoformat(), "sale-0-amount": "750",
+            "sale-0-date": day.isoformat(), "sale-0-channel": str(self.sales_channel.pk), "sale-0-gross_amount": "750",
             "sale-0-payment_mode": PaymentMode.CASH, "sale-0-bank_account": str(icici.pk),
         }, follow=True)
         self.assertContains(resp, "Logged 1 sale.")
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             entry = SalesEntry.objects.get(amount=Decimal("750"))
             self.assertIsNone(entry.bank_account_id)
 
     def test_bulk_expense_and_purchase_rows_also_tag_and_drop_bank_account(self):
         """Same bank_account attribution/clearing behaviour as the Revenue
         bulk row, checked on the other two bulk-entry tables too."""
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             icici = BankAccount.objects.create(name="Current - ICICI", bank_name=BankChoices.ICICI)
         day = datetime.date.today()
 
@@ -689,13 +703,13 @@ class BankAccountTests(TestCase):
             "selected_date": day.isoformat(),
             "expense-TOTAL_FORMS": "2", "expense-INITIAL_FORMS": "0",
             "expense-MIN_NUM_FORMS": "0", "expense-MAX_NUM_FORMS": "1000",
-            "expense-0-date": day.isoformat(), "expense-0-amount": "200",
+            "expense-0-date": day.isoformat(), "expense-0-category": str(self.expense_category.pk), "expense-0-amount": "200",
             "expense-0-payment_mode": PaymentMode.BANK, "expense-0-bank_account": str(icici.pk),
-            "expense-1-date": day.isoformat(), "expense-1-amount": "300",
+            "expense-1-date": day.isoformat(), "expense-1-category": str(self.expense_category.pk), "expense-1-amount": "300",
             "expense-1-payment_mode": PaymentMode.CASH, "expense-1-bank_account": str(icici.pk),
         }, follow=True)
         self.assertContains(resp, "Logged 2 expenses.")
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             bank_expense = ExpenseEntry.objects.get(amount=Decimal("200"))
             cash_expense = ExpenseEntry.objects.get(amount=Decimal("300"))
             self.assertEqual(bank_expense.bank_account_id, icici.pk)
@@ -705,13 +719,13 @@ class BankAccountTests(TestCase):
             "selected_date": day.isoformat(),
             "purchase-TOTAL_FORMS": "2", "purchase-INITIAL_FORMS": "0",
             "purchase-MIN_NUM_FORMS": "0", "purchase-MAX_NUM_FORMS": "1000",
-            "purchase-0-date": day.isoformat(), "purchase-0-amount": "400",
+            "purchase-0-date": day.isoformat(), "purchase-0-category": str(self.purchase_category.pk), "purchase-0-amount": "400",
             "purchase-0-payment_mode": PaymentMode.BANK, "purchase-0-bank_account": str(icici.pk),
-            "purchase-1-date": day.isoformat(), "purchase-1-amount": "600",
+            "purchase-1-date": day.isoformat(), "purchase-1-category": str(self.purchase_category.pk), "purchase-1-amount": "600",
             "purchase-1-payment_mode": PaymentMode.CASH, "purchase-1-bank_account": str(icici.pk),
         }, follow=True)
         self.assertContains(resp, "Logged 2 purchases.")
-        with schema_context(self.org.schema_name):
+        with sheet_session(self.org):
             bank_purchase = PurchaseEntry.objects.get(amount=Decimal("400"))
             cash_purchase = PurchaseEntry.objects.get(amount=Decimal("600"))
             self.assertEqual(bank_purchase.bank_account_id, icici.pk)

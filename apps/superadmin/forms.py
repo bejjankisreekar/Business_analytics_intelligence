@@ -50,6 +50,12 @@ class ClientProfileForm(forms.ModelForm):
 
 
 class ClientCreateForm(ClientProfileForm):
+    storage_mode = forms.ChoiceField(
+        choices=Organization.StorageMode.choices,
+        widget=forms.RadioSelect,
+        label="Where should this client's data be stored?",
+        error_messages={"required": "Choose where this client's data should be stored."},
+    )
     owner_first_name = forms.CharField(max_length=150, label="Owner first name")
     owner_last_name = forms.CharField(max_length=150, required=False, label="Owner last name")
     owner_email = forms.EmailField(label="Owner login email")
@@ -61,7 +67,7 @@ class ClientCreateForm(ClientProfileForm):
     )
 
     field_order = [
-        "name", "business_type", "industry", "size",
+        "name", "business_type", "industry", "size", "storage_mode",
         "contact_person", "contact_email", "contact_phone",
         "address", "city", "state", "country", "tax_id", "website",
         "owner_first_name", "owner_last_name", "owner_email", "owner_password",

@@ -33,6 +33,21 @@
     {% endfor %}
   </div>
 
+  {% if mode == "create" %}
+  <h2 class="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Data storage</h2>
+  <div class="mt-3">
+    <label class="sa-field-label">{{ form.storage_mode.label }}</label>
+    <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+      {% for radio in form.storage_mode %}
+      <label class="sa-btn-ghost flex items-center gap-2 rounded px-3 py-2 text-xs">
+        {{ radio.tag }} {{ radio.choice_label }}
+      </label>
+      {% endfor %}
+    </div>
+    {% if form.storage_mode.errors %}<ul class="sa-errorlist">{% for e in form.storage_mode.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endif %}
+
   <h2 class="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Contact</h2>
   <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
     {% for field in form %}

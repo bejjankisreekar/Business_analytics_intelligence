@@ -30,7 +30,8 @@ from apps.billing import services as billing_services
 from apps.billing.models import Invoice, Payment, Plan, Subscription
 from apps.organizations import service_control
 from apps.organizations.models import Organization, ServiceStatusChange
-from apps.organizations.services import create_organization_with_tenant_schema_and_admin, delete_organization_and_tenant
+from apps.organizations.services import delete_organization_and_tenant
+from apps.organizations.testing import SheetsBackedMixin
 
 ENV = "dev"
 DATABASES = {"default", "dev", "prod"}
@@ -42,8 +43,8 @@ def _make_superadmin(email="sa@test.local"):
     )
 
 
-def _make_client(env=ENV):
-    org, owner = create_organization_with_tenant_schema_and_admin(
+def _make_client(case, env=ENV):
+    org, owner = case.create_connected_organization(
         org_data={
             "name": "Test Org",
             "business_type": Organization.BusinessType.RETAIL_ECOMMERCE,
@@ -58,12 +59,13 @@ def _make_client(env=ENV):
     return org, owner
 
 
-class SuperAdminAccessControlTests(TestCase):
+class SuperAdminAccessControlTests(SheetsBackedMixin, TestCase):
     databases = DATABASES
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin()
-        self.org, self.owner = _make_client()
+        self.org, self.owner = _make_client(self)
 
     def tearDown(self):
         delete_organization_and_tenant(self.org, using=ENV)
@@ -96,12 +98,13 @@ class SuperAdminAccessControlTests(TestCase):
         self.assertEqual(resp.status_code, 404)
 
 
-class ClientListSearchFilterTests(TestCase):
+class ClientListSearchFilterTests(SheetsBackedMixin, TestCase):
     databases = DATABASES
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin("sa2@test.local")
-        self.org, self.owner = _make_client()
+        self.org, self.owner = _make_client(self)
         self.client_ = Client()
         self.client_.force_login(self.superadmin)
 
@@ -136,10 +139,11 @@ class ClientListSearchFilterTests(TestCase):
         self.assertContains(resp, "alice@testorg.example")
 
 
-class ClientCreateEditTests(TestCase):
+class ClientCreateEditTests(SheetsBackedMixin, TestCase):
     databases = DATABASES
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin("sa3@test.local")
         self.client_ = Client()
         self.client_.force_login(self.superadmin)
@@ -156,6 +160,7 @@ class ClientCreateEditTests(TestCase):
             "business_type": "RETAIL_ECOMMERCE",
             "industry": "Retail Goods",
             "size": "SMALL",
+            "storage_mode": "GOOGLE_SHEETS",
             "contact_person": "Bob Contact",
             "contact_email": "bob@createdclient.example",
             "contact_phone": "1234567890",
@@ -173,17 +178,16 @@ class ClientCreateEditTests(TestCase):
         payload.update(overrides)
         return payload
 
-    def test_create_client_creates_org_schema_owner_and_subscription(self):
+    def test_create_client_creates_org_owner_and_subscription(self):
         resp = self.client_.post(f"/superadmin/{ENV}/create/", self._create_payload())
         self.assertEqual(resp.status_code, 302)
 
         org = Organization.objects.using(ENV).get(name="Created Client Co")
         self._created_orgs.append(org)
 
-        self.assertTrue(org.schema_name)
-        from apps.organizations.utils import schema_exists
-
-        self.assertTrue(schema_exists(org.schema_name, using=ENV))
+        # Provisioning the org's Google Sheet is deferred until its owner
+        # connects Google Drive — nothing to assert about storage yet.
+        self.assertFalse(hasattr(org, "cloud_backup"))
 
         owner = User.objects.using(ENV).get(email="bob.owner@createdclient.example")
         self.assertEqual(owner.organization_id, org.id)
@@ -221,12 +225,13 @@ class ClientCreateEditTests(TestCase):
         self.assertEqual(org.city, "New City")
 
 
-class SubscriptionAndServiceControlTests(TestCase):
+class SubscriptionAndServiceControlTests(SheetsBackedMixin, TestCase):
     databases = DATABASES
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin("sa4@test.local")
-        self.org, self.owner = _make_client()
+        self.org, self.owner = _make_client(self)
         self.client_ = Client()
         self.client_.force_login(self.superadmin)
         self.paid_plan = Plan.objects.using(ENV).get(slug="enterprise")
@@ -405,7 +410,7 @@ class PlanManagementTests(TestCase):
         self.assertTrue(plan.is_active)
 
 
-class CrossConnectionLoginTests(TransactionTestCase):
+class CrossConnectionLoginTests(SheetsBackedMixin, TransactionTestCase):
     """Full auth-cycle tests: a user created via `.using(ENV)` must commit
     for real to be visible to the plain (default-alias) login/session
     machinery — hence TransactionTestCase, not TestCase, here.
@@ -418,6 +423,7 @@ class CrossConnectionLoginTests(TransactionTestCase):
     serialized_rollback = True
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin("sa5@test.local")
 
     def tearDown(self):
@@ -432,6 +438,7 @@ class CrossConnectionLoginTests(TransactionTestCase):
             "business_type": "RETAIL_ECOMMERCE",
             "industry": "Retail",
             "size": "SMALL",
+            "storage_mode": "GOOGLE_SHEETS",
             "contact_person": "Cara Contact",
             "contact_email": "cara@livelogin.example",
             "contact_phone": "1112223333",
@@ -450,6 +457,9 @@ class CrossConnectionLoginTests(TransactionTestCase):
         self.assertEqual(resp.status_code, 302)
 
         org = Organization.objects.using(ENV).get(name="Live Login Co")
+        # Mirrors the real post-signup flow: provisioning the org's Google
+        # Sheet is deferred until the owner connects Google Drive.
+        self.connect_drive_for(org, using=ENV)
         try:
             owner_client = Client()
             login_resp = owner_client.post(
@@ -464,7 +474,7 @@ class CrossConnectionLoginTests(TransactionTestCase):
             delete_organization_and_tenant(org, using=ENV)
 
     def test_suspending_org_blocks_login_and_reactivating_restores_it(self):
-        org, owner = _make_client()
+        org, owner = _make_client(self)
         try:
             admin_client = Client()
             admin_client.force_login(self.superadmin)
@@ -501,12 +511,13 @@ class CrossConnectionLoginTests(TransactionTestCase):
             delete_organization_and_tenant(org, using=ENV)
 
 
-class PaymentAndInvoiceUITests(TestCase):
+class PaymentAndInvoiceUITests(SheetsBackedMixin, TestCase):
     databases = DATABASES
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin("sa7@test.local")
-        self.org, self.owner = _make_client()
+        self.org, self.owner = _make_client(self)
         self.client_ = Client()
         self.client_.force_login(self.superadmin)
         self.invoice = invoicing.create_invoice(self.org, using=ENV, subtotal=1000, discount=0, tax=180)
@@ -599,7 +610,7 @@ class PaymentAndInvoiceUITests(TestCase):
         self.assertEqual(invoice2.status, Invoice.Status.PAID)
 
 
-class InvoiceAndPaymentEditTests(TestCase):
+class InvoiceAndPaymentEditTests(SheetsBackedMixin, TestCase):
     """Superadmin correction of an already-issued/already-paid invoice, and
     of an already-recorded payment — both reachable from invoice_detail and
     payment_list. Editing a payment must keep its invoice's amount_paid and
@@ -608,8 +619,9 @@ class InvoiceAndPaymentEditTests(TestCase):
     databases = DATABASES
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin("sa-edit@test.local")
-        self.org, self.owner = _make_client()
+        self.org, self.owner = _make_client(self)
         self.client_ = Client()
         self.client_.force_login(self.superadmin)
         self.invoice = invoicing.create_invoice(self.org, using=ENV, subtotal=1000, discount=0, tax=180)
@@ -808,7 +820,7 @@ class LandingPagePricingTests(TestCase):
             plan.delete()
 
 
-class ServiceControlTests(TestCase):
+class ServiceControlTests(SheetsBackedMixin, TestCase):
     """Phase 5: client service control. Covers the explicit requirements —
     confirmation + reason enforced server-side, audit log contents, data
     (users/subscription/payments/invoices) surviving suspension untouched,
@@ -819,8 +831,9 @@ class ServiceControlTests(TestCase):
     databases = DATABASES
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin("sa9@test.local")
-        self.org, self.owner = _make_client()
+        self.org, self.owner = _make_client(self)
         self.client_ = Client()
         self.client_.force_login(self.superadmin)
 
@@ -940,7 +953,7 @@ class ServiceControlTests(TestCase):
         self.assertContains(resp, "1000")  # outstanding amount
 
 
-class BackendServiceEnforcementTests(TransactionTestCase):
+class BackendServiceEnforcementTests(SheetsBackedMixin, TransactionTestCase):
     """The explicit IMPORTANT requirement: blocking must happen at the
     backend/view layer, not just by hiding frontend buttons — proven by
     hitting several different finance endpoints directly while suspended,
@@ -950,13 +963,14 @@ class BackendServiceEnforcementTests(TransactionTestCase):
     serialized_rollback = True
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin("sa10@test.local")
 
     def tearDown(self):
         User.objects.filter(email="sa10@test.local").delete()
 
     def test_suspended_org_owner_blocked_from_every_finance_endpoint(self):
-        org, owner = _make_client()
+        org, owner = _make_client(self)
         try:
             admin_client = Client()
             admin_client.force_login(self.superadmin)
@@ -983,7 +997,7 @@ class BackendServiceEnforcementTests(TransactionTestCase):
     def test_suspended_org_owner_cannot_bypass_via_post(self):
         """A suspended user must not be able to bypass the block by POSTing
         directly to a mutating endpoint (e.g. adding a sale) either."""
-        org, owner = _make_client()
+        org, owner = _make_client(self)
         try:
             admin_client = Client()
             admin_client.force_login(self.superadmin)
@@ -999,12 +1013,13 @@ class BackendServiceEnforcementTests(TransactionTestCase):
             delete_organization_and_tenant(org, using=ENV)
 
 
-class CreateInvoiceTests(TestCase):
+class CreateInvoiceTests(SheetsBackedMixin, TestCase):
     databases = DATABASES
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin("sa11@test.local")
-        self.org, self.owner = _make_client()
+        self.org, self.owner = _make_client(self)
         self.client_ = Client()
         self.client_.force_login(self.superadmin)
 
@@ -1028,7 +1043,7 @@ class CreateInvoiceTests(TestCase):
         self.assertContains(history_resp, invoice.invoice_number)
 
 
-class CreateInvoiceClientVisibilityTests(TransactionTestCase):
+class CreateInvoiceClientVisibilityTests(SheetsBackedMixin, TransactionTestCase):
     """Cross-alias: the org/owner live on "dev", but login/session reads
     always go through "default" — needs a real commit, not a TestCase
     rollback, same as CrossConnectionLoginTests above."""
@@ -1037,13 +1052,14 @@ class CreateInvoiceClientVisibilityTests(TransactionTestCase):
     serialized_rollback = True
 
     def setUp(self):
+        super().setUp()
         self.superadmin = _make_superadmin("sa12@test.local")
 
     def tearDown(self):
         User.objects.filter(email="sa12@test.local").delete()
 
     def test_created_invoice_is_visible_on_clients_own_billing_page(self):
-        org, owner = _make_client()
+        org, owner = _make_client(self)
         try:
             admin_client = Client()
             admin_client.force_login(self.superadmin)

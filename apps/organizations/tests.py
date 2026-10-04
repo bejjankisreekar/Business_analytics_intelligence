@@ -1,14 +1,9 @@
-from django.test import TestCase
-
 from apps.organizations.models import Organization
-from apps.organizations.services import (
-    OrganizationSignupError,
-    create_organization_with_tenant_schema_and_admin,
-    delete_organization_and_tenant,
-)
+from apps.organizations.services import OrganizationSignupError, delete_organization_and_tenant
+from apps.organizations.testing import SheetsBackedTestCase
 
 
-class DuplicateSignupRaceTests(TestCase):
+class DuplicateSignupRaceTests(SheetsBackedTestCase):
     """The signup form already rejects a duplicate email/username before
     hitting the DB, but that check and the actual save aren't atomic — two
     near-simultaneous signups can both pass form validation and only the
@@ -16,7 +11,8 @@ class DuplicateSignupRaceTests(TestCase):
     friendly OrganizationSignupError, not a raw IntegrityError/500."""
 
     def setUp(self):
-        self.org, self.owner = create_organization_with_tenant_schema_and_admin(
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
             org_data={"name": "Race Test Org One", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
             admin_data={"email": "racer@duplicatetest.example", "username": "racer", "password": "ownerpass123"},
         )
@@ -26,7 +22,7 @@ class DuplicateSignupRaceTests(TestCase):
 
     def test_duplicate_email_raises_signup_error_not_integrity_error(self):
         with self.assertRaises(OrganizationSignupError):
-            create_organization_with_tenant_schema_and_admin(
+            self.create_connected_organization(
                 org_data={"name": "Race Test Org Two", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
                 admin_data={"email": "racer@duplicatetest.example", "username": "someoneelse", "password": "ownerpass123"},
             )
@@ -35,7 +31,7 @@ class DuplicateSignupRaceTests(TestCase):
 
     def test_duplicate_username_raises_signup_error_not_integrity_error(self):
         with self.assertRaises(OrganizationSignupError):
-            create_organization_with_tenant_schema_and_admin(
+            self.create_connected_organization(
                 org_data={"name": "Race Test Org Three", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
                 admin_data={"email": "someoneelse@duplicatetest.example", "username": "racer", "password": "ownerpass123"},
             )
