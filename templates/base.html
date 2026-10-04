@@ -179,9 +179,9 @@
 <div id="bai-messages" class="fixed top-4 right-4 z-50 space-y-2 w-full max-w-sm px-4 sm:px-0">
   {% for message in messages %}
   <div class="rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur
-      {% if message.tags == 'error' %} border-red-500/30 bg-red-500/10 text-red-200
-      {% elif message.tags == 'success' %} border-mint-500/30 bg-mint-500/10 text-mint-300
-      {% else %} border-brand-500/30 bg-brand-500/10 text-brand-200 {% endif %}">
+      {% if 'error' in message.tags %} border-red-500/30 bg-red-500/10 text-red-200
+      {% elif 'success' in message.tags %} border-green-500/30 bg-green-500/10 text-green-300
+      {% else %} border-blue-500/30 bg-blue-500/10 text-blue-200 {% endif %}">
     {{ message }}
   </div>
   {% endfor %}
