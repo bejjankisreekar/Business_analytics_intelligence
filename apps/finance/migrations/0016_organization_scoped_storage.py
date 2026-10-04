@@ -2,6 +2,21 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+def populate_organization(apps, schema_editor):
+    """Populate organization_id for existing FinanceSettings rows."""
+    FinanceSettings = apps.get_model('finance', 'FinanceSettings')
+    Organization = apps.get_model('organizations', 'Organization')
+
+    # Get the first organization (or create one if none exist)
+    org = Organization.objects.first()
+    if org:
+        FinanceSettings.objects.all().update(organization_id=org.id)
+
+
+def reverse_populate(apps, schema_editor):
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -47,6 +62,12 @@ class Migration(migrations.Migration):
             field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='organizations.organization'),
         ),
         migrations.AddField(
+            model_name='financesettings',
+            name='organization',
+            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='organizations.organization', unique=True),
+        ),
+        migrations.RunPython(populate_organization, reverse_populate),
+        migrations.AlterField(
             model_name='financesettings',
             name='organization',
             field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='organizations.organization', unique=True),
