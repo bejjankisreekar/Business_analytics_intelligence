@@ -1,35 +1,5 @@
-import django.db.models.deletion
 from django.db import migrations, models
-
-
-def populate_organization(apps, schema_editor):
-    """Populate organization_id for existing records."""
-    Organization = apps.get_model('organizations', 'Organization')
-
-    # Get or create the first organization
-    org, _ = Organization.objects.get_or_create(
-        name='Default',
-        defaults={'slug': 'default'}
-    )
-    org_id = org.id
-
-    # Bulk update all models with a single org_id to avoid long locks
-    models_to_update = [
-        'FinanceSettings', 'SalesEntry', 'ExpenseEntry', 'PurchaseEntry',
-        'Receivable', 'Payable', 'CashTransfer', 'PartnerTransaction',
-        'Category', 'SubCategory', 'Customer', 'Vendor', 'BankAccount', 'Partner'
-    ]
-
-    for model_name in models_to_update:
-        try:
-            model = apps.get_model('finance', model_name)
-            model.objects.all().update(organization_id=org_id)
-        except LookupError:
-            pass
-
-
-def reverse_populate(apps, schema_editor):
-    pass
+import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
@@ -40,7 +10,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Add organization FK to all models (nullable for now)
+        # Simple approach: just add the columns without constraints, populate, make NOT NULL
+
+        # Add organization columns (nullable, no constraints yet)
         migrations.AddField(
             model_name='salesentry',
             name='organization',
@@ -112,10 +84,65 @@ class Migration(migrations.Migration):
             field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='organizations.organization'),
         ),
 
-        # Populate organization_id
-        migrations.RunPython(populate_organization, reverse_populate),
+        # Populate with default org (use raw SQL to avoid locks)
+        migrations.RunSQL(
+            "UPDATE finance_salesentry SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_expenseentry SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_purchaseentry SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_receivable SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_payable SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_cashtransfer SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_partnertransaction SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_financesettings SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_category SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_subcategory SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_customer SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_vendor SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_bankaccount SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
+        migrations.RunSQL(
+            "UPDATE finance_partner SET organization_id = (SELECT id FROM organizations_organization LIMIT 1) WHERE organization_id IS NULL;",
+            "SELECT 1;"
+        ),
 
-        # Make organization NOT NULL
+        # Make NOT NULL
         migrations.AlterField(
             model_name='salesentry',
             name='organization',
@@ -187,7 +214,7 @@ class Migration(migrations.Migration):
             field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='organizations.organization'),
         ),
 
-        # Update constraints (separate from field additions to avoid locks)
+        # Add constraints in a separate pass (avoid heavy locking)
         migrations.RemoveConstraint(
             model_name='category',
             name='finance_category_kind_name_uniq',
@@ -196,7 +223,6 @@ class Migration(migrations.Migration):
             model_name='category',
             constraint=models.UniqueConstraint(fields=('organization', 'kind', 'name'), name='finance_category_org_kind_name_uniq'),
         ),
-
         migrations.RemoveConstraint(
             model_name='subcategory',
             name='finance_subcategory_category_parent_name_uniq',
@@ -207,7 +233,6 @@ class Migration(migrations.Migration):
                 fields=('organization', 'category', 'parent', 'name'), name='finance_subcategory_org_category_parent_name_uniq'
             ),
         ),
-
         migrations.RemoveConstraint(
             model_name='customer',
             name='finance_customer_name_uniq',
@@ -216,7 +241,6 @@ class Migration(migrations.Migration):
             model_name='customer',
             constraint=models.UniqueConstraint(fields=('organization', 'name'), name='finance_customer_org_name_uniq'),
         ),
-
         migrations.RemoveConstraint(
             model_name='vendor',
             name='finance_vendor_name_uniq',
@@ -225,7 +249,6 @@ class Migration(migrations.Migration):
             model_name='vendor',
             constraint=models.UniqueConstraint(fields=('organization', 'name'), name='finance_vendor_org_name_uniq'),
         ),
-
         migrations.RemoveConstraint(
             model_name='bankaccount',
             name='finance_bankaccount_name_uniq',
@@ -234,7 +257,6 @@ class Migration(migrations.Migration):
             model_name='bankaccount',
             constraint=models.UniqueConstraint(fields=('organization', 'name'), name='finance_bankaccount_org_name_uniq'),
         ),
-
         migrations.RemoveConstraint(
             model_name='partner',
             name='finance_partner_name_uniq',
