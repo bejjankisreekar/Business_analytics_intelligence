@@ -201,6 +201,8 @@ def historical_window_start(organization, *, using: str = "default", as_of=None)
     Otherwise it falls back to the current plan's rolling
     `historical_months_limit` (3 months back from today by default for a
     newly-created org)."""
+    if organization is None:
+        return None
     as_of = as_of or timezone.localdate()
     sub = get_current_subscription(organization.id, using=using)
     if sub is None:
@@ -224,6 +226,8 @@ def has_active_access(organization, *, using: str = "default", as_of=None) -> bo
     alongside (not instead of) Organization.is_service_active, which is
     the separate, manually-controlled superadmin stop/suspend switch.
     """
+    if organization is None:
+        return False
     as_of = as_of or timezone.localdate()
     sub = get_current_subscription(organization.id, using=using)
     if sub is None:
@@ -249,6 +253,8 @@ def ensure_renewal_invoice(organization, *, using: str = "default") -> None:
     Idempotent: a lapsed period only ever gets one open invoice, so this
     is safe to call on every blocked request.
     """
+    if organization is None:
+        return
     sub = get_current_subscription(organization.id, using=using)
     if sub is None:
         return
