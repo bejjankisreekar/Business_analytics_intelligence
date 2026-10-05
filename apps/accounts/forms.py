@@ -70,7 +70,7 @@ class OrganizationSignupForm(forms.Form):
     )
     email = forms.EmailField(widget=forms.EmailInput(attrs={"placeholder": "you@company.com"}))
     username = forms.CharField(
-        max_length=150, widget=forms.TextInput(attrs={"placeholder": "e.g. sreekar_mobiles"})
+        max_length=150, widget=forms.TextInput(attrs={"placeholder": "e.g. john_smith"})
     )
     password = forms.CharField(
         min_length=8, widget=forms.PasswordInput(attrs={"placeholder": "Create a password"})
