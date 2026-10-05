@@ -35,12 +35,8 @@ class LoginForm(forms.Form):
                 raise forms.ValidationError("Incorrect email or password.")
             if not user.is_active:
                 raise forms.ValidationError("This account has been deactivated.")
-            org = user.organization
-            # Service stopped for a pending payment: let them in - they only get the Billing page.
-            if org is not None and not org.is_service_active and not org.is_payment_hold:
-                raise forms.ValidationError(
-                    "This organization's access has been suspended. Contact support."
-                )
+            # A suspended organization can still sign in; SuspendedAccountMiddleware
+            # then shows them only the "account suspended" screen.
             cleaned["user"] = user
         return cleaned
 
@@ -303,4 +299,27 @@ class CreateManagerAccountForm(forms.Form):
         confirm = cleaned.get("confirm_password")
         if password and confirm and password != confirm:
             raise forms.ValidationError("Passwords do not match.")
+        return cleaned
+
+
+class ResetManagerPasswordForm(forms.Form):
+    """Owner/admin sets a new password for their organization's manager."""
+
+    new_password = forms.CharField(min_length=8, widget=forms.PasswordInput)
+    confirm_password = forms.CharField(widget=forms.PasswordInput)
+
+    def clean_new_password(self):
+        password = self.cleaned_data["new_password"]
+        if " " in password:
+            raise forms.ValidationError("Password cannot contain spaces.")
+        if not PASSWORD_RE.match(password):
+            raise forms.ValidationError("Password contains invalid characters (emojis or special Unicode characters are not allowed).")
+        return password
+
+    def clean(self):
+        cleaned = super().clean()
+        new_password = cleaned.get("new_password")
+        confirm = cleaned.get("confirm_password")
+        if new_password and confirm and new_password != confirm:
+            self.add_error("confirm_password", "Passwords do not match.")
         return cleaned

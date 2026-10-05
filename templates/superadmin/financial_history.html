@@ -62,25 +62,6 @@
 </div>
 
 <div class="mt-6 sa-card p-5">
-  <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Create invoice</h2>
-  <p class="mt-1 text-[11px] text-slate-600">Appears immediately as a pending amount on this client's own Billing page.</p>
-  <form method="post" action="{% url 'superadmin:invoice_create' env_key org.pk %}" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-    {% csrf_token %}
-    {% for field in create_invoice_form %}
-    <div>
-      <label class="sa-field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-      {{ field }}
-      {% if field.help_text %}<p class="mt-1 text-[11px] text-slate-600">{{ field.help_text }}</p>{% endif %}
-      {% for e in field.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
-    </div>
-    {% endfor %}
-    <div class="sm:col-span-3">
-      <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Create invoice</button>
-    </div>
-  </form>
-</div>
-
-<div class="mt-6 sa-card p-5">
   <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Record a payment</h2>
   <p class="mt-1 text-[11px] text-slate-600">For off-platform payments (bank transfer, cash, cheque). A real gateway payment arrives automatically via webhook.</p>
   <form method="post" action="{% url 'superadmin:record_payment' env_key org.pk %}" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">

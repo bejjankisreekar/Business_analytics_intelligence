@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Account suspended · {{ SITE_NAME }}{% endblock %}
+
+{% block body %}
+<div class="flex min-h-screen items-center justify-center px-4">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-8 text-center">
+    <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-xl text-rose-400">!</span>
+    <h1 class="mt-5 text-xl font-bold text-white">Your account has been suspended</h1>
+    <p class="mt-3 text-sm leading-relaxed text-slate-400">
+      Access to {{ org.name }} is currently turned off. Please contact your organization admin to restore it.
+    </p>
+    <form method="post" action="{% url 'accounts:logout' %}" class="mt-6">
+      {% csrf_token %}
+      <button type="submit" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">Sign out</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

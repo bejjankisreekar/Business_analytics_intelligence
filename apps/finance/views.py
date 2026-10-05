@@ -180,12 +180,12 @@ class TenantLoginRequiredMixin(LoginRequiredMixin):
             request.billing_locked = False
             if not org.is_service_active:
                 if not org.is_payment_hold:
-                    logout(request)
-                    messages.error(request, "This organization's access has been suspended. Contact support.")
-                    return redirect("accounts:login")
+                    return redirect("accounts:suspended")
                 request.billing_locked = True
                 if not self.allow_when_locked:
                     return redirect("finance:billing")
+            elif billing_services.is_account_suspended(org):
+                return redirect("accounts:suspended")
             elif not billing_services.has_active_access(org):
                 request.billing_locked = True
                 if not self.allow_when_locked:
@@ -263,6 +263,8 @@ class BillingView(TenantLoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         org = self.request.user.organization
+        if org is None:
+            return context
         payment_hold = org.is_payment_hold
         lapsed = not billing_services.has_active_access(org)
         locked = payment_hold or lapsed
@@ -281,11 +283,30 @@ class BillingView(TenantLoginRequiredMixin, TemplateView):
             .aggregate(t=Sum("amount_due"))["t"]
             or 0
         )
+        subscription = billing_services.get_current_subscription(org.id)
+        # Same gross -> discount -> net the public pricing section shows for
+        # this plan, and what a renewal invoice bills (services._renewal_amount).
+        # CUSTOM cycles have no plan-defined price, so nothing to break down.
+        plan_pricing = None
+        if subscription is not None and subscription.billing_cycle != subscription.BillingCycle.CUSTOM:
+            plan = subscription.plan
+            yearly = subscription.billing_cycle == subscription.BillingCycle.YEARLY
+            gross = plan.yearly_price if yearly else plan.monthly_price
+            net = plan.effective_yearly_price if yearly else plan.effective_monthly_price
+            if gross:
+                plan_pricing = {
+                    "gross": gross,
+                    "discount": gross - net,
+                    "discount_percent": plan.yearly_discount_percent if yearly else plan.monthly_discount_percent,
+                    "net": net,
+                    "period": "year" if yearly else "month",
+                }
         context.update(
             {
                 "active_nav": "billing",
                 "organization": org,
-                "subscription": billing_services.get_current_subscription(org.id),
+                "subscription": subscription,
+                "plan_pricing": plan_pricing,
                 "invoices": invoices,
                 "payments": Payment.objects.filter(organization_id=org.id).order_by("-payment_date")[:15],
                 "outstanding": outstanding,

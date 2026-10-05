@@ -1,5 +1,9 @@
 <div class="relative searchable-dropdown" data-select-id="{{ widget.attrs.id }}">
-  <select{% include "django/forms/widgets/attrs.html" %}>{% include "django/forms/widgets/select_options.html" %}</select>
+  <select name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %}>{% for group_name, group_choices, group_index in widget.optgroups %}{% if group_name %}
+    <optgroup label="{{ group_name }}">{% endif %}{% for option in group_choices %}
+    {% include option.template_name with widget=option %}{% endfor %}{% if group_name %}
+    </optgroup>{% endif %}{% endfor %}
+  </select>
   <input type="text" class="searchable-dropdown-search" autocomplete="off" placeholder="{{ search_placeholder }}" aria-label="Search">
   <div class="combobox-options hidden searchable-dropdown-options"></div>
 </div>

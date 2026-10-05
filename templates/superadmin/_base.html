@@ -165,6 +165,36 @@
   /* Without this, the open dropdown list falls back to the browser's
      native (light) popup styling — white text on white until hovered. */
   select.sa-input option, .sa-input option { background: #111318; color: #e2e8f0; padding: 0.5rem; }
+  /* Searchable dropdowns (SearchableChoiceWidget): the visible search box
+     fills the whole field like any other .sa-input; the real <select> (and
+     the generic bai-select wrapper around it) stays in the DOM, hidden. */
+  .searchable-dropdown { position: relative; width: 100%; display: block; }
+  .searchable-dropdown > select, .searchable-dropdown > .bai-select-wrap { display: none !important; }
+  .searchable-dropdown-search {
+    display: block; width: 100%; box-sizing: border-box; margin-top: 0.25rem; border-radius: 0.4rem;
+    border: 1px solid rgba(255,255,255,0.1); background-color: rgba(255,255,255,0.03);
+    padding: 0.65rem 2.25rem 0.65rem 0.85rem; font-size: 0.83rem; color: #e2e8f0; outline: none; cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 0.8rem center; background-size: 1rem;
+  }
+  .searchable-dropdown-search:hover { border-color: rgba(245,158,11,0.35); background-color: rgba(255,255,255,0.05); }
+  .searchable-dropdown-search:focus { border-color: rgba(245,158,11,0.5); box-shadow: 0 0 0 3px rgba(245,158,11,0.12); }
+  .combobox-options {
+    position: absolute; z-index: 40; top: 100%; left: 0; right: 0; margin-top: 0.375rem;
+    max-height: 14rem; overflow-y: auto; border-radius: 0.5rem;
+    border: 1px solid rgba(255,255,255,0.1); background: #111318; box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  }
+  .combobox-options.hidden { display: none; }
+  .combobox-option { display: block; width: 100%; text-align: left; padding: 0.55rem 0.9rem; font-size: 0.83rem; color: #e2e8f0; background: transparent; border: none; cursor: pointer; }
+  .combobox-option:hover, .combobox-option--active { background: rgba(245,158,11,0.15); color: #fff; }
+  .combobox-empty { padding: 0.6rem 0.9rem; font-size: 0.8rem; color: #64748b; }
+  html[data-theme="light"] .searchable-dropdown-search {
+    border-color: rgba(15,23,42,0.12); background-color: rgba(15,23,42,0.015); color: #0f172a;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  html[data-theme="light"] .combobox-options { border-color: rgba(15,23,42,0.1); background: #ffffff; box-shadow: 0 10px 30px rgba(15,23,42,0.14); }
+  html[data-theme="light"] .combobox-option { color: #334155; }
+  html[data-theme="light"] .combobox-option:hover, html[data-theme="light"] .combobox-option--active { background: rgba(217,119,6,0.12); color: #92400e; }
   .sa-field-label { display: block; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #6b7280; margin-bottom: 0.15rem; }
   .sa-errorlist { color: #f87171; font-size: 0.75rem; margin-top: 0.2rem; list-style: none; padding: 0; }
 

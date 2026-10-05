@@ -57,6 +57,7 @@
     <p class="mt-1 text-2xl font-bold text-slate-100"><span id="ps-total" class="sa-mono">₹0</span></p>
     <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-400 sm:max-w-sm">
       <dt>Amount</dt><dd id="ps-subtotal" class="sa-mono text-right text-slate-300">₹0</dd>
+      <dt>Organization discount</dt><dd id="ps-orgdisc" class="sa-mono text-right text-emerald-300">— ₹0</dd>
       <dt id="ps-coupon-label">Coupon</dt><dd id="ps-coupon" class="sa-mono text-right text-emerald-300">— ₹0</dd>
       <dt>Extra discount</dt><dd id="ps-discount" class="sa-mono text-right text-emerald-300">— ₹0</dd>
       <dt>Tax</dt><dd id="ps-tax" class="sa-mono text-right text-slate-300">+ ₹0</dd>
@@ -71,6 +72,8 @@
 </form>
 
 {{ coupon_data|json_script:"coupon-data" }}
+{{ org_discount_data|json_script:"org-discount-data" }}
+{{ org_cycle_data|json_script:"org-cycle-data" }}
 <script>
   // Progressive enhancement: turns a plain <select> into a type-to-search
   // combobox. The real <select> stays in the DOM (just visually hidden) so
@@ -164,8 +167,45 @@
     });
   })();
 
+  // Service period auto-fills from the invoice date + the client's billing cycle
+  // until the admin edits either date by hand.
+  (function () {
+    const cycles = JSON.parse(document.getElementById("org-cycle-data").textContent);
+    const $ = (id) => document.getElementById(id);
+    const start = $("id_service_billing_start_date"), end = $("id_service_billing_end_date");
+    const invDate = $("id_invoice_date"), orgSel = $("id_organization");
+    if (!start || !end || !invDate) return;
+    const fixedOrg = "{{ org.pk|default:"" }}";
+    const iso = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    let startDirty = false, endDirty = false;
+    // A value already present on load (server default or a re-rendered form) counts as the starting point;
+    // only manual typing marks a field as edited.
+    start.addEventListener("input", () => { startDirty = true; });
+    end.addEventListener("input", () => { endDirty = true; });
+
+    function fill() {
+      const base = invDate.value;
+      if (!base) return;
+      const orgId = orgSel ? orgSel.value : fixedOrg;
+      const months = cycles[orgId] === "YEARLY" ? 12 : 1;
+      const [y, m, d] = base.split("-").map(Number);
+      const first = new Date(y, m - 1, d);
+      const target = new Date(y, m - 1 + months, 1);
+      const last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+      const next = new Date(target.getFullYear(), target.getMonth(), Math.min(d, last));
+      next.setDate(next.getDate() - 1);
+      if (!startDirty) start.value = iso(first);
+      if (!endDirty) end.value = iso(next);
+    }
+    invDate.addEventListener("change", fill);
+    invDate.addEventListener("input", fill);
+    if (orgSel) orgSel.addEventListener("change", fill);
+    if (!start.value && !end.value) fill();
+  })();
+
   (function () {
     const coupons = JSON.parse(document.getElementById("coupon-data").textContent);
+    const orgDiscounts = JSON.parse(document.getElementById("org-discount-data").textContent);
     const $ = (id) => document.getElementById(id);
     const num = (el) => { const v = parseFloat(el && el.value); return Number.isFinite(v) && v > 0 ? v : 0; };
     const money = (n) => "₹" + Math.round(n).toLocaleString("en-IN");
@@ -184,12 +224,17 @@
       const subtotal = num($("id_subtotal"));
       const select = $("id_coupon");
       const coupon = select && coupons.find((c) => String(c.id) === select.value);
-      const couponOff = couponDiscount(coupon, subtotal);
+      const orgSel = $("id_organization");
+      const orgId = orgSel ? orgSel.value : "{{ org.pk|default:"" }}";
+      const orgOff = parseFloat(orgDiscounts[String(orgId)]) || 0;
       const extra = num($("id_discount"));
+      // Mirrors services._apply_coupon: the coupon works on what's left after the other discounts.
+      const couponOff = couponDiscount(coupon, Math.max(subtotal - orgOff - extra, 0));
       const tax = num($("id_tax"));
-      const total = Math.max(subtotal - couponOff - extra + tax, 0);
+      const total = Math.max(subtotal - orgOff - couponOff - extra + tax, 0);
 
       $("ps-subtotal").textContent = money(subtotal);
+      $("ps-orgdisc").textContent = "— " + money(orgOff);
       $("ps-coupon-label").textContent = coupon ? "Coupon " + coupon.code : "Coupon";
       $("ps-coupon").textContent = "— " + money(couponOff);
       $("ps-discount").textContent = "— " + money(extra);
@@ -198,15 +243,15 @@
 
       const note = $("ps-note");
       const notes = [];
-      if (coupon && coupon.type === "FIXED_PRICE" && subtotal > 0 && subtotal <= parseFloat(coupon.value)) {
+      if (coupon && coupon.type === "FIXED_PRICE" && subtotal > 0 && subtotal - orgOff - extra <= parseFloat(coupon.value)) {
         notes.push("This amount is already at or below the coupon's fixed price, so the coupon takes nothing off.");
       }
-      if (subtotal - couponOff - extra < 0) notes.push("Discounts are larger than the amount, so the invoice total is shown as zero.");
+      if (subtotal - orgOff - couponOff - extra < 0) notes.push("Discounts are larger than the amount, so the invoice total is shown as zero.");
       note.textContent = notes.join(" ");
       note.classList.toggle("hidden", notes.length === 0);
     }
 
-    ["id_subtotal", "id_coupon", "id_discount", "id_tax"].forEach((id) => {
+    ["id_subtotal", "id_organization", "id_coupon", "id_discount", "id_tax"].forEach((id) => {
       const el = $(id);
       if (el) { el.addEventListener("input", update); el.addEventListener("change", update); }
     });

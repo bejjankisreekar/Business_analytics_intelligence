@@ -36,7 +36,7 @@
       <label class="sa-field-label" for="{{ form.price.id_for_label }}">Price (₹)</label>
       {{ form.price }}
       {% for e in form.price.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
-      <p class="mt-1 text-[11px] text-slate-600">Auto-fills from the selected plan/cycle — edit it afterward for a custom price.</p>
+      <p class="mt-1 text-[11px] text-slate-600">Price and Discount auto-fill from the selected plan/cycle — edit them afterward for a custom price.</p>
     </div>
     <div>
       <label class="sa-field-label" for="{{ form.discount.id_for_label }}">Discount (₹)</label>
@@ -79,11 +79,12 @@
 
 <script>
 (function () {
-  // id -> {monthly, yearly} for every plan, so picking a plan/cycle here
-  // fills Price and Autopay amount without a round-trip. Mirrors
-  // Plan.monthly_price/yearly_price — the *list* price, not any per-org
-  // discount, since this is a starting point the admin can still edit
-  // afterward.
+  // id -> {monthly, yearly, monthly_discount, yearly_discount} for every
+  // plan, so picking a plan/cycle here fills Price, Discount and Autopay
+  // amount without a round-trip. Price is Plan.monthly_price/yearly_price
+  // (the list price) and Discount is the plan's own discount on it — same
+  // as services.create_subscription — as a starting point the admin can
+  // still edit afterward.
   var PLAN_PRICES = {{ plan_prices_json|safe }};
 
   var planSelect = document.getElementById("{{ form.plan.id_for_label }}");
@@ -119,11 +120,12 @@
   function fillPrice() {
     var prices = PLAN_PRICES[planSelect.value];
     if (!prices) return;
-    var amount = cycleSelect.value === "YEARLY" ? prices.yearly
-      : cycleSelect.value === "MONTHLY" ? prices.monthly
+    var cycle = cycleSelect.value === "YEARLY" ? "yearly"
+      : cycleSelect.value === "MONTHLY" ? "monthly"
       : null; // CUSTOM billing cycle has no plan-defined price — leave Price as-is.
-    if (amount === null) return;
-    priceInput.value = amount;
+    if (cycle === null) return;
+    priceInput.value = prices[cycle];
+    discountInput.value = prices[cycle + "_discount"];
     refreshFinalAmount();
   }
 

@@ -16,6 +16,8 @@ def create_invoice(
     currency="INR",
     invoice_date=None,
     due_date=None,
+    service_billing_start_date=None,
+    service_billing_end_date=None,
     status: str = Invoice.Status.ISSUED,
 ) -> Invoice:
     invoice_date = invoice_date or timezone.localdate()
@@ -25,6 +27,8 @@ def create_invoice(
         subscription=subscription,
         invoice_date=invoice_date,
         due_date=due_date,
+        service_billing_start_date=service_billing_start_date,
+        service_billing_end_date=service_billing_end_date,
         currency=currency,
         subtotal=subtotal,
         discount=discount,

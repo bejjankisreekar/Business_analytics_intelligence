@@ -23,7 +23,7 @@
 {% elif outstanding > 0 %}
 <div class="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
   <p class="text-sm font-semibold text-amber-300">Outstanding balance: {{ organization.currency }} {{ outstanding|floatformat:0|intcomma }}</p>
-  <p class="mt-1 text-xs text-amber-200/80">Please arrange payment to keep your service active.</p>
+  <p class="mt-1 text-xs text-amber-700 dark:text-amber-200/80">Please arrange payment to keep your service active.</p>
 </div>
 {% endif %}
 
@@ -47,6 +47,24 @@
     <div><dt class="text-xs text-slate-500">Billing cycle</dt><dd class="mt-0.5 text-slate-200">{{ subscription.get_billing_cycle_display }}</dd></div>
     <div><dt class="text-xs text-slate-500">{% if subscription.status == "TRIAL" %}Trial ends{% else %}Renews / ends{% endif %}</dt><dd class="mt-0.5 text-slate-200">{{ subscription.trial_end_date|default:subscription.end_date|date:"d M Y"|default:"—" }}</dd></div>
   </dl>
+  {% if plan_pricing %}
+  <dl class="mt-4 max-w-sm border-t border-white/5 pt-4 text-sm">
+    <div class="flex items-baseline justify-between py-1">
+      <dt class="text-slate-400">Gross amount</dt>
+      <dd class="text-slate-200">{{ organization.currency }} {{ plan_pricing.gross|floatformat:0|intcomma }}</dd>
+    </div>
+    {% if plan_pricing.discount > 0 %}
+    <div class="flex items-baseline justify-between py-1">
+      <dt class="text-slate-400">Discount <span class="text-xs text-mint-400">({{ plan_pricing.discount_percent }}% off)</span></dt>
+      <dd class="text-mint-400">− {{ organization.currency }} {{ plan_pricing.discount|floatformat:0|intcomma }}</dd>
+    </div>
+    {% endif %}
+    <div class="mt-1 flex items-baseline justify-between border-t border-white/5 pt-2">
+      <dt class="font-semibold text-white">Net amount</dt>
+      <dd class="font-bold text-white">{{ organization.currency }} {{ plan_pricing.net|floatformat:0|intcomma }} <span class="text-xs font-normal text-slate-500">/ {{ plan_pricing.period }}</span></dd>
+    </div>
+  </dl>
+  {% endif %}
   {% else %}
   <p class="mt-3 text-sm text-slate-500">No subscription on file — contact support.</p>
   {% endif %}
@@ -88,51 +106,37 @@
         <th class="pb-2 pr-4 font-medium">Invoice #</th>
         <th class="pb-2 pr-4 font-medium">Date</th>
         <th class="pb-2 pr-4 font-medium">Due</th>
-        <th class="pb-2 pr-4 font-medium">Total</th>
-        <th class="pb-2 pr-4 font-medium">Due amount</th>
+        <th class="pb-2 pr-4 font-medium">Amount</th>
+        <th class="pb-2 pr-4 font-medium">Discount</th>
+        <th class="pb-2 pr-4 font-medium">Payable</th>
         <th class="pb-2 pr-4 font-medium">Status</th>
-        <th class="pb-2 pr-4 font-medium">Coupon</th>
         <th class="pb-2 font-medium"></th>
       </tr>
     </thead>
     <tbody class="divide-y divide-white/5">
       {% for inv in invoices %}
       <tr>
-        <td class="py-2.5 pr-4 text-slate-300">{{ inv.invoice_number }}</td>
-        <td class="py-2.5 pr-4 text-slate-400">{{ inv.invoice_date|date:"d M Y" }}</td>
-        <td class="py-2.5 pr-4 text-slate-400">{{ inv.due_date|date:"d M Y" }}</td>
-        <td class="py-2.5 pr-4 font-medium text-white">
-          {% if inv.discount > 0 %}<span class="mr-1 text-xs font-normal text-slate-500 line-through">{{ organization.currency }} {{ inv.subtotal|floatformat:0|intcomma }}</span>{% endif %}{{ organization.currency }} {{ inv.total|floatformat:0|intcomma }}
-        </td>
-        <td class="py-2.5 pr-4 {% if inv.amount_due > 0 %}font-medium text-red-400{% else %}text-slate-400{% endif %}">{{ organization.currency }} {{ inv.amount_due|floatformat:0|intcomma }}</td>
-        <td class="py-2.5 pr-4">
+        <td class="py-3 pr-4 text-slate-300 font-medium">{{ inv.invoice_number }}</td>
+        <td class="py-3 pr-4 text-slate-400 whitespace-nowrap">{{ inv.invoice_date|date:"d M Y" }}</td>
+        <td class="py-3 pr-4 text-slate-400 whitespace-nowrap">{{ inv.due_date|date:"d M Y" }}</td>
+        <td class="py-3 pr-4 text-slate-300">{{ organization.currency }} {{ inv.subtotal|floatformat:0|intcomma }}</td>
+        <td class="py-3 pr-4 {% if inv.discount > 0 %}text-mint-400 font-medium{% else %}text-slate-600{% endif %}">{% if inv.discount > 0 %}− {{ organization.currency }} {{ inv.discount|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+        <td class="py-3 pr-4 {% if inv.amount_due > 0 %}font-bold text-red-400{% else %}text-slate-400{% endif %}">{{ organization.currency }} {{ inv.amount_due|floatformat:0|intcomma }}</td>
+        <td class="py-3 pr-4">
           <span class="rounded-full px-2 py-0.5 text-[11px] font-medium
             {% if inv.status == "PAID" %}bg-mint-500/10 text-mint-400
             {% elif inv.status == "OVERDUE" %}bg-red-500/10 text-red-400
             {% elif inv.status == "PARTIALLY_PAID" or inv.status == "ISSUED" %}bg-brand-500/10 text-brand-400
             {% else %}bg-white/5 text-slate-400{% endif %}">{{ inv.get_status_display }}</span>
         </td>
-        <td class="py-2.5 pr-4">
-          {% if inv.coupon_redemption %}
-          <span class="rounded-full bg-mint-500/10 px-2 py-0.5 text-[11px] font-medium text-mint-400" title="{{ organization.currency }} {{ inv.coupon_redemption.discount_amount|floatformat:0|intcomma }} off">{{ inv.coupon_redemption.coupon.code }} ✓</span>
-          {% elif inv.amount_due > 0 and inv.amount_paid == 0 and inv.status != "PAID" and inv.status != "CANCELLED" %}
-          <form method="post" action="{% url 'finance:apply_coupon' inv.pk %}" class="flex items-center gap-1.5">
-            {% csrf_token %}
-            <input type="text" name="code" placeholder="Code" class="!mt-0 !w-24 !py-1 !text-xs uppercase">
-            <button type="submit" class="whitespace-nowrap rounded-lg border border-white/10 px-2 py-1 text-[11px] font-medium text-slate-300 hover:bg-white/5">Apply</button>
-          </form>
-          {% else %}
-          <span class="text-xs text-slate-600">—</span>
-          {% endif %}
-        </td>
-        <td class="py-2.5 whitespace-nowrap">
+        <td class="py-3 pr-4 whitespace-nowrap">
           <div class="flex items-center gap-2">
-            <a href="{% url 'finance:invoice_detail' inv.pk %}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">View invoice</a>
+            <a href="{% url 'finance:invoice_detail' inv.pk %}" class="rounded-lg border border-white/10 px-2 py-1 text-xs font-medium text-slate-300 hover:bg-white/5">View</a>
             {% if inv.amount_due > 0 and inv.status != "CANCELLED" %}
               {% if razorpay_configured %}
-              <button type="button" onclick="bai.payInvoice('{{ inv.pk }}', this)" class="btn-primary !px-3 !py-1.5 text-xs">Pay Now</button>
+              <button type="button" onclick="bai.payInvoice('{{ inv.pk }}', this)" class="btn-primary !px-2 !py-1 text-xs">Pay</button>
               {% elif inv.amount_due == razorpay_payment_button_amount %}
-              <a href="{% static 'img/upi-qr.png' %}" target="_blank" rel="noopener" class="btn-primary !px-3 !py-1.5 text-xs" title="Scan this QR to pay {{ organization.currency }} {{ razorpay_payment_button_amount }} via UPI — not linked to this invoice automatically, we'll confirm it manually.">QR Pay Now</a>
+              <a href="{% static 'img/upi-qr.png' %}" target="_blank" rel="noopener" class="btn-primary !px-2 !py-1 text-xs" title="QR code to pay via UPI">QR</a>
               {% endif %}
             {% endif %}
           </div>
@@ -143,6 +147,28 @@
       {% endfor %}
     </tbody>
   </table>
+
+  {% if invoices %}
+  <div class="mt-4 space-y-2">
+    {% for inv in invoices %}
+    {% if inv.coupon_redemption %}
+    <div class="flex items-center justify-between gap-3 rounded border border-white/5 bg-white/2 p-3 text-sm">
+      <span class="text-slate-400">{{ inv.invoice_number }}</span>
+      <span class="rounded-full bg-mint-500/10 px-2 py-0.5 text-[11px] font-medium text-mint-400" title="{{ organization.currency }} {{ inv.coupon_redemption.discount_amount|floatformat:0|intcomma }} off">{{ inv.coupon_redemption.coupon.code }} ✓</span>
+    </div>
+    {% elif inv.amount_due > 0 and inv.amount_paid == 0 and inv.status != "PAID" and inv.status != "CANCELLED" %}
+    <div class="flex items-center justify-between gap-3 rounded border border-white/5 bg-white/2 p-3 text-sm">
+      <span class="text-slate-400">{{ inv.invoice_number }}</span>
+      <form method="post" action="{% url 'finance:apply_coupon' inv.pk %}" class="flex items-center gap-2">
+        {% csrf_token %}
+        <input type="text" name="code" placeholder="Coupon code" class="!mt-0 !w-32 !py-1 !text-xs uppercase" autocomplete="off">
+        <button type="submit" class="whitespace-nowrap rounded-lg border border-white/10 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-white/5">Apply</button>
+      </form>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 
 <div class="card mt-5 overflow-x-auto p-5">

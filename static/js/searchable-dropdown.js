@@ -58,6 +58,7 @@ function initializeSearchableDropdowns() {
       if (!btn) return;
       e.preventDefault();
       select.value = btn.dataset.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
       searchInput.value = btn.textContent;
       closeList();
     });
@@ -78,6 +79,7 @@ function initializeSearchableDropdowns() {
         const first = optionsList.querySelector('[data-value]');
         if (first) {
           select.value = first.dataset.value;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
           searchInput.value = first.textContent;
           closeList();
         }

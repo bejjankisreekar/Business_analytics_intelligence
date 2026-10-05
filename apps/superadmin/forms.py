@@ -222,9 +222,20 @@ class SubscriptionActionForm(forms.Form):
     billing_cycle = forms.ChoiceField(choices=Subscription.BillingCycle.choices, widget=SearchableChoiceWidget(search_placeholder="Search billing cycle..."))
     start_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     price = forms.DecimalField(required=False, min_value=0, help_text="Leave blank to use the plan's price.")
-    discount = forms.DecimalField(required=False, min_value=0, initial=0)
+    discount = forms.DecimalField(
+        required=False, min_value=0, initial=0,
+        help_text="With a blank price and 0 here, the plan's own discount is applied.",
+    )
     tax = forms.DecimalField(required=False, min_value=0, initial=0)
-    status = forms.ChoiceField(choices=Subscription.Status.choices, widget=SearchableChoiceWidget(search_placeholder="Search status..."))
+    # Payment Due / Past Due are set by the system when a period lapses unpaid, not picked by hand.
+    status = forms.ChoiceField(
+        choices=[
+            (value, label) for value, label in Subscription.Status.choices
+            if value in (Subscription.Status.TRIAL, Subscription.Status.ACTIVE,
+                         Subscription.Status.EXPIRED, Subscription.Status.SUSPENDED)
+        ],
+        widget=SearchableChoiceWidget(search_placeholder="Search status..."),
+    )
     payment_status = forms.ChoiceField(choices=Subscription.PaymentStatus.choices, widget=SearchableChoiceWidget(search_placeholder="Search payment status..."))
     auto_renewal = forms.BooleanField(required=False, initial=True)
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
@@ -416,6 +427,8 @@ class CreateInvoiceForm(forms.Form):
     tax = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0)
     invoice_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     due_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    service_billing_start_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="Service billing start date")
+    service_billing_end_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="Service billing end date")
     status = forms.ChoiceField(choices=Invoice.Status.choices, initial=Invoice.Status.ISSUED, widget=SearchableChoiceWidget(search_placeholder="Search status..."))
 
     def __init__(self, *args, using="default", organization=None, **kwargs):
@@ -495,6 +508,8 @@ class GenerateInvoiceForm(forms.Form):
     tax = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0)
     invoice_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     due_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    service_billing_start_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="Service billing start date")
+    service_billing_end_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="Service billing end date")
     status = forms.ChoiceField(
         choices=[(Invoice.Status.ISSUED, "Issued - visible and payable now"),
                  (Invoice.Status.DRAFT, "Draft - not counted as due yet")],

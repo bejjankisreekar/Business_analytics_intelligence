@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import EmailMultiAlternatives
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
@@ -26,6 +26,7 @@ from .forms import (
     OrganizationProfileForm,
     OrganizationSignupForm,
     ProfileForm,
+    ResetManagerPasswordForm,
     ResetPasswordForm,
 )
 from .manager_service import ManagerAccountError, validate_manager_account_creation
@@ -208,6 +209,33 @@ class ProfileView(LoginRequiredMixin, View):
         drive_connection = None
         if can_edit_org and is_sheets_org:
             drive_connection = getattr(user.organization, "cloud_backup", None)
+
+        # Manager account information
+        manager_account = None
+        can_create_manager = False
+        show_manager_button = False
+        disable_manager_button = False
+        if can_edit_org:
+            manager_account = User.objects.filter(
+                organization=user.organization,
+                role=User.Role.MANAGER
+            ).first()
+
+            from .manager_service import can_organization_have_manager_accounts
+            current_subscription = user.organization.subscriptions.filter(is_current=True).first()
+            plan_slug = current_subscription.plan.slug.lower() if current_subscription else ""
+
+            # Determine if button should be shown and enabled/disabled
+            is_business = "business" in plan_slug
+            is_professional = "professional" in plan_slug
+            is_eligible = can_organization_have_manager_accounts(user.organization)
+
+            # Always show the button to org owners; it is disabled when the plan
+            # doesn't allow manager accounts (Professional allows only 1 account).
+            show_manager_button = True
+            can_create_manager = is_eligible and not is_professional and manager_account is None
+            disable_manager_button = not can_create_manager
+
         return {
             "user_form": user_form,
             "org_form": org_form,
@@ -223,6 +251,10 @@ class ProfileView(LoginRequiredMixin, View):
             "can_switch_to_our_database": can_edit_org and is_sheets_org and bool(drive_connection),
             "can_connect_drive": can_edit_org and is_sheets_org and drive.is_configured(),
             "drive_connection": drive_connection,
+            "manager_account": manager_account,
+            "can_create_manager": can_create_manager,
+            "show_manager_button": show_manager_button,
+            "disable_manager_button": disable_manager_button,
         }
 
     def get(self, request, *args, **kwargs):
@@ -248,7 +280,7 @@ class ExportFinanceDataExcelView(LoginRequiredMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        from django.http import Http404, HttpResponse
+        from django.http import Http404, JsonResponse, HttpResponse
 
         from apps.organizations.exports import build_finance_excel_bytes
 
@@ -305,7 +337,7 @@ class ConnectGoogleDriveView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         import secrets
 
-        from django.http import Http404, HttpResponseRedirect
+        from django.http import Http404, JsonResponse, HttpResponseRedirect
         from django.urls import reverse
 
         from apps.organizations import google_drive_client as drive
@@ -435,7 +467,7 @@ class SwitchToOurDatabaseView(LoginRequiredMixin, View):
     to go through since creating the new Sheet needs a fresh consent)."""
 
     def post(self, request, *args, **kwargs):
-        from django.http import Http404
+        from django.http import Http404, JsonResponse
 
         from apps.organizations import google_drive_client as drive
         from apps.organizations.encryption import decrypt_secret
@@ -473,7 +505,7 @@ class SwitchToOurDatabaseView(LoginRequiredMixin, View):
 
 class DisconnectGoogleDriveView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
-        from django.http import Http404
+        from django.http import Http404, JsonResponse
         from django.utils import timezone
 
         from apps.organizations import google_drive_client as drive
@@ -512,6 +544,34 @@ class DisconnectGoogleDriveView(LoginRequiredMixin, View):
                 connection.delete()
         messages.success(request, "Google Drive disconnected.")
         return redirect("accounts:profile")
+
+
+class ResetManagerPasswordView(LoginRequiredMixin, View):
+    """JSON endpoint behind the profile page's "Reset manager password" pop-up."""
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        if not user.organization_id or user.role not in (User.Role.OWNER, User.Role.ADMIN):
+            return JsonResponse({"errors": {"__all__": ["You don't have permission to do this."]}}, status=403)
+        manager = User.objects.filter(organization=user.organization, role=User.Role.MANAGER).first()
+        if manager is None:
+            return JsonResponse({"errors": {"__all__": ["No manager account to reset."]}}, status=404)
+        form = ResetManagerPasswordForm(request.POST)
+        if not form.is_valid():
+            return JsonResponse({"errors": {k: [str(e) for e in v] for k, v in form.errors.items()}}, status=400)
+        manager.set_password(form.cleaned_data["new_password"])
+        manager.save(update_fields=["password"])
+        return JsonResponse({"ok": True, "message": f"Password reset for {manager.email}."})
+
+
+class SuspendedView(LoginRequiredMixin, View):
+    """The one screen a suspended organization's users ever see."""
+
+    def get(self, request, *args, **kwargs):
+        org = request.user.organization
+        if org is None or not billing_services.is_account_suspended(org):
+            return redirect("finance:dashboard")
+        return render(request, "accounts/suspended.html", {"org": org})
 
 
 class LogoutView(LoginRequiredMixin, View):

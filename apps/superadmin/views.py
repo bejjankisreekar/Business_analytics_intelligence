@@ -791,11 +791,18 @@ class SubscriptionEditView(SuperAdminRequiredMixin, View):
         )
 
     def _plan_prices_json(self, env):
-        """id -> {monthly, yearly} for every plan selectable in the form,
-        so the page's own JS can fill Price from the chosen plan/cycle
-        without a round-trip — see subscription_form.html."""
+        """id -> {monthly, yearly, monthly_discount, yearly_discount} for
+        every plan selectable in the form, so the page's own JS can fill
+        Price and Discount from the chosen plan/cycle without a round-trip
+        — see subscription_form.html. The discounts are the plan's own
+        (list price minus effective price), in rupees."""
         return json.dumps({
-            str(p.pk): {"monthly": str(p.monthly_price), "yearly": str(p.yearly_price)}
+            str(p.pk): {
+                "monthly": str(p.monthly_price),
+                "yearly": str(p.yearly_price),
+                "monthly_discount": str(p.monthly_price - p.effective_monthly_price),
+                "yearly_discount": str(p.yearly_price - p.effective_yearly_price),
+            }
             for p in Plan.objects.using(env).all()
         })
 
@@ -1084,6 +1091,13 @@ class PaymentEditView(SuperAdminRequiredMixin, View):
         return redirect(next_url or reverse("superadmin:payment_list", args=[env]))
 
 
+def _add_months(d, months):
+    """`d` moved forward by whole months, clamped to the target month's last day."""
+    index = d.month - 1 + months
+    year, month = d.year + index // 12, index % 12 + 1
+    return d.replace(year=year, month=month, day=min(d.day, calendar.monthrange(year, month)[1]))
+
+
 class InvoiceGenerateView(SuperAdminRequiredMixin, View):
     """Generate an invoice for one specific client (optionally with a coupon).
     Reached from the client's page (client fixed) or from the invoice list
@@ -1100,6 +1114,9 @@ class InvoiceGenerateView(SuperAdminRequiredMixin, View):
             if sub is not None:
                 yearly = sub.billing_cycle == Subscription.BillingCycle.YEARLY
                 initial["subtotal"] = sub.plan.yearly_price if yearly else sub.plan.monthly_price
+                period_end = _add_months(today, 12 if yearly else 1) - datetime.timedelta(days=1)
+                initial["service_billing_start_date"] = today
+                initial["service_billing_end_date"] = period_end
         return initial
 
     def _render(self, request, env, form, org, sub):
@@ -1107,9 +1124,18 @@ class InvoiceGenerateView(SuperAdminRequiredMixin, View):
             {"id": c.pk, "code": c.code, "type": c.discount_type, "value": str(c.discount_value)}
             for c in Coupon.objects.using(env).filter(is_active=True)
         ]
+        # Organization discount = the discount set on each client's current subscription.
+        org_discounts = {
+            str(s.organization_id): str(s.discount)
+            for s in Subscription.objects.using(env).filter(is_current=True, discount__gt=0)
+        }
+        org_cycles = {
+            str(s.organization_id): s.billing_cycle
+            for s in Subscription.objects.using(env).filter(is_current=True)
+        }
         return render(request, self.template_name, {
             "env_key": env, "env_label": ENVIRONMENTS[env], "form": form, "org": org, "subscription": sub,
-            "coupon_data": coupons,
+            "coupon_data": coupons, "org_discount_data": org_discounts, "org_cycle_data": org_cycles,
         })
 
     def get(self, request, env, pk=None):
@@ -1137,12 +1163,16 @@ class InvoiceGenerateView(SuperAdminRequiredMixin, View):
         cd = form.cleaned_data
         org = cd["organization"]
         subscription = billing_services.get_current_subscription(org.id, using=env)
+        org_discount = (subscription.discount if subscription else 0) or 0
         try:
             with transaction.atomic(using=env):
                 invoice = invoicing.create_invoice(
                     org, using=env, subscription=subscription, subtotal=cd["subtotal"],
-                    discount=cd.get("discount") or 0, tax=cd.get("tax") or 0, currency=org.currency,
-                    invoice_date=cd["invoice_date"], due_date=cd["due_date"], status=cd["status"],
+                    discount=org_discount + (cd.get("discount") or 0), tax=cd.get("tax") or 0, currency=org.currency,
+                    invoice_date=cd["invoice_date"], due_date=cd["due_date"],
+                    service_billing_start_date=cd.get("service_billing_start_date"),
+                    service_billing_end_date=cd.get("service_billing_end_date"),
+                    status=cd["status"],
                 )
                 if cd.get("coupon"):
                     billing_services.apply_coupon_as_admin(coupon=cd["coupon"], invoice=invoice, using=env)
@@ -1300,6 +1330,8 @@ class CreateInvoiceView(SuperAdminRequiredMixin, View):
                 currency=org.currency,
                 invoice_date=data["invoice_date"],
                 due_date=data["due_date"],
+                service_billing_start_date=data.get("service_billing_start_date"),
+                service_billing_end_date=data.get("service_billing_end_date"),
                 status=data["status"],
             )
             messages.success(request, f"Created invoice {invoice.invoice_number} for {org.name}.")

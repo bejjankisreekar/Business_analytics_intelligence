@@ -231,6 +231,8 @@ class Invoice(models.Model):
 
     invoice_date = models.DateField()
     due_date = models.DateField()
+    service_billing_start_date = models.DateField(null=True, blank=True, help_text="Start date of the service period being billed")
+    service_billing_end_date = models.DateField(null=True, blank=True, help_text="End date of the service period being billed")
 
     currency = models.CharField(max_length=8, default="INR")
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)

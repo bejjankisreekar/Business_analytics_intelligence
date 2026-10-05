@@ -17,22 +17,27 @@ def can_organization_have_manager_accounts(organization: Organization) -> bool:
         return False
 
     plan_slug = current_subscription.plan.slug
-    return plan_slug in ("business", "business-drive")
+    # Accept paid/premium plans but exclude free and starter plans
+    # Plans like: smart-drive, enterprise, business-drive, pro, etc. are allowed
+    plan_lower = plan_slug.lower()
+    is_free = plan_lower in ("free", "complementary")
+    is_starter = plan_lower in ("starter", "basic")
+    has_premium = "business" in plan_lower or "enterprise" in plan_lower or "drive" in plan_lower or "pro" in plan_lower
+    return has_premium and not is_free and not is_starter
 
 
 def get_max_manager_accounts(organization: Organization) -> int:
     """Get the maximum number of manager accounts allowed for this organization.
 
-    Checks both the plan eligibility and the organization's manager_logins setting.
+    Driven by the organization's current plan.
     """
     if not can_organization_have_manager_accounts(organization):
         return 0
 
-    # manager_logins value indicates how many accounts are allowed
-    # 1 = just admin, 2 = admin + 1 manager
-    if organization.manager_logins >= 2:
-        return 1
-    return 0
+    # An eligible plan grants one manager slot. This deliberately does not read
+    # Organization.manager_logins: that is just the choice made at signup (default 1),
+    # so an org upgraded to Business later would otherwise never get a slot.
+    return 1
 
 
 def validate_manager_account_creation(organization: Organization) -> None:

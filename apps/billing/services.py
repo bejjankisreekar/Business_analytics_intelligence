@@ -77,7 +77,14 @@ def create_subscription(
     """
     start_date = start_date or timezone.localdate()
     if price is None:
-        price = plan.yearly_price if billing_cycle == Subscription.BillingCycle.YEARLY else plan.monthly_price
+        yearly = billing_cycle == Subscription.BillingCycle.YEARLY
+        price = plan.yearly_price if yearly else plan.monthly_price
+        # Falling back to the plan's list price also carries the plan's own
+        # discount (monthly_/yearly_discount_percent) — otherwise final_amount
+        # is the gross price, not what the pricing page says this plan costs.
+        # An explicit price or discount is a manual override and is left alone.
+        if not discount:
+            discount = price - (plan.effective_yearly_price if yearly else plan.effective_monthly_price)
     if end_date is None and billing_cycle != Subscription.BillingCycle.CUSTOM:
         days = 365 if billing_cycle == Subscription.BillingCycle.YEARLY else 30
         end_date = start_date + datetime.timedelta(days=days)
@@ -239,8 +246,27 @@ def has_active_access(organization, *, using: str = "default", as_of=None) -> bo
     return sub.end_date is None or sub.end_date >= as_of
 
 
+def is_account_suspended(organization, *, using: str = "default") -> bool:
+    """Suspended = the client may sign in but sees nothing except the "account
+    suspended" screen. True when the current subscription is SUSPENDED, or when
+    superadmin stopped the org's service for any reason other than a pending
+    payment (that one is a billing-only lock, see Organization.is_payment_hold)."""
+    if organization is None:
+        return False
+    if not organization.is_service_active and not organization.is_payment_hold:
+        return True
+    sub = get_current_subscription(organization.id, using=using)
+    return sub is not None and sub.status == Subscription.Status.SUSPENDED
+
+
 def _renewal_amount(sub: Subscription):
-    return sub.plan.yearly_price if sub.billing_cycle == Subscription.BillingCycle.YEARLY else sub.plan.monthly_price
+    """(gross, discount) for one renewal of `sub`: the plan's list price
+    and the plan's own discount on it, kept separate so the invoice shows
+    both (subtotal / discount / total) rather than only the net."""
+    yearly = sub.billing_cycle == Subscription.BillingCycle.YEARLY
+    gross = sub.plan.yearly_price if yearly else sub.plan.monthly_price
+    net = sub.plan.effective_yearly_price if yearly else sub.plan.effective_monthly_price
+    return gross, gross - net
 
 
 def ensure_renewal_invoice(organization, *, using: str = "default") -> None:
@@ -266,7 +292,7 @@ def ensure_renewal_invoice(organization, *, using: str = "default") -> None:
     ).exists()
 
     if not has_open_invoice:
-        amount = _renewal_amount(sub)
+        amount, discount = _renewal_amount(sub)
         if amount:
             today = timezone.localdate()
             invoicing.create_invoice(
@@ -274,6 +300,7 @@ def ensure_renewal_invoice(organization, *, using: str = "default") -> None:
                 using=using,
                 subscription=sub,
                 subtotal=amount,
+                discount=discount,
                 invoice_date=today,
                 due_date=today,
                 status=Invoice.Status.ISSUED,
@@ -321,17 +348,24 @@ def generate_upcoming_renewal_invoices(*, using: str = "default", lead_days: int
         if has_open_invoice:
             continue
 
-        amount = _renewal_amount(sub)
+        amount, discount = _renewal_amount(sub)
         if not amount:
             continue
 
+        # The period being billed starts where the current one ends and runs one billing cycle.
+        period_start = expiry
+        period_end = _one_cycle_after(period_start, sub.billing_cycle)
         invoicing.create_invoice(
             sub.organization,
             using=using,
             subscription=sub,
             subtotal=amount,
+            discount=discount + (sub.discount or 0),
+            tax=sub.tax or 0,
             invoice_date=today,
             due_date=expiry,
+            service_billing_start_date=period_start,
+            service_billing_end_date=period_end - datetime.timedelta(days=1),
             status=Invoice.Status.ISSUED,
         )
         created += 1
@@ -411,9 +445,9 @@ def redeem_coupon(
     *, organization, invoice: Invoice, code: str, using: str = "default", replace: bool = False
 ) -> CouponRedemption:
     """Apply a coupon code to one of this org's own outstanding invoices:
-    validates the code, computes its discount off the invoice's subtotal,
-    folds that into Invoice.discount (stacking with any manual discount
-    already on the invoice) and lets Invoice.save() recompute total/
+    validates the code, computes its discount off the invoice's subtotal
+    net of any discount already on it (plan or manual), folds that into
+    Invoice.discount on top of that existing discount and lets Invoice.save() recompute total/
     amount_due — the same total/amount_due CreateInvoicePaymentOrderView
     and Razorpay checkout read, so no other code needs to know a coupon
     was involved. Raises CouponError with a customer-facing message on
@@ -462,7 +496,10 @@ def redeem_coupon(
 
 
 def _apply_coupon(coupon: Coupon, organization, invoice: Invoice, *, using: str) -> CouponRedemption:
-    discount = coupon.discount_amount_for(invoice.subtotal)
+    # Computed against what's still payable after any discount already on
+    # the invoice (the plan's own, or a manual one) — not the raw subtotal —
+    # so "pay 999 instead" lands on 999 and the total can't go negative.
+    discount = coupon.discount_amount_for(invoice.subtotal - (invoice.discount or Decimal("0")))
     if discount <= 0:
         raise CouponError("This coupon doesn't apply any discount to this invoice.")
 
@@ -640,8 +677,15 @@ def record_subscription_charge(
     if sub is None:
         return
 
+    gross, discount = _renewal_amount(sub)
     invoice = invoicing.create_invoice(
-        sub.organization, using=using, subscription=sub, subtotal=amount, status=Invoice.Status.ISSUED
+        sub.organization,
+        using=using,
+        subscription=sub,
+        subtotal=gross,
+        discount=discount + (sub.discount or 0),
+        tax=sub.tax or 0,
+        status=Invoice.Status.ISSUED,
     )
     payment_services.record_payment(
         sub.organization,

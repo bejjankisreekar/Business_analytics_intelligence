@@ -316,7 +316,7 @@ class CouponAndPaymentHoldTests(SheetsBackedMixin, TestCase):
         self.org.refresh_from_db()
         self.assertTrue(self.org.is_service_active)   # resumed automatically
 
-    def test_other_suspension_reasons_still_block_sign_in(self):
+    def test_other_suspension_reasons_sign_in_but_only_see_suspended_page(self):
         from apps.accounts.forms import LoginForm
         from apps.accounts.models import User
         from apps.organizations import service_control
@@ -326,7 +326,12 @@ class CouponAndPaymentHoldTests(SheetsBackedMixin, TestCase):
         service_control.suspend_service(self.org, admin_email="sa@test.local", reason=ServiceStatusChange.Reason.SECURITY)
         self.org.refresh_from_db()
         self.assertFalse(self.org.is_payment_hold)
-        self.assertFalse(LoginForm({"email": owner.email, "password": "pw12345678"}).is_valid())
+        self.assertTrue(LoginForm({"email": owner.email, "password": "pw12345678"}).is_valid())
+        self.client.force_login(owner)
+        for url in ("/", "/billing/", "/accounts/profile/"):
+            resp = self.client.get(url)
+            self.assertRedirects(resp, "/accounts/suspended/", fetch_redirect_response=False)
+        self.assertContains(self.client.get("/accounts/suspended/"), "Your account has been suspended")
 
 
 class RenewalAutomationTests(SheetsBackedMixin, TestCase):
