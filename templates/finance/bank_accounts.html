@@ -50,7 +50,7 @@
               {% csrf_token %}
               <button type="submit" class="text-xs font-medium text-slate-500 hover:text-white">{% if a.is_active %}Deactivate{% else %}Activate{% endif %}</button>
             </form>
-            <form method="post" action="{% url 'finance:delete_bank_account' a.pk %}" onsubmit="return confirm('Delete this bank account? Past entries logged against it keep their amount but lose this attribution.');">
+            <form method="post" action="{% url 'finance:delete_bank_account' a.pk %}" data-confirm="Delete this bank account? Past entries logged against it keep their amount but lose this attribution.">
               {% csrf_token %}
               <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
             </form>

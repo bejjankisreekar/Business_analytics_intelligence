@@ -175,6 +175,108 @@
 {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-ink-950 text-slate-200 antialiased">
+<style>
+  #bai-loader{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,.45);backdrop-filter:blur(2px)}
+  #bai-loader.on{display:flex}
+  #bai-loader .bai-spin{width:48px;height:48px;border-radius:50%;border:4px solid rgba(148,163,184,.3);border-top-color:#3b82f6;animation:bai-rot .8s linear infinite}
+  #bai-loader-bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:100000;background:#3b82f6;box-shadow:0 0 8px #3b82f6;opacity:0;pointer-events:none}
+  #bai-loader-bar.on{opacity:1;width:85%;transition:width 8s cubic-bezier(.1,.7,.2,1)}
+  @keyframes bai-rot{to{transform:rotate(360deg)}}
+</style>
+<div id="bai-confirm" class="fixed inset-0 hidden items-center justify-center bg-black/60 backdrop-blur-sm px-4" style="z-index:100001" role="dialog" aria-modal="true" aria-labelledby="bai-confirm-msg">
+  <div class="w-full max-w-md rounded-xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <h3 class="text-base font-semibold text-white">Please confirm</h3>
+    <p id="bai-confirm-msg" class="mt-2 text-sm text-slate-300"></p>
+    <div class="mt-6 flex justify-end gap-3">
+      <button type="button" id="bai-confirm-cancel" class="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">Cancel</button>
+      <button type="button" id="bai-confirm-ok" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">Continue</button>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var box = document.getElementById("bai-confirm");
+    var msg = document.getElementById("bai-confirm-msg");
+    var ok = document.getElementById("bai-confirm-ok");
+    var cancel = document.getElementById("bai-confirm-cancel");
+    var onYes = null;
+    function close() { box.classList.add("hidden"); box.classList.remove("flex"); onYes = null; }
+    function open(text, danger, yes) {
+      msg.textContent = text;
+      ok.className = "rounded-lg px-4 py-2 text-sm font-semibold text-white " + (danger ? "bg-red-600 hover:bg-red-500" : "bg-blue-600 hover:bg-blue-500");
+      onYes = yes;
+      box.classList.remove("hidden"); box.classList.add("flex");
+      cancel.focus();
+    }
+    function isDanger(el) {
+      return el.hasAttribute("data-confirm-danger") || /delete|stop|suspend|reset|turn off/i.test(el.getAttribute("data-confirm") || "");
+    }
+    ok.addEventListener("click", function () { var f = onYes; close(); if (f) f(); });
+    cancel.addEventListener("click", close);
+    box.addEventListener("click", function (e) { if (e.target === box) close(); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && onYes) close(); });
+    // Capture phase so we run before the page-loader's handlers.
+    document.addEventListener("submit", function (e) {
+      var f = e.target;
+      if (!f.hasAttribute || !f.hasAttribute("data-confirm") || f.__baiOk) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      open(f.getAttribute("data-confirm"), isDanger(f), function () {
+        f.__baiOk = true;
+        if (f.requestSubmit) f.requestSubmit(); else f.submit();
+      });
+    }, true);
+    document.addEventListener("click", function (e) {
+      var el = e.target.closest && e.target.closest("a[data-confirm], button[data-confirm]");
+      if (!el || el.__baiOk) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      open(el.getAttribute("data-confirm"), isDanger(el), function () {
+        var id = el.getAttribute("data-confirm-submit");
+        if (id) { document.getElementById(id).submit(); return; }
+        if (el.tagName === "A") { if (window.baiLoader) window.baiLoader.show(); location.href = el.href; }
+        else { el.__baiOk = true; el.click(); }
+      });
+    }, true);
+  })();
+</script>
+<div id="bai-loader-bar"></div>
+<div id="bai-loader" role="status" aria-live="polite" aria-label="Loading"><div class="bai-spin"></div></div>
+<script>
+  (function () {
+    var overlay = document.getElementById("bai-loader");
+    var bar = document.getElementById("bai-loader-bar");
+    var timer = null;
+    function show() {
+      bar.classList.add("on");
+      clearTimeout(timer);
+      timer = setTimeout(function () { overlay.classList.add("on"); }, 150);
+    }
+    function hide() {
+      clearTimeout(timer);
+      overlay.classList.remove("on");
+      bar.classList.remove("on");
+    }
+    window.baiLoader = { show: show, hide: hide };
+    window.addEventListener("pageshow", hide);
+    document.addEventListener("click", function (e) {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest && e.target.closest("a[href]");
+      if (!a || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+      var href = a.getAttribute("href");
+      if (!href || href.charAt(0) === "#" || /^(javascript:|mailto:|tel:)/i.test(href)) return;
+      if (a.origin !== location.origin) return;
+      if (a.hasAttribute("data-no-loader") || /(pdf|excel|download|export|csv|xlsx)/i.test(a.pathname)) return;
+      if (a.pathname === location.pathname && a.search === location.search) return;
+      show();
+    });
+    document.addEventListener("submit", function (e) {
+      var f = e.target;
+      if (e.defaultPrevented || (f.target && f.target !== "_self") || f.hasAttribute("data-no-loader")) return;
+      if (/(pdf|excel|download|export|csv|xlsx)/i.test(f.getAttribute("action") || "")) return;
+      // defer so other submit handlers (validation) can cancel first
+      setTimeout(function () { if (!e.defaultPrevented) show(); }, 0);
+    });
+  })();
+</script>
 {% if messages %}
 <div id="bai-messages" class="fixed top-4 right-4 z-50 space-y-2 w-full max-w-sm px-4 sm:px-0">
   {% for message in messages %}

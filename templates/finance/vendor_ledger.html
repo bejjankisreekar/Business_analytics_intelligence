@@ -70,7 +70,7 @@
             {% if e.source.paid %}
             <span class="cursor-help text-xs text-slate-600" title="Payments are recorded against this, so it can't be deleted.">Delete</span>
             {% else %}
-            <form method="post" action="{% url 'finance:delete_payable' e.source.pk %}" onsubmit="return confirm('Delete this bill?');">
+            <form method="post" action="{% url 'finance:delete_payable' e.source.pk %}" data-confirm="Delete this bill?">
               {% csrf_token %}
               <input type="hidden" name="next" value="{{ request.get_full_path }}">
               <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>

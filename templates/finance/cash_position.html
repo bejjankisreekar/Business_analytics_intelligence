@@ -141,7 +141,7 @@
             <div class="flex items-center justify-end gap-3">
               <button type="button" onclick="bai.openPaymentModal('{% url 'finance:pay_receivable' r.pk %}', '{{ r.balance }}', 'receivable')" class="text-xs font-medium text-brand-400 hover:text-brand-300">Record payment</button>
               {% if r.amount_received == 0 %}
-              <form method="post" action="{% url 'finance:delete_receivable' r.pk %}" onsubmit="return confirm('Delete this receivable?');">
+              <form method="post" action="{% url 'finance:delete_receivable' r.pk %}" data-confirm="Delete this receivable?">
                 {% csrf_token %}
                 <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
               </form>
@@ -192,7 +192,7 @@
             <div class="flex items-center justify-end gap-3">
               <button type="button" onclick="bai.openPaymentModal('{% url 'finance:pay_payable' p.pk %}', '{{ p.balance }}', 'payable')" class="text-xs font-medium text-brand-400 hover:text-brand-300">Record payment</button>
               {% if p.amount_paid == 0 %}
-              <form method="post" action="{% url 'finance:delete_payable' p.pk %}" onsubmit="return confirm('Delete this payable?');">
+              <form method="post" action="{% url 'finance:delete_payable' p.pk %}" data-confirm="Delete this payable?">
                 {% csrf_token %}
                 <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
               </form>

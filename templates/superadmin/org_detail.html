@@ -75,7 +75,7 @@
       <a href="{% url 'superadmin:service_control' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Service control</a>
       <a href="{% url 'superadmin:financial_history' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Financial history</a>
       <a href="{% url 'superadmin:org_edit' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Edit client</a>
-      <button type="button" onclick="if(confirm('Are you sure you want to delete this organization entirely? This cannot be undone.')) { document.getElementById('delete-form').submit(); }" class="sa-btn-danger rounded px-3 py-1.5 text-xs font-semibold">Delete</button>
+      <button type="button" data-confirm="Are you sure you want to delete this organization entirely? This cannot be undone." data-confirm-submit="delete-form" data-confirm-danger class="sa-btn-danger rounded px-3 py-1.5 text-xs font-semibold">Delete</button>
       <form id="delete-form" method="post" action="{% url 'superadmin:org_delete' env_key org.pk %}" style="display:none;">{% csrf_token %}</form>
     </div>
   </div>
@@ -398,7 +398,7 @@
             <details class="w-full">
               <summary class="od-summary">Reset password</summary>
               <form method="post" action="{% url 'superadmin:reset_client_password' env_key org.pk member.pk %}" class="mt-2 space-y-2"
-                    onsubmit="return confirm('Reset the password for {{ member.email|escapejs }}? They will need the new password to log in.');">
+                    data-confirm="Reset the password for {{ member.email }}? They will need the new password to log in.">
                 {% csrf_token %}
                 <input type="password" name="new_password" placeholder="Leave blank to auto-generate" autocomplete="new-password" class="sa-input sa-mono">
                 <button type="submit" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Set password</button>

@@ -68,26 +68,26 @@
     <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</h2>
 
     {% if org.is_service_active %}
-    <form method="post" action="{% url 'superadmin:service_stop' env_key org.pk %}" class="mt-4 space-y-3" onsubmit="return confirm('Stop service for {{ org.name|escapejs }}? Users will be signed out immediately.');">
+    <form method="post" action="{% url 'superadmin:service_stop' env_key org.pk %}" class="mt-4 space-y-3" data-confirm="Stop service for {{ org.name }}? Users will be signed out immediately.">
       {% csrf_token %}
       <p class="text-xs font-semibold text-slate-300">Stop service</p>
       {% include "superadmin/_service_action_fields.html" with form=action_form reason_required=True %}
       <button type="submit" class="sa-btn-danger w-full rounded px-3 py-2 text-xs font-semibold">Stop service</button>
     </form>
-    <form method="post" action="{% url 'superadmin:service_suspend' env_key org.pk %}" class="mt-6 space-y-3 border-t border-white/5 pt-6" onsubmit="return confirm('Suspend service for {{ org.name|escapejs }}? Users will be signed out immediately.');">
+    <form method="post" action="{% url 'superadmin:service_suspend' env_key org.pk %}" class="mt-6 space-y-3 border-t border-white/5 pt-6" data-confirm="Suspend service for {{ org.name }}? Users will be signed out immediately.">
       {% csrf_token %}
       <p class="text-xs font-semibold text-slate-300">Suspend service</p>
       {% include "superadmin/_service_action_fields.html" with form=action_form reason_required=True %}
       <button type="submit" class="sa-btn-danger w-full rounded px-3 py-2 text-xs font-semibold">Suspend service</button>
     </form>
     {% else %}
-    <form method="post" action="{% url 'superadmin:service_resume' env_key org.pk %}" class="mt-4 space-y-3" onsubmit="return confirm('Resume service for {{ org.name|escapejs }}?');">
+    <form method="post" action="{% url 'superadmin:service_resume' env_key org.pk %}" class="mt-4 space-y-3" data-confirm="Resume service for {{ org.name }}?">
       {% csrf_token %}
       <p class="text-xs font-semibold text-slate-300">Resume service</p>
       {% include "superadmin/_service_action_fields.html" with form=action_form reason_required=False %}
       <button type="submit" class="sa-btn-mint w-full rounded px-3 py-2 text-xs font-semibold">Resume service</button>
     </form>
-    <form method="post" action="{% url 'superadmin:service_start' env_key org.pk %}" class="mt-6 space-y-3 border-t border-white/5 pt-6" onsubmit="return confirm('Start service for {{ org.name|escapejs }}?');">
+    <form method="post" action="{% url 'superadmin:service_start' env_key org.pk %}" class="mt-6 space-y-3 border-t border-white/5 pt-6" data-confirm="Start service for {{ org.name }}?">
       {% csrf_token %}
       <p class="text-xs font-semibold text-slate-300">Start service</p>
       <p class="text-[11px] text-slate-600">For a client whose service was never started. Same effect as resume.</p>
@@ -105,7 +105,7 @@
     {% endif %}
 
     {% if subscription.autopay_enabled %}
-    <form method="post" action="{% url 'superadmin:cancel_autopay' env_key org.pk %}" class="mt-6 space-y-3 border-t border-white/5 pt-6" onsubmit="return confirm('Turn off autopay for {{ org.name|escapejs }}? Their subscription will no longer renew automatically.');">
+    <form method="post" action="{% url 'superadmin:cancel_autopay' env_key org.pk %}" class="mt-6 space-y-3 border-t border-white/5 pt-6" data-confirm="Turn off autopay for {{ org.name }}? Their subscription will no longer renew automatically.">
       {% csrf_token %}
       <p class="text-xs font-semibold text-slate-300">Cancel autopay</p>
       <p class="text-[11px] text-slate-600">Stops future automatic renewal charges on Razorpay's side. Doesn't affect the period they've already paid for.</p>

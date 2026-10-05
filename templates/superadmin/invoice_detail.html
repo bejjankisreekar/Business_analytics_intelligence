@@ -113,7 +113,7 @@
   <div class="sa-card border-red-500/30 bg-red-500/5 p-5">
     <h2 class="text-xs font-semibold uppercase tracking-wider text-red-400">Danger zone</h2>
     <p class="mt-2 text-xs text-slate-400">Permanently delete this invoice. This action cannot be undone.</p>
-    <form method="post" action="{% url 'superadmin:invoice_delete' env_key invoice.pk %}" class="mt-4" onsubmit="return confirm('Are you absolutely sure you want to delete invoice {{ invoice.invoice_number }}? This cannot be undone.');">
+    <form method="post" action="{% url 'superadmin:invoice_delete' env_key invoice.pk %}" class="mt-4" data-confirm="Are you absolutely sure you want to delete invoice {{ invoice.invoice_number }}? This cannot be undone.">
       {% csrf_token %}
       <button type="submit" class="rounded bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600">Delete invoice</button>
     </form>

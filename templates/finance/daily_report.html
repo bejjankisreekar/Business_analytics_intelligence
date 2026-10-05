@@ -198,7 +198,7 @@
         <td class="py-2 text-right">
           <div class="flex items-center justify-end gap-3">
             <button type="button" onclick="bai.openModal('modal-edit-transfer-{{ t.pk }}')" class="text-xs font-medium text-brand-400 hover:text-brand-300">Edit</button>
-            <form method="post" action="{% url 'finance:delete_transfer' t.pk %}" onsubmit="return confirm('Delete this transfer?');">
+            <form method="post" action="{% url 'finance:delete_transfer' t.pk %}" data-confirm="Delete this transfer?">
               {% csrf_token %}
               <input type="hidden" name="next" value="{{ request.get_full_path }}">
               <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
