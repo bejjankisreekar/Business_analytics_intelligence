@@ -661,11 +661,15 @@
   </section>
 
   <footer class="border-t border-white/5 py-10">
-    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 text-xs text-slate-500 sm:flex-row lg:px-8">
-      <p>© {% now "Y" %} Prism Pulse Intelligence &amp; Analytics. All rights reserved.</p>
-      <div class="flex items-center gap-6">
-        <a href="{% url 'accounts:login' %}" class="hover:text-slate-300">Sign in</a>
-        <a href="{% url 'accounts:signup' %}" class="hover:text-slate-300">Sign up</a>
+    <div class="mx-auto max-w-7xl px-6 lg:px-8">
+      <div class="mb-6 flex flex-col items-center justify-between gap-4 text-xs text-slate-500 sm:flex-row">
+        <p>© {% now "Y" %} Prism Pulse Intelligence &amp; Analytics. All rights reserved.</p>
+        <div class="flex flex-wrap items-center justify-center gap-6">
+          <a href="{% url 'accounts:login' %}" class="hover:text-slate-300">Sign in</a>
+          <a href="{% url 'accounts:signup' %}" class="hover:text-slate-300">Sign up</a>
+          <a href="{% url 'core:privacy_policy' %}" class="hover:text-slate-300">Privacy Policy</a>
+          <a href="{% url 'core:terms' %}" class="hover:text-slate-300">Terms of Service</a>
+        </div>
       </div>
     </div>
   </footer>

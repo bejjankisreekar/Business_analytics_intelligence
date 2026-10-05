@@ -141,6 +141,13 @@
 
         <p class="text-xs text-slate-500">Whichever you pick, your data is exportable to Excel any time from your profile.</p>
 
+        <div class="flex items-start gap-2.5">
+          <input type="checkbox" id="terms_agree" name="terms_agree" class="mt-1 h-4 w-4 rounded accent-brand-500" required>
+          <label for="terms_agree" class="text-xs text-slate-300">
+            I agree to the <a href="{% url 'core:privacy_policy' %}" target="_blank" class="font-semibold text-brand-400 hover:text-brand-300">Privacy Policy</a> and <a href="{% url 'core:terms' %}" target="_blank" class="font-semibold text-brand-400 hover:text-brand-300">Terms of Service</a>
+          </label>
+        </div>
+
         <button type="submit" id="signup-submit" class="keep-white flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-80">
           <svg id="signup-spinner" class="hidden h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
           <span id="signup-submit-label">Create organization &amp; sign in</span>
