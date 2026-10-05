@@ -66,3 +66,11 @@ class LandingPageView(TemplateView):
 
         messages.success(request, "Thanks for reaching out — we'll get back to you shortly.")
         return redirect(reverse("core:landing") + "#contact")
+
+
+class PrivacyPolicyView(TemplateView):
+    template_name = "marketing/privacy_policy.html"
+
+
+class TermsView(TemplateView):
+    template_name = "marketing/terms.html"
