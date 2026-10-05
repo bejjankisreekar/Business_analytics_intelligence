@@ -44,7 +44,7 @@ class Organization(models.Model):
         LARGE = "LARGE", "51-200 employees"
         ENTERPRISE = "ENTERPRISE", "200+ employees"
 
-    class ManagerLogins(models.TextChoices):
+    class ManagerLogins(models.IntegerChoices):
         ONE = 1, "1 Admin account"
         TWO = 2, "1 Admin + 1 manager account"
 
