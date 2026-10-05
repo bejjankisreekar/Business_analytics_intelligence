@@ -1,0 +1,5 @@
+<div class="relative searchable-dropdown" data-select-id="{{ widget.attrs.id }}">
+  <select{% include "django/forms/widgets/attrs.html" %}>{% include "django/forms/widgets/select_options.html" %}</select>
+  <input type="text" class="searchable-dropdown-search" autocomplete="off" placeholder="{{ search_placeholder }}" aria-label="Search">
+  <div class="combobox-options hidden searchable-dropdown-options"></div>
+</div>
