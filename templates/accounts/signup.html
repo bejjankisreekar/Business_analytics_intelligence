@@ -104,7 +104,7 @@
 
         <div>
           <div class="space-y-4">
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label for="{{ form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-200">First name</label>
                 {{ form.first_name }}
@@ -114,13 +114,13 @@
                 <label for="{{ form.last_name.id_for_label }}" class="block text-xs font-medium text-slate-200">Last name</label>
                 {{ form.last_name }}
               </div>
-              <div>
-                <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-200">Email</label>
-                {{ form.email }}
-                {% for error in form.email.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
-              </div>
             </div>
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-200">Email</label>
+              {{ form.email }}
+              {% for error in form.email.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <div class="flex items-center gap-2">
                   <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username</label>
