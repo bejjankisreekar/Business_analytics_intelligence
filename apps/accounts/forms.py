@@ -57,6 +57,12 @@ class OrganizationSignupForm(forms.Form):
         choices=Organization.OrganizationSize.choices,
         widget=forms.Select(attrs={"class": "sr-only", "tabindex": "-1", "data-custom-combobox": "true"}),
     )
+    manager_logins = forms.ChoiceField(
+        choices=Organization.ManagerLogins.choices,
+        widget=forms.RadioSelect,
+        label="How many login accounts do you need?",
+        error_messages={"required": "Select the number of login accounts."},
+    )
     storage_mode = forms.ChoiceField(
         choices=Organization.StorageMode.choices,
         widget=forms.RadioSelect,
@@ -245,3 +251,56 @@ class OrganizationProfileForm(forms.ModelForm):
             "country", "tax_id", "pan_number", "website",
             "bank_account_holder", "bank_account_number", "bank_ifsc", "bank_name",
         ]
+
+
+class CreateManagerAccountForm(forms.Form):
+    email = forms.EmailField(widget=forms.EmailInput(attrs={"placeholder": "manager@company.com"}))
+    first_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"placeholder": "First name"}))
+    last_name = forms.CharField(
+        max_length=150, required=False, widget=forms.TextInput(attrs={"placeholder": "Last name"})
+    )
+    username = forms.CharField(
+        max_length=150, widget=forms.TextInput(attrs={"placeholder": "e.g. john_manager"})
+    )
+    password = forms.CharField(
+        min_length=8, widget=forms.PasswordInput(attrs={"placeholder": "Create a password"})
+    )
+    confirm_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={"placeholder": "Confirm password"})
+    )
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if User.objects.filter(email=email).exists():
+            raise forms.ValidationError("An account with this email already exists.")
+        return email
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip().lower()
+        if not username:
+            raise forms.ValidationError("Username cannot be empty.")
+        if " " in username:
+            raise forms.ValidationError("Username cannot contain spaces.")
+        if not USERNAME_RE.match(username):
+            raise forms.ValidationError(
+                "Username can only contain lowercase letters, numbers, underscores, dots and hyphens."
+            )
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError("This username is already taken.")
+        return username
+
+    def clean_password(self):
+        password = self.cleaned_data.get("password", "")
+        if " " in password:
+            raise forms.ValidationError("Password cannot contain spaces.")
+        if not PASSWORD_RE.match(password):
+            raise forms.ValidationError("Password contains invalid characters (emojis or special Unicode characters are not allowed).")
+        return password
+
+    def clean(self):
+        cleaned = super().clean()
+        password = cleaned.get("password")
+        confirm = cleaned.get("confirm_password")
+        if password and confirm and password != confirm:
+            raise forms.ValidationError("Passwords do not match.")
+        return cleaned

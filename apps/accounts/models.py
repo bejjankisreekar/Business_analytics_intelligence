@@ -41,6 +41,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         SUPER_ADMIN = "SUPER_ADMIN", "Super Admin"
         OWNER = "OWNER", "Organization Owner"
         ADMIN = "ADMIN", "Admin"
+        MANAGER = "MANAGER", "Manager"
         MEMBER = "MEMBER", "Member"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

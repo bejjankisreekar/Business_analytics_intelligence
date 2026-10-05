@@ -140,6 +140,19 @@ def _historical_min_date(request):
     return billing_services.historical_window_start(request.user.organization)
 
 
+class ManagerAccountRestrictedMixin:
+    """Restricts manager accounts to daily entry views only.
+    Add to views that should not be accessible to manager accounts."""
+
+    def dispatch(self, request, *args, **kwargs):
+        from apps.accounts.models import User
+
+        user = request.user
+        if user.is_authenticated and user.role == User.Role.MANAGER:
+            return redirect("finance:daily_report")
+        return super().dispatch(request, *args, **kwargs)
+
+
 class TenantLoginRequiredMixin(LoginRequiredMixin):
     """Every tenant-facing view requires this. Two independent gates:
 
@@ -193,7 +206,7 @@ class PeriodMixin:
         return resolve_period(key, fy_start_month, custom_from=custom_from, custom_to=custom_to)
 
 
-class DashboardView(TenantLoginRequiredMixin, TemplateView):
+class DashboardView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, TemplateView):
     """A deliberately light home screen: this month's numbers (with growth
     vs the prior period), a couple of headline charts, quick-add, and
     what just happened. The full, period-driven chart set lives on the
@@ -480,7 +493,7 @@ class CancelAutopayView(TenantLoginRequiredMixin, View):
         return redirect("finance:billing")
 
 
-class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
+class AnalyticsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     """Every chart and period-driven number lives here — pick a period at
     the top and the whole page (KPIs + every chart) updates to match it."""
 
@@ -576,7 +589,7 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
         return context
 
 
-class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
+class SalesIntelligenceView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     """Every sales-side insight in one place: trend, channel breakdown,
     best days to sell, revenue by product, how sales are paid, and
     auto-generated sales insights (channel momentum vs last month)."""
@@ -743,7 +756,7 @@ class SalesChannelTrendView(TenantLoginRequiredMixin, View):
         return JsonResponse(json.loads(to_json(payload)))
 
 
-class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
+class PurchaseExpenseIntelligenceView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     """Every purchase- and expense-side insight in one place: trend,
     category/vendor breakdowns, cost by product category, and how outflow
     is paid."""
@@ -856,6 +869,8 @@ class DailyReportView(TenantLoginRequiredMixin, TemplateView):
                 instance=transfer, auto_id=f"id_edit_transfer_{transfer.pk}_%s", min_date=min_date
             )
 
+        from apps.accounts.models import User
+
         context.update({
             "active_nav": "daily_report",
             "organization": self.request.user.organization,
@@ -867,6 +882,7 @@ class DailyReportView(TenantLoginRequiredMixin, TemplateView):
             "transfer_form": CashTransferForm(
                 initial={"date": selected_date}, auto_id="id_transfer_%s", min_date=_historical_min_date(self.request)
             ),
+            "is_manager": self.request.user.role == User.Role.MANAGER,
         })
         return context
 
@@ -1328,7 +1344,7 @@ class AddTransferView(TenantLoginRequiredMixin, View):
         return redirect(request.POST.get("next") or "finance:dashboard")
 
 
-class ReportsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
+class ReportsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     template_name = "finance/reports.html"
 
     def get_context_data(self, **kwargs):
@@ -1864,7 +1880,7 @@ MONTH_NAMES = {
 }
 
 
-class FinanceSettingsView(TenantLoginRequiredMixin, TemplateView):
+class FinanceSettingsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, TemplateView):
     template_name = "finance/settings.html"
 
     def get_context_data(self, **kwargs):

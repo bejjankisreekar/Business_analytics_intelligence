@@ -24,8 +24,10 @@ class LandingPageView(TemplateView):
         # Public pricing always reflects the real production catalog, even
         # when this server is running locally against the dev database —
         # visitors should never see test/dev plan data.
+        from django.conf import settings as django_settings
+        db_alias = "default" if not django_settings.ENVIRONMENT == "production" else "prod"
         context["plans"] = (
-            Plan.objects.using("prod").filter(is_active=True, show_on_landing_page=True).order_by("monthly_price")
+            Plan.objects.using(db_alias).filter(is_active=True, show_on_landing_page=True).order_by("monthly_price")
         )
         context.setdefault("contact_form", ContactForm())
         return context

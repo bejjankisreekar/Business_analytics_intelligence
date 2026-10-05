@@ -44,18 +44,22 @@ class Organization(models.Model):
         LARGE = "LARGE", "51-200 employees"
         ENTERPRISE = "ENTERPRISE", "200+ employees"
 
+    class ManagerLogins(models.TextChoices):
+        ONE = 1, "1 Admin account"
+        TWO = 2, "1 Admin + 1 manager account"
+
     class StorageMode(models.TextChoices):
-        # Finance data lives entirely in the org's own Google Sheet,
-        # read/written live over the Sheets API via its own OAuth grant
-        # (apps.sheets_store) — never written to our database. Gated
-        # behind connecting Google Drive first (TenantSchemaMiddleware).
-        GOOGLE_SHEETS = "GOOGLE_SHEETS", "Your own Google Drive"
         # Finance data lives in our shared Postgres database, isolated
         # by the `organization` column every apps.finance model carries
         # (see SheetAwareManager/SheetAwareModelMixin, which auto-scope
         # every query/save to the current request's organization when
         # no Sheets session is active). No Google account needed.
-        OUR_DATABASE = "OUR_DATABASE", "Prism Pulse's own database"
+        OUR_DATABASE = "OUR_DATABASE", "Prism Pulse's secure managed database"
+        # Finance data lives entirely in the org's own Google Sheet,
+        # read/written live over the Sheets API via its own OAuth grant
+        # (apps.sheets_store) — never written to our database. Gated
+        # behind connecting Google Drive first (TenantSchemaMiddleware).
+        GOOGLE_SHEETS = "GOOGLE_SHEETS", "Your own Google Drive"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
@@ -77,6 +81,9 @@ class Organization(models.Model):
     )
     size = models.CharField(
         max_length=20, choices=OrganizationSize.choices, default=OrganizationSize.SOLO
+    )
+    manager_logins = models.PositiveSmallIntegerField(
+        choices=ManagerLogins.choices, default=1, help_text="Number of manager accounts for this organization"
     )
     currency = models.CharField(max_length=8, default="INR")
     timezone = models.CharField(max_length=64, default="Asia/Kolkata")

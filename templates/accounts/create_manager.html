@@ -1,0 +1,70 @@
+{% extends "finance/_app_base.html" %}
+{% block title %}Create Manager Account · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="mb-8">
+  <a href="{% url 'accounts:profile' %}" class="text-sm text-brand-400 hover:text-brand-300">← Back to profile</a>
+</div>
+
+<div class="max-w-2xl">
+  <h1 class="text-2xl font-bold text-white">Create Manager Account</h1>
+  <p class="mt-1 text-sm text-slate-400">Manager accounts can only enter daily transactions. They won't see opening/closing balances or financial analytics.</p>
+
+  <form method="post" class="mt-6 space-y-6">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div class="rounded-lg border border-red-900/50 bg-red-900/10 p-4">
+      {% for error in form.non_field_errors %}
+      <p class="text-sm text-red-400">{{ error }}</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card p-6 space-y-4">
+      <div>
+        <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.email.label }}</label>
+        {{ form.email }}
+        {% for error in form.email.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label for="{{ form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.first_name.label }}</label>
+          {{ form.first_name }}
+          {% for error in form.first_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label for="{{ form.last_name.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.last_name.label }}</label>
+          {{ form.last_name }}
+          {% for error in form.last_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+
+      <div>
+        <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.username.label }}</label>
+        {{ form.username }}
+        {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.password.label }}</label>
+          {{ form.password }}
+          {% for error in form.password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label for="{{ form.confirm_password.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.confirm_password.label }}</label>
+          {{ form.confirm_password }}
+          {% for error in form.confirm_password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-3">
+      <button type="submit" class="btn-primary">Create Manager Account</button>
+      <a href="{% url 'accounts:profile' %}" class="btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

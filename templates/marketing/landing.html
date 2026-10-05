@@ -425,73 +425,88 @@
   {% if plans %}
   <section id="pricing" class="border-t border-white/5 bg-white/[0.02] py-24">
     <div class="mx-auto max-w-7xl px-6 lg:px-8">
-      <div class="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.2fr)] lg:items-start lg:gap-16">
-        <!-- Left: heading -->
-        <div class="lg:sticky lg:top-28">
-          <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Simple, transparent pricing</h2>
-          <p class="mt-4 text-base text-slate-400">Start free, upgrade whenever you're ready.</p>
-        </div>
+      <!-- Heading -->
+      <div class="mx-auto max-w-2xl text-center">
+        <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Simple, transparent pricing</h2>
+        <p class="mt-4 text-base text-slate-400">Start free, upgrade whenever you're ready.</p>
+      </div>
 
-        <!-- Right: plan card(s) -->
-        <div class="flex flex-col gap-6">
-          {% for plan in plans %}
-          <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-8">
-            <h3 class="text-lg font-semibold text-white">{{ plan.name }}</h3>
-            {% if plan.trial_days %}<p class="mt-1 text-xs font-medium text-mint-400">{{ plan.trial_days }}-day free trial</p>{% endif %}
+      <!-- Plan cards grid - 4 columns on desktop, 2 on tablet, 1 on mobile -->
+      <div class="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {% for plan in plans %}
+        <div class="relative rounded-2xl border-2 bg-white/[0.03] p-6 flex flex-col {% if "smart" in plan.slug and "Drive" not in plan.name %}border-amber-500/60{% else %}border-white/10{% endif %}">
+          <!-- Recommended badge - positioned at top center -->
+          {% if "smart" in plan.slug and "Drive" not in plan.name %}
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2">
+            <span class="rounded-full bg-gradient-to-r from-amber-400 to-amber-500 px-3 py-1 text-xs font-semibold text-white shadow-lg">⭐ Recommended</span>
+          </div>
+          {% endif %}
 
-            <div class="mt-6 grid grid-cols-1 gap-8 sm:grid-cols-2">
-              <!-- Pricing + CTA -->
-              <div class="space-y-5">
-                <div>
-                  <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Monthly</p>
-                  <div class="mt-1 flex items-baseline gap-2">
-                    {% if plan.monthly_discount_percent %}
-                    <span class="text-lg text-slate-500 line-through">₹{{ plan.monthly_price }}</span>
-                    <span class="text-3xl font-extrabold text-white">₹{{ plan.effective_monthly_price }}</span>
-                    <span class="rounded-full bg-mint-500/15 px-2 py-0.5 text-xs font-semibold text-mint-400">-{{ plan.monthly_discount_percent }}%</span>
-                    {% else %}
-                    <span class="text-3xl font-extrabold text-white">₹{{ plan.monthly_price }}</span>
-                    {% endif %}
-                    <span class="text-sm text-slate-500">/mo</span>
-                  </div>
-                </div>
+          <h3 class="text-lg font-semibold text-white">{{ plan.name }}</h3>
 
-                <div>
-                  <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Yearly</p>
-                  <div class="mt-1 flex items-baseline gap-2">
-                    {% if plan.yearly_discount_percent %}
-                    <span class="text-base text-slate-500 line-through">₹{{ plan.yearly_price }}</span>
-                    <span class="text-xl font-bold text-white">₹{{ plan.effective_yearly_price }}</span>
-                    <span class="rounded-full bg-mint-500/15 px-2 py-0.5 text-xs font-semibold text-mint-400">-{{ plan.yearly_discount_percent }}%</span>
-                    {% else %}
-                    <span class="text-xl font-bold text-white">₹{{ plan.yearly_price }}</span>
-                    {% endif %}
-                    <span class="text-sm text-slate-500">/yr</span>
-                  </div>
-                </div>
-
-                <a href="{% url 'accounts:signup' %}" class="keep-white block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110">
-                  Get started
-                </a>
-              </div>
-
-              <!-- Features, beside the pricing rather than below it -->
-              {% with labels=plan.feature_labels %}
-              {% if labels %}
-              <ul class="space-y-2.5 sm:border-l sm:border-white/10 sm:pl-8">
-                {% for label in labels %}
-                <li class="flex items-start gap-2.5 text-sm text-slate-300">
-                  <span class="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-mint-500/15 text-mint-400">✓</span>
-                  {{ label }}
-                </li>
-                {% endfor %}
-              </ul>
+          <!-- Database and Team Info -->
+          <div class="mt-2 space-y-1">
+            <p class="text-xs font-medium text-mint-400">
+              {% if "Drive" in plan.name %}
+                💾 Google Drive
+              {% else %}
+                🔐 Prism Pulse DB
               {% endif %}
-              {% endwith %}
+            </p>
+            <p class="text-xs text-slate-400">
+              👥 {{ plan.user_limit }} team member{% if plan.user_limit > 1 %}s{% endif %}
+            </p>
+          </div>
+
+          {% if plan.trial_days %}<p class="mt-2 text-xs font-medium text-slate-300">{{ plan.trial_days }}-day free trial</p>{% endif %}
+
+          <!-- Pricing -->
+          <div class="mt-5 space-y-4">
+            <div>
+              <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Monthly</p>
+              <div class="mt-2 flex items-baseline gap-2">
+                <span class="text-sm text-slate-400 line-through">₹{{ plan.monthly_price }}</span>
+                <span class="text-2xl font-extrabold text-white">₹{{ plan.effective_monthly_price }}</span>
+                {% if plan.monthly_discount_percent %}
+                <span class="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-500/20 dark:text-green-400">-{{ plan.monthly_discount_percent }}%</span>
+                {% endif %}
+                <span class="text-xs text-slate-500">/mo</span>
+              </div>
+            </div>
+
+            <div>
+              <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Yearly</p>
+              <div class="mt-2 flex items-baseline gap-2">
+                <span class="text-xs text-slate-400 line-through">₹{{ plan.yearly_price }}</span>
+                <span class="text-lg font-bold text-white">₹{{ plan.effective_yearly_price }}</span>
+                {% if plan.yearly_discount_percent %}
+                <span class="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-500/20 dark:text-green-400">-{{ plan.yearly_discount_percent }}%</span>
+                {% endif %}
+                <span class="text-xs text-slate-500">/yr</span>
+              </div>
             </div>
           </div>
-          {% endfor %}
+
+          <!-- CTA -->
+          <a href="{% url 'accounts:signup' %}" class="keep-white mt-6 block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110">
+            Get started
+          </a>
+
+          <!-- Features -->
+          {% with labels=plan.feature_labels %}
+          {% if labels %}
+          <ul class="mt-6 space-y-2 flex-grow">
+            {% for label in labels %}
+            <li class="flex items-start gap-2 text-xs text-slate-300">
+              <span class="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-mint-500/15 text-mint-400 text-[10px]">✓</span>
+              <span>{{ label }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          {% endwith %}
         </div>
+        {% endfor %}
       </div>
     </div>
   </section>

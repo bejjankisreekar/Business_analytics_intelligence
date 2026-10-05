@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import EmailMultiAlternatives
+from django.http import Http404
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
@@ -19,6 +20,7 @@ from apps.organizations.services import (
 
 from .forms import (
     ChangePasswordForm,
+    CreateManagerAccountForm,
     ForgotPasswordForm,
     LoginForm,
     OrganizationProfileForm,
@@ -26,6 +28,7 @@ from .forms import (
     ProfileForm,
     ResetPasswordForm,
 )
+from .manager_service import ManagerAccountError, validate_manager_account_creation
 from .models import PasswordResetOTP, User
 
 logger = logging.getLogger(__name__)
@@ -36,6 +39,8 @@ RESET_SESSION_KEY = "password_reset_email"
 def _post_login_redirect(user):
     if user.role == User.Role.SUPER_ADMIN:
         return redirect("superadmin:overview")
+    if user.role == User.Role.MANAGER:
+        return redirect("finance:daily_report")
     return redirect("finance:dashboard")
 
 
@@ -517,3 +522,53 @@ class LogoutView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         logout(request)
         return redirect("core:landing")
+
+
+class CreateManagerAccountView(LoginRequiredMixin, FormView):
+    """Create a new manager account for the current organization.
+
+    Only OWNER and ADMIN users can create manager accounts, and only if:
+    1. The organization has an eligible plan (Business or Business Drive)
+    2. The organization has available manager account slots
+    """
+    template_name = "accounts/create_manager.html"
+    form_class = CreateManagerAccountForm
+    success_url = reverse_lazy("accounts:profile")
+
+    def dispatch(self, request, *args, **kwargs):
+        user = request.user
+        if not user.organization_id or user.role not in (User.Role.OWNER, User.Role.ADMIN):
+            raise Http404
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["organization"] = self.request.user.organization
+        return context
+
+    def form_valid(self, form):
+        organization = self.request.user.organization
+
+        try:
+            validate_manager_account_creation(organization)
+        except ManagerAccountError as exc:
+            form.add_error(None, str(exc))
+            return self.form_invalid(form)
+
+        data = form.cleaned_data
+        manager = User.objects.create_user(
+            email=data["email"],
+            password=data["password"],
+            username=data["username"],
+            first_name=data["first_name"],
+            last_name=data["last_name"],
+            organization=organization,
+            role=User.Role.MANAGER,
+        )
+
+        messages.success(
+            self.request,
+            f"Manager account '{manager.email}' has been created successfully. "
+            "They can now log in with their username/email and password."
+        )
+        return super().form_valid(form)

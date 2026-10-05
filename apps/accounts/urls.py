@@ -4,6 +4,7 @@ from .views import (
     ChangePasswordView,
     ConnectDatabaseGateView,
     ConnectGoogleDriveView,
+    CreateManagerAccountView,
     DisconnectGoogleDriveView,
     ExportFinanceDataExcelView,
     ForgotPasswordView,
@@ -32,4 +33,5 @@ urlpatterns = [
     path("change-password/", ChangePasswordView.as_view(), name="change_password"),
     path("forgot-password/", ForgotPasswordView.as_view(), name="forgot_password"),
     path("reset-password/", ResetPasswordView.as_view(), name="reset_password"),
+    path("manager/create/", CreateManagerAccountView.as_view(), name="create_manager"),
 ]
