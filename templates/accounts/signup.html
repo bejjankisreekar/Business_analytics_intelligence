@@ -122,10 +122,14 @@
             </div>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div>
-                <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username</label>
+                <div class="flex items-center gap-2">
+                  <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username</label>
+                  <button type="button" class="info-tooltip relative inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-600 text-white text-xs hover:bg-slate-500 transition" title="Only letters, numbers, underscores, dots and hyphens. No spaces.">
+                    i
+                  </button>
+                </div>
                 {{ form.username }}
                 {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
-                <p class="mt-1 text-xs text-slate-500">Only letters, numbers, underscores, dots and hyphens. No spaces.</p>
               </div>
               <div>
                 <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password</label>
@@ -382,5 +386,66 @@
   html[data-theme="light"] .combobox-option { color: #334155; }
   html[data-theme="light"] .combobox-option:hover, html[data-theme="light"] .combobox-option--active { background: rgba(67,97,238,0.12); color: #1e3a8a; }
   html[data-theme="light"] .combobox-empty { color: #94a3b8; }
+
+  .info-tooltip {
+    cursor: help;
+    position: relative;
+  }
+  .info-tooltip::before {
+    content: attr(title);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 41, 59, 0.95);
+    color: #e2e8f0;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 400;
+    white-space: nowrap;
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    border: 1px solid rgba(100, 116, 139, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  .info-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: calc(125% - 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(30, 41, 59, 0.95);
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+  }
+  .info-tooltip:hover::before,
+  .info-tooltip:hover::after {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  html[data-theme="light"] .info-tooltip {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+  html[data-theme="light"] .info-tooltip:hover {
+    background: #cbd5e1;
+  }
+  html[data-theme="light"] .info-tooltip::before {
+    background: rgba(15, 23, 42, 0.95);
+    color: #f1f5f9;
+    border-color: rgba(15, 23, 42, 0.5);
+  }
+  html[data-theme="light"] .info-tooltip::after {
+    border-top-color: rgba(15, 23, 42, 0.95);
+  }
 </style>
 {% endblock %}
