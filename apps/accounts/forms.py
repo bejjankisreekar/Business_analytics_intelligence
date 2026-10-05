@@ -77,6 +77,10 @@ class OrganizationSignupForm(forms.Form):
     confirm_password = forms.CharField(
         widget=forms.PasswordInput(attrs={"placeholder": "Confirm password"})
     )
+    terms_agree = forms.BooleanField(
+        required=True,
+        error_messages={"required": "You must agree to the Privacy Policy and Terms of Service to continue."},
+    )
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip().lower()
