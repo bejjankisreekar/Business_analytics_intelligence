@@ -8,6 +8,7 @@ from apps.organizations.models import Organization
 from .models import User
 
 USERNAME_RE = re.compile(r"^[a-z0-9_.-]+$")
+PASSWORD_RE = re.compile(r"^[\x20-\x7E]+$")
 
 
 class LoginForm(forms.Form):
@@ -90,6 +91,10 @@ class OrganizationSignupForm(forms.Form):
 
     def clean_username(self):
         username = self.cleaned_data["username"].strip().lower()
+        if not username:
+            raise forms.ValidationError("Username cannot be empty.")
+        if " " in username:
+            raise forms.ValidationError("Username cannot contain spaces.")
         if not USERNAME_RE.match(username):
             raise forms.ValidationError(
                 "Username can only contain lowercase letters, numbers, underscores, dots and hyphens."
@@ -97,6 +102,14 @@ class OrganizationSignupForm(forms.Form):
         if User.objects.filter(username=username).exists():
             raise forms.ValidationError("This username is already taken.")
         return username
+
+    def clean_password(self):
+        password = self.cleaned_data.get("password", "")
+        if " " in password:
+            raise forms.ValidationError("Password cannot contain spaces.")
+        if not PASSWORD_RE.match(password):
+            raise forms.ValidationError("Password contains invalid characters (emojis or special Unicode characters are not allowed).")
+        return password
 
     def clean(self):
         cleaned = super().clean()

@@ -123,26 +123,29 @@
             <div>
               <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username</label>
               {{ form.username }}
-              <p class="mt-1 text-xs text-slate-500">You can sign in with this instead of your email.</p>
               {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+              <p class="mt-1 text-xs text-slate-500">You can sign in with this instead of your email. Only letters, numbers, underscores, dots and hyphens allowed. No spaces or special characters.</p>
             </div>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password</label>
                 {{ form.password }}
+                {% for error in form.password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
               </div>
               <div>
                 <label for="{{ form.confirm_password.id_for_label }}" class="block text-xs font-medium text-slate-200">Confirm password</label>
                 {{ form.confirm_password }}
+                {% for error in form.confirm_password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
               </div>
             </div>
+            <p class="text-xs text-slate-500">Password must be at least 8 characters. No spaces or emojis allowed.</p>
           </div>
         </div>
 
         <p class="text-xs text-slate-500">Whichever you pick, your data is exportable to Excel any time from your profile.</p>
 
         <div class="flex items-start gap-2.5">
-          {{ form.terms_agree }}
+            {{ form.terms_agree }}
           <label for="{{ form.terms_agree.id_for_label }}" class="text-xs text-slate-300">
             I agree to the <a href="{% url 'core:privacy_policy' %}" target="_blank" class="font-semibold text-brand-400 hover:text-brand-300">Privacy Policy</a> and <a href="{% url 'core:terms' %}" target="_blank" class="font-semibold text-brand-400 hover:text-brand-300">Terms of Service</a>
           </label>
