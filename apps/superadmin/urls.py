@@ -22,6 +22,7 @@ urlpatterns = [
     path("<str:env>/invoices/new/", views.InvoiceGenerateView.as_view(), name="invoice_new"),
     path("<str:env>/invoices/<int:pk>/", views.InvoiceDetailView.as_view(), name="invoice_detail"),
     path("<str:env>/invoices/<int:pk>/edit/", views.InvoiceEditView.as_view(), name="invoice_edit"),
+    path("<str:env>/invoices/<int:pk>/delete/", views.InvoiceDeleteView.as_view(), name="invoice_delete"),
     path("<str:env>/invoices/<int:pk>/payment/", views.InvoiceRecordPaymentView.as_view(), name="invoice_record_payment"),
     path("<str:env>/invoices/<int:pk>/coupon/", views.ApplyInvoiceCouponView.as_view(), name="invoice_apply_coupon"),
     path("<str:env>/invoices/<int:pk>/download/", views.InvoiceDownloadView.as_view(), name="invoice_download"),

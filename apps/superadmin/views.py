@@ -1046,6 +1046,25 @@ class InvoiceEditView(SuperAdminRequiredMixin, View):
         return redirect("superadmin:invoice_detail", env=env, pk=pk)
 
 
+class InvoiceDeleteView(SuperAdminRequiredMixin, View):
+    """Delete an invoice from the database."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        invoice = get_object_or_404(Invoice.objects.using(env), pk=pk)
+        invoice_number = invoice.invoice_number
+
+        try:
+            with transaction.atomic(using=env):
+                invoice.delete(using=env)
+            messages.success(request, f"Deleted invoice {invoice_number}.")
+        except Exception as e:
+            logger.exception("Failed to delete invoice %s", pk)
+            messages.error(request, f"Failed to delete invoice: {str(e)}")
+
+        return redirect("superadmin:invoice_list", env=env)
+
+
 class PaymentEditView(SuperAdminRequiredMixin, View):
     """Direct correction of an already-recorded payment — for fixing a
     typo'd amount, wrong date/method, or wrong status after the fact.
