@@ -104,7 +104,7 @@
 
         <div>
           <div class="space-y-4">
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div>
                 <label for="{{ form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-200">First name</label>
                 {{ form.first_name }}
@@ -114,19 +114,19 @@
                 <label for="{{ form.last_name.id_for_label }}" class="block text-xs font-medium text-slate-200">Last name</label>
                 {{ form.last_name }}
               </div>
+              <div>
+                <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-200">Email</label>
+                {{ form.email }}
+                {% for error in form.email.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+              </div>
             </div>
-            <div>
-              <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-200">Email</label>
-              {{ form.email }}
-              {% for error in form.email.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
-            </div>
-            <div>
-              <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username</label>
-              {{ form.username }}
-              {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
-              <p class="mt-1 text-xs text-slate-500">You can sign in with this instead of your email. Only letters, numbers, underscores, dots and hyphens allowed. No spaces or special characters.</p>
-            </div>
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username</label>
+                {{ form.username }}
+                {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+                <p class="mt-1 text-xs text-slate-500">Only letters, numbers, underscores, dots and hyphens. No spaces.</p>
+              </div>
               <div>
                 <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password</label>
                 {{ form.password }}
