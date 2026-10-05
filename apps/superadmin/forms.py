@@ -4,6 +4,7 @@ from django import forms
 from django.utils.text import slugify
 
 from apps.billing.models import Coupon, Invoice, Payment, Plan, Subscription
+from apps.core.widgets import SearchableChoiceWidget, SearchableModelChoiceWidget
 from apps.organizations.models import Organization, ServiceStatusChange
 
 PROFILE_FIELDS = [
@@ -217,14 +218,14 @@ class SubscriptionActionForm(forms.Form):
     or manual billing correction) — the current one is superseded, not
     edited, so history is preserved."""
 
-    plan = forms.ModelChoiceField(queryset=Plan.objects.none())
-    billing_cycle = forms.ChoiceField(choices=Subscription.BillingCycle.choices)
+    plan = forms.ModelChoiceField(queryset=Plan.objects.none(), widget=SearchableModelChoiceWidget(search_placeholder="Search plan..."))
+    billing_cycle = forms.ChoiceField(choices=Subscription.BillingCycle.choices, widget=SearchableChoiceWidget(search_placeholder="Search billing cycle..."))
     start_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     price = forms.DecimalField(required=False, min_value=0, help_text="Leave blank to use the plan's price.")
     discount = forms.DecimalField(required=False, min_value=0, initial=0)
     tax = forms.DecimalField(required=False, min_value=0, initial=0)
-    status = forms.ChoiceField(choices=Subscription.Status.choices)
-    payment_status = forms.ChoiceField(choices=Subscription.PaymentStatus.choices)
+    status = forms.ChoiceField(choices=Subscription.Status.choices, widget=SearchableChoiceWidget(search_placeholder="Search status..."))
+    payment_status = forms.ChoiceField(choices=Subscription.PaymentStatus.choices, widget=SearchableChoiceWidget(search_placeholder="Search payment status..."))
     auto_renewal = forms.BooleanField(required=False, initial=True)
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
@@ -324,10 +325,10 @@ class GrantComplimentaryForm(forms.Form):
         ("custom", "Custom date range"),
     ]
 
-    duration = forms.ChoiceField(choices=DURATION_CHOICES)
+    duration = forms.ChoiceField(choices=DURATION_CHOICES, widget=SearchableChoiceWidget(search_placeholder="Search duration..."))
     start_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     end_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
-    plan = forms.ModelChoiceField(queryset=Plan.objects.none(), required=False, help_text="Leave blank to keep the current plan.")
+    plan = forms.ModelChoiceField(queryset=Plan.objects.none(), required=False, help_text="Leave blank to keep the current plan.", widget=SearchableModelChoiceWidget(search_placeholder="Search plan..."))
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
     def __init__(self, *args, using="default", **kwargs):
@@ -350,16 +351,17 @@ class RecordPaymentForm(forms.Form):
     invoice = forms.ModelChoiceField(
         queryset=Invoice.objects.none(), required=False,
         help_text="Optional — leave blank for a payment not tied to a specific invoice.",
+        widget=SearchableModelChoiceWidget(search_placeholder="Search invoice...")
     )
     amount = forms.DecimalField(min_value=0.01, max_digits=10, decimal_places=2)
     currency = forms.CharField(max_length=8, initial="INR")
-    payment_method = forms.ChoiceField(choices=Payment.Method.choices, initial=Payment.Method.BANK_TRANSFER)
+    payment_method = forms.ChoiceField(choices=Payment.Method.choices, initial=Payment.Method.BANK_TRANSFER, widget=SearchableChoiceWidget(search_placeholder="Search method..."))
     transaction_id = forms.CharField(
         required=False, max_length=100, label="Reference / transaction ID",
         help_text="Optional — cheque number, UTR, receipt number, etc.",
     )
     payment_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
-    status = forms.ChoiceField(choices=Payment.Status.choices, initial=Payment.Status.SUCCESS)
+    status = forms.ChoiceField(choices=Payment.Status.choices, initial=Payment.Status.SUCCESS, widget=SearchableChoiceWidget(search_placeholder="Search status..."))
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}), label="Notes / failure reason")
 
     def __init__(self, *args, using="default", organization=None, **kwargs):
@@ -380,7 +382,7 @@ class ServiceActionForm(forms.Form):
     directly to the endpoint.
     """
 
-    reason = forms.ChoiceField(choices=[("", "—")] + ServiceStatusChange.Reason.choices, required=False)
+    reason = forms.ChoiceField(choices=[("", "—")] + ServiceStatusChange.Reason.choices, required=False, widget=SearchableChoiceWidget(search_placeholder="Search reason..."))
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
     confirm = forms.BooleanField(
         required=True, label="I confirm this action",
@@ -407,13 +409,14 @@ class CreateInvoiceForm(forms.Form):
     subscription = forms.ModelChoiceField(
         queryset=Subscription.objects.none(), required=False,
         help_text="Optional — link this invoice to a specific subscription period.",
+        widget=SearchableModelChoiceWidget(search_placeholder="Search subscription...")
     )
     subtotal = forms.DecimalField(min_value=0, max_digits=10, decimal_places=2)
     discount = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0)
     tax = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0)
     invoice_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     due_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
-    status = forms.ChoiceField(choices=Invoice.Status.choices, initial=Invoice.Status.ISSUED)
+    status = forms.ChoiceField(choices=Invoice.Status.choices, initial=Invoice.Status.ISSUED, widget=SearchableChoiceWidget(search_placeholder="Search status..."))
 
     def __init__(self, *args, using="default", organization=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -480,11 +483,12 @@ class GenerateInvoiceForm(forms.Form):
     "Pay 999" coupon turns a 2999 subscription into a 999 invoice). The client
     sees the invoice - and the reduced amount - on their own Billing page."""
 
-    organization = forms.ModelChoiceField(queryset=Organization.objects.none(), label="Client")
+    organization = forms.ModelChoiceField(queryset=Organization.objects.none(), label="Client", widget=SearchableModelChoiceWidget(search_placeholder="Search client..."))
     subtotal = forms.DecimalField(min_value=0, max_digits=10, decimal_places=2, label="Amount (before coupon)")
     coupon = forms.ModelChoiceField(
         queryset=Coupon.objects.none(), required=False, empty_label="No coupon",
         help_text="Optional. Applied right away, so the client is billed the reduced amount.",
+        widget=SearchableModelChoiceWidget(search_placeholder="Search coupon...")
     )
     discount = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0,
                                   label="Extra discount (\u20b9)")
@@ -495,6 +499,7 @@ class GenerateInvoiceForm(forms.Form):
         choices=[(Invoice.Status.ISSUED, "Issued - visible and payable now"),
                  (Invoice.Status.DRAFT, "Draft - not counted as due yet")],
         initial=Invoice.Status.ISSUED,
+        widget=SearchableChoiceWidget(search_placeholder="Search status...")
     )
 
     def __init__(self, *args, using="default", **kwargs):
@@ -507,7 +512,7 @@ class GenerateInvoiceForm(forms.Form):
 
 
 class ApplyInvoiceCouponForm(forms.Form):
-    coupon = forms.ModelChoiceField(queryset=Coupon.objects.none())
+    coupon = forms.ModelChoiceField(queryset=Coupon.objects.none(), widget=SearchableModelChoiceWidget(search_placeholder="Search coupon..."))
 
     def __init__(self, *args, using="default", **kwargs):
         super().__init__(*args, **kwargs)
@@ -522,7 +527,7 @@ class RecordInvoicePaymentForm(forms.Form):
     may be smaller for a part-payment, but never larger."""
 
     amount = forms.DecimalField(min_value=0.01, max_digits=10, decimal_places=2, label="Amount received")
-    payment_method = forms.ChoiceField(choices=Payment.Method.choices, initial=Payment.Method.BANK_TRANSFER)
+    payment_method = forms.ChoiceField(choices=Payment.Method.choices, initial=Payment.Method.BANK_TRANSFER, widget=SearchableChoiceWidget(search_placeholder="Search method..."))
     payment_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     transaction_id = forms.CharField(
         required=False, max_length=100, label="Reference / transaction ID",

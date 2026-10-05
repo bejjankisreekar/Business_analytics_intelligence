@@ -19,6 +19,8 @@
     <a href="{% url 'superadmin:financial_history' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Financial history</a>
     <a href="{% url 'superadmin:client_invoice_new' env_key org.pk %}" class="sa-btn-primary rounded px-3 py-1.5 text-xs font-semibold">Generate invoice</a>
     <a href="{% url 'superadmin:org_edit' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Edit client</a>
+    <button type="button" onclick="if(confirm('Are you sure you want to delete this organization entirely? This cannot be undone.')) { document.getElementById('delete-form').submit(); }" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold text-red-400 hover:text-red-300">Delete</button>
+    <form id="delete-form" method="post" action="{% url 'superadmin:org_delete' env_key org.pk %}" style="display:none;">{% csrf_token %}</form>
   </div>
 </div>
 

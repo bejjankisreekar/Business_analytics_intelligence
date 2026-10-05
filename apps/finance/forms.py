@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from django import forms
 
+from apps.core.widgets import SearchableChoiceWidget, SearchableModelChoiceWidget
+
 from .models import (
     BankAccount,
     BankChoices,
@@ -221,6 +223,7 @@ class PurchaseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, H
             choices=[("", "---------")] + [(name, name) for name in vendor_names],
             required=False,
             label="Vendor",
+            widget=SearchableChoiceWidget(search_placeholder="Search vendor...")
         )
 
         self.fields["category"].queryset = Category.objects.filter(kind=Category.Kind.PURCHASE, is_active=True)
@@ -284,7 +287,7 @@ MONTH_CHOICES = [
 
 
 class FinanceSettingsForm(forms.ModelForm):
-    fy_start_month = forms.ChoiceField(choices=MONTH_CHOICES)
+    fy_start_month = forms.ChoiceField(choices=MONTH_CHOICES, widget=SearchableChoiceWidget(search_placeholder="Search month..."))
 
     class Meta:
         model = FinanceSettings
@@ -315,6 +318,7 @@ class CategoryForm(forms.ModelForm):
         choices=GST_RATE_CHOICES, coerce=Decimal, required=False, initial=Decimal("0"),
         empty_value=Decimal("0"),
         label="GST rate", help_text="Used by the GST Summary report — leave at 0% if this category isn't taxed.",
+        widget=SearchableChoiceWidget(search_placeholder="Search rate...")
     )
 
     class Meta:
@@ -332,6 +336,7 @@ class CategoryEditForm(forms.ModelForm):
         choices=GST_RATE_CHOICES, coerce=Decimal, required=False, initial=Decimal("0"),
         empty_value=Decimal("0"),
         label="GST rate", help_text="Used by the GST Summary report — leave at 0% if this category isn't taxed.",
+        widget=SearchableChoiceWidget(search_placeholder="Search rate...")
     )
 
     class Meta:
@@ -541,10 +546,11 @@ class PayableEditForm(_PaidInvoiceEditMixin, PayableForm):
 class RecordPaymentForm(ClearBankAccountUnlessBankMixin, forms.Form):
     date = forms.DateField(widget=DateInput(), initial=datetime.date.today)
     amount = forms.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"))
-    payment_mode = forms.ChoiceField(choices=PaymentMode.choices, initial=PaymentMode.CASH)
+    payment_mode = forms.ChoiceField(choices=PaymentMode.choices, initial=PaymentMode.CASH, widget=SearchableChoiceWidget(search_placeholder="Search mode..."))
     bank_account = forms.ModelChoiceField(
         queryset=BankAccount.objects.filter(is_active=True), required=False, empty_label="— Bank —",
         label="Bank",
+        widget=SearchableModelChoiceWidget(search_placeholder="Search bank...")
     )
     note = forms.CharField(max_length=255, required=False, widget=forms.TextInput(attrs={"placeholder": "Optional note"}))
 

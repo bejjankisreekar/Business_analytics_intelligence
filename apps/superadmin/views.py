@@ -418,6 +418,25 @@ class OrganizationEditView(SuperAdminRequiredMixin, View):
         )
 
 
+class OrganizationDeleteView(SuperAdminRequiredMixin, View):
+    """Delete an organization entirely from the database."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        org = get_object_or_404(Organization.objects.using(env), pk=pk)
+        org_name = org.name
+
+        try:
+            with transaction.atomic(using=env):
+                org.delete(using=env)
+            messages.success(request, f"Deleted organization '{org_name}' entirely.")
+        except Exception as e:
+            logger.exception("Failed to delete organization %s", pk)
+            messages.error(request, f"Failed to delete organization: {str(e)}")
+
+        return redirect("superadmin:org_list", env=env)
+
+
 class SubscriptionCreateView(SuperAdminRequiredMixin, View):
     """Change plan / renew / manually correct billing — creates a NEW
     current subscription, superseding (not deleting) the previous one."""

@@ -29,6 +29,7 @@ urlpatterns = [
     path("<str:env>/subscriptions/<int:pk>/edit/", views.SubscriptionEditView.as_view(), name="subscription_edit"),
     path("<str:env>/<uuid:pk>/", views.OrganizationDetailView.as_view(), name="org_detail"),
     path("<str:env>/<uuid:pk>/edit/", views.OrganizationEditView.as_view(), name="org_edit"),
+    path("<str:env>/<uuid:pk>/delete/", views.OrganizationDeleteView.as_view(), name="org_delete"),
     path(
         "<str:env>/<uuid:pk>/team/<uuid:user_id>/edit/",
         views.ClientUserEditView.as_view(),

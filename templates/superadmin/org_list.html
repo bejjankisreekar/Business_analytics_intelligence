@@ -56,10 +56,10 @@
         <th>Client</th>
         <th>Contact</th>
         <th>Plan</th>
+        <th>DB Source</th>
         <th>Subscription</th>
         <th>Payment status</th>
         <th>Service status</th>
-        <th>Users</th>
         <th>Renewal date</th>
         <th>Last activity</th>
         <th></th>
@@ -78,6 +78,13 @@
         </td>
         <td>{{ org.current_subscription.plan.name|default:"—" }}{% if org.current_subscription.is_complimentary %} <span class="sa-badge sa-badge--warn">Comp</span>{% endif %}</td>
         <td>
+          {% if org.storage_mode == "GOOGLE_SHEETS" %}
+          <span class="sa-badge sa-badge--warn">External</span>
+          {% else %}
+          <span class="sa-badge sa-badge--active">Our DB</span>
+          {% endif %}
+        </td>
+        <td>
           {% with s=org.current_subscription.status %}
           <span class="sa-badge {% if s == "ACTIVE" %}sa-badge--active{% elif s == "TRIAL" %}sa-badge--warn{% elif s == "PAYMENT_DUE" or s == "PAST_DUE" or s == "SUSPENDED" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">
             {{ org.current_subscription.get_status_display|default:"—" }}
@@ -87,7 +94,7 @@
         <td>
           {% with p=org.current_subscription.payment_status %}
           <span class="sa-badge {% if p == "PAID" %}sa-badge--active{% elif p == "PENDING" %}sa-badge--warn{% elif p == "FAILED" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">
-            {{ org.current_subscription.get_payment_status_display|default:"—" }}
+            {% if p == "NOT_APPLICABLE" %}NA{% else %}{{ org.current_subscription.get_payment_status_display|default:"—" }}{% endif %}
           </span>
           {% endwith %}
         </td>
@@ -98,7 +105,6 @@
           <span class="sa-badge sa-badge--inactive">Suspended</span>
           {% endif %}
         </td>
-        <td class="sa-mono">{{ org.user_count }}</td>
         <td>{{ org.current_subscription.end_date|date:"d M Y"|default:"—" }}</td>
         <td>{{ org.last_activity|date:"d M Y, H:i"|default:"Never" }}</td>
         <td class="text-right">
