@@ -132,7 +132,12 @@
                 {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
               </div>
               <div>
-                <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password</label>
+                <div class="flex items-center gap-2">
+                  <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password</label>
+                  <button type="button" class="info-tooltip relative inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-600 text-white text-xs hover:bg-slate-500 transition" title="Password must be at least 8 characters. No spaces or emojis allowed.">
+                    i
+                  </button>
+                </div>
                 {{ form.password }}
                 {% for error in form.password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
               </div>
