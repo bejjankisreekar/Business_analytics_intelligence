@@ -17,8 +17,7 @@
         <th>Monthly</th>
         <th>Yearly</th>
         <th>Trial</th>
-        <th>User limit</th>
-        <th>Business limit</th>
+        <th>Max users</th>
         <th>Status</th>
         <th></th>
       </tr>
@@ -37,7 +36,6 @@
         </td>
         <td>{{ plan.trial_days }} day{{ plan.trial_days|pluralize }}</td>
         <td>{{ plan.user_limit|default:"Unlimited" }}</td>
-        <td>{{ plan.business_limit|default:"Unlimited" }}</td>
         <td>
           {% if plan.is_active %}
           <span class="sa-badge sa-badge--active">Active</span>

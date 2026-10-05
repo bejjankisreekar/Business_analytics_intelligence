@@ -52,13 +52,8 @@
       {{ form.trial_days }}
     </div>
     <div>
-      <label class="sa-field-label" for="{{ form.user_limit.id_for_label }}">User limit</label>
+      <label class="sa-field-label" for="{{ form.user_limit.id_for_label }}">Max users (logins) per organization</label>
       {{ form.user_limit }}
-      <p class="mt-1 text-[11px] text-slate-600">Leave blank for unlimited.</p>
-    </div>
-    <div>
-      <label class="sa-field-label" for="{{ form.business_limit.id_for_label }}">Business limit</label>
-      {{ form.business_limit }}
       <p class="mt-1 text-[11px] text-slate-600">Leave blank for unlimited.</p>
     </div>
   </div>

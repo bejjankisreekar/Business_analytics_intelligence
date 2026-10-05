@@ -151,7 +151,7 @@ class PlanForm(forms.ModelForm):
         fields = [
             "name", "is_active", "show_on_landing_page", "monthly_price", "yearly_price",
             "monthly_discount_percent", "yearly_discount_percent",
-            "trial_days", "user_limit", "business_limit", "features",
+            "trial_days", "user_limit", "features",
         ]
 
     def __init__(self, *args, **kwargs):
