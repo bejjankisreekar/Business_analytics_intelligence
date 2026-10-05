@@ -35,8 +35,8 @@
   </div>
 
   <!-- Right: form -->
-  <div class="relative flex w-full flex-col justify-center px-6 py-14 sm:px-12 lg:w-[58%] lg:px-24">
-    <div class="mx-auto w-full max-w-lg ml-0 sm:ml-2 lg:ml-4">
+  <div class="relative flex w-full flex-col justify-center px-6 py-14 sm:px-12 lg:w-[58%] lg:px-32">
+    <div class="mx-auto w-full max-w-lg ml-0 sm:ml-4 lg:ml-8">
       <a href="{% url 'core:landing' %}" class="mb-6 flex items-center gap-2.5 lg:hidden">
         <img src="{% static 'img/logo.png' %}" alt="" class="h-9 w-9 rounded-xl object-contain">
         <span class="text-[15px] font-semibold text-white">Prism Pulse</span>
@@ -120,17 +120,17 @@
               {{ form.email }}
               {% for error in form.email.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
             </div>
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <div class="flex items-center gap-2">
-                  <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username</label>
-                  <button type="button" class="info-tooltip relative inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-600 text-white text-xs hover:bg-slate-500 transition" title="Only letters, numbers, underscores, dots and hyphens. No spaces.">
-                    i
-                  </button>
-                </div>
-                {{ form.username }}
-                {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+            <div>
+              <div class="flex items-center gap-2">
+                <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username</label>
+                <button type="button" class="info-tooltip relative inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-600 text-white text-xs hover:bg-slate-500 transition" title="Only letters, numbers, underscores, dots and hyphens. No spaces.">
+                  i
+                </button>
               </div>
+              {{ form.username }}
+              {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <div class="flex items-center gap-2">
                   <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password</label>
