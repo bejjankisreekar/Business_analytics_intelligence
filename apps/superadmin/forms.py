@@ -503,9 +503,12 @@ class GenerateInvoiceForm(forms.Form):
         help_text="Optional. Applied right away, so the client is billed the reduced amount.",
         widget=SearchableModelChoiceWidget(search_placeholder="Search coupon...")
     )
+    organization_discount = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0,
+                                              label="Organization discount (\u20b9)")
     discount = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0,
                                   label="Extra discount (\u20b9)")
-    tax = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, initial=0)
+    tax = forms.DecimalField(required=False, min_value=0, max_digits=5, decimal_places=2, initial=0,
+                            label="GST (%)", help_text="Enter as percentage, will be auto-calculated on the final amount.")
     invoice_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     due_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     service_billing_start_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="Service billing start date")

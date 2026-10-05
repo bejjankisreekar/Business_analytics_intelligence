@@ -205,7 +205,6 @@
 
   (function () {
     const coupons = JSON.parse(document.getElementById("coupon-data").textContent);
-    const orgDiscounts = JSON.parse(document.getElementById("org-discount-data").textContent);
     const $ = (id) => document.getElementById(id);
     const num = (el) => { const v = parseFloat(el && el.value); return Number.isFinite(v) && v > 0 ? v : 0; };
     const money = (n) => "₹" + Math.round(n).toLocaleString("en-IN");
@@ -224,21 +223,21 @@
       const subtotal = num($("id_subtotal"));
       const select = $("id_coupon");
       const coupon = select && coupons.find((c) => String(c.id) === select.value);
-      const orgSel = $("id_organization");
-      const orgId = orgSel ? orgSel.value : "{{ org.pk|default:"" }}";
-      const orgOff = parseFloat(orgDiscounts[String(orgId)]) || 0;
+      const orgOff = num($("id_organization_discount"));
       const extra = num($("id_discount"));
       // Mirrors services._apply_coupon: the coupon works on what's left after the other discounts.
       const couponOff = couponDiscount(coupon, Math.max(subtotal - orgOff - extra, 0));
-      const tax = num($("id_tax"));
-      const total = Math.max(subtotal - orgOff - couponOff - extra + tax, 0);
+      const gstPercentage = num($("id_tax"));
+      const taxableAmount = Math.max(subtotal - orgOff - couponOff - extra, 0);
+      const gstAmount = taxableAmount * gstPercentage / 100;
+      const total = taxableAmount + gstAmount;
 
       $("ps-subtotal").textContent = money(subtotal);
       $("ps-orgdisc").textContent = "— " + money(orgOff);
       $("ps-coupon-label").textContent = coupon ? "Coupon " + coupon.code : "Coupon";
       $("ps-coupon").textContent = "— " + money(couponOff);
       $("ps-discount").textContent = "— " + money(extra);
-      $("ps-tax").textContent = "+ " + money(tax);
+      $("ps-tax").textContent = "+ " + money(gstAmount) + " (" + gstPercentage.toFixed(2) + "%)";
       $("ps-total").textContent = money(total);
 
       const note = $("ps-note");
@@ -251,7 +250,7 @@
       note.classList.toggle("hidden", notes.length === 0);
     }
 
-    ["id_subtotal", "id_organization", "id_coupon", "id_discount", "id_tax"].forEach((id) => {
+    ["id_subtotal", "id_organization_discount", "id_coupon", "id_discount", "id_tax"].forEach((id) => {
       const el = $(id);
       if (el) { el.addEventListener("input", update); el.addEventListener("change", update); }
     });

@@ -1133,6 +1133,7 @@ class InvoiceGenerateView(SuperAdminRequiredMixin, View):
             if sub is not None:
                 yearly = sub.billing_cycle == Subscription.BillingCycle.YEARLY
                 initial["subtotal"] = sub.plan.yearly_price if yearly else sub.plan.monthly_price
+                initial["organization_discount"] = sub.discount or 0
                 period_end = _add_months(today, 12 if yearly else 1) - datetime.timedelta(days=1)
                 initial["service_billing_start_date"] = today
                 initial["service_billing_end_date"] = period_end
@@ -1182,12 +1183,17 @@ class InvoiceGenerateView(SuperAdminRequiredMixin, View):
         cd = form.cleaned_data
         org = cd["organization"]
         subscription = billing_services.get_current_subscription(org.id, using=env)
-        org_discount = (subscription.discount if subscription else 0) or 0
+        org_discount = cd.get("organization_discount") or 0
+        extra_discount = cd.get("discount") or 0
+        gst_percentage = cd.get("tax") or 0
+        # Calculate GST on amount after all discounts
+        taxable_amount = max(cd["subtotal"] - org_discount - extra_discount, 0)
+        gst_amount = taxable_amount * gst_percentage / 100 if gst_percentage > 0 else 0
         try:
             with transaction.atomic(using=env):
                 invoice = invoicing.create_invoice(
                     org, using=env, subscription=subscription, subtotal=cd["subtotal"],
-                    discount=org_discount + (cd.get("discount") or 0), tax=cd.get("tax") or 0, currency=org.currency,
+                    discount=org_discount + extra_discount, tax=gst_amount, currency=org.currency,
                     invoice_date=cd["invoice_date"], due_date=cd["due_date"],
                     service_billing_start_date=cd.get("service_billing_start_date"),
                     service_billing_end_date=cd.get("service_billing_end_date"),
