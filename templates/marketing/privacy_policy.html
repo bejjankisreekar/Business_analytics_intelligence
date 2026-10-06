@@ -2,141 +2,197 @@
 {% block title %}Privacy Policy — {{ SITE_NAME }}{% endblock %}
 
 {% block body %}
-<div class="min-h-screen bg-gradient-to-br from-ink-950 to-ink-900">
+<div class="min-h-screen bg-gradient-to-br from-ink-950 via-ink-900 to-ink-950">
   {% include "includes/_navbar.html" %}
 
-  <div class="mx-auto max-w-4xl px-6 py-24 lg:px-8">
-    <div class="prose prose-invert max-w-none">
-      <h1 class="text-4xl font-bold text-white mb-2">Privacy Policy</h1>
-      <p class="text-slate-400 mb-8">Last updated: October 2026</p>
+  <!-- Hero Section -->
+  <div class="relative overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-b from-blue-500/10 via-transparent to-transparent pointer-events-none"></div>
+    <div class="mx-auto max-w-5xl px-6 py-20 lg:px-8 relative">
+      <div class="text-center mb-8">
+        <h1 class="text-5xl lg:text-6xl font-bold text-white mb-4 tracking-tight">Privacy Policy</h1>
+        <p class="text-lg text-slate-400">Last updated: <span class="text-slate-300 font-medium">October 2026</span></p>
+      </div>
+      <div class="h-1 w-16 bg-gradient-to-r from-blue-500 to-cyan-500 mx-auto rounded-full"></div>
+    </div>
+  </div>
 
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">1. Introduction</h2>
-        <p class="text-slate-300 mb-4">
-          Prism Pulse Intelligence & Analytics ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.
-        </p>
-        <p class="text-slate-300">
-          Please read this Privacy Policy carefully. If you do not agree with our policies and practices, please do not use our services.
-        </p>
+  <div class="mx-auto max-w-4xl px-6 py-16 lg:px-8">
+    <div class="space-y-0">
+      <!-- Section 1 -->
+      <section class="mb-16 pb-12 border-b border-white/10">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">1</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">Introduction</h2>
+        </div>
+        <div class="ml-16 space-y-4">
+          <p class="text-slate-300 leading-relaxed">
+            Prism Pulse Intelligence & Analytics ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.
+          </p>
+          <p class="text-slate-300 leading-relaxed">
+            Please read this Privacy Policy carefully. If you do not agree with our policies and practices, please do not use our services.
+          </p>
+        </div>
       </section>
 
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">2. Information We Collect</h2>
-        <h3 class="text-xl font-semibold text-slate-200 mb-3">2.1 Information You Provide Directly</h3>
-        <ul class="text-slate-300 mb-6 space-y-2 ml-6">
-          <li>• Account information (name, email, phone, organization details)</li>
-          <li>• Billing and payment information</li>
-          <li>• Business data you upload or input</li>
-          <li>• Communication preferences and messages</li>
-          <li>• Support and feedback submissions</li>
+      <!-- Section 2 -->
+      <section class="mb-16 pb-12 border-b border-white/10">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">2</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">Information We Collect</h2>
+        </div>
+
+        <div class="ml-16 space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-slate-200 mb-4">Information You Provide Directly</h3>
+            <ul class="text-slate-300 space-y-3">
+              <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Account information (name, email, phone, organization details)</span></li>
+              <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Billing and payment information</span></li>
+              <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Business data you upload or input</span></li>
+              <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Communication preferences and messages</span></li>
+              <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Support and feedback submissions</span></li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 class="text-lg font-semibold text-slate-200 mb-4">Automatically Collected Information</h3>
+            <ul class="text-slate-300 space-y-3">
+              <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Device and browser information</span></li>
+              <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>IP address and location data</span></li>
+              <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Cookies and similar tracking technologies</span></li>
+              <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Usage analytics and session information</span></li>
+              <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Referring URLs and access times</span></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3 -->
+      <section class="mb-16 pb-12 border-b border-white/10">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">3</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">How We Use Your Information</h2>
+        </div>
+        <p class="text-slate-300 leading-relaxed ml-16 mb-5">We use collected information for:</p>
+        <ul class="text-slate-300 space-y-3 ml-16">
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Providing, maintaining, and improving our services</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Processing transactions and sending billing information</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Sending service-related announcements and updates</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Responding to your inquiries and support requests</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Personalizing your experience</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Analyzing usage patterns and service optimization</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Complying with legal obligations</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Preventing fraud and ensuring security</span></li>
         </ul>
+      </section>
 
-        <h3 class="text-xl font-semibold text-slate-200 mb-3">2.2 Automatically Collected Information</h3>
-        <ul class="text-slate-300 mb-6 space-y-2 ml-6">
-          <li>• Device and browser information</li>
-          <li>• IP address and location data</li>
-          <li>• Cookies and similar tracking technologies</li>
-          <li>• Usage analytics and session information</li>
-          <li>• Referring URLs and access times</li>
+      <!-- Section 4 -->
+      <section class="mb-16 pb-12 border-b border-white/10">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">4</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">Data Storage and Security</h2>
+        </div>
+        <div class="ml-16 space-y-5">
+          <p class="text-slate-300 leading-relaxed">
+            We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no method of transmission over the Internet is 100% secure.
+          </p>
+          <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+            <p class="text-slate-300 leading-relaxed">
+              You have the option to store your business data with your own Google Drive account or in Prism Pulse's secure database. Both options are protected with encryption and industry-standard security practices.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5 -->
+      <section class="mb-16 pb-12 border-b border-white/10">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">5</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">Data Sharing and Disclosure</h2>
+        </div>
+        <p class="text-slate-300 leading-relaxed ml-16 mb-5">We do not sell, trade, or rent your personal information to third parties. We may share information:</p>
+        <ul class="text-slate-300 space-y-3 ml-16">
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>With service providers who assist in operating our website and business</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>To comply with legal requirements and court orders</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>To protect our rights, privacy, safety, or property</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>In connection with a merger, acquisition, or sale of assets</span></li>
         </ul>
       </section>
 
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">3. How We Use Your Information</h2>
-        <p class="text-slate-300 mb-4">We use collected information for:</p>
-        <ul class="text-slate-300 space-y-2 ml-6">
-          <li>• Providing, maintaining, and improving our services</li>
-          <li>• Processing transactions and sending billing information</li>
-          <li>• Sending service-related announcements and updates</li>
-          <li>• Responding to your inquiries and support requests</li>
-          <li>• Personalizing your experience</li>
-          <li>• Analyzing usage patterns and service optimization</li>
-          <li>• Complying with legal obligations</li>
-          <li>• Preventing fraud and ensuring security</li>
+      <!-- Section 6 -->
+      <section class="mb-16 pb-12 border-b border-white/10">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">6</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">Your Privacy Rights</h2>
+        </div>
+        <p class="text-slate-300 leading-relaxed ml-16 mb-5">Depending on your location, you may have the right to:</p>
+        <ul class="text-slate-300 space-y-3 ml-16 mb-5">
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Access your personal information</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Correct inaccurate data</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Request deletion of your data</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Opt-out of certain data uses</span></li>
+          <li class="flex items-start gap-3"><span class="text-slate-400 flex-shrink-0 pt-0.5">•</span><span>Data portability in a structured format</span></li>
         </ul>
+        <div class="ml-16 bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+          <p class="text-slate-300 text-sm">
+            To exercise these rights, please contact us at <span class="text-slate-200 font-medium">privacy@businessanalyticsintelligence.com</span>.
+          </p>
+        </div>
       </section>
 
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">4. Data Storage and Security</h2>
-        <p class="text-slate-300 mb-4">
-          We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no method of transmission over the Internet is 100% secure.
-        </p>
-        <p class="text-slate-300 mb-4">
-          You have the option to store your business data with your own Google Drive account or in Prism Pulse's secure database. Both options are protected with encryption and industry-standard security practices.
-        </p>
-      </section>
-
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">5. Data Sharing and Disclosure</h2>
-        <p class="text-slate-300 mb-4">We do not sell, trade, or rent your personal information to third parties. We may share information:</p>
-        <ul class="text-slate-300 space-y-2 ml-6">
-          <li>• With service providers who assist in operating our website and business</li>
-          <li>• To comply with legal requirements and court orders</li>
-          <li>• To protect our rights, privacy, safety, or property</li>
-          <li>• In connection with a merger, acquisition, or sale of assets</li>
-        </ul>
-      </section>
-
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">6. Your Privacy Rights</h2>
-        <p class="text-slate-300 mb-4">Depending on your location, you may have the right to:</p>
-        <ul class="text-slate-300 space-y-2 ml-6">
-          <li>• Access your personal information</li>
-          <li>• Correct inaccurate data</li>
-          <li>• Request deletion of your data</li>
-          <li>• Opt-out of certain data uses</li>
-          <li>• Data portability in a structured format</li>
-        </ul>
-        <p class="text-slate-300 mt-4">
-          To exercise these rights, please contact us at privacy@businessanalyticsintelligence.com.
-        </p>
-      </section>
-
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">7. Cookies and Tracking</h2>
-        <p class="text-slate-300 mb-4">
+      <!-- Section 7 -->
+      <section class="mb-16 pb-12 border-b border-white/10">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">7</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">Cookies and Tracking</h2>
+        </div>
+        <p class="text-slate-300 leading-relaxed ml-16">
           We use cookies to enhance your experience, remember preferences, and analyze site usage. You can control cookie settings through your browser. Some features may not function properly if cookies are disabled.
         </p>
       </section>
 
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">8. Third-Party Links</h2>
-        <p class="text-slate-300">
+      <!-- Section 8 -->
+      <section class="mb-16 pb-12 border-b border-white/10">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">8</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">Third-Party Links</h2>
+        </div>
+        <p class="text-slate-300 leading-relaxed ml-16">
           Our website may contain links to third-party websites. We are not responsible for the privacy practices or content of external sites. Please review their privacy policies before providing any information.
         </p>
       </section>
 
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">9. Children's Privacy</h2>
-        <p class="text-slate-300">
+      <!-- Section 9 -->
+      <section class="mb-16 pb-12 border-b border-white/10">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">9</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">Children's Privacy</h2>
+        </div>
+        <p class="text-slate-300 leading-relaxed ml-16">
           Our services are not intended for individuals under 18 years of age. We do not knowingly collect information from children. If we become aware that we have collected personal information from a child, we will delete such information promptly.
         </p>
       </section>
 
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">10. International Data Transfers</h2>
-        <p class="text-slate-300">
+      <!-- Section 10 -->
+      <section class="mb-16 pb-12 border-b border-white/10">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">10</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">International Data Transfers</h2>
+        </div>
+        <p class="text-slate-300 leading-relaxed ml-16">
           Your information may be transferred to, stored in, and processed in countries other than your country of residence. These countries may have data protection laws different from your home country. By using our services, you consent to such transfers.
         </p>
       </section>
 
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">11. Changes to This Privacy Policy</h2>
-        <p class="text-slate-300">
+      <!-- Section 11 -->
+      <section class="mb-16 pb-12">
+        <div class="flex items-baseline gap-5 mb-6">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-slate-700 dark:bg-slate-600 text-white font-bold text-base flex-shrink-0">11</span>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white">Changes to This Privacy Policy</h2>
+        </div>
+        <p class="text-slate-300 leading-relaxed ml-16">
           We may update this Privacy Policy periodically to reflect changes in our practices or legal requirements. We will notify you of significant changes by posting the updated policy on our website. Your continued use of our services constitutes acceptance of the updated Privacy Policy.
         </p>
-      </section>
-
-      <section class="mb-12">
-        <h2 class="text-2xl font-bold text-white mb-4">12. Contact Us</h2>
-        <p class="text-slate-300 mb-4">
-          If you have questions about this Privacy Policy or our privacy practices, please contact us at:
-        </p>
-        <div class="bg-white/5 border border-white/10 rounded-lg p-6 text-slate-300">
-          <p class="mb-2"><strong>Prism Pulse Intelligence & Analytics</strong></p>
-          <p>Email: privacy@businessanalyticsintelligence.com</p>
-          <p>Website: www.businessanalyticsintelligence.com</p>
-        </div>
       </section>
     </div>
   </div>

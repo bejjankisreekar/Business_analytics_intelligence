@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Storage Requests — {{ SITE_NAME }}{% endblock %}
+
+{% block body %}
+<div class="min-h-screen bg-gradient-to-br from-ink-950 to-ink-900">
+  {% include "includes/_navbar.html" %}
+
+  <div class="mx-auto max-w-3xl px-6 py-12 lg:px-8">
+    <div class="space-y-8">
+      <!-- Header -->
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-white mb-2">Storage Change Requests</h1>
+          <p class="text-slate-400">Manage your data storage preferences</p>
+        </div>
+        <a
+          href="{% url 'organizations:request_storage_change' %}"
+          class="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 font-semibold text-white hover:brightness-110 transition"
+        >
+          New Request
+        </a>
+      </div>
+
+      <!-- Pending Request -->
+      {% if pending_request %}
+      <div class="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h3 class="text-lg font-semibold text-yellow-300 mb-2">⏳ Pending Approval</h3>
+            <p class="text-slate-300">Your request to change from <strong>{{ pending_request.get_current_storage_display }}</strong> to <strong>{{ pending_request.get_requested_storage_display }}</strong></p>
+          </div>
+          <span class="px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-300 text-xs font-semibold">{{ pending_request.get_status_display }}</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mt-4">
+          <div>
+            <p class="text-xs text-slate-500 mb-1">Requested</p>
+            <p class="text-slate-300">{{ pending_request.requested_at|date:"M d, Y" }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 mb-1">Billing Impact</p>
+            <p class="text-slate-300 font-semibold">{{ pending_request.billing_impact_text }}</p>
+          </div>
+        </div>
+
+        {% if pending_request.reason %}
+        <div class="mt-4 p-4 bg-white/5 rounded-lg">
+          <p class="text-xs text-slate-500 mb-1">Your Reason</p>
+          <p class="text-slate-300">{{ pending_request.reason }}</p>
+        </div>
+        {% endif %}
+
+        <p class="text-sm text-slate-400 mt-4">Our team will review your request and notify you once it's approved or rejected.</p>
+      </div>
+      {% endif %}
+
+      <!-- Approved Request -->
+      {% if approved_request %}
+      <div class="rounded-xl border border-green-500/20 bg-green-500/5 p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h3 class="text-lg font-semibold text-green-300 mb-2">✓ Approved</h3>
+            <p class="text-slate-300">Your request to change from <strong>{{ approved_request.get_current_storage_display }}</strong> to <strong>{{ approved_request.get_requested_storage_display }}</strong> has been approved.</p>
+          </div>
+          <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-300 text-xs font-semibold">{{ approved_request.get_status_display }}</span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 mt-4">
+          <div>
+            <p class="text-xs text-slate-500 mb-1">Approved On</p>
+            <p class="text-slate-300">{{ approved_request.reviewed_at|date:"M d, Y" }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 mb-1">Billing Impact</p>
+            <p class="text-slate-300 font-semibold">{{ approved_request.billing_impact_text }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 mb-1">Status</p>
+            <p class="text-slate-300">Being processed...</p>
+          </div>
+        </div>
+
+        {% if approved_request.admin_notes %}
+        <div class="mt-4 p-4 bg-white/5 rounded-lg">
+          <p class="text-xs text-slate-500 mb-1">Admin Notes</p>
+          <p class="text-slate-300">{{ approved_request.admin_notes }}</p>
+        </div>
+        {% endif %}
+
+        <p class="text-sm text-slate-400 mt-4">Your storage is being changed. You'll receive a notification once the migration is complete.</p>
+      </div>
+      {% endif %}
+
+      <!-- No Pending/Approved -->
+      {% if not pending_request and not approved_request %}
+      <div class="rounded-xl border border-white/10 bg-white/[0.03] p-8 text-center">
+        <p class="text-slate-300 mb-4">No active storage change requests</p>
+        <a
+          href="{% url 'organizations:request_storage_change' %}"
+          class="inline-block rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 font-semibold text-white hover:brightness-110 transition"
+        >
+          Request a Change
+        </a>
+      </div>
+      {% endif %}
+
+      <!-- Request History -->
+      {% if request_history %}
+      <div>
+        <h3 class="text-xl font-semibold text-white mb-4">Request History</h3>
+        <div class="space-y-3">
+          {% for req in request_history %}
+          <div class="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-white font-semibold">
+                  {{ req.get_current_storage_display }} → {{ req.get_requested_storage_display }}
+                </p>
+                <p class="text-xs text-slate-500 mt-1">{{ req.requested_at|date:"M d, Y" }}</p>
+              </div>
+              <span class="px-3 py-1 rounded-full text-xs font-semibold {% if req.status == 'COMPLETED' %}bg-green-500/20 text-green-400{% else %}bg-red-500/20 text-red-400{% endif %}">
+                {{ req.get_status_display }}
+              </span>
+            </div>
+            {% if req.admin_notes %}
+            <p class="text-sm text-slate-400 mt-2">{{ req.admin_notes }}</p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

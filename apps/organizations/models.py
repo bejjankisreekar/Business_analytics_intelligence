@@ -262,3 +262,74 @@ class CloudBackupConnection(models.Model):
 
     def __str__(self) -> str:
         return f"{self.organization_id}: {self.get_provider_display()}"
+
+
+class DataStorageChangeRequest(models.Model):
+    """Request by a client to change their data storage from one provider to another.
+    Once submitted, only a superadmin can approve or reject it. Approved requests
+    update the organization's storage_mode and trigger necessary migrations.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending Approval"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        COMPLETED = "COMPLETED", "Completed"
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="storage_change_requests"
+    )
+
+    # Current and requested storage types
+    current_storage = models.CharField(
+        max_length=20, choices=Organization.StorageMode.choices
+    )
+    requested_storage = models.CharField(
+        max_length=20, choices=Organization.StorageMode.choices
+    )
+
+    # Billing impact
+    current_monthly_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    requested_monthly_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    price_difference = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Client details
+    reason = models.TextField(blank=True, help_text="Why the client wants to change storage")
+
+    # Admin approval details
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    admin_notes = models.TextField(blank=True, help_text="Superadmin notes on approval/rejection")
+    reviewed_by_email = models.EmailField(blank=True)
+
+    # Timestamps
+    requested_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+        indexes = [
+            models.Index(fields=["organization", "-requested_at"]),
+            models.Index(fields=["status", "-requested_at"]),
+        ]
+        constraints = [
+            # Only one pending/approved request per organization at a time
+            models.UniqueConstraint(
+                fields=["organization", "status"],
+                condition=models.Q(status__in=["PENDING", "APPROVED"]),
+                name="unique_active_storage_request",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.organization.name}: {self.get_current_storage_display()} → {self.get_requested_storage_display()} ({self.get_status_display()})"
+
+    @property
+    def billing_impact_text(self) -> str:
+        """Human-readable billing impact."""
+        if self.price_difference == 0:
+            return "No change to your monthly billing"
+        elif self.price_difference > 0:
+            return f"₹{abs(self.price_difference):.2f} increase per month"
+        else:
+            return f"₹{abs(self.price_difference):.2f} decrease per month"

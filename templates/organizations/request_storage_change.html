@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Request Storage Change — {{ SITE_NAME }}{% endblock %}
+
+{% block body %}
+<div class="min-h-screen bg-gradient-to-br from-ink-950 to-ink-900">
+  {% include "includes/_navbar.html" %}
+
+  <div class="mx-auto max-w-2xl px-6 py-12 lg:px-8">
+    <div class="space-y-8">
+      <!-- Header -->
+      <div>
+        <h1 class="text-3xl font-bold text-white mb-2">Change Data Storage</h1>
+        <p class="text-slate-400">Switch between storing your data in Google Drive or Prism Pulse's database.</p>
+      </div>
+
+      {% if existing_request %}
+      <div class="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-6">
+        <p class="text-yellow-200">
+          <strong>Pending Request:</strong> You already have a storage change request awaiting approval.
+          Please wait for it to be reviewed before submitting another request.
+        </p>
+      </div>
+      {% endif %}
+
+      {% if not existing_request %}
+      <form method="post" class="space-y-8">
+        {% csrf_token %}
+
+        <!-- Current Storage -->
+        <div class="rounded-xl border border-white/10 bg-white/[0.03] p-6">
+          <h3 class="text-lg font-semibold text-white mb-4">Current Storage</h3>
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-slate-300">{{ current_storage }}</p>
+              <p class="text-xs text-slate-500 mt-1">Your data is currently stored here</p>
+            </div>
+            <div class="text-3xl">
+              {% if organization.storage_mode == 'GOOGLE_SHEETS' %}
+                📁
+              {% else %}
+                🗄️
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Request New Storage -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-semibold text-white">Where would you like to move your data?</h3>
+
+          <div class="space-y-3">
+            {% for value, label in form.requested_storage.field.choices %}
+            <label class="relative flex cursor-pointer rounded-xl border border-white/10 p-6 hover:border-white/20 hover:bg-white/[0.05] transition">
+              <input
+                type="radio"
+                name="requested_storage"
+                value="{{ value }}"
+                class="mt-1 mr-4"
+                {% if form.requested_storage.value == value %}checked{% endif %}
+              >
+              <div class="flex-1">
+                <p class="text-white font-semibold">{{ label }}</p>
+                {% if value == 'GOOGLE_SHEETS' %}
+                  <p class="text-sm text-slate-400 mt-1">Your data lives in a Google Sheet in your own Google Drive. You own the file and can access it anytime.</p>
+                  <p class="text-xs text-mint-400 mt-2">✓ Full data ownership • ✓ No account fees • ✓ Easy export</p>
+                {% else %}
+                  <p class="text-sm text-slate-400 mt-1">Your data lives in Prism Pulse's secure, isolated database. No Google account needed.</p>
+                  <p class="text-xs text-mint-400 mt-2">✓ Instant access • ✓ No Google setup • ✓ Managed backup</p>
+                {% endif %}
+              </div>
+              <div class="text-2xl ml-4">
+                {% if value == 'GOOGLE_SHEETS' %}
+                  📁
+                {% else %}
+                  🗄️
+                {% endif %}
+              </div>
+            </label>
+            {% endfor %}
+          </div>
+
+          {% if form.requested_storage.errors %}
+          <div class="text-red-400 text-sm">
+            {% for error in form.requested_storage.errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Billing Impact -->
+        {% if form.instance.price_difference is not None %}
+        <div class="rounded-xl border border-blue-500/20 bg-blue-500/5 p-6">
+          <h4 class="text-white font-semibold mb-2">Billing Impact</h4>
+          <p class="text-slate-300">
+            {% if form.instance.price_difference == 0 %}
+              No change to your monthly billing
+            {% elif form.instance.price_difference > 0 %}
+              ₹{{ form.instance.price_difference }}/month increase
+            {% else %}
+              ₹{{ form.instance.price_difference|add:0 }}/month decrease (savings!)
+            {% endif %}
+          </p>
+          {% if form.instance.current_monthly_price %}
+          <p class="text-xs text-slate-500 mt-2">
+            Current: ₹{{ form.instance.current_monthly_price }}/month
+            → New: ₹{{ form.instance.requested_monthly_price }}/month
+          </p>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Reason -->
+        <div class="space-y-2">
+          <label for="{{ form.reason.id_for_label }}" class="block text-sm font-medium text-white">
+            Why are you changing storage? (Optional)
+          </label>
+          <textarea
+            name="reason"
+            id="{{ form.reason.id_for_label }}"
+            rows="4"
+            placeholder="Tell us why you want to change storage providers..."
+            class="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-blue-500"
+          >{{ form.reason.value|default:'' }}</textarea>
+          {% if form.reason.errors %}
+          <div class="text-red-400 text-sm">
+            {% for error in form.reason.errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Submit -->
+        <div class="flex gap-4 pt-4">
+          <button
+            type="submit"
+            class="flex-1 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 font-semibold text-white hover:brightness-110 transition"
+          >
+            Submit Request
+          </button>
+          <a
+            href="{% url 'organizations:storage_change_requests' %}"
+            class="px-6 py-3 rounded-lg border border-white/10 text-white hover:bg-white/5 transition"
+          >
+            Cancel
+          </a>
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-red-300 text-sm">
+          {% for error in form.non_field_errors %}
+            <p>{{ error }}</p>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
