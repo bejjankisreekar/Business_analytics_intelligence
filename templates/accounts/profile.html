@@ -218,8 +218,7 @@
       {% endif %}
     </div>
     {% if can_switch_to_sheets %}
-    <a href="{% url 'accounts:connect_drive' %}" class="rounded-lg border border-white/20 px-4 py-2 text-sm text-slate-300 hover:border-white/40 hover:text-white transition whitespace-nowrap"
-       data-confirm="Switch to your own Google Drive? You'll connect your Google account next, then your existing data will be copied into a new Sheet there.">
+    <a href="{% url 'organizations:request_storage_change' %}" class="rounded-lg border border-white/20 px-4 py-2 text-sm text-slate-300 hover:border-white/40 hover:text-white transition whitespace-nowrap">
       Switch to your own Google Drive
     </a>
     {% elif can_switch_to_our_database %}
