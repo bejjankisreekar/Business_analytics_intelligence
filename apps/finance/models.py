@@ -554,6 +554,10 @@ class FinanceSettings(SheetAwareModelMixin, models.Model):
     opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     opening_bank_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     opening_date = models.DateField()
+    # JSON object {"sale": {"category": "Channel", ...}, ...} of the
+    # organization's own bulk-entry column names. Kept as text (not
+    # JSONField) so the Sheets store can round-trip it; blank = defaults.
+    bulk_column_labels = models.TextField(blank=True, default="")
 
     class Meta:
         base_manager_name = "objects"

@@ -7,8 +7,8 @@
   .dc-wrap { position: relative; }
   .dc-badge {
     display: inline-flex; align-items: center; gap: .5rem; border-radius: .5rem;
-    border: 1px solid rgb(var(--brand-500) / .3); background: rgb(var(--brand-500) / .1);
-    padding: .375rem .75rem; font-size: .875rem; font-weight: 600; color: rgb(var(--fg-strong));
+    border: 1px solid transparent; background: rgb(var(--brand-500) / .1); height: 2rem;
+    padding: 0 .75rem; font-size: .875rem; font-weight: 600; color: rgb(var(--fg-strong));
     cursor: pointer; transition: background .15s, border-color .15s;
   }
   .dc-badge:hover, .dc-badge[aria-expanded="true"] { background: rgb(var(--brand-500) / .18); border-color: rgb(var(--brand-500) / .55); }
@@ -16,12 +16,12 @@
   .dc-badge .dc-chev { width: .85rem; height: .85rem; transition: transform .15s; }
   .dc-badge[aria-expanded="true"] .dc-chev { transform: rotate(180deg); }
   .dc-panel {
-    position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 18.5rem; padding: 1rem 1rem .9rem;
+    position: absolute; left: 50%; transform: translateX(-50%); top: calc(100% + 10px); z-index: 40; width: 18.5rem; padding: 1rem 1rem .9rem;
     border-radius: .85rem; background: rgb(var(--ink-800)); border: 1px solid rgb(var(--tint-rgb) / .16);
     box-shadow: 0 18px 40px -14px rgb(0 0 0 / .5);
   }
   .dc-panel[hidden] { display: none; }
-  @media (max-width: 480px) { .dc-panel { position: fixed; left: 50%; top: 5rem; transform: translateX(-50%); } }
+  @media (max-width: 480px) { .dc-panel { position: fixed; left: 50%; top: 5rem; } }
   .dc-head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
   .dc-arrows { display: flex; gap: .15rem; }
   .dc-title { font-size: .95rem; font-weight: 600; color: rgb(var(--fg-strong)); line-height: 1.2; }
@@ -51,82 +51,93 @@
   .dc-legend span { display: inline-flex; align-items: center; gap: .3rem; }
   .dc-key { display: inline-block; width: .65rem; height: .65rem; border-radius: 50%; }
 </style>
-<div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+<!-- Header -->
+<div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
   <div>
     <div class="flex items-center gap-2">
       <h1 class="text-2xl font-bold text-white">Daily Book</h1>
       <span class="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-semibold tracking-wide text-slate-400">{{ organization.currency }}</span>
     </div>
-    <p class="mt-1 text-sm text-slate-400">A cashier-style sheet of everything logged for the day. All amounts in {{ organization.currency }}.</p>
+    <p class="mt-1 text-sm text-slate-400">A cashier-style sheet of everything logged for the day.</p>
   </div>
-  <div class="flex flex-wrap items-center gap-2">
-    <a href="?date={{ prev_date|date:'Y-m-d' }}&mode={{ selected_mode }}" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">‹</a>
-    <form method="get" class="flex items-center">
-      <input type="hidden" name="mode" value="{{ selected_mode }}">
-      <input type="date" name="date" value="{{ report.date|date:'Y-m-d' }}" onchange="this.form.submit()" class="!mt-0 !w-auto">
-    </form>
-    <a href="?date={{ next_date|date:'Y-m-d' }}&mode={{ selected_mode }}" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">›</a>
-    {% if report.date == today %}
-    <span class="cursor-not-allowed rounded-lg border border-white/5 px-3 py-2 text-xs font-medium text-slate-600" aria-disabled="true">Today</span>
-    {% else %}
-    <a href="?date={{ today|date:'Y-m-d' }}&mode={{ selected_mode }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Today</a>
-    {% endif %}
-    <a id="download-pdf-link" href="{% url 'finance:daily_report_pdf' %}?date={{ report.date|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
-  </div>
-</div>
 
-<div class="mt-4 flex flex-wrap items-center justify-end gap-3">
-  <div class="dc-wrap" id="dc-wrap">
-    <button type="button" id="dc-toggle" class="dc-badge" aria-haspopup="dialog" aria-expanded="false" aria-controls="dc-panel" title="Open entry calendar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-      {{ report.date|date:"l, d F Y" }}
-      <svg class="dc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-    <div id="dc-panel" class="dc-panel" role="dialog" aria-label="Entry Calendar" hidden>
-      <div class="dc-head">
-        <div class="dc-title"><span id="dc-month">—</span><span id="dc-stat" class="dc-stat"></span></div>
-        <div class="dc-arrows">
-          <button type="button" class="dc-nav" id="dc-prev" aria-label="Previous month">‹</button>
-          <button type="button" class="dc-nav" id="dc-next" aria-label="Next month">›</button>
+  <div class="flex flex-wrap items-center gap-2 lg:justify-end">
+    <!-- Date navigator: ‹ date › -->
+    <div class="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.02] p-1">
+      <a href="?date={{ prev_date|date:'Y-m-d' }}&mode={{ selected_mode }}" class="flex h-8 w-8 items-center justify-center rounded-lg text-lg text-slate-300 hover:bg-white/5" aria-label="Previous day">‹</a>
+      <div class="dc-wrap" id="dc-wrap">
+        <button type="button" id="dc-toggle" class="dc-badge" aria-haspopup="dialog" aria-expanded="false" aria-controls="dc-panel" title="Open entry calendar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          {{ report.date|date:"D, d M Y" }}
+          <svg class="dc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div id="dc-panel" class="dc-panel" role="dialog" aria-label="Entry Calendar" hidden>
+          <div class="dc-head">
+            <div class="dc-title"><span id="dc-month">—</span><span id="dc-stat" class="dc-stat"></span></div>
+            <div class="dc-arrows">
+              <button type="button" class="dc-nav" id="dc-prev" aria-label="Previous month">‹</button>
+              <button type="button" class="dc-nav" id="dc-next" aria-label="Next month">›</button>
+            </div>
+          </div>
+          <div class="dc-weekdays"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+          <div id="dc-grid" class="dc-grid" aria-live="polite"></div>
+          <div class="dc-legend">
+            <span><i class="dc-key dc-has"></i> Entries logged</span>
+            <span><i class="dc-key dc-none"></i> No entries</span>
+          </div>
         </div>
       </div>
-      <div class="dc-weekdays"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
-      <div id="dc-grid" class="dc-grid" aria-live="polite"></div>
-      <div class="dc-legend">
-        <span><i class="dc-key dc-has"></i> Entries logged</span>
-        <span><i class="dc-key dc-none"></i> No entries</span>
-      </div>
+      <a href="?date={{ next_date|date:'Y-m-d' }}&mode={{ selected_mode }}" class="flex h-8 w-8 items-center justify-center rounded-lg text-lg text-slate-300 hover:bg-white/5" aria-label="Next day">›</a>
     </div>
-  </div>
-  <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
-    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=all" class="granularity-btn {% if selected_mode == 'all' %}granularity-btn--active{% endif %}">Both</a>
-    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=cash" class="granularity-btn {% if selected_mode == 'cash' %}granularity-btn--active{% endif %}">Cash</a>
-    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=bank" class="granularity-btn {% if selected_mode == 'bank' %}granularity-btn--active{% endif %}">Bank</a>
+
+    {% if report.date == today %}
+    <span class="cursor-not-allowed rounded-xl border border-white/5 px-3 py-2 text-xs font-medium text-slate-600" aria-disabled="true">Today</span>
+    {% else %}
+    <a href="?date={{ today|date:'Y-m-d' }}&mode={{ selected_mode }}" class="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Today</a>
+    {% endif %}
+
+
+    <a id="download-pdf-link" href="{% url 'finance:daily_report_pdf' %}?date={{ report.date|date:'Y-m-d' }}" class="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">
+      <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>PDF
+    </a>
   </div>
 </div>
 
-<!-- Bulk entry -->
-<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-  <div class="flex flex-nowrap items-center gap-3 overflow-x-auto pb-1">
-    <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">▦ Bulk Entry — enter the whole day at once</a>
-    <a href="{% url 'finance:import_sales' %}" class="btn-primary inline-flex shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">⇪ Import Revenue (CSV/Excel)</a>
-    <button onclick="bai.openModal('modal-transfer')" class="btn-primary shrink-0 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#7c5cf5)">⇄ Cash / Bank transfer</button>
+<!-- Actions -->
+<div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+  <div class="flex flex-wrap items-center gap-2">
+    <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex items-center gap-2 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Bulk entry
+    </a>
+    <a href="{% url 'finance:import_sales' %}" class="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">
+      <svg class="h-4 w-4 text-mint-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 20h16"/></svg>Import revenue
+    </a>
+    <button type="button" onclick="bai.openModal('modal-transfer')" class="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">
+      <svg class="h-4 w-4 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13m0 0l-3-3m3 3l-3 3M17 17H4m0 0l3-3m-3 3l3 3"/></svg>Cash / Bank transfer
+    </button>
   </div>
+  <div class="flex flex-wrap items-center gap-4">
   {% if not is_manager and selected_mode == 'all' %}
-  <div class="flex items-center gap-2">
-    <label for="toggle-bank-balance" class="text-xs font-medium text-slate-400">Show bank opening/closing balance</label>
+  <label for="toggle-bank-balance" class="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-400">
+    Show bank balance
     <span class="bai-switch">
       <input type="checkbox" id="toggle-bank-balance" onchange="bai.setBankBalanceVisible(this.checked)">
       <span class="bai-switch-track"></span>
     </span>
-  </div>
+  </label>
   {% endif %}
+  <div class="flex gap-1 rounded-xl border border-white/10 bg-white/[0.02] p-1">
+    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=all" class="granularity-btn {% if selected_mode == 'all' %}granularity-btn--active{% endif %}">Both</a>
+    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=cash" class="granularity-btn {% if selected_mode == 'cash' %}granularity-btn--active{% endif %}">Cash</a>
+    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=bank" class="granularity-btn {% if selected_mode == 'bank' %}granularity-btn--active{% endif %}">Bank</a>
+  </div>
+  </div>
 </div>
 
 <!-- Summary strip -->
-<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+<div class="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-5">
   {% if not is_manager %}<div class="card p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Opening balance{% if selected_mode == 'cash' %} · Cash{% elif selected_mode == 'bank' %} · Bank{% endif %}</p>
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Opening{% if selected_mode == 'cash' %} · Cash{% elif selected_mode == 'bank' %} · Bank{% endif %}</p>
     {% if selected_mode == 'cash' %}
     <p class="mt-1.5 text-xl font-bold text-white">{{ report.opening_cash|floatformat:0|intcomma }}</p>
     {% elif selected_mode == 'bank' %}
@@ -139,11 +150,11 @@
     </p>
     {% endif %}
   </div>{% endif %}
-  <div class="card p-4">
+  <div class="card border-t-2 p-4" style="border-top-color:#34d399;">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total income</p>
     <p class="mt-1.5 text-xl font-bold text-mint-400">+{{ report.total_sales|floatformat:0|intcomma }}</p>
   </div>
-  <div class="card p-4">
+  <div class="card border-t-2 p-4" style="border-top-color:#f87171;">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total outgoing</p>
     <p class="mt-1.5 text-xl font-bold text-red-400">-{{ report.total_outgoing|floatformat:0|intcomma }}</p>
   </div>
@@ -151,8 +162,8 @@
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Net amount</p>
     <p class="mt-1.5 text-xl font-bold {% if report.net >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{% if report.net >= 0 %}+{% endif %}{{ report.net|floatformat:0|intcomma }}</p>
   </div>
-  {% if not is_manager %}<div class="card p-4" style="border-color:rgba(91,124,250,0.35);">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Closing balance{% if selected_mode == 'cash' %} · Cash{% elif selected_mode == 'bank' %} · Bank{% endif %}</p>
+  {% if not is_manager %}<div class="card p-4" style="border-color:rgba(91,124,250,0.45); background:linear-gradient(135deg,rgba(91,124,250,0.10),transparent 70%);">
+    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Closing{% if selected_mode == 'cash' %} · Cash{% elif selected_mode == 'bank' %} · Bank{% endif %}</p>
     {% if selected_mode == 'cash' %}
     <p class="mt-1.5 text-xl font-bold text-white">{{ report.closing_cash|floatformat:0|intcomma }}</p>
     {% elif selected_mode == 'bank' %}

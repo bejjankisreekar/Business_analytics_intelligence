@@ -21,11 +21,42 @@
 </div>
 <p class="mt-1 text-xs text-slate-500">Change the period above and every chart on this page updates with it. Headline totals and the expense breakdown are on the Dashboard.</p>
 
-<!-- Revenue trend with granularity toggle -->
-<div class="card mt-6 p-5">
+<!-- KPI row -->
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+  <div class="card kpi-card min-w-0 p-4">
+    <p class="text-xs font-medium text-slate-500">Total Revenue</p>
+    <p class="mt-1.5 truncate text-lg font-bold xl:text-xl text-mint-400">{{ organization.currency }} {{ kpis.sales|floatformat:0|intcomma }}</p>
+    {% if kpis.sales_growth_pct is not None %}
+    <p class="mt-0.5 text-xs {% if kpis.sales_growth_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">{{ kpis.sales_growth_pct|floatformat:1 }}% vs prior period</p>
+    {% endif %}
+  </div>
+  <div class="card kpi-card min-w-0 p-4">
+    <p class="text-xs font-medium text-slate-500">Expenses</p>
+    <p class="mt-1.5 truncate text-lg font-bold xl:text-xl text-red-400">{{ organization.currency }} {{ kpis.expenses|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Operating expenses, {{ period.label }}</p>
+  </div>
+  <div class="card kpi-card min-w-0 p-4">
+    <p class="text-xs font-medium text-slate-500">Net Profit</p>
+    <p class="mt-1.5 truncate text-lg font-bold xl:text-xl {% if kpis.net_profit >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ kpis.net_profit|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Revenue − purchases − expenses</p>
+  </div>
+  <div class="card kpi-card min-w-0 p-4">
+    <p class="text-xs font-medium text-slate-500">Margin</p>
+    <p class="mt-1.5 truncate text-lg font-bold xl:text-xl text-white">{{ kpis.margin_pct|floatformat:1 }}%</p>
+    <p class="mt-0.5 text-xs text-slate-500">Net profit / revenue</p>
+  </div>
+  <div class="card kpi-card min-w-0 p-4">
+    <p class="text-xs font-medium text-slate-500">Cash &amp; Bank</p>
+    <p class="mt-1.5 truncate text-lg font-bold xl:text-xl text-white">{{ organization.currency }} {{ kpis.cash_balance|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">As of {{ period.end|date:"d M Y" }}</p>
+  </div>
+</div>
+
+<!-- Revenue, expenses & purchases trend (full breakdown) -->
+<div class="card mt-5 p-5">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h3 class="text-sm font-semibold text-white">Revenue trend</h3>
+      <h3 class="text-sm font-semibold text-white">Revenue, expenses &amp; purchases trend</h3>
       <p class="text-xs text-slate-500">Switch between daily, weekly and monthly views</p>
     </div>
     <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
@@ -34,7 +65,20 @@
       <button type="button" onclick="bai.setGranularity('monthly')" id="gran-btn-monthly" class="granularity-btn">Monthly</button>
     </div>
   </div>
-  <div class="mt-4 h-72 chart-box"><canvas id="chartSalesTrend"></canvas></div>
+  <div class="mt-4 h-[50vh] chart-box"><canvas id="chartSalesTrendFull"></canvas></div>
+</div>
+
+<!-- Top expense categories -->
+<div class="mt-5 grid grid-cols-1 gap-5">
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Top expense categories</h3>
+    <p class="text-xs text-slate-500">{{ period.label }}</p>
+    {% if expense_breakdown %}
+    <div class="mt-4 chart-box" style="height: max(18rem, {% widthratio expense_breakdown|length 1 34 %}px)"><canvas id="chartTopExpenses"></canvas></div>
+    {% else %}
+    <p class="mt-8 py-6 text-center text-sm text-slate-500">No expenses recorded in this period.</p>
+    {% endif %}
+  </div>
 </div>
 
 <!-- Charts row 2 -->
@@ -60,27 +104,13 @@
   </div>
 </div>
 
-<!-- Charts row 3 -->
-<div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
-  <div class="card p-5 xl:col-span-2">
-    <h3 class="text-sm font-semibold text-white">6-month trend</h3>
-    <p class="text-xs text-slate-500">Revenue, expenses &amp; net profit by month</p>
-    <div class="mt-4 h-72 chart-box"><canvas id="chartMonthly"></canvas></div>
-  </div>
-  <div class="card p-5">
-    <h3 class="text-sm font-semibold text-white">Best days for revenue</h3>
-    <p class="text-xs text-slate-500">Average revenue by weekday</p>
-    <div class="mt-4 h-72 chart-box"><canvas id="chartWeekday"></canvas></div>
-  </div>
-</div>
-
 <!-- Charts row 4 -->
 <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Revenue by channel</h3>
     <p class="text-xs text-slate-500">{{ period.label }}</p>
     {% if channel_breakdown|length > 1 %}
-    <div class="mt-4 h-64 chart-box"><canvas id="chartChannelBreakdown"></canvas></div>
+    <div class="mt-4 chart-box" style="height: max(16rem, {% widthratio channel_breakdown|length 1 34 %}px)"><canvas id="chartChannelBreakdown"></canvas></div>
     {% else %}
     <p class="mt-8 py-6 text-center text-sm text-slate-500">Not enough categories yet to compare.</p>
     {% endif %}
@@ -91,13 +121,9 @@
     <div class="mt-4 h-64 chart-box"><canvas id="chartPaymentMode"></canvas></div>
   </div>
   <div class="card p-5">
-    <h3 class="text-sm font-semibold text-white">Top expense categories</h3>
-    <p class="text-xs text-slate-500">{{ period.label }}</p>
-    {% if expense_breakdown|length > 1 %}
-    <div class="mt-4 h-64 chart-box"><canvas id="chartTopExpenses"></canvas></div>
-    {% else %}
-    <p class="mt-8 py-6 text-center text-sm text-slate-500">Not enough categories yet to compare.</p>
-    {% endif %}
+    <h3 class="text-sm font-semibold text-white">Best days for revenue</h3>
+    <p class="text-xs text-slate-500">Average revenue by weekday</p>
+    <div class="mt-4 h-64 chart-box"><canvas id="chartWeekday"></canvas></div>
   </div>
 </div>
 
@@ -127,17 +153,10 @@
     {% endif %}
   </div>
   {% if product_revenue %}
-  <div class="mt-4 h-64 chart-box"><canvas id="chartProductRevenue"></canvas></div>
+  <div class="mt-4 chart-box" style="height: max(16rem, {% widthratio product_revenue|length 1 34 %}px)"><canvas id="chartProductRevenue"></canvas></div>
   {% else %}
   <p class="mt-4 py-6 text-center text-sm text-slate-500">No revenue tagged with a sub-category yet.</p>
   {% endif %}
-</div>
-
-<!-- Revenue, expenses & purchases trend (full breakdown) -->
-<div class="card mt-5 p-5">
-  <h3 class="text-sm font-semibold text-white">Revenue, expenses &amp; purchases trend</h3>
-  <p class="text-xs text-slate-500">Same period as above · daily, weekly and monthly views</p>
-  <div class="mt-4 h-[50vh] chart-box"><canvas id="chartSalesTrendFull"></canvas></div>
 </div>
 
 <div class="mt-5 card p-5">
@@ -222,6 +241,34 @@
 <script src="{% static 'js/chart-theme.js' %}"></script>
 <script>Chart.defaults.locale = "en-IN";</script>
 <script>
+  // Chart.js clips y-axis labels wider than its label gutter (~1/3 of the
+  // chart), so wrap long names onto several lines and size the gutter to fit.
+  const wrapLabel = (label, max = 14) => {
+    const lines = [];
+    let line = "";
+    String(label).split(" ").forEach((word) => {
+      if (line && (line + " " + word).length > max) { lines.push(line); line = word; }
+      else line = line ? line + " " + word : word;
+    });
+    if (line) lines.push(line);
+    return lines;
+  };
+  const yLabelScale = {
+    grid: { display: false },
+    ticks: { autoSkip: false, callback(value) { return wrapLabel(this.getLabelForValue(value)); } },
+    afterFit(scale) {
+      const ctx = scale.chart.ctx;
+      ctx.save();
+      ctx.font = "12px sans-serif";
+      let widest = 0;
+      scale.getLabels().forEach((label) => wrapLabel(label).forEach((line) => {
+        widest = Math.max(widest, ctx.measureText(line).width);
+      }));
+      ctx.restore();
+      scale.width = Math.min(Math.ceil(widest) + 20, scale.chart.width * 0.5);
+    },
+  };
+
   const dailyLabels = {{ chart_daily_labels|safe }};
 
   const granularityData = {
@@ -233,7 +280,7 @@
   // Re-assigned (not re-declared) on every theme-change re-render, so
   // bai.setGranularity below keeps working against whichever instance is
   // current.
-  let salesTrendChart, salesTrendFullChart;
+  let salesTrendFullChart;
 
   window.bai = window.bai || {};
   bai.qtyCharts = {};
@@ -264,7 +311,7 @@
           plugins: { legend: { display: false }, tooltip },
           scales: {
             x: { grid: { color: c.grid }, ticks: { precision: 0 }, title: { display: true, text: QTY_WORD_CAP } },
-            y: { grid: { display: false } },
+            y: yLabelScale,
           },
         },
       });
@@ -324,6 +371,8 @@
   const QTY_WORD = "{{ quantity_word|escapejs }}";
   const QTY_WORD_CAP = QTY_WORD.charAt(0).toUpperCase() + QTY_WORD.slice(1);
   const QTY_WORD_SINGULAR = QTY_WORD.replace(/s$/, "");
+  const QTY_LABEL = "{{ sale_labels.qty|escapejs }}";
+  const ITEM_LABEL = "{{ sale_labels.item|escapejs }}";
   const fmtNum = (n) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
   const fmtMoney = (n) => (n == null ? "—" : CURRENCY + " " + fmtNum(n));
   const qtyModal = document.getElementById("qty-detail");
@@ -352,40 +401,16 @@
 
     body.append(section("Sales · " + d.period.label));
     const sales = h("div", "grid grid-cols-1 gap-3 sm:grid-cols-3");
-    sales.append(stat(QTY_WORD_CAP + " sold", fmtNum(d.sold.units)), stat("Revenue", fmtMoney(d.sold.amount)),
-                 stat("Avg price / " + QTY_WORD_SINGULAR, fmtMoney(d.sold.avg_price)));
+    sales.append(stat(QTY_LABEL, fmtNum(d.sold.units)), stat("Revenue", fmtMoney(d.sold.amount)),
+                 stat("Avg price / " + QTY_LABEL.toLowerCase(), fmtMoney(d.sold.avg_price)));
     body.append(sales);
 
-    body.append(section("Purchases · " + d.period.label));
-    const buys = h("div", "grid grid-cols-1 gap-3 sm:grid-cols-3");
-    buys.append(stat(QTY_WORD_CAP + " purchased", fmtNum(d.bought.units)), stat("Purchase cost", fmtMoney(d.bought.amount)),
-                stat("Avg cost / " + QTY_WORD_SINGULAR, fmtMoney(d.bought.avg_cost)));
-    body.append(buys);
-
-    body.append(section("Inventory · as of " + d.period.as_of));
-    const inv = d.inventory;
-    if (!inv.tracked) {
-      body.append(h("p", "rounded-xl border border-white/5 bg-white/[0.02] p-4 text-sm text-slate-400",
-        "Stock isn't tracked for this item — there is no matching purchase category, so " + QTY_WORD + " bought can't be compared with " + QTY_WORD + " sold."));
-    } else {
-      const stock = inv.stock;
-      const grid = h("div", "grid grid-cols-2 gap-3 sm:grid-cols-4");
-      grid.append(stat("Estimated in stock", fmtNum(Math.max(stock, 0)) + " " + QTY_WORD),
-                  stat("Stock value", fmtMoney(inv.value), "at average cost"),
-                  stat("Bought (to date)", fmtNum(inv.bought_total)), stat("Sold (to date)", fmtNum(inv.sold_total)));
-      body.append(grid);
-      body.append(h("p", "mt-2 text-[11px] leading-relaxed " + (stock < 0 ? "text-amber-300" : "text-slate-500"),
-        stock < 0
-          ? "Recorded purchases are " + fmtNum(-stock) + " " + QTY_WORD + " short of what was sold — " + QTY_WORD + " bought on credit are only counted once the supplier bill is paid, and there is no opening stock on record."
-          : "Estimated as " + QTY_WORD + " purchased minus " + QTY_WORD + " sold. " + QTY_WORD_CAP + " on unpaid supplier bills aren't counted until they're paid."));
-    }
-
     if (d.items.length) {
-      body.append(section("Items sold · " + d.period.label));
+      body.append(section(ITEM_LABEL + " · " + d.period.label));
       const table = h("table", "w-full text-left text-sm");
       const thead = h("thead");
       const head = h("tr", "text-[11px] uppercase tracking-wide text-slate-500");
-      ["Item", QTY_WORD_CAP, "Revenue"].forEach((t, i) => head.append(h("th", "pb-2 font-medium" + (i ? " text-right" : ""), t)));
+      [ITEM_LABEL, QTY_LABEL, "Revenue"].forEach((t, i) => head.append(h("th", "pb-2 font-medium" + (i ? " text-right" : ""), t)));
       thead.append(head);
       const tbody = h("tbody", "divide-y divide-white/5");
       d.items.forEach((it) => {
@@ -424,10 +449,6 @@
   window.bai = window.bai || {};
   bai.setGranularity = (key) => {
     const g = granularityData[key];
-    salesTrendChart.data.labels = g.labels;
-    salesTrendChart.data.datasets[0].data = g.sales;
-    salesTrendChart.update();
-
     salesTrendFullChart.data.labels = g.labels;
     salesTrendFullChart.data.datasets[0].data = g.sales;
     salesTrendFullChart.data.datasets[1].data = g.expenses;
@@ -444,19 +465,6 @@
       transitions: { active: { animation: { duration: 250, easing: "easeOutQuart" } } } };
 
     const charts = [];
-
-    salesTrendChart = new Chart(document.getElementById("chartSalesTrend"), {
-      type: "bar",
-      data: {
-        labels: granularityData.daily.labels,
-        datasets: [
-          { label: "Revenue", data: granularityData.daily.sales, backgroundColor: c.mint, borderRadius: 4 },
-        ],
-      },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
-    });
-    charts.push(salesTrendChart);
 
     salesTrendFullChart = new Chart(document.getElementById("chartSalesTrendFull"), {
       type: "bar",
@@ -497,17 +505,6 @@
     }));
     {% endif %}
 
-    charts.push(new Chart(document.getElementById("chartMonthly"), {
-      type: "bar",
-      data: { labels: {{ chart_trend_labels|safe }}, datasets: [
-        { label: "Revenue", data: {{ chart_trend_sales|safe }}, backgroundColor: c.mint, borderRadius: 4 },
-        { label: "Expenses", data: {{ chart_trend_expenses|safe }}, backgroundColor: c.red, borderRadius: 4 },
-        { label: "Net", data: {{ chart_trend_net|safe }}, backgroundColor: c.brand, borderRadius: 4 },
-      ] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
-        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
-    }));
-
     charts.push(new Chart(document.getElementById("chartWeekday"), {
       type: "bar",
       data: { labels: {{ chart_weekday_labels|safe }}, datasets: [{ label: "Avg revenue", data: {{ chart_weekday_avg|safe }},
@@ -521,7 +518,7 @@
       type: "bar",
       data: { labels: {{ chart_channel_labels|safe }}, datasets: [{ data: {{ chart_channel_values|safe }}, backgroundColor: c.donut, borderRadius: 4 }] },
       options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-        scales: { x: { grid: { color: c.grid } }, y: { grid: { display: false } } } },
+        scales: { x: { grid: { color: c.grid } }, y: yLabelScale } },
     }));
     {% endif %}
 
@@ -531,12 +528,12 @@
       options: donutOpts,
     }));
 
-    {% if expense_breakdown|length > 1 %}
+    {% if expense_breakdown %}
     charts.push(new Chart(document.getElementById("chartTopExpenses"), {
       type: "bar",
       data: { labels: {{ chart_expense_labels|safe }}, datasets: [{ data: {{ chart_expense_values|safe }}, backgroundColor: c.red, borderRadius: 4 }] },
       options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-        scales: { x: { grid: { color: c.grid } }, y: { grid: { display: false } } } },
+        scales: { x: { grid: { color: c.grid } }, y: yLabelScale } },
     }));
     {% endif %}
 
@@ -545,7 +542,7 @@
       type: "bar",
       data: { labels: {{ chart_product_revenue_labels|safe }}, datasets: [{ data: {{ chart_product_revenue_values|safe }}, backgroundColor: c.donut, borderRadius: 4 }] },
       options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-        scales: { x: { grid: { color: c.grid } }, y: { grid: { display: false } } } },
+        scales: { x: { grid: { color: c.grid } }, y: yLabelScale } },
     }));
     {% endif %}
 

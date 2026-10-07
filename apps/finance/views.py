@@ -514,6 +514,36 @@ class CancelAutopayView(TenantLoginRequiredMixin, View):
         return redirect("finance:billing")
 
 
+def _trend_range(params, today, default_months=6, max_months=36):
+    """(first day of first month, last day to include) for the monthly trend
+    card, from ?trend_from=YYYY-MM&trend_to=YYYY-MM. Falls back to the last six
+    months when absent or invalid; the span is capped at `max_months`."""
+    def parse(value):
+        try:
+            return datetime.datetime.strptime(value, "%Y-%m").date()
+        except (TypeError, ValueError):
+            return None
+
+    def months_back(day, n):
+        first = day.replace(day=1)
+        for _ in range(n - 1):
+            first = (first - datetime.timedelta(days=1)).replace(day=1)
+        return first
+
+    first = parse(params.get("trend_from"))
+    last = parse(params.get("trend_to"))
+    if last is None:
+        end = today
+    else:
+        end = (last.replace(day=28) + datetime.timedelta(days=4)).replace(day=1) - datetime.timedelta(days=1)
+    if first is None or first > end:
+        first = months_back(end, default_months)
+    span = (end.year - first.year) * 12 + end.month - first.month + 1
+    if span > max_months:
+        first = months_back(end, max_months)
+    return first, end
+
+
 class AnalyticsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     """Every chart and period-driven number lives here — pick a period at
     the top and the whole page (KPIs + every chart) updates to match it."""
@@ -525,12 +555,14 @@ class AnalyticsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, Per
         fs = services.get_finance_settings()
         period = self.get_period(fs.fy_start_month)
 
+        kpis = services.kpis_for_period(period)
         series = services.daily_series(period.start, period.end)
         today = datetime.date.today()
         weekly_count = max(18, services.weeks_since(fs.opening_date, today))
         monthly_count = max(18, services.months_since(fs.opening_date, today))
         weekly = services.weekly_trend(weekly_count)
-        trend = services.monthly_trend(6)
+        trend_start, trend_end = _trend_range(self.request.GET, today)
+        trend = services.monthly_trend(start=trend_start, end=trend_end)
         trend_wide = services.monthly_trend(monthly_count)
         weekday = services.weekday_averages(period.start, period.end)
         expense_breakdown = services.category_breakdown(ExpenseEntry, period.start, period.end)
@@ -563,8 +595,13 @@ class AnalyticsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, Per
             "active_nav": "analytics",
             "organization": organization,
             "quantity_word": quantity_word,
+            "sale_labels": services.bulk_column_labels()["sale"],
+            "kpis": kpis,
             "period": period,
             "period_choices": PERIOD_CHOICES,
+            "trend_from": trend_start.strftime("%Y-%m"),
+            "trend_to": trend_end.strftime("%Y-%m"),
+            "trend_months": len(trend),
             "chart_daily_labels": to_json([r["date"].strftime("%d %b") for r in padded_daily]),
             "chart_daily_sales": to_json([r["sales"] for r in padded_daily]),
             "chart_daily_expenses": to_json([r["expenses"] for r in padded_daily]),
@@ -623,6 +660,13 @@ class SalesIntelligenceView(ManagerAccountRestrictedMixin, TenantLoginRequiredMi
         period = self.get_period(fs.fy_start_month)
 
         kpis = services.kpis_for_period(period)
+        series = services.daily_series(period.start, period.end)
+        today = datetime.date.today()
+        weekly_count = max(18, services.weeks_since(fs.opening_date, today))
+        monthly_count = max(18, services.months_since(fs.opening_date, today))
+        weekly = services.weekly_trend(weekly_count)
+        trend_wide = services.monthly_trend(monthly_count)
+        padded_daily = _pad_daily_series(series, 30)
         weekday = services.weekday_averages(period.start, period.end)
         channel_breakdown = services.category_breakdown(SalesEntry, period.start, period.end, field="channel")
         product_revenue = services.category_breakdown(SalesEntry, period.start, period.end, field="subcategory")[:10]
@@ -648,6 +692,12 @@ class SalesIntelligenceView(ManagerAccountRestrictedMixin, TenantLoginRequiredMi
             "period": period,
             "period_choices": PERIOD_CHOICES,
             "kpis": kpis,
+            "chart_daily_labels": to_json([r["date"].strftime("%d %b") for r in padded_daily]),
+            "chart_daily_sales": to_json([r["sales"] for r in padded_daily]),
+            "chart_weekly_labels": to_json([r["label"] for r in weekly]),
+            "chart_weekly_sales": to_json([r["sales"] for r in weekly]),
+            "chart_monthly_labels": to_json([r["month"] for r in trend_wide]),
+            "chart_monthly_sales": to_json([r["sales"] for r in trend_wide]),
             "chart_weekday_labels": to_json([r["day"] for r in weekday]),
             "chart_weekday_avg": to_json([r["average"] for r in weekday]),
             "chart_channel_labels": to_json([r["name"] for r in channel_breakdown]),
@@ -1103,6 +1153,7 @@ def _bulk_entry_context(request, selected_date, *, active_bulk_tab="sale", sale_
             {"prefix": "purchase", "main_field": "category"},
         ]),
         "active_bulk_tab": active_bulk_tab,
+        "labels": services.bulk_column_labels(),
         "min_date": min_date,
         "sale_formset": sale_formset or SalesEntryFormSet(
             queryset=SalesEntry.objects.filter(date=selected_date).order_by("created_at"), prefix="sale",
@@ -2088,6 +2139,18 @@ class FinanceSettingsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixi
         context["customer_form"] = CustomerForm()
         context["vendors"] = Vendor.objects.all()
         context["bank_accounts"] = BankAccount.objects.all()
+        labels = services.bulk_column_labels(fs)
+        context["label_groups"] = [
+            {
+                "kind": kind,
+                "title": services.BULK_TAB_TITLES[kind],
+                "fields": [
+                    {"key": key, "default": default, "value": labels[kind][key]}
+                    for key, default in defaults.items()
+                ],
+            }
+            for kind, defaults in services.BULK_COLUMN_DEFAULTS.items()
+        ]
         can_edit_org = bool(user.organization_id) and user.role in (User.Role.OWNER, User.Role.ADMIN)
         context["can_connect_drive"] = can_edit_org and drive.is_configured()
         context["drive_connection"] = getattr(user.organization, "cloud_backup", None) if can_edit_org else None
@@ -2095,6 +2158,19 @@ class FinanceSettingsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixi
 
     def post(self, request, *args, **kwargs):
         fs = services.get_finance_settings()
+        if "save_column_labels" in request.POST:
+            # Only store names that differ from the default, so a later
+            # change to the defaults still reaches untouched columns.
+            custom = {}
+            for kind, defaults in services.BULK_COLUMN_DEFAULTS.items():
+                for key, default in defaults.items():
+                    value = (request.POST.get(f"label__{kind}__{key}") or "").strip()[:30]
+                    if value and value != default:
+                        custom.setdefault(kind, {})[key] = value
+            fs.bulk_column_labels = json.dumps(custom) if custom else ""
+            fs.save()
+            messages.success(request, "Entry column names updated.")
+            return redirect("finance:settings")
         form = FinanceSettingsForm(request.POST, instance=fs)
         if form.is_valid():
             form.save()

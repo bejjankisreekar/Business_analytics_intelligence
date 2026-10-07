@@ -62,7 +62,7 @@
   <div class="flex">
     <!-- Sidebar: fixed on desktop, slide-in drawer on phones and tablets -->
     <div id="sa-backdrop" onclick="saNav.close()" class="fixed inset-0 z-30 hidden bg-black/60 lg:hidden"></div>
-    <aside id="sa-sidebar" class="sa-sidebar fixed inset-y-0 left-0 z-40 flex w-56 -translate-x-full flex-col overflow-y-auto border-r border-white/5 transition-transform duration-200 lg:sticky lg:top-[49px] lg:z-auto lg:h-[calc(100vh-49px)] lg:translate-x-0">
+    <aside id="sa-sidebar" class="sa-sidebar fixed inset-y-0 left-0 z-40 flex w-56 flex-none -translate-x-full flex-col overflow-y-auto border-r border-white/5 transition-transform duration-200 lg:sticky lg:top-[49px] lg:z-auto lg:h-[calc(100vh-49px)] lg:translate-x-0">
       <a href="{% url 'superadmin:overview' %}" class="flex items-center gap-2.5 border-b border-white/5 px-5 py-5">
         <span class="flex h-8 w-8 items-center justify-center rounded border border-amber-500/30 bg-black text-[11px] font-bold tracking-wide text-amber-400">OPS</span>
         <span class="font-mono text-sm font-semibold text-slate-200">superadmin</span>
@@ -99,7 +99,7 @@
       </nav>
     </aside>
 
-    <main class="w-full flex-1 px-4 pb-16 pt-6 sm:px-8 lg:px-10">
+    <main class="w-full min-w-0 flex-1 px-4 pb-16 pt-6 sm:px-8 lg:px-10">
       {% block sa_content %}{% endblock %}
     </main>
   </div>
@@ -122,6 +122,10 @@
 
 {% block extra_head %}
 <style>
+  /* base.html force-pins OverlayScrollbars hosts to position:fixed (!important),
+     which beat this sidebar's lg:sticky and pulled it out of the flex flow, so
+     page content slid underneath it on desktop. Re-assert sticky from lg up. */
+  @media (min-width: 1024px) { #sa-sidebar.lg\:sticky { position: sticky !important; } }
   .sa-shell { background: #0a0c10; }
   .sa-header, .sa-sidebar { background: #0f1115; }
   .sa-nav-link {

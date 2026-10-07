@@ -4,15 +4,15 @@
 {% else %}
 {{ form.date.as_hidden }}
 {% endif %}
-<td data-label="Category" class="px-1 py-1 {% if form.channel.errors %}bg-red-500/10{% endif %}">{{ form.channel }}{% for error in form.channel.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
-<td data-label="Sub-category" class="px-1 py-1 {% if form.subcategory.errors %}bg-red-500/10{% endif %}">{{ form.subcategory }}{% for error in form.subcategory.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
-<td data-label="Item" class="px-1 py-1 detail-cell"></td>
-<td data-label="Customer" class="px-1 py-1 {% if form.customer.errors %}bg-red-500/10{% endif %}">{{ form.customer }}{% for error in form.customer.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
-<td data-label="Qty" class="px-1 py-1 w-16 {% if form.quantity.errors %}bg-red-500/10{% endif %}">{{ form.quantity }}{% for error in form.quantity.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
-<td data-label="Gross" class="px-1 py-1 w-24 {% if form.gross_amount.errors %}bg-red-500/10{% endif %}">{{ form.gross_amount }}{% for error in form.gross_amount.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
-<td data-label="Discount" class="px-1 py-1 w-24 {% if form.discount.errors %}bg-red-500/10{% endif %}">{{ form.discount }}{% for error in form.discount.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
-<td data-label="Net" class="px-1 py-1 w-24 text-slate-300 net-cell">0.00</td>
-<td data-label="Via" class="px-1 py-1 {% if form.payment_mode.errors %}bg-red-500/10{% endif %}">{{ form.payment_mode }}{% for error in form.payment_mode.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
-<td data-label="Bank" class="px-1 py-1 {% if form.bank_account.errors %}bg-red-500/10{% endif %}">{{ form.bank_account }}{% for error in form.bank_account.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
-<td data-label="Note" class="px-1 py-1 {% if form.note.errors %}bg-red-500/10{% endif %}">{{ form.note }}{% for error in form.note.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
-<td data-label="Remove" class="px-1 py-1 text-center">{{ form.DELETE }}</td>
+<td data-label="{{ labels.sale.category|default:'Category' }}" class="px-1 py-1 {% if form.channel.errors %}bg-red-500/10{% endif %}">{{ form.channel }}{% for error in form.channel.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td data-label="{{ labels.sale.subcategory|default:'Sub-category' }}" class="px-1 py-1 {% if form.subcategory.errors %}bg-red-500/10{% endif %}">{{ form.subcategory }}{% for error in form.subcategory.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td data-label="{{ labels.sale.item|default:'Item' }}" class="px-1 py-1 detail-cell"></td>
+<td data-label="{{ labels.sale.customer|default:'Customer' }}" class="px-1 py-1 {% if form.customer.errors %}bg-red-500/10{% endif %}">{{ form.customer }}{% for error in form.customer.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td data-label="{{ labels.sale.qty|default:'Qty' }}" class="px-1 py-1 w-16 {% if form.quantity.errors %}bg-red-500/10{% endif %}">{{ form.quantity }}{% for error in form.quantity.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td data-label="{{ labels.sale.gross|default:'Gross' }}" class="px-1 py-1 w-24 {% if form.gross_amount.errors %}bg-red-500/10{% endif %}">{{ form.gross_amount }}{% for error in form.gross_amount.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td data-label="{{ labels.sale.discount|default:'Discount' }}" class="px-1 py-1 w-24 {% if form.discount.errors %}bg-red-500/10{% endif %}">{{ form.discount }}{% for error in form.discount.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td data-label="{{ labels.sale.net|default:'Net' }}" class="px-1 py-1 w-24 text-slate-300 net-cell">0.00</td>
+<td data-label="{{ labels.sale.via|default:'Via' }}" class="px-1 py-1 {% if form.payment_mode.errors %}bg-red-500/10{% endif %}">{{ form.payment_mode }}{% for error in form.payment_mode.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td data-label="{{ labels.sale.bank|default:'Bank' }}" class="px-1 py-1 {% if form.bank_account.errors %}bg-red-500/10{% endif %}">{{ form.bank_account }}{% for error in form.bank_account.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td data-col="Note" data-label="{{ labels.sale.note|default:'Note' }}" class="px-1 py-1 {% if form.note.errors %}bg-red-500/10{% endif %}">{{ form.note }}{% for error in form.note.errors %}<p class="mt-0.5 text-[10px] text-red-400">{{ error }}</p>{% endfor %}</td>
+<td data-col="Remove" data-label="Remove" class="px-1 py-1 text-center">{{ form.DELETE }}</td>

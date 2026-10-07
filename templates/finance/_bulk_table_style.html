@@ -8,6 +8,9 @@
   .bulk-table--wide { min-width: 112rem; }
   .net-cell { display: inline-block; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
   .bulk-table input, .bulk-table select { margin-top: 0; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
+  /* Renamable headers can be long: wrap inside the column instead of spilling
+     into the neighbouring one, and sit on the bottom edge above the inputs. */
+  .bulk-table th { overflow-wrap: anywhere; vertical-align: bottom; line-height: 1.2; }
   .bulk-table th[data-col="Check"] { width: 3rem; }
   .bulk-table th[data-col="Date"] { width: 8rem; }
   .bulk-table th[data-col="Category"], .bulk-table th[data-col="Sub-category"], .bulk-table th[data-col="Item"],
@@ -26,8 +29,8 @@
     .bulk-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; padding: 0.85rem; margin-bottom: 0.75rem; border: 1px solid rgba(255,255,255,0.08); border-radius: 0.75rem; background: rgba(255,255,255,0.02); }
     .bulk-table td { display: block; padding: 0 !important; width: auto !important; min-width: 0; }
     .bulk-table td::before { content: attr(data-label); display: block; margin-bottom: 0.2rem; font-size: 10px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7488; }
-    .bulk-table td[data-label="Note"], .bulk-table td[data-label="Remove"], .bulk-table td[data-label="On credit"] { grid-column: 1 / -1; }
-    .bulk-table td[data-label="Remove"], .bulk-table td[data-label="On credit"] { display: flex; align-items: center; gap: 0.5rem; }
-    .bulk-table td[data-label="Remove"]::before, .bulk-table td[data-label="On credit"]::before { margin: 0; order: 2; }
+    .bulk-table td[data-col="Note"], .bulk-table td[data-col="Remove"], .bulk-table td[data-col="On credit"] { grid-column: 1 / -1; }
+    .bulk-table td[data-col="Remove"], .bulk-table td[data-col="On credit"] { display: flex; align-items: center; gap: 0.5rem; }
+    .bulk-table td[data-col="Remove"]::before, .bulk-table td[data-col="On credit"]::before { margin: 0; order: 2; }
   }
 </style>

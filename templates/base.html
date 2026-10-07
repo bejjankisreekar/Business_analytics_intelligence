@@ -28,6 +28,28 @@
     background: radial-gradient(600px circle at var(--x,50%) var(--y,0%), rgba(91,124,250,0.18), transparent 60%);
   }
 
+  /* Searchable dropdown (SearchableChoiceWidget): the real <select> stays in
+     the DOM for form submission, but only the search box + option list show. */
+  .searchable-dropdown { position: relative; width: 100%; display: block; }
+  .searchable-dropdown > select, .searchable-dropdown > .bai-select-wrap { display: none !important; }
+  .searchable-dropdown-search {
+    cursor: pointer; padding-right: 2.25rem !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa4bd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 0.8rem center; background-size: 1rem;
+  }
+  .combobox-options {
+    position: absolute; z-index: 60; top: 100%; left: 0; right: 0; margin-top: 0.375rem;
+    max-height: 14rem; overflow-y: auto; border-radius: 0.75rem;
+    border: 1px solid rgba(255,255,255,0.1); background: #111627; box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  }
+  .combobox-options.hidden { display: none; }
+  .combobox-option { display: block; width: 100%; text-align: left; padding: 0.55rem 0.9rem; font-size: 0.83rem; color: #e2e8f0; background: transparent; border: none; cursor: pointer; }
+  .combobox-option:hover, .combobox-option--active { background: rgba(91,124,250,0.18); color: #fff; }
+  .combobox-empty { padding: 0.6rem 0.9rem; font-size: 0.8rem; color: #64748b; }
+  html[data-theme="light"] .combobox-options { border-color: rgba(15,23,42,0.1); background: #ffffff; box-shadow: 0 10px 30px rgba(15,23,42,0.14); }
+  html[data-theme="light"] .combobox-option { color: #334155; }
+  html[data-theme="light"] .combobox-option:hover, html[data-theme="light"] .combobox-option--active { background: rgba(67,97,238,0.12); color: #1e3a8a; }
+
   /* Custom dropdown: every <select> in the app renders through this instead
      of the browser's native (unstyleable) option popup. */
   .bai-select-wrap { position: relative; display: block; width: 100%; }
@@ -80,15 +102,25 @@
   dt, dd { overflow-wrap: anywhere; }
 
   /* Themed scrollbars (page scroll and any overflow-x-auto table/panel)
-     instead of the browser's default light/basic bars, on both engines. */
-  * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.18) transparent; }
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: transparent; }
+     instead of the browser's default light/basic bars, on both engines —
+     a thin, quiet neutral-gray bar (not a bold brand color) so it reads as
+     a deliberate but understated UI element. This is a fallback only:
+     OverlayScrollbars (see the init script near the end of <body>) is what
+     actually renders the visible bar in every supporting browser, since
+     native ::-webkit-scrollbar styling is unreliable across engines/OS
+     overlay-scrollbar settings. Colors are hardcoded (not var(...))
+     deliberately — custom properties don't reliably resolve inside
+     ::-webkit-scrollbar-* in every engine; the light-theme override lives
+     in theme.css, same hardcoded-literal approach. */
+  * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.16) rgba(255,255,255,0.03); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 999px; }
   ::-webkit-scrollbar-thumb {
-    background-color: rgba(255,255,255,0.14);
+    background-color: rgba(255,255,255,0.16);
     border-radius: 999px; border: 2px solid transparent; background-clip: padding-box;
   }
-  ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.28); }
+  ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.26); }
+  ::-webkit-scrollbar-thumb:active { background-color: rgba(255,255,255,0.34); }
   ::-webkit-scrollbar-corner { background: transparent; }
 </style>
 <script>
@@ -127,6 +159,42 @@
 {% block extra_head %}{% endblock %}
 {# Pre-built Tailwind (replaces the Play CDN). Rebuild: npm run build:css. Kept last in <head> so utilities cascade after the page styles above, as the CDN's injected <style> did. #}
 <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+<!-- Custom scrollbars (see the init script near the end of <body>): Chrome's
+     native "overlay scrollbar" feature hides the real scrollbar until hover/
+     scroll and ignores page-level ::-webkit-scrollbar styling entirely —
+     there's no CSS-only fix, so this draws its own always-visible, themed
+     scrollbar instead of relying on the browser's native one. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/overlayscrollbars@2/styles/overlayscrollbars.min.css">
+<style>
+  /* The library's base .os-scrollbar rule defaults to opacity:0/
+     visibility:hidden with `transition: opacity .15s, visibility .15s, ...`
+     — and a running CSS transition sits ABOVE "!important author rules" in
+     the cascade (uniquely, transitions outrank even !important), so a
+     plain `opacity: 1 !important` here was silently losing to it for as
+     long as that transition kept re-triggering. Killing `transition`
+     first removes the one thing with higher priority than !important;
+     only then does forcing opacity/visibility actually stick. */
+  /* The library's stylesheet sets `position: relative` on every scroll host,
+     loading after Tailwind and so overriding `.fixed`/`.absolute` — which
+     un-pinned the fixed app sidebar (an .overflow-y-auto host) and made it
+     scroll away with the page. Keep an already-positioned host as it was. */
+  [data-overlayscrollbars~="host"].fixed { position: fixed !important; }
+  [data-overlayscrollbars~="host"].absolute { position: absolute !important; }
+  [data-overlayscrollbars~="host"].sticky { position: sticky !important; }
+  .os-theme-bai,
+  .os-theme-bai .os-scrollbar-track,
+  .os-theme-bai .os-scrollbar-handle { transition: none !important; }
+  .os-theme-bai:not(.os-scrollbar-unusable) { opacity: 1 !important; visibility: visible !important; }
+  /* Thin + neutral + subtle: a quiet gray, not a bold brand-colored bar. */
+  .os-theme-bai .os-scrollbar-track { background: rgba(255,255,255,0.03) !important; }
+  .os-theme-bai .os-scrollbar-handle { background: rgba(255,255,255,0.16) !important; border-radius: 999px; }
+  .os-theme-bai .os-scrollbar-handle:hover { background: rgba(255,255,255,0.26) !important; }
+  .os-theme-bai.os-scrollbar-horizontal { --os-size: 8px; }
+  .os-theme-bai.os-scrollbar-vertical { --os-size: 8px; }
+  html[data-theme="light"] .os-theme-bai .os-scrollbar-track { background: rgba(15,23,42,0.025) !important; }
+  html[data-theme="light"] .os-theme-bai .os-scrollbar-handle { background: rgba(15,23,42,0.14) !important; }
+  html[data-theme="light"] .os-theme-bai .os-scrollbar-handle:hover { background: rgba(15,23,42,0.24) !important; }
+</style>
 </head>
 <body class="bg-ink-950 text-slate-200 antialiased">
 <style>
@@ -384,7 +452,7 @@
     window.bai = window.bai || {};
 
     function enhanceSelect(select) {
-      if (select.dataset.baiEnhanced || select.multiple || select.hasAttribute("data-custom-combobox") || select.hasAttribute("data-plain")) return;
+      if (select.dataset.baiEnhanced || select.multiple || select.hasAttribute("data-custom-combobox") || select.hasAttribute("data-plain") || select.closest(".searchable-dropdown")) return;
       select.dataset.baiEnhanced = "true";
 
       const wrap = document.createElement("span");
@@ -535,6 +603,40 @@
   })();
 </script>
 <script src="{% static 'js/searchable-dropdown.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/overlayscrollbars@2/browser/overlayscrollbars.browser.es5.min.js"></script>
+<script>
+  // Custom scrollbars site-wide: the page scroll itself plus every
+  // overflow-x-auto/overflow-y-auto panel (tables, the sidebar nav, modals)
+  // already in the DOM at load. Re-initialized (not just re-themed) on
+  // light/dark toggle since each instance is built with a fixed theme class.
+  (function () {
+    var instances = [];
+
+    function teardown() {
+      instances.forEach(function (i) { try { i.destroy(); } catch (e) { /* already gone */ } });
+      instances = [];
+    }
+
+    function setup() {
+      teardown();
+      // The UMD build attaches OverlayScrollbarsGlobal.OverlayScrollbars,
+      // not a bare global — using the wrong name here used to throw a
+      // ReferenceError that the per-call try/catch below silently ate,
+      // so nothing ever initialized and the error never surfaced.
+      var OverlayScrollbars = window.OverlayScrollbarsGlobal && window.OverlayScrollbarsGlobal.OverlayScrollbars;
+      if (!OverlayScrollbars) return;
+      var opts = { scrollbars: { theme: "os-theme-bai", autoHide: "never", clickScroll: true } };
+      try { instances.push(OverlayScrollbars(document.body, opts)); } catch (e) { /* ignore */ }
+      document.querySelectorAll(".overflow-x-auto, .overflow-y-auto").forEach(function (el) {
+        if (el === document.body) return;
+        try { instances.push(OverlayScrollbars(el, opts)); } catch (e) { /* element not scrollbar-able */ }
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", setup);
+    document.addEventListener("bai:themechange", setup);
+  })();
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

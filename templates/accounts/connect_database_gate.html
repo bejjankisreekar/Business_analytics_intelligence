@@ -16,7 +16,10 @@
     {% if messages %}
     <div class="mt-8 space-y-2">
       {% for message in messages %}
-      <div class="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-left text-sm text-red-200">{{ message }}</div>
+      <div class="rounded-lg border px-4 py-3 text-left text-sm
+          {% if 'error' in message.tags %} border-red-500/30 bg-red-500/10 text-red-200
+          {% elif 'success' in message.tags %} border-green-500/30 bg-green-500/10 text-green-300
+          {% else %} border-blue-500/30 bg-blue-500/10 text-blue-200 {% endif %}">{{ message }}</div>
       {% endfor %}
     </div>
     {% endif %}

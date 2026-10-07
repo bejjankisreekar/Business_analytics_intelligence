@@ -1,0 +1,26 @@
+{% load humanize %}
+<tr class="insights-row{% if row.depth > 0 %} hidden{% endif %}{% if row.depth == 0 or row.children %} cursor-pointer hover:bg-white/[0.03]{% endif %}"
+    data-row-id="{{ row.id }}" data-parent-id="{{ row.parent_id|default:'' }}" data-depth="{{ row.depth }}"
+    {% if row.depth == 0 %}onclick="bai.openChannelTrend('{{ row.name|escapejs }}')"{% elif row.children %}onclick="bai.toggleInsightsRow('{{ row.id }}')"{% endif %}
+    {% if row.depth == 0 %}title="Click for the daily/weekly/monthly breakdown"{% elif row.children %}title="Click to expand"{% endif %}>
+  <td class="py-2.5 pr-4 text-slate-200">
+    <span class="inline-flex items-center" style="padding-left: {{ row.depth }}rem">
+      {% if row.children %}
+      <button type="button" class="insights-toggle-arrow mr-1.5 inline-flex h-4 w-4 flex-none items-center justify-center text-slate-500 transition-transform duration-150 hover:text-white" data-row-id="{{ row.id }}" onclick="event.stopPropagation(); bai.toggleInsightsRow('{{ row.id }}')" aria-label="Expand {{ row.name }}">
+        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      {% else %}
+      <span class="mr-1.5 inline-block h-4 w-4 flex-none"></span>
+      {% endif %}
+      {{ row.name }}
+    </span>
+  </td>
+  <td class="py-2.5 pr-4 text-right text-slate-300">{{ organization.currency }} {{ row.this_month|floatformat:0|intcomma }}</td>
+  <td class="py-2.5 pr-4 text-right text-slate-500">{{ organization.currency }} {{ row.last_month|floatformat:0|intcomma }}</td>
+  <td class="py-2.5 text-right font-medium {% if row.change_pct == None %}text-slate-500{% elif row.change_pct > 0 %}text-mint-400{% elif row.change_pct < 0 %}text-red-400{% else %}text-slate-400{% endif %}">
+    {% if row.change_pct == None %}New{% else %}{% if row.change_pct > 0 %}+{% endif %}{{ row.change_pct|floatformat:0 }}%{% endif %}
+  </td>
+</tr>
+{% for child in row.children %}
+{% include "finance/_insights_row.html" with row=child %}
+{% endfor %}

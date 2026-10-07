@@ -312,6 +312,17 @@ class NewPagesSmokeTests(SheetsBackedTestCase):
             category = Category.objects.get(name="Office Supplies")
             self.assertEqual(category.gst_rate, Decimal("0"))
 
+    def test_bulk_entry_column_names_are_editable_per_organization(self):
+        resp = self.client_.get("/app/daily/bulk-entry/?date=2026-10-08")
+        self.assertContains(resp, ">Sub-category</th>")
+        resp = self.client_.post("/app/settings/", {
+            "save_column_labels": "1", "label__sale__customer": "Client", "label__sale__gross": "Gross",
+        })
+        self.assertEqual(resp.status_code, 302)
+        resp = self.client_.get("/app/daily/bulk-entry/?date=2026-10-08")
+        self.assertContains(resp, ">Client</th>")
+        self.assertContains(resp, ">Gross</th>")
+        self.assertContains(resp, ">Vendor</th>")
 
 class TransferEditDeleteTests(SheetsBackedTestCase):
     """Cash/bank transfers are logged from the Daily Report and corrected

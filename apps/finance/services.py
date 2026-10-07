@@ -43,6 +43,50 @@ def get_finance_settings() -> FinanceSettings:
     return settings_row
 
 
+# Bulk-entry column names an organization can rename in Settings. Keys are
+# stable identifiers; only the display text changes.
+BULK_COLUMN_DEFAULTS = {
+    "sale": {
+        "category": "Category", "subcategory": "Sub-category", "item": "Item", "customer": "Customer",
+        "qty": "Qty", "gross": "Gross", "discount": "Discount", "net": "Net",
+        "via": "Via", "bank": "Bank", "note": "Note",
+    },
+    "expense": {
+        "category": "Category", "subcategory": "Sub-category", "item": "Item", "amount": "Amount",
+        "via": "Via", "bank": "Bank", "note": "Note",
+    },
+    "purchase": {
+        "category": "Category", "subcategory": "Sub-category", "item": "Item", "vendor": "Vendor",
+        "qty": "Qty", "amount": "Amount", "via": "Via", "bank": "Bank", "note": "Note",
+        "on_credit": "On credit",
+    },
+}
+BULK_TAB_TITLES = {"sale": "Revenue", "expense": "Expenses", "purchase": "Purchases"}
+
+
+def bulk_column_labels(fs: FinanceSettings | None = None) -> dict:
+    """{"sale": {"category": label, ...}, ...} — the organization's saved
+    names layered over the defaults, so a missing/blank/corrupt entry
+    always falls back to the default."""
+    import json
+
+    fs = fs or get_finance_settings()
+    try:
+        saved = json.loads(fs.bulk_column_labels or "{}")
+    except ValueError:
+        saved = {}
+    if not isinstance(saved, dict):
+        saved = {}
+    out = {}
+    for kind, defaults in BULK_COLUMN_DEFAULTS.items():
+        custom = saved.get(kind) if isinstance(saved.get(kind), dict) else {}
+        out[kind] = {
+            key: (custom.get(key).strip() if isinstance(custom.get(key), str) and custom.get(key).strip() else default)
+            for key, default in defaults.items()
+        }
+    return out
+
+
 def subcategory_map() -> dict:
     """{category_id: [{"id", "name", "children": [{"id", "name"}, ...]}, ...]}
     for every active top-level subcategory, with its active children nested
@@ -785,12 +829,18 @@ def weekly_trend(weeks: int = 12, *, end: datetime.date | None = None) -> list[d
     return [buckets[k] for k in order]
 
 
-def monthly_trend(months: int = 6, *, end: datetime.date | None = None) -> list[dict]:
-    """Last `months` calendar months of sales/expenses/purchases/net, oldest first."""
+def monthly_trend(
+    months: int = 6, *, end: datetime.date | None = None, start: datetime.date | None = None
+) -> list[dict]:
+    """Calendar months of sales/expenses/purchases/net, oldest first: the last
+    `months` ending at `end`, or from `start`'s month through `end`."""
     end = end or datetime.date.today()
-    start = end.replace(day=1)
-    for _ in range(months - 1):
-        start = (start - datetime.timedelta(days=1)).replace(day=1)
+    if start is not None:
+        start = start.replace(day=1)
+    else:
+        start = end.replace(day=1)
+        for _ in range(months - 1):
+            start = (start - datetime.timedelta(days=1)).replace(day=1)
 
     def monthly(model):
         return {
@@ -862,7 +912,7 @@ def category_breakdown_tree(category_id, period: Period) -> list[dict]:
     def subtree_total(node) -> Decimal:
         return own.get(node["id"], ZERO) + sum((subtree_total(c) for c in node["children"]), ZERO)
 
-    def chart(title, nodes):
+    def chart(title, nodes, *, wide=False, vertical=False):
         """A level's chart, or None when nothing was sold under it — levels
         with no recorded revenue are left out entirely, not drawn empty."""
         rows = sorted(
@@ -871,11 +921,15 @@ def category_breakdown_tree(category_id, period: Period) -> list[dict]:
         )
         if not rows:
             return None
-        return {"title": title, "labels": [r["name"] for r in rows], "values": [r["amount"] for r in rows]}
+        return {
+            "title": title, "labels": [r["name"] for r in rows], "values": [r["amount"] for r in rows],
+            "wide": wide, "vertical": vertical,
+        }
 
     charts = []
     category = Category.objects.filter(pk=category_id).first()
-    top = chart(category.name if category else "Category", _roots(index))
+    roots = _roots(index)
+    top = chart(category.name if category else "Category", roots, wide=True)
     if top:
         charts.append(top)
 
@@ -888,8 +942,33 @@ def category_breakdown_tree(category_id, period: Period) -> list[dict]:
         for child in node["children"]:
             walk(child, path + [child["name"]])
 
-    for root in _roots(index):
+    for root in roots:
         walk(root, [category.name if category else "Category", root["name"]])
+
+    def collect_leaves(nodes) -> list[dict]:
+        leaves = []
+        for n in nodes:
+            if n["children"]:
+                leaves.extend(collect_leaves(n["children"]))
+            else:
+                leaves.append(n)
+        return leaves
+
+    # A single chart with every leaf sub-category across the whole tree —
+    # e.g. every doctor from every department in one place — so they can
+    # be compared directly without flipping between per-branch charts.
+    # Skipped when the tree is only one level deep, since that's exactly
+    # what the top-level chart above already shows. Shown last, after
+    # every per-branch chart.
+    leaves = collect_leaves(roots)
+    if any(leaf["parent_id"] in index for leaf in leaves):
+        combined = chart(
+            f"{category.name if category else 'Category'} — all sub-categories, ranked", leaves,
+            wide=True, vertical=True,
+        )
+        if combined:
+            charts.append(combined)
+
     return charts
 
 
@@ -2022,17 +2101,79 @@ def sales_insights(fy_start_month: int, weekday_avgs: list[dict]) -> dict:
             return None
         return (curr - prior) / prior * 100
 
+    def subcat_amounts(category_id, period) -> dict:
+        qs = (
+            SalesEntry.objects.filter(
+                channel_id=category_id, date__gte=period.start, date__lte=period.end, subcategory_id__isnull=False
+            )
+            .values("subcategory_id").annotate(total=Sum("amount"))
+        )
+        return {row["subcategory_id"]: row["total"] or ZERO for row in qs}
+
+    def subtree_total(node, amounts) -> Decimal:
+        return amounts.get(node["id"], ZERO) + sum((subtree_total(c, amounts) for c in node["children"]), ZERO)
+
+    def build_subcat_rows(nodes, this_amounts_sc, last_amounts_sc, parent_id: str, depth: int) -> list[dict]:
+        """Each row gets a stable `id` (e.g. "r2-0-1") derived from its
+        position under `parent_id`, so the template's expand/collapse JS
+        can target exactly this row's children by id without any
+        in-template arithmetic. `depth` (1 = channel's direct
+        subcategory, 2 = its child, ...) drives the row's indent."""
+        candidates = []
+        for node in nodes:
+            curr = subtree_total(node, this_amounts_sc)
+            prior = subtree_total(node, last_amounts_sc)
+            if curr or prior:
+                candidates.append((node, curr, prior))
+        candidates.sort(key=lambda t: t[1], reverse=True)
+
+        out = []
+        for i, (node, curr, prior) in enumerate(candidates):
+            row_id = f"{parent_id}-{i}"
+            out.append({
+                "id": row_id,
+                "parent_id": parent_id,
+                "depth": depth,
+                "name": node["name"],
+                "this_month": curr,
+                "last_month": prior,
+                "change_pct": pct_change(curr, prior),
+                "children": build_subcat_rows(node["children"], this_amounts_sc, last_amounts_sc, row_id, depth + 1),
+            })
+        return out
+
+    # Channel name -> id, so each row's subcategory tree (if any) can be
+    # pulled in alongside it — the table's expand arrow renders only when
+    # a row actually has children.
+    channel_ids = {c.name: c.id for c in Category.objects.filter(kind=Category.Kind.SALES)}
+
+    candidates = [
+        (name, this_amounts.get(name, ZERO), last_amounts.get(name, ZERO))
+        for name in sorted(set(this_amounts) | set(last_amounts))
+    ]
+    candidates.sort(key=lambda t: t[1], reverse=True)
+
     rows = []
-    for name in sorted(set(this_amounts) | set(last_amounts)):
-        curr = this_amounts.get(name, ZERO)
-        prior = last_amounts.get(name, ZERO)
+    for i, (name, curr, prior) in enumerate(candidates):
+        row_id = f"r{i}"
+        category_id = channel_ids.get(name)
+        children = []
+        if category_id is not None:
+            index = _subcategory_index(category_id)
+            if index:
+                this_amounts_sc = subcat_amounts(category_id, this_month)
+                last_amounts_sc = subcat_amounts(category_id, last_month)
+                children = build_subcat_rows(_roots(index), this_amounts_sc, last_amounts_sc, row_id, 1)
         rows.append({
+            "id": row_id,
+            "parent_id": None,
+            "depth": 0,
             "name": name,
             "this_month": curr,
             "last_month": prior,
             "change_pct": pct_change(curr, prior),
+            "children": children,
         })
-    rows.sort(key=lambda row: row["this_month"], reverse=True)
 
     notes = []
     movers = [row for row in rows if row["change_pct"] is not None and row["this_month"] > 0]

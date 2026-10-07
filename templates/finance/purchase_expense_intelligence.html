@@ -117,7 +117,18 @@
   </div>
 </div>
 
-<div id="cost-groups" class="mt-5 space-y-6"></div>
+<p class="mt-8 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Drill-down</p>
+<div class="card mt-5 p-5" id="cost-drilldown">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white" id="cost-dd-title">Expenses by category &amp; sub-category</h3>
+      <p class="text-xs text-slate-500">{{ period.label }} — pick a category; every level of sub-category is charted automatically <span class="unit-badge unit-badge--amount">Amount · {{ organization.currency }}</span></p>
+    </div>
+    <select id="cost-cat-select" onchange="bai.setCostCategory(this.value)" class="!mt-0 !w-auto sel-wide"></select>
+  </div>
+  <p id="cost-dd-empty" class="mt-5 hidden rounded-xl border border-white/5 bg-white/[0.02] py-10 text-center text-sm text-slate-500"></p>
+  <div id="cost-groups" class="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2"></div>
+</div>
 
 <p class="mt-8 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Breakdowns</p>
 <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
@@ -245,9 +256,39 @@
   const costTrees = {{ cost_trees_json|safe }};
   const costCharts = [];
   const fmt = (n) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  // Chart.js clips y-axis labels wider than its label gutter (~1/3 of the
+  // chart), so wrap long names onto several lines instead.
+  const wrapLabel = (label, max = 14) => {
+    const lines = [];
+    let line = "";
+    String(label).split(" ").forEach((word) => {
+      if (line && (line + " " + word).length > max) { lines.push(line); line = word; }
+      else line = line ? line + " " + word : word;
+    });
+    if (line) lines.push(line);
+    return lines;
+  };
+  const yLabelTicks = { autoSkip: false, callback(value) { return wrapLabel(this.getLabelForValue(value)); } };
+  // Size the label gutter to the widest wrapped label (Chart.js otherwise
+  // caps it at ~1/3 of the chart and clips the rest), up to 50% of the chart.
+  const yLabelScale = {
+    grid: { display: false },
+    ticks: yLabelTicks,
+    afterFit(scale) {
+      const ctx = scale.chart.ctx;
+      ctx.save();
+      ctx.font = "12px sans-serif";
+      let widest = 0;
+      scale.getLabels().forEach((label) => wrapLabel(label).forEach((line) => {
+        widest = Math.max(widest, ctx.measureText(line).width);
+      }));
+      ctx.restore();
+      scale.width = Math.min(Math.ceil(widest) + 20, scale.chart.width * 0.5);
+    },
+  };
   const sumOf = (nodes) => nodes.reduce((a, n) => a + Number(n.amount), 0);
 
-  function barChart(canvas, nodes) {
+  function barChart(canvas, nodes, { vertical = false } = {}) {
     const total = sumOf(nodes);
     const bc = baiChartTheme.colors();
     const chart = new Chart(canvas, {
@@ -261,18 +302,23 @@
         }],
       },
       options: {
-        indexAxis: "y", responsive: true, maintainAspectRatio: false,
+        indexAxis: vertical ? "x" : "y", responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: (c) => ` ${fmt(c.raw)} (${total ? ((c.raw / total) * 100).toFixed(1) : 0}%)` } },
         },
-        scales: { x: { grid: { color: bc.grid } }, y: { grid: { display: false } } },
+        scales: vertical
+          ? {
+              x: { grid: { display: false }, ticks: { autoSkip: false, minRotation: 30, maxRotation: 45 } },
+              y: { grid: { color: bc.grid }, beginAtZero: true, ticks: { callback: (v) => fmt(v) } },
+            }
+          : { x: { grid: { color: bc.grid } }, y: yLabelScale },
       },
     });
     costCharts.push(chart);
     return chart;
   }
-  const chartHeight = (nodes) => Math.max(160, nodes.length * 32 + 60) + "px";
+  const chartHeight = (nodes) => Math.max(160, nodes.length * 38 + 60) + "px";
 
   function makeCard(title, subtitle, nodes) {
     const card = document.createElement("div");
@@ -302,6 +348,7 @@
     const empty = document.getElementById("cost-empty");
     const top = document.getElementById("cost-top");
 
+    document.getElementById("cost-drilldown").classList.toggle("hidden", !roots.length);
     if (!roots.length) {
       top.classList.add("hidden");
       empty.classList.remove("hidden");
@@ -311,39 +358,47 @@
     empty.classList.add("hidden");
     top.classList.remove("hidden");
     document.getElementById("cost-top-title").textContent = `All ${word} by category · ${fmt(sumOf(roots))} total`;
-    document.getElementById("cost-top-box").style.height = chartHeight(roots);
-    barChart(document.getElementById("chartCost"), roots);
+    document.getElementById("cost-top-box").style.height = "360px";
+    barChart(document.getElementById("chartCost"), roots, { vertical: true });
 
-    // One section per category that has anything beneath it: its sub-categories,
-    // then a chart for each sub-category that itself has named people/items.
-    roots.filter((r) => r.children.length).forEach((cat) => {
-      const section = document.createElement("section");
-      const head = document.createElement("div");
-      head.className = "flex items-baseline justify-between gap-3 border-b border-white/5 pb-2";
-      const name = document.createElement("h4");
-      name.className = "text-base font-semibold text-white";
-      name.textContent = cat.name;
-      const amt = document.createElement("span");
-      amt.className = "text-sm font-medium text-slate-400";
-      amt.textContent = fmt(cat.amount);
-      head.append(name, amt);
+    // Category picker (like Revenue): defaults to the first category that has
+    // sub-categories, and keeps the previous pick when switching Expenses/Purchases.
+    const select = document.getElementById("cost-cat-select");
+    document.getElementById("cost-dd-title").textContent =
+      `${kind === "expense" ? "Expenses" : "Purchases"} by category & sub-category`;
+    if (!roots.some((r) => r.name === costState.category)) {
+      costState.category = (roots.find((r) => r.children.length) || roots[0]).name;
+    }
+    select.replaceChildren(...roots.map((r) => {
+      const opt = document.createElement("option");
+      opt.value = r.name;
+      opt.textContent = r.name;
+      opt.selected = r.name === costState.category;
+      return opt;
+    }));
 
-      const grid = document.createElement("div");
-      grid.className = "mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2";
-      const first = makeCard("By sub-category", `${cat.name} · ${fmt(cat.amount)}`, cat.children);
-      grid.appendChild(first.card);
-      barChart(first.canvas, cat.children);
-      cat.children.filter((s) => s.children.length).forEach((sub) => {
-        const c = makeCard(sub.name, `${cat.name} › ${sub.name} · ${fmt(sub.amount)}`, sub.children);
-        grid.appendChild(c.card);
-        barChart(c.canvas, sub.children);
-      });
-      section.append(head, grid);
-      groups.appendChild(section);
+    // The chosen category: its sub-categories, then a chart for each sub-category
+    // that itself has named people/items.
+    const cat = roots.find((r) => r.name === costState.category);
+    const ddEmpty = document.getElementById("cost-dd-empty");
+    ddEmpty.classList.toggle("hidden", cat.children.length > 0);
+    ddEmpty.textContent = `No sub-categories recorded under ${cat.name} in {{ period.label|escapejs }} — nothing more to chart.`;
+    if (!cat.children.length) return;
+    const first = makeCard("By sub-category", `${cat.name} · ${fmt(cat.amount)}`, cat.children);
+    groups.appendChild(first.card);
+    barChart(first.canvas, cat.children);
+    cat.children.filter((s) => s.children.length).forEach((sub) => {
+      const c = makeCard(sub.name, `${cat.name} › ${sub.name} · ${fmt(sub.amount)}`, sub.children);
+      groups.appendChild(c.card);
+      barChart(c.canvas, sub.children);
     });
   }
 
-  const costState = { kind: "expense" };
+  const costState = { kind: "expense", category: null };
+  bai.setCostCategory = (name) => {
+    costState.category = name;
+    renderCost();
+  };
   bai.setCostKind = (kind) => {
     costState.kind = kind;
     document.getElementById("cost-btn-expense").classList.toggle("granularity-btn--active", kind === "expense");
@@ -409,7 +464,7 @@
     type: "bar",
     data: { labels: {{ chart_vendor_labels|safe }}, datasets: [{ data: {{ chart_vendor_values|safe }}, backgroundColor: palette.brand, borderRadius: 4 }] },
     options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { color: palette.grid } }, y: { grid: { display: false } } } },
+      scales: { x: { grid: { color: palette.grid } }, y: yLabelScale } },
   }));
   {% endif %}
 

@@ -54,17 +54,17 @@
         <table class="bulk-table bulk-table--wide w-full text-left text-sm">
           <thead>
             <tr class="text-[11px] uppercase tracking-wide text-slate-500">
-              <th data-col="Category" class="px-1 pb-1.5 font-medium">Category</th>
-              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">Sub-category</th>
-              <th data-col="Item" class="px-1 pb-1.5 font-medium">Item</th>
-              <th data-col="Customer" class="px-1 pb-1.5 font-medium">Customer</th>
-              <th data-col="Qty" class="px-1 pb-1.5 font-medium">Qty</th>
-              <th data-col="Gross" class="px-1 pb-1.5 font-medium">Gross</th>
-              <th data-col="Discount" class="px-1 pb-1.5 font-medium">Discount</th>
-              <th data-col="Net" class="px-1 pb-1.5 font-medium">Net</th>
-              <th data-col="Via" class="px-1 pb-1.5 font-medium">Via</th>
-              <th data-col="Bank" class="px-1 pb-1.5 font-medium">Bank</th>
-              <th data-col="Note" class="px-1 pb-1.5 font-medium">Note</th>
+              <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.sale.category|default:'Category' }}</th>
+              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.sale.subcategory|default:'Sub-category' }}</th>
+              <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.sale.item|default:'Item' }}</th>
+              <th data-col="Customer" class="px-1 pb-1.5 font-medium">{{ labels.sale.customer|default:'Customer' }}</th>
+              <th data-col="Qty" class="px-1 pb-1.5 font-medium">{{ labels.sale.qty|default:'Qty' }}</th>
+              <th data-col="Gross" class="px-1 pb-1.5 font-medium">{{ labels.sale.gross|default:'Gross' }}</th>
+              <th data-col="Discount" class="px-1 pb-1.5 font-medium">{{ labels.sale.discount|default:'Discount' }}</th>
+              <th data-col="Net" class="px-1 pb-1.5 font-medium">{{ labels.sale.net|default:'Net' }}</th>
+              <th data-col="Via" class="px-1 pb-1.5 font-medium">{{ labels.sale.via|default:'Via' }}</th>
+              <th data-col="Bank" class="px-1 pb-1.5 font-medium">{{ labels.sale.bank|default:'Bank' }}</th>
+              <th data-col="Note" class="px-1 pb-1.5 font-medium">{{ labels.sale.note|default:'Note' }}</th>
               <th data-col="Remove" class="px-1 pb-1.5 font-medium">Remove</th>
             </tr>
           </thead>
@@ -101,13 +101,13 @@
         <table class="bulk-table w-full text-left text-sm">
           <thead>
             <tr class="text-[11px] uppercase tracking-wide text-slate-500">
-              <th data-col="Category" class="px-1 pb-1.5 font-medium">Category</th>
-              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">Sub-category</th>
-              <th data-col="Item" class="px-1 pb-1.5 font-medium">Item</th>
-              <th data-col="Amount" class="px-1 pb-1.5 font-medium">Amount</th>
-              <th data-col="Via" class="px-1 pb-1.5 font-medium">Via</th>
-              <th data-col="Bank" class="px-1 pb-1.5 font-medium">Bank</th>
-              <th data-col="Note" class="px-1 pb-1.5 font-medium">Note</th>
+              <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.expense.category|default:'Category' }}</th>
+              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.expense.subcategory|default:'Sub-category' }}</th>
+              <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.expense.item|default:'Item' }}</th>
+              <th data-col="Amount" class="px-1 pb-1.5 font-medium">{{ labels.expense.amount|default:'Amount' }}</th>
+              <th data-col="Via" class="px-1 pb-1.5 font-medium">{{ labels.expense.via|default:'Via' }}</th>
+              <th data-col="Bank" class="px-1 pb-1.5 font-medium">{{ labels.expense.bank|default:'Bank' }}</th>
+              <th data-col="Note" class="px-1 pb-1.5 font-medium">{{ labels.expense.note|default:'Note' }}</th>
               <th data-col="Remove" class="px-1 pb-1.5 font-medium">Remove</th>
             </tr>
           </thead>
@@ -144,16 +144,16 @@
         <table class="bulk-table w-full text-left text-sm">
           <thead>
             <tr class="text-[11px] uppercase tracking-wide text-slate-500">
-              <th data-col="Category" class="px-1 pb-1.5 font-medium">Category</th>
-              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">Sub-category</th>
-              <th data-col="Item" class="px-1 pb-1.5 font-medium">Item</th>
-              <th data-col="Vendor" class="px-1 pb-1.5 font-medium">Vendor</th>
-              <th data-col="Qty" class="px-1 pb-1.5 font-medium">Qty</th>
-              <th data-col="Amount" class="px-1 pb-1.5 font-medium">Amount</th>
-              <th data-col="Via" class="px-1 pb-1.5 font-medium">Via</th>
-              <th data-col="Bank" class="px-1 pb-1.5 font-medium">Bank</th>
-              <th data-col="Note" class="px-1 pb-1.5 font-medium">Note</th>
-              <th data-col="On credit" class="px-1 pb-1.5 font-medium">On credit</th>
+              <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.purchase.category|default:'Category' }}</th>
+              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.purchase.subcategory|default:'Sub-category' }}</th>
+              <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.purchase.item|default:'Item' }}</th>
+              <th data-col="Vendor" class="px-1 pb-1.5 font-medium">{{ labels.purchase.vendor|default:'Vendor' }}</th>
+              <th data-col="Qty" class="px-1 pb-1.5 font-medium">{{ labels.purchase.qty|default:'Qty' }}</th>
+              <th data-col="Amount" class="px-1 pb-1.5 font-medium">{{ labels.purchase.amount|default:'Amount' }}</th>
+              <th data-col="Via" class="px-1 pb-1.5 font-medium">{{ labels.purchase.via|default:'Via' }}</th>
+              <th data-col="Bank" class="px-1 pb-1.5 font-medium">{{ labels.purchase.bank|default:'Bank' }}</th>
+              <th data-col="Note" class="px-1 pb-1.5 font-medium">{{ labels.purchase.note|default:'Note' }}</th>
+              <th data-col="On credit" class="px-1 pb-1.5 font-medium">{{ labels.purchase.on_credit|default:'On credit' }}</th>
               <th data-col="Remove" class="px-1 pb-1.5 font-medium">Remove</th>
             </tr>
           </thead>
