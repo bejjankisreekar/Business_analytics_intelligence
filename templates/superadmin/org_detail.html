@@ -428,10 +428,10 @@
           <dd class="od-dd">
             {% if org.storage_mode == "GOOGLE_SHEETS" %}
               {% if org.cloud_backup and org.cloud_backup.external_file_id %}
-              Connected — own Google Sheet.
+              Connected{% if org.cloud_backup.connected_email %} as {{ org.cloud_backup.connected_email }}{% endif %} — own Google Sheet.
               <a href="https://docs.google.com/spreadsheets/d/{{ org.cloud_backup.external_file_id }}/edit" target="_blank" rel="noopener" class="text-brand-400 hover:text-brand-300">Open →</a>
               {% elif org.cloud_backup %}
-              Connected — Google Sheet not yet provisioned.
+              Connected{% if org.cloud_backup.connected_email %} as {{ org.cloud_backup.connected_email }}{% endif %} — Google Sheet not yet provisioned.
               {% else %}
               Not connected yet — owner hasn't linked a Google account.
               {% endif %}

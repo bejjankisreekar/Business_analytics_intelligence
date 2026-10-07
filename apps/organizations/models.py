@@ -242,6 +242,11 @@ class CloudBackupConnection(models.Model):
     )
     provider = models.CharField(max_length=20, choices=Provider.choices, default=Provider.GOOGLE_DRIVE)
 
+    # The connected Google account's email, purely for display on
+    # Profile ("which account is this?") — not used for auth or access
+    # control. Blank for connections made before this field existed.
+    connected_email = models.EmailField(blank=True)
+
     access_token_encrypted = models.BinaryField()
     refresh_token_encrypted = models.BinaryField()
     token_expires_at = models.DateTimeField()

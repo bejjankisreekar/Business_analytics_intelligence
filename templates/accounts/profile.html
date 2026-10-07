@@ -207,6 +207,9 @@
         <a href="https://docs.google.com/spreadsheets/d/{{ drive_connection.external_file_id }}/edit" target="_blank" rel="noopener" class="text-brand-400 hover:text-brand-300">Open in Google Drive →</a>
         {% endif %}
       </p>
+      {% if drive_connection.connected_email %}
+      <p class="mt-1 text-xs text-slate-500">Connected Google account: <span class="text-slate-300">{{ drive_connection.connected_email }}</span></p>
+      {% endif %}
       {% if drive_connection.last_sync_error %}
       <p class="mt-1 text-xs text-red-400">{{ drive_connection.last_sync_error }}</p>
       {% endif %}

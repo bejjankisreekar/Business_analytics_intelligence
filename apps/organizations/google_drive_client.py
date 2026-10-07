@@ -5,10 +5,12 @@ client SDKs, to keep this a small, auditable surface: three HTTP calls
 (authorize, token exchange/refresh, upload) against documented REST
 endpoints.
 
-Scope is drive.file only — this app can see/write just the files and
-folders *it* creates, never the rest of a client's Drive. That's also
-why no separate "list the client's folders" flow exists: the backup
-folder is always one this app created and remembers the id of.
+Scope is drive.file plus userinfo.email — the former lets this app
+see/write just the files and folders *it* creates, never the rest of
+a client's Drive (so no separate "list the client's folders" flow
+exists: the backup folder is always one this app created and
+remembers the id of); the latter is only so Profile can show which
+Google account is connected — it grants no extra Drive/account access.
 """
 from __future__ import annotations
 
@@ -21,7 +23,8 @@ AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
 DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
-SCOPE = "https://www.googleapis.com/auth/drive.file"
+USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email"
 
 BACKUP_FOLDER_NAME = "Prism Pulse Backups"
 
@@ -73,6 +76,20 @@ def exchange_code_for_tokens(*, code: str, redirect_uri: str) -> dict:
             "myaccount.google.com/permissions and try connecting again."
         )
     return data
+
+
+def fetch_connected_email(access_token: str) -> str:
+    """Returns the email of the Google account that just authorized
+    access, for display on Profile. Best-effort: callers treat a
+    failure here as non-fatal since it's purely informational."""
+    resp = requests.get(
+        USERINFO_URL,
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=10,
+    )
+    if not resp.ok:
+        raise GoogleDriveError(f"Couldn't look up the connected Google account: {resp.text[:300]}")
+    return resp.json().get("email", "")
 
 
 def refresh_access_token(refresh_token: str) -> dict:

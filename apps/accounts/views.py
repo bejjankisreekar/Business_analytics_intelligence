@@ -415,12 +415,20 @@ class GoogleDriveOAuthCallbackView(LoginRequiredMixin, View):
             messages.error(request, str(exc))
             return redirect("accounts:profile")
 
+        try:
+            connected_email = drive.fetch_connected_email(tokens["access_token"])
+        except drive.GoogleDriveError:
+            # Purely informational — a failed lookup shouldn't block the
+            # connection itself.
+            connected_email = ""
+
         connection, _ = CloudBackupConnection.objects.update_or_create(
             organization=user.organization,
             defaults={
                 "access_token_encrypted": encrypt_secret(tokens["access_token"]),
                 "refresh_token_encrypted": encrypt_secret(tokens["refresh_token"]),
                 "token_expires_at": timezone.now() + datetime.timedelta(seconds=tokens["expires_in"]),
+                "connected_email": connected_email,
                 "external_folder_id": "",
                 "last_sync_error": "",
             },
