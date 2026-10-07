@@ -7,7 +7,7 @@ register = template.Library()
 
 @register.filter
 def initials(value, count=2):
-    """'Nakshatra Mobiles' -> 'NM'; 'Apollo Hospitals' -> 'AH'; a single word
+    """'Nakshatra Mobiles' -> 'NM'; 'Demo Hospitals' -> 'DH'; a single word
     ('Nakshatra') falls back to its first letters ('NA')."""
     try:
         count = int(count)

@@ -1,15 +1,63 @@
 {% extends "finance/_app_base.html" %}
 {% load humanize %}
-{% block title %}Daily Report · {{ SITE_NAME }}{% endblock %}
+{% block title %}Daily Book · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
+<style>
+  .dc-wrap { position: relative; }
+  .dc-badge {
+    display: inline-flex; align-items: center; gap: .5rem; border-radius: .5rem;
+    border: 1px solid rgb(var(--brand-500) / .3); background: rgb(var(--brand-500) / .1);
+    padding: .375rem .75rem; font-size: .875rem; font-weight: 600; color: rgb(var(--fg-strong));
+    cursor: pointer; transition: background .15s, border-color .15s;
+  }
+  .dc-badge:hover, .dc-badge[aria-expanded="true"] { background: rgb(var(--brand-500) / .18); border-color: rgb(var(--brand-500) / .55); }
+  .dc-badge svg { width: 1rem; height: 1rem; color: rgb(var(--brand-400)); flex: none; }
+  .dc-badge .dc-chev { width: .85rem; height: .85rem; transition: transform .15s; }
+  .dc-badge[aria-expanded="true"] .dc-chev { transform: rotate(180deg); }
+  .dc-panel {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 18.5rem; padding: 1rem 1rem .9rem;
+    border-radius: .85rem; background: rgb(var(--ink-800)); border: 1px solid rgb(var(--tint-rgb) / .16);
+    box-shadow: 0 18px 40px -14px rgb(0 0 0 / .5);
+  }
+  .dc-panel[hidden] { display: none; }
+  @media (max-width: 480px) { .dc-panel { position: fixed; left: 50%; top: 5rem; transform: translateX(-50%); } }
+  .dc-head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+  .dc-arrows { display: flex; gap: .15rem; }
+  .dc-title { font-size: .95rem; font-weight: 600; color: rgb(var(--fg-strong)); line-height: 1.2; }
+  .dc-stat { margin-left: .5rem; font-size: .65rem; font-weight: 500; color: rgb(var(--slate-500)); }
+  .dc-nav {
+    width: 1.6rem; height: 1.6rem; border-radius: 999px; font-size: 1.15rem; line-height: 1;
+    color: rgb(var(--slate-400)); border: 0;
+  }
+  .dc-nav:hover { background: rgb(var(--tint-rgb) / .08); }
+  .dc-weekdays, .dc-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .dc-weekdays { margin-top: .9rem; }
+  .dc-weekdays span { text-align: center; font-size: .7rem; font-weight: 500; color: rgb(var(--slate-500)); }
+  .dc-grid { margin-top: .35rem; }
+  .dc-day {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; font-size: .78rem; font-weight: 500; font-variant-numeric: tabular-nums;
+    border: 1px solid transparent; transition: transform .12s, box-shadow .12s;
+  }
+  .dc-none { background: rgb(var(--tint-rgb) / .06); color: rgb(var(--slate-500)); }
+  .dc-has { background: #22c55e; color: #fff; font-weight: 600; }
+  .dc-future { opacity: .45; }
+  .dc-today { border-color: rgb(var(--brand-400)); }
+  .dc-selected { box-shadow: 0 0 0 2px rgb(var(--brand-400)); }
+  a.dc-day:hover { transform: translateY(-1px) scale(1.08); box-shadow: 0 4px 10px -3px rgb(0 0 0 / .4); }
+  .dc-pad { visibility: hidden; }
+  .dc-legend { display: flex; justify-content: center; gap: .9rem; margin-top: .75rem; font-size: .65rem; color: rgb(var(--slate-500)); }
+  .dc-legend span { display: inline-flex; align-items: center; gap: .3rem; }
+  .dc-key { display: inline-block; width: .65rem; height: .65rem; border-radius: 50%; }
+</style>
 <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <div class="flex items-center gap-2">
-      <h1 class="text-2xl font-bold text-white">Daily Report</h1>
+      <h1 class="text-2xl font-bold text-white">Daily Book</h1>
       <span class="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-semibold tracking-wide text-slate-400">{{ organization.currency }}</span>
     </div>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · a cashier-style sheet of everything logged for the day. All amounts in {{ organization.currency }}.</p>
+    <p class="mt-1 text-sm text-slate-400">A cashier-style sheet of everything logged for the day. All amounts in {{ organization.currency }}.</p>
   </div>
   <div class="flex flex-wrap items-center gap-2">
     <a href="?date={{ prev_date|date:'Y-m-d' }}&mode={{ selected_mode }}" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">‹</a>
@@ -27,8 +75,29 @@
   </div>
 </div>
 
-<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-  <span class="inline-flex items-center rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-1.5 text-sm font-semibold text-white">{{ report.date|date:"l, d F Y" }}</span>
+<div class="mt-4 flex flex-wrap items-center justify-end gap-3">
+  <div class="dc-wrap" id="dc-wrap">
+    <button type="button" id="dc-toggle" class="dc-badge" aria-haspopup="dialog" aria-expanded="false" aria-controls="dc-panel" title="Open entry calendar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      {{ report.date|date:"l, d F Y" }}
+      <svg class="dc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div id="dc-panel" class="dc-panel" role="dialog" aria-label="Entry Calendar" hidden>
+      <div class="dc-head">
+        <div class="dc-title"><span id="dc-month">—</span><span id="dc-stat" class="dc-stat"></span></div>
+        <div class="dc-arrows">
+          <button type="button" class="dc-nav" id="dc-prev" aria-label="Previous month">‹</button>
+          <button type="button" class="dc-nav" id="dc-next" aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="dc-weekdays"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+      <div id="dc-grid" class="dc-grid" aria-live="polite"></div>
+      <div class="dc-legend">
+        <span><i class="dc-key dc-has"></i> Entries logged</span>
+        <span><i class="dc-key dc-none"></i> No entries</span>
+      </div>
+    </div>
+  </div>
   <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
     <a href="?date={{ report.date|date:'Y-m-d' }}&mode=all" class="granularity-btn {% if selected_mode == 'all' %}granularity-btn--active{% endif %}">Both</a>
     <a href="?date={{ report.date|date:'Y-m-d' }}&mode=cash" class="granularity-btn {% if selected_mode == 'cash' %}granularity-btn--active{% endif %}">Cash</a>
@@ -268,5 +337,69 @@
     if (toggle) toggle.checked = show;
     bai.setBankBalanceVisible(show);
   })();
+</script>
+<script>
+(function () {
+  var wrap = document.getElementById("dc-wrap");
+  if (!wrap) return;
+  var toggle = document.getElementById("dc-toggle"), panel = document.getElementById("dc-panel");
+  var grid = document.getElementById("dc-grid"), label = document.getElementById("dc-month"), stat = document.getElementById("dc-stat");
+  var selected = "{{ report.date|date:'Y-m-d' }}", today = "{{ today|date:'Y-m-d' }}", mode = "{{ selected_mode }}";
+  var endpoint = "{% url 'finance:daily_entry_days' %}";
+  var cur = new Date(selected + "T00:00:00"); cur.setDate(1);
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function ym(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1); }
+  function render(days) {
+    var y = cur.getFullYear(), m = cur.getMonth(), total = new Date(y, m + 1, 0).getDate();
+    var lead = new Date(y, m, 1).getDay(), logged = 0, html = "";
+    for (var i = 0; i < lead; i++) html += '<span class="dc-day dc-pad"></span>';
+    for (var d = 1; d <= total; d++) {
+      var key = y + "-" + pad(m + 1) + "-" + pad(d), n = days ? (days[key] || 0) : 0;
+      if (n) logged++;
+      var cls = "dc-day " + (n ? "dc-has" : "dc-none") + (key > today ? " dc-future" : "") + (key === today ? " dc-today" : "") + (key === selected ? " dc-selected" : "");
+      var tip = n ? n + (n === 1 ? " entry" : " entries") : "No entries";
+      html += '<a class="' + cls + '" href="?date=' + key + '&mode=' + mode + '" title="' + tip + ' · ' + d + ' ' + MONTHS[m] + '">' + d + "</a>";
+    }
+    grid.innerHTML = html;
+    label.textContent = MONTHS[m] + " " + y;
+    stat.textContent = days ? logged + " of " + total + " days logged" : "Loading…";
+  }
+  var cache = {}, inflight = {};
+  function fetchMonth(key) {
+    if (cache[key]) return Promise.resolve(cache[key]);
+    if (inflight[key]) return inflight[key];
+    inflight[key] = fetch(endpoint + "?month=" + key, { credentials: "same-origin" })
+      .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+      .then(function (data) { cache[key] = data.days; return data.days; })
+      .finally(function () { delete inflight[key]; });
+    return inflight[key];
+  }
+  function shifted(delta) { var d = new Date(cur.getFullYear(), cur.getMonth() + delta, 1); return ym(d); }
+  function load() {
+    var want = ym(cur);
+    if (cache[want]) render(cache[want]); else render(null);
+    fetchMonth(want)
+      .then(function (days) {
+        if (ym(cur) === want) render(days);
+        // warm the neighbouring months so the arrows feel instant
+        fetchMonth(shifted(-1)).catch(function () {}); fetchMonth(shifted(1)).catch(function () {});
+      })
+      .catch(function () { if (ym(cur) === want) stat.textContent = "Couldn't load entries"; });
+  }
+  // Start fetching as soon as the pointer/finger/focus reaches the button.
+  ["mouseenter", "focus", "touchstart"].forEach(function (ev) {
+    toggle.addEventListener(ev, function () { fetchMonth(ym(cur)).catch(function () {}); }, { passive: true, once: true });
+  });
+  function setOpen(open) {
+    panel.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
+    if (open) { cur = new Date(selected + "T00:00:00"); cur.setDate(1); load(); }
+  }
+  toggle.addEventListener("click", function () { setOpen(panel.hidden); });
+  document.getElementById("dc-prev").addEventListener("click", function () { cur.setMonth(cur.getMonth() - 1); load(); });
+  document.getElementById("dc-next").addEventListener("click", function () { cur.setMonth(cur.getMonth() + 1); load(); });
+  document.addEventListener("click", function (e) { if (!panel.hidden && !wrap.contains(e.target)) setOpen(false); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !panel.hidden) { setOpen(false); toggle.focus(); } });
+})();
 </script>
 {% endblock %}

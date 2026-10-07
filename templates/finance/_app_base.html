@@ -27,15 +27,15 @@
         <p class="app-nav-label">Intelligence</p>
         <a href="{% url 'finance:analytics' %}" class="app-nav-link {% if active_nav == 'analytics' %}app-nav-link--active{% endif %}">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v16.5A1.5 1.5 0 004.5 21H21M7 15.75l3.75-4.5 3 3 4.5-6"/></svg>
-          Analytics Intelligence
+          Business Analytics
         </a>
         <a href="{% url 'finance:sales_intelligence' %}" class="app-nav-link {% if active_nav == 'sales_intelligence' %}app-nav-link--active{% endif %}">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.706 2.602-7.201.116-.48-.230-.949-.724-.949H4.5m0 0L3.106 4.835m0 0L4.5 14.25m0 0L6 17.25m10.5-3a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM8.25 18.75a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
-          Revenue Intelligence
+          Revenue Insights
         </a>
         <a href="{% url 'finance:purchase_expense_intelligence' %}" class="app-nav-link {% if active_nav == 'purchase_expense_intelligence' %}app-nav-link--active{% endif %}">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
-          Cost Intelligence
+          Cost Insights
         </a>
       </div>
       {% endif %}
@@ -45,9 +45,13 @@
         <p class="app-nav-label">{% if request.user.role == 'MANAGER' %}Entry{% else %}Reports{% endif %}</p>
         <a href="{% url 'finance:daily_report' %}" class="app-nav-link {% if active_nav == 'daily_report' %}app-nav-link--active{% endif %}">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          Daily Report
+          Daily Book
         </a>
-        {% if request.user.role != 'MANAGER' %}<a href="{% url 'finance:reports' %}" class="app-nav-link {% if active_nav == 'reports' %}app-nav-link--active{% endif %}">
+        {% if request.user.role != 'MANAGER' %}<a href="{% url 'finance:daily_summary' %}" class="app-nav-link {% if active_nav == 'daily_summary' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M6 4.5h9.879a1.5 1.5 0 011.06.44l1.622 1.62a1.5 1.5 0 01.439 1.061V19.5A1.5 1.5 0 0117.5 21h-11A1.5 1.5 0 015 19.5v-13.5A1.5 1.5 0 016 4.5z"/></svg>
+          Daily Performance
+        </a>
+        <a href="{% url 'finance:reports' %}"class="app-nav-link {% if active_nav == 'reports' %}app-nav-link--active{% endif %}">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
           Financial Reports
         </a>

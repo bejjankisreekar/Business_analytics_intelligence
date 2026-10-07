@@ -1,7 +1,7 @@
 /* Light/dark theme tokens.
    Dark is the default (matches the app's original look); html[data-theme="light"]
    overrides the same variables. Tailwind's custom "ink"/"brand"/"mint"/"slate"
-   colors are wired to these in base.html's tailwind.config via
+   colors are wired to these in tailwind.config.js via
    rgb(var(--x) / <alpha-value>), so every bg-ink-900, text-slate-400, etc.
    across every template flips automatically with the attribute — no per-
    template edits needed for those.

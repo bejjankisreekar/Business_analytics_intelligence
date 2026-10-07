@@ -88,25 +88,26 @@
           {% endif %}
         </div>
 
-        <!-- Billing Impact -->
-        {% if form.instance.price_difference is not None %}
+        <!-- Billing Impact (net of discounts) -->
+        {% if impact %}
         <div class="rounded-xl border border-blue-500/20 bg-blue-500/5 p-6">
-          <h4 class="text-white font-semibold mb-2">Billing Impact</h4>
-          <p class="text-slate-300">
-            {% if form.instance.price_difference == 0 %}
-              No change to your monthly billing
-            {% elif form.instance.price_difference > 0 %}
-              ₹{{ form.instance.price_difference }}/month increase
-            {% else %}
-              ₹{{ form.instance.price_difference|add:0 }}/month decrease (savings!)
-            {% endif %}
-          </p>
-          {% if form.instance.current_monthly_price %}
-          <p class="text-xs text-slate-500 mt-2">
-            Current: ₹{{ form.instance.current_monthly_price }}/month
-            → New: ₹{{ form.instance.requested_monthly_price }}/month
-          </p>
+          {% if plan_preview %}
+          <p class="text-slate-300 mb-3">Your plan will change from <strong>{{ plan_preview.0 }}</strong> to <strong>{{ plan_preview.1 }}</strong></p>
           {% endif %}
+          <h4 class="text-white font-semibold mb-2">Billing Impact</h4>
+          <div class="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p class="text-xs text-slate-500 mb-1">Now ({{ impact.current_plan }})</p>
+              <p class="text-slate-400">₹{{ impact.current_gross }} − ₹{{ impact.current_discount }} discount</p>
+              <p class="text-white font-semibold">₹{{ impact.current_price }}/month net</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">After ({{ impact.requested_plan }})</p>
+              <p class="text-slate-400">₹{{ impact.requested_gross }} − ₹{{ impact.requested_discount }} discount</p>
+              <p class="text-white font-semibold">₹{{ impact.requested_price }}/month net</p>
+            </div>
+          </div>
+          <p class="text-xs text-slate-500 mt-3">Billing impact is calculated on net amounts, after discounts. Your subscription is re-priced when the request is approved.</p>
         </div>
         {% endif %}
 

@@ -6,7 +6,7 @@
 <a href="{% url 'finance:reports' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Financial Reports</a>
 
 <h1 class="mt-2 text-2xl font-bold text-white">Category Statement</h1>
-<p class="mt-1 max-w-2xl text-sm text-slate-400">{{ organization.name }} · pick a category — or drill into one sub-category or a specific item (e.g. one doctor, one employee) — and a date range, to see every entry behind the total.</p>
+<p class="mt-1 max-w-2xl text-sm text-slate-400">Pick a category — or drill into one sub-category or a specific item (e.g. one doctor, one employee) — and a date range, to see every entry behind the total.</p>
 
 <div class="mt-4 flex gap-2 overflow-x-auto whitespace-nowrap border-b border-white/5">
   <a href="?kind=sales" class="report-tab {% if kind == 'sales' %}report-tab--active{% endif %}">Revenue</a>

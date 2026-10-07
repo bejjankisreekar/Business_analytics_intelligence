@@ -12,6 +12,8 @@ round trip (see that module's docstring).
 """
 from __future__ import annotations
 
+import time
+
 import requests
 
 SHEETS_BASE = "https://sheets.googleapis.com/v4/spreadsheets"
@@ -20,6 +22,16 @@ DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
 
 class SheetsAPIError(RuntimeError):
     pass
+
+
+def _post_with_retry(url: str, **kwargs):
+    """POST, waiting out Google's per-minute write quota (HTTP 429) a few
+    times before giving up — a bulk migration can briefly hit it."""
+    for attempt in range(4):
+        resp = requests.post(url, **kwargs)
+        if resp.status_code != 429 or attempt == 3:
+            return resp
+        time.sleep(20)
 
 
 def _headers(access_token: str) -> dict:
@@ -67,10 +79,24 @@ def get_values(access_token: str, *, spreadsheet_id: str, a1_range: str) -> list
     return resp.json().get("values", [])
 
 
+def batch_get_values(access_token: str, *, spreadsheet_id: str, a1_ranges: list[str]) -> list[list[list]]:
+    """Several ranges in ONE Sheets API call — one list of rows per requested
+    range, in order. For cheap lookups that only need a column or two."""
+    resp = requests.get(
+        f"{SHEETS_BASE}/{spreadsheet_id}/values:batchGet",
+        headers=_headers(access_token),
+        params={"ranges": a1_ranges, "valueRenderOption": "UNFORMATTED_VALUE"},
+        timeout=30,
+    )
+    if not resp.ok:
+        raise SheetsAPIError(f"Couldn't read {a1_ranges}: {resp.text[:300]}")
+    return [vr.get("values", []) for vr in resp.json().get("valueRanges", [])]
+
+
 def append_rows(access_token: str, *, spreadsheet_id: str, tab: str, rows: list[list]) -> None:
     if not rows:
         return
-    resp = requests.post(
+    resp = _post_with_retry(
         f"{SHEETS_BASE}/{spreadsheet_id}/values/{requests.utils.quote(tab)}:append",
         headers=_headers(access_token),
         params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"},
@@ -87,7 +113,7 @@ def batch_update_values(access_token: str, *, spreadsheet_id: str, data: list[di
     rows (provisioning) and single-row updates (store.save)."""
     if not data:
         return
-    resp = requests.post(
+    resp = _post_with_retry(
         f"{SHEETS_BASE}/{spreadsheet_id}/values:batchUpdate",
         headers=_headers(access_token),
         json={"valueInputOption": "RAW", "data": data},

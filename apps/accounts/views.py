@@ -185,6 +185,10 @@ class ChangePasswordView(LoginRequiredMixin, FormView):
         return super().form_valid(form)
 
 
+# The profile page's "Switch database" section is hidden for now. Flip to True to bring it back.
+SHOW_SWITCH_DATABASE = False
+
+
 class ProfileView(LoginRequiredMixin, View):
     template_name = "accounts/profile.html"
 
@@ -209,6 +213,18 @@ class ProfileView(LoginRequiredMixin, View):
         drive_connection = None
         if can_edit_org and is_sheets_org:
             drive_connection = getattr(user.organization, "cloud_backup", None)
+
+        # After "Disconnect" on a Sheets org the row is kept (it holds the
+        # pointer to the live Sheet) but its tokens are blanked — that must
+        # read as disconnected, not "Connected", so the Connect button shows.
+        drive_disconnected = False
+        if drive_connection:
+            from apps.organizations.encryption import decrypt_secret
+
+            try:
+                drive_disconnected = not decrypt_secret(drive_connection.refresh_token_encrypted)
+            except Exception:
+                drive_disconnected = True
 
         # Manager account information
         manager_account = None
@@ -245,12 +261,13 @@ class ProfileView(LoginRequiredMixin, View):
             # OUR_DATABASE -> GOOGLE_SHEETS needs a fresh OAuth consent
             # (a new Sheet is being created), so it goes through the
             # same connect_drive flow as a first-time connection.
-            "can_switch_to_sheets": can_edit_org and not is_sheets_org and drive.is_configured(),
+            "can_switch_to_sheets": SHOW_SWITCH_DATABASE and can_edit_org and not is_sheets_org and drive.is_configured(),
             # GOOGLE_SHEETS -> OUR_DATABASE needs no OAuth (already
             # connected) — a single POST, see SwitchToOurDatabaseView.
-            "can_switch_to_our_database": can_edit_org and is_sheets_org and bool(drive_connection),
+            "can_switch_to_our_database": SHOW_SWITCH_DATABASE and can_edit_org and is_sheets_org and bool(drive_connection) and not drive_disconnected,
             "can_connect_drive": can_edit_org and is_sheets_org and drive.is_configured(),
             "drive_connection": drive_connection,
+            "drive_disconnected": drive_disconnected,
             "manager_account": manager_account,
             "can_create_manager": can_create_manager,
             "show_manager_button": show_manager_button,
@@ -314,19 +331,18 @@ class ConnectDatabaseGateView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         from apps.organizations import google_drive_client as drive
-        from apps.organizations.models import Organization
+        from apps.organizations.models import Organization, org_needs_drive_connection
 
         user = request.user
         org = user.organization
-        if (
-            not org
-            or org.storage_mode != Organization.StorageMode.GOOGLE_SHEETS
-            or not drive.is_configured()
-            or hasattr(org, "cloud_backup")
-        ):
+        if not org or not drive.is_configured() or not org_needs_drive_connection(org):
             return redirect("finance:dashboard")
 
-        return render(request, "accounts/connect_database_gate.html")
+        return render(
+            request,
+            "accounts/connect_database_gate.html",
+            {"switch_approved": org.storage_mode == Organization.StorageMode.OUR_DATABASE},
+        )
 
 
 class ConnectGoogleDriveView(LoginRequiredMixin, View):
@@ -406,6 +422,7 @@ class GoogleDriveOAuthCallbackView(LoginRequiredMixin, View):
                 "refresh_token_encrypted": encrypt_secret(tokens["refresh_token"]),
                 "token_expires_at": timezone.now() + datetime.timedelta(seconds=tokens["expires_in"]),
                 "external_folder_id": "",
+                "last_sync_error": "",
             },
         )
 
@@ -430,6 +447,12 @@ class GoogleDriveOAuthCallbackView(LoginRequiredMixin, View):
             connection.save(update_fields=["external_folder_id", "external_file_id", "last_synced_at"])
             user.organization.storage_mode = Organization.StorageMode.GOOGLE_SHEETS
             user.organization.save(update_fields=["storage_mode"])
+            from apps.organizations.models import DataStorageChangeRequest
+
+            DataStorageChangeRequest.objects.filter(
+                organization=user.organization,
+                status=DataStorageChangeRequest.Status.APPROVED,
+            ).update(status=DataStorageChangeRequest.Status.COMPLETED, completed_at=timezone.now())
             messages.success(request, "Switched to Google Drive — your existing data has been copied over.")
             return redirect("accounts:profile")
 
@@ -456,7 +479,7 @@ class GoogleDriveOAuthCallbackView(LoginRequiredMixin, View):
             connection.last_synced_at = timezone.now()
             connection.save(update_fields=["external_folder_id", "external_file_id", "last_synced_at"])
         messages.success(request, "Google Drive connected — your database is ready.")
-        return redirect("accounts:profile")
+        return redirect("finance:dashboard")
 
 
 class SwitchToOurDatabaseView(LoginRequiredMixin, View):

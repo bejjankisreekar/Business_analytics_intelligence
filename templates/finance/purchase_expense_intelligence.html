@@ -1,6 +1,6 @@
 {% extends "finance/_app_base.html" %}
 {% load humanize static %}
-{% block title %}Cost Intelligence · {{ SITE_NAME }}{% endblock %}
+{% block title %}Cost Insights · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
 <style>
@@ -8,8 +8,8 @@
 </style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-white">Cost Intelligence</h1>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · everything about where your money goes · <span class="text-slate-300">{{ period.label }}</span></p>
+    <h1 class="text-2xl font-bold text-white">Cost Insights</h1>
+    <p class="mt-1 text-sm text-slate-400">Everything about where your money goes · <span class="text-slate-300">{{ period.label }}</span></p>
   </div>
   <form method="get" class="flex items-center gap-2">
     <select id="period-select" name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">

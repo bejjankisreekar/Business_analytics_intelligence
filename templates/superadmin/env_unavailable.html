@@ -1,0 +1,20 @@
+{% extends "superadmin/_base.html" %}
+{% block title %}{{ env_label }} unavailable{% endblock %}
+
+{% block sa_content %}
+<div class="mx-auto mt-16 max-w-xl text-center">
+  <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-400">
+    <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+  </div>
+  <h1 class="mt-5 text-xl font-bold text-slate-100">{{ env_label }} isn't available right now</h1>
+  <p class="mt-2 text-sm text-slate-400">
+    We couldn't read this environment's data. Its database may be offline, or it may not have been updated to the latest version yet. Nothing was changed.
+  </p>
+  <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+    <a href="{{ request.get_full_path }}" class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/20">Try again</a>
+    <a href="{% url 'superadmin:org_list' other_env_key %}" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Go to {{ other_env_label }}</a>
+    <a href="{% url 'superadmin:overview' %}" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Overview</a>
+  </div>
+  <p class="mt-8 text-xs text-slate-600">If this keeps happening, make sure the {{ env_label|lower }} database is running and up to date with the latest release, then try again.</p>
+</div>
+{% endblock %}

@@ -1,7 +1,7 @@
 from django.shortcuts import redirect, render
 
 from . import google_drive_client as drive
-from .models import Organization
+from .models import Organization, org_needs_drive_connection
 
 # Paths reachable even while a GOOGLE_SHEETS org is gated on connecting
 # Google Drive (see TenantSchemaMiddleware._needs_drive_gate) — without
@@ -40,11 +40,7 @@ class TenantSchemaMiddleware:
         self.get_response = get_response
 
     def _needs_drive_gate(self, org) -> bool:
-        return (
-            org.storage_mode == Organization.StorageMode.GOOGLE_SHEETS
-            and drive.is_configured()
-            and not hasattr(org, "cloud_backup")
-        )
+        return drive.is_configured() and org_needs_drive_connection(org)
 
     def _activate_sheets_session(self, org) -> None:
         from apps.organizations.drive_sync import get_valid_access_token
@@ -65,7 +61,7 @@ class TenantSchemaMiddleware:
             return redirect("accounts:connect_database_gate")
 
         try:
-            if org and org.storage_mode == Organization.StorageMode.GOOGLE_SHEETS and hasattr(org, "cloud_backup"):
+            if org and org.storage_mode == Organization.StorageMode.GOOGLE_SHEETS and hasattr(org, "cloud_backup") and org.cloud_backup.external_file_id:
                 try:
                     self._activate_sheets_session(org)
                 except DriveSyncError:

@@ -32,6 +32,10 @@
           <span class="px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-300 text-xs font-semibold">{{ pending_request.get_status_display }}</span>
         </div>
 
+        {% if pending_request.plan_change_text %}
+        <p class="text-slate-300 mt-3">Your plan will change from <strong>{{ pending_request.current_plan_name }}</strong> to <strong>{{ pending_request.requested_plan_name }}</strong></p>
+        {% endif %}
+
         <div class="grid grid-cols-2 gap-4 mt-4">
           <div>
             <p class="text-xs text-slate-500 mb-1">Requested</p>
@@ -51,6 +55,14 @@
         {% endif %}
 
         <p class="text-sm text-slate-400 mt-4">Our team will review your request and notify you once it's approved or rejected.</p>
+
+        <form method="post" action="{% url 'organizations:cancel_storage_change' %}" class="mt-4"
+              onsubmit="return confirm('Cancel this storage change request?');">
+          {% csrf_token %}
+          <button type="submit" class="rounded-lg border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/10 transition">
+            Cancel Request
+          </button>
+        </form>
       </div>
       {% endif %}
 
@@ -64,6 +76,10 @@
           </div>
           <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-300 text-xs font-semibold">{{ approved_request.get_status_display }}</span>
         </div>
+
+        {% if approved_request.plan_change_text %}
+        <p class="text-slate-300 mt-3">Plan: <strong>{{ approved_request.current_plan_name }}</strong> → <strong>{{ approved_request.requested_plan_name }}</strong></p>
+        {% endif %}
 
         <div class="grid grid-cols-3 gap-4 mt-4">
           <div>
@@ -118,7 +134,7 @@
                 </p>
                 <p class="text-xs text-slate-500 mt-1">{{ req.requested_at|date:"M d, Y" }}</p>
               </div>
-              <span class="px-3 py-1 rounded-full text-xs font-semibold {% if req.status == 'COMPLETED' %}bg-green-500/20 text-green-400{% else %}bg-red-500/20 text-red-400{% endif %}">
+              <span class="px-3 py-1 rounded-full text-xs font-semibold {% if req.status == 'COMPLETED' %}bg-green-500/20 text-green-400{% elif req.status == 'CANCELLED' %}bg-slate-500/20 text-slate-300{% else %}bg-red-500/20 text-red-400{% endif %}">
                 {{ req.get_status_display }}
               </span>
             </div>

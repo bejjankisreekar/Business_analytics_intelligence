@@ -264,6 +264,20 @@ class CloudBackupConnection(models.Model):
         return f"{self.organization_id}: {self.get_provider_display()}"
 
 
+def org_needs_drive_connection(org) -> bool:
+    """True while an org must connect Google Drive before using the app:
+    a Drive org with no (usable) connection yet, or an own-database org whose
+    switch to Drive was approved and is waiting for the client to connect."""
+    if org.storage_mode == Organization.StorageMode.GOOGLE_SHEETS:
+        connection = getattr(org, "cloud_backup", None)
+        return connection is None or not connection.external_file_id
+    return DataStorageChangeRequest.objects.filter(
+        organization=org,
+        status=DataStorageChangeRequest.Status.APPROVED,
+        requested_storage=Organization.StorageMode.GOOGLE_SHEETS,
+    ).exists()
+
+
 class DataStorageChangeRequest(models.Model):
     """Request by a client to change their data storage from one provider to another.
     Once submitted, only a superadmin can approve or reject it. Approved requests
@@ -275,6 +289,7 @@ class DataStorageChangeRequest(models.Model):
         APPROVED = "APPROVED", "Approved"
         REJECTED = "REJECTED", "Rejected"
         COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
 
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="storage_change_requests"
@@ -287,6 +302,10 @@ class DataStorageChangeRequest(models.Model):
     requested_storage = models.CharField(
         max_length=20, choices=Organization.StorageMode.choices
     )
+
+    # Plan names before/after the switch (e.g. "Professional" -> "Professional Drive")
+    current_plan_name = models.CharField(max_length=100, blank=True)
+    requested_plan_name = models.CharField(max_length=100, blank=True)
 
     # Billing impact
     current_monthly_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -323,6 +342,13 @@ class DataStorageChangeRequest(models.Model):
 
     def __str__(self) -> str:
         return f"{self.organization.name}: {self.get_current_storage_display()} → {self.get_requested_storage_display()} ({self.get_status_display()})"
+
+    @property
+    def plan_change_text(self) -> str:
+        """e.g. "Professional → Professional Drive", or "" if unknown."""
+        if self.current_plan_name and self.requested_plan_name:
+            return f"{self.current_plan_name} → {self.requested_plan_name}"
+        return ""
 
     @property
     def billing_impact_text(self) -> str:

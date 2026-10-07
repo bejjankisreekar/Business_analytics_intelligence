@@ -27,12 +27,12 @@
       <tr>
         <td class="font-medium text-slate-100">{{ plan.name }}</td>
         <td class="sa-mono">
-          ₹{{ plan.monthly_price }}
-          {% if plan.monthly_discount_percent %}<span class="sa-badge sa-badge--warn ml-1">-{{ plan.monthly_discount_percent }}%</span> <span class="text-slate-500">→ ₹{{ plan.effective_monthly_price }}</span>{% endif %}
+          ₹{{ plan.effective_monthly_price }}
+          {% if plan.monthly_discount_percent %}<span class="sa-badge sa-badge--warn ml-1">-{{ plan.monthly_discount_percent }}%</span> <span class="text-slate-500 line-through">₹{{ plan.monthly_price }}</span>{% endif %}
         </td>
         <td class="sa-mono">
-          ₹{{ plan.yearly_price }}
-          {% if plan.yearly_discount_percent %}<span class="sa-badge sa-badge--warn ml-1">-{{ plan.yearly_discount_percent }}%</span> <span class="text-slate-500">→ ₹{{ plan.effective_yearly_price }}</span>{% endif %}
+          ₹{{ plan.effective_yearly_price }}
+          {% if plan.yearly_discount_percent %}<span class="sa-badge sa-badge--warn ml-1">-{{ plan.yearly_discount_percent }}%</span> <span class="text-slate-500 line-through">₹{{ plan.yearly_price }}</span>{% endif %}
         </td>
         <td>{{ plan.trial_days }} day{{ plan.trial_days|pluralize }}</td>
         <td>{{ plan.user_limit|default:"Unlimited" }}</td>

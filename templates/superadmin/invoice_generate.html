@@ -16,8 +16,9 @@
 <div class="mt-5 sa-card p-4 text-sm text-slate-300">
   Current plan: <span class="font-semibold text-slate-100">{{ subscription.plan.name }}</span>
   · {{ subscription.get_billing_cycle_display }}
-  · <span class="sa-mono">₹{% if subscription.billing_cycle == "YEARLY" %}{{ subscription.plan.yearly_price }}{% else %}{{ subscription.plan.monthly_price }}{% endif %}</span>
-  — the amount below starts at this price.
+  · <span class="sa-mono">₹{% if subscription.billing_cycle == "YEARLY" %}{{ subscription.plan.effective_yearly_price }}{% else %}{{ subscription.plan.effective_monthly_price }}{% endif %}</span>
+  net (list price ₹{% if subscription.billing_cycle == "YEARLY" %}{{ subscription.plan.yearly_price }}{% else %}{{ subscription.plan.monthly_price }}{% endif %} less the plan discount)
+  — the amount below starts at the list price and the discount is applied to it.
 </div>
 {% endif %}
 

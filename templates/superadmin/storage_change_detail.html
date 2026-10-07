@@ -1,11 +1,11 @@
 {% extends "superadmin/_base.html" %}
-{% block title %}Review Storage Request — Superadmin{% endblock %}
+{% block title %}Review storage request{% endblock %}
 
-{% block content %}
+{% block sa_content %}
 <div class="max-w-3xl space-y-6">
   <!-- Header -->
   <div>
-    <a href="{% url 'superadmin:storage_change_requests' %}" class="text-slate-400 hover:text-white mb-4 inline-block">
+    <a href="{% url 'superadmin:storage_change_requests' env_key %}" class="text-slate-400 hover:text-white mb-4 inline-block">
       ← Back to Requests
     </a>
     <h1 class="text-3xl font-bold text-white mb-2">Review Storage Change Request</h1>
@@ -55,6 +55,12 @@
       <div class="rounded-xl border border-white/10 bg-white/[0.03] p-6">
         <h3 class="text-lg font-semibold text-white mb-4">Billing Impact</h3>
         <div class="space-y-3">
+          {% if storage_request.plan_change_text %}
+          <div>
+            <p class="text-xs text-slate-500 mb-1">Plan Change</p>
+            <p class="text-white font-semibold">{{ storage_request.plan_change_text }}</p>
+          </div>
+          {% endif %}
           <div>
             <p class="text-xs text-slate-500 mb-1">Current Monthly Price</p>
             <p class="text-white font-semibold">₹{{ storage_request.current_monthly_price }}</p>
@@ -80,7 +86,7 @@
           </div>
           <div>
             <p class="text-xs text-slate-500 mb-1">Current Status</p>
-            <span class="inline-block px-3 py-1 rounded-full text-sm font-semibold {% if storage_request.status == 'PENDING' %}bg-yellow-500/20 text-yellow-300{% elif storage_request.status == 'APPROVED' %}bg-green-500/20 text-green-300{% elif storage_request.status == 'REJECTED' %}bg-red-500/20 text-red-300{% else %}bg-slate-500/20 text-slate-300{% endif %}">
+            <span class="sa-badge {% if storage_request.status == 'PENDING' or storage_request.status == 'APPROVED' %}sa-badge--warn{% elif storage_request.status == 'COMPLETED' %}sa-badge--active{% elif storage_request.status == 'REJECTED' %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">
               {{ storage_request.get_status_display }}
             </span>
           </div>
@@ -124,9 +130,9 @@
               <div>
                 <p class="font-semibold text-white">{{ label }}</p>
                 {% if value == 'APPROVED' %}
-                  <p class="text-xs text-green-400">Client's storage will be changed</p>
+                  <p class="text-xs sa-ok">Client's storage will be changed</p>
                 {% else %}
-                  <p class="text-xs text-red-400">Request will be rejected</p>
+                  <p class="text-xs sa-bad">Request will be rejected</p>
                 {% endif %}
               </div>
             </label>
@@ -134,7 +140,7 @@
           </div>
 
           {% if form.status.errors %}
-          <div class="text-red-400 text-sm">{{ form.status.errors.0 }}</div>
+          <div class="sa-bad text-sm">{{ form.status.errors.0 }}</div>
           {% endif %}
         </div>
 
@@ -151,14 +157,14 @@
             class="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-blue-500"
           >{{ form.admin_notes.value|default:'' }}</textarea>
           {% if form.admin_notes.errors %}
-          <div class="text-red-400 text-sm">{{ form.admin_notes.errors.0 }}</div>
+          <div class="sa-bad text-sm">{{ form.admin_notes.errors.0 }}</div>
           {% endif %}
         </div>
 
         <!-- Submit -->
         <button
           type="submit"
-          class="w-full rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 font-semibold text-white hover:brightness-110 transition"
+          class="w-full rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 font-semibold text-white keep-white hover:brightness-110 transition"
         >
           Submit Review
         </button>
@@ -170,7 +176,7 @@
 
         <div>
           <p class="text-xs text-slate-500 mb-1">Decision</p>
-          <span class="inline-block px-3 py-1 rounded-full text-sm font-semibold {% if storage_request.status == 'COMPLETED' %}bg-green-500/20 text-green-300{% elif storage_request.status == 'REJECTED' %}bg-red-500/20 text-red-300{% else %}bg-slate-500/20 text-slate-300{% endif %}">
+          <span class="sa-badge {% if storage_request.status == 'PENDING' or storage_request.status == 'APPROVED' %}sa-badge--warn{% elif storage_request.status == 'COMPLETED' %}sa-badge--active{% elif storage_request.status == 'REJECTED' %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">
             {{ storage_request.get_status_display }}
           </span>
         </div>

@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from .views import (
     AccountLedgerView,
@@ -36,7 +37,11 @@ from .views import (
     CustomerLedgerView,
     DailyBulkEntryView,
     DailyReportPdfView,
+    DailyEntryDaysView,
     DailyReportView,
+    DailySummaryExcelView,
+    DailySummaryPdfView,
+    DailySummaryView,
     DashboardView,
     DeleteBankAccountView,
     DeleteCategoryView,
@@ -128,7 +133,13 @@ urlpatterns = [
         name="expense_category_trend",
     ),
     path("daily/", DailyReportView.as_view(), name="daily_report"),
-    path("daily/pdf", DailyReportPdfView.as_view(), name="daily_report_pdf"),
+    path("daily-performance/", DailySummaryView.as_view(), name="daily_summary"),
+    # Old address, kept so existing bookmarks/links still land on the page.
+    path("daily-summary/", RedirectView.as_view(pattern_name="finance:daily_summary", query_string=True)),
+    path("daily-performance/export.xlsx", DailySummaryExcelView.as_view(), name="daily_summary_excel"),
+    path("daily-performance/export.pdf", DailySummaryPdfView.as_view(), name="daily_summary_pdf"),
+    path("daily/entry-days/", DailyEntryDaysView.as_view(), name="daily_entry_days"),
+    path("daily/pdf",DailyReportPdfView.as_view(), name="daily_report_pdf"),
     path("daily/bulk-entry/", DailyBulkEntryView.as_view(), name="daily_bulk_entry"),
     path("daily/bulk-sales/", BulkAddSalesView.as_view(), name="bulk_add_sales"),
     path("daily/bulk-expenses/", BulkAddExpensesView.as_view(), name="bulk_add_expenses"),

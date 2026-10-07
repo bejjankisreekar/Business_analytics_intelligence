@@ -1,0 +1,11 @@
+{
+  "name": "business-analytics-intelligence",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i static/src/tailwind.input.css -o static/css/tailwind.css --minify",
+    "watch:css": "tailwindcss -c tailwind.config.js -i static/src/tailwind.input.css -o static/css/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

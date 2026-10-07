@@ -6,30 +6,48 @@ from django.utils import timezone
 from django.db.models import Q
 
 from .models import DataStorageChangeRequest, Organization
-from .forms import RequestStorageChangeForm, ApproveStorageChangeForm
+from .forms import RequestStorageChangeForm, compute_plan_impact, paired_plan_name
 
 
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
+def _switch_subscription_plan(storage_request):
+    """Move the org's current subscription to the paired plan (e.g. Professional
+    -> Professional Drive) and re-price it to that plan's price and discount,
+    the same figures shown to the client when they raised the request."""
+    organization = storage_request.organization
+    db = storage_request._state.db
+    impact = compute_plan_impact(organization, storage_request.requested_storage, using=db)
+    if not impact:
+        return
+    subscription = organization.subscriptions.filter(is_current=True).first()
+    if subscription.plan_id == impact['plan'].pk and subscription.price == impact['new_price']:
+        return
+    subscription.plan = impact['plan']
+    subscription.price = impact['new_price']
+    subscription.discount = impact['new_discount']
+    subscription.save(update_fields=['plan', 'price', 'discount', 'final_amount'])
+
+
 def _handle_approved_storage_change(storage_request):
     """
     After superadmin approves a storage change request, initiate the migration.
 
-    For GOOGLE_SHEETS: Update storage mode and send email to client with
-    Google Drive connection link.
+    For GOOGLE_SHEETS: email the client the Google Drive connection link; the
+    switch itself completes when they connect (see GoogleDriveOAuthCallbackView).
 
     For OUR_DATABASE: Update storage mode directly (data already there).
     """
     organization = storage_request.organization
+    _switch_subscription_plan(storage_request)
 
     if storage_request.requested_storage == Organization.StorageMode.GOOGLE_SHEETS:
-        # Switching to Google Drive
-        # Update storage mode to GOOGLE_SHEETS so when client completes OAuth,
-        # the system will migrate the data from Postgres to Google Sheets
-        organization.storage_mode = Organization.StorageMode.GOOGLE_SHEETS
-        organization.save(update_fields=['storage_mode'])
+        # Switching to Google Drive: the org stays on our database until the
+        # client connects Drive (the middleware sends them to the connect page
+        # on next login). The OAuth callback then migrates their data and flips
+        # storage_mode, so nothing is left pointing at an empty Sheet.
 
         # Send email notification to client with link to complete Google Drive connection
         from django.core.mail import send_mail
@@ -38,8 +56,8 @@ def _handle_approved_storage_change(storage_request):
 
         # Get recipient email - prefer contact email, fall back to first user
         recipient_email = organization.contact_email
-        if not recipient_email and organization.user_set.exists():
-            recipient_email = organization.user_set.first().email
+        if not recipient_email and organization.users.exists():
+            recipient_email = organization.users.first().email
 
         if recipient_email:
             try:
@@ -109,13 +127,45 @@ def request_storage_change(request):
     else:
         form = RequestStorageChangeForm(organization)
 
+    target = (
+        Organization.StorageMode.OUR_DATABASE
+        if organization.storage_mode == Organization.StorageMode.GOOGLE_SHEETS
+        else Organization.StorageMode.GOOGLE_SHEETS
+    )
+    impact = compute_plan_impact(organization, target)
+    plan_preview = None
+    if impact and impact['requested_plan'] != impact['current_plan']:
+        plan_preview = (impact['current_plan'], impact['requested_plan'])
+
     context = {
         'form': form,
         'organization': organization,
         'existing_request': existing_request,
+        'plan_preview': plan_preview,
+        'impact': impact,
         'current_storage': organization.get_storage_mode_display(),
     }
     return render(request, 'organizations/request_storage_change.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def cancel_storage_change(request):
+    """Client view to cancel their own pending storage change request."""
+    organization = request.user.organization
+    if not organization:
+        messages.error(request, "You don't have access to an organization.")
+        return redirect('finance:dashboard')
+
+    updated = DataStorageChangeRequest.objects.filter(
+        organization=organization,
+        status=DataStorageChangeRequest.Status.PENDING,
+    ).update(status=DataStorageChangeRequest.Status.CANCELLED)
+    if updated:
+        messages.success(request, "Your storage change request has been cancelled.")
+    else:
+        messages.info(request, "There is no pending request to cancel.")
+    return redirect('organizations:storage_change_requests')
 
 
 @login_required
@@ -134,7 +184,7 @@ def storage_change_requests(request):
     pending = requests_list.filter(status=DataStorageChangeRequest.Status.PENDING).first()
     approved = requests_list.filter(status=DataStorageChangeRequest.Status.APPROVED).first()
     history = requests_list.filter(
-        status__in=[DataStorageChangeRequest.Status.COMPLETED, DataStorageChangeRequest.Status.REJECTED]
+        status__in=[DataStorageChangeRequest.Status.COMPLETED, DataStorageChangeRequest.Status.REJECTED, DataStorageChangeRequest.Status.CANCELLED]
     )
 
     context = {
@@ -144,93 +194,3 @@ def storage_change_requests(request):
         'organization': organization,
     }
     return render(request, 'organizations/storage_change_requests.html', context)
-
-
-# ============================================================================
-# SUPERADMIN VIEWS - Manage Storage Change Requests
-# ============================================================================
-
-def superadmin_storage_change_requests(request):
-    """Superadmin view to see all pending storage change requests."""
-    # Check if user is superadmin
-    if not request.user.is_superuser:
-        messages.error(request, "You don't have permission to access this page.")
-        return redirect('superadmin:overview')
-
-    # Filter requests by status
-    status_filter = request.GET.get('status', 'PENDING')
-
-    if status_filter == 'PENDING':
-        requests_list = DataStorageChangeRequest.objects.filter(
-            status=DataStorageChangeRequest.Status.PENDING
-        ).order_by('-requested_at')
-    elif status_filter == 'APPROVED':
-        requests_list = DataStorageChangeRequest.objects.filter(
-            status=DataStorageChangeRequest.Status.APPROVED
-        ).order_by('-requested_at')
-    elif status_filter == 'ALL':
-        requests_list = DataStorageChangeRequest.objects.all().order_by('-requested_at')
-    else:
-        requests_list = DataStorageChangeRequest.objects.filter(
-            status=DataStorageChangeRequest.Status.PENDING
-        ).order_by('-requested_at')
-        status_filter = 'PENDING'
-
-    context = {
-        'requests': requests_list,
-        'status_filter': status_filter,
-        'status_choices': [
-            ('PENDING', 'Pending'),
-            ('APPROVED', 'Approved'),
-            ('ALL', 'All'),
-        ]
-    }
-    return render(request, 'superadmin/storage_change_requests.html', context)
-
-
-@require_http_methods(["GET", "POST"])
-def superadmin_storage_change_detail(request, request_id):
-    """Superadmin view to review and approve/reject a storage change request."""
-    if not request.user.is_superuser:
-        messages.error(request, "You don't have permission to access this page.")
-        return redirect('superadmin:overview')
-
-    storage_request = get_object_or_404(DataStorageChangeRequest, pk=request_id)
-
-    if request.method == 'POST':
-        form = ApproveStorageChangeForm(request.POST, instance=storage_request)
-        if form.is_valid():
-            storage_request = form.save(commit=False)
-            storage_request.reviewed_by_email = request.user.email
-            storage_request.reviewed_at = timezone.now()
-
-            if storage_request.status == DataStorageChangeRequest.Status.APPROVED:
-                # Mark as COMPLETED since superadmin approval is final
-                storage_request.status = DataStorageChangeRequest.Status.COMPLETED
-                storage_request.completed_at = timezone.now()
-                storage_request.save()
-
-                # Trigger the appropriate migration based on requested storage type
-                _handle_approved_storage_change(storage_request)
-
-                messages.success(
-                    request,
-                    f"Request approved! Storage change has been initiated for {storage_request.organization.name}."
-                )
-            else:
-                storage_request.save()
-                messages.info(
-                    request,
-                    f"Request rejected. The organization has been notified."
-                )
-
-            return redirect('superadmin:storage_change_requests')
-    else:
-        form = ApproveStorageChangeForm(instance=storage_request)
-
-    context = {
-        'storage_request': storage_request,
-        'form': form,
-        'organization': storage_request.organization,
-    }
-    return render(request, 'superadmin/storage_change_detail.html', context)

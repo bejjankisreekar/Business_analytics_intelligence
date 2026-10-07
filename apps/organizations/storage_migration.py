@@ -28,18 +28,30 @@ def _finance_models() -> list:
     return list(django_apps.get_app_config("finance").get_models())
 
 
+BULK_BATCH_SIZE = 500
+
+
+def _bulk_write(model, instances, *, organization=None) -> None:
+    """Writes `instances` in batches via bulk_create — one Sheets API call per
+    batch (not per row, which trips Google's 60-writes-per-minute quota) or
+    one INSERT per batch on the Postgres side. Rows are copied as-is, so
+    model save() overrides don't re-derive anything."""
+    for start in range(0, len(instances), BULK_BATCH_SIZE):
+        batch = instances[start:start + BULK_BATCH_SIZE]
+        if organization is not None:
+            for instance in batch:
+                instance.organization = organization
+        model.objects.bulk_create(batch)
+
+
 def _write_ordered(model, rows, *, organization=None) -> None:
     """Writes `rows` (already-loaded instances) to whatever write target
     is currently active (a SheetSession, or the "current organization"
-    Postgres context) — same model class, same manager/mixin either
-    way. Subcategory's self-referencing `parent` needs parent-before-
-    child order so a real Postgres FK constraint never rejects an
-    insert; every other model has no such ordering requirement."""
+    Postgres context). Subcategory's self-referencing `parent` needs
+    parent-before-child order so a real Postgres FK constraint never
+    rejects an insert; every other model has no such ordering requirement."""
     if model.__name__ != "Subcategory":
-        for instance in rows:
-            if organization is not None:
-                instance.organization = organization
-            instance.save()
+        _bulk_write(model, list(rows), organization=organization)
         return
 
     remaining = list(rows)
@@ -48,10 +60,7 @@ def _write_ordered(model, rows, *, organization=None) -> None:
         ready = [r for r in remaining if r.parent_id is None or r.parent_id in inserted_ids]
         if not ready:
             raise StorageMigrationError("Subcategory data has a broken parent reference — cannot migrate safely.")
-        for r in ready:
-            if organization is not None:
-                r.organization = organization
-            r.save()
+        _bulk_write(model, ready, organization=organization)
         inserted_ids.update(r.pk for r in ready)
         remaining = [r for r in remaining if r.pk not in inserted_ids]
 

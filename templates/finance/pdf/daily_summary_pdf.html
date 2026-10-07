@@ -1,0 +1,31 @@
+{% extends "finance/pdf/_base_pdf.html" %}
+{% load humanize %}
+{% block subtitle %}Daily Performance · {{ date_from|date:"d M Y" }} – {{ date_to|date:"d M Y" }}{% endblock %}
+{% block statement %}
+<table>
+  <tr>
+    <td class="section-label" style="width:20%;">Date</td>
+    <td class="section-label right" style="width:20%;">Revenue</td>
+    <td class="section-label right" style="width:20%;">Expenses</td>
+    <td class="section-label right" style="width:20%;">Purchases</td>
+    <td class="section-label right" style="width:20%;">Net</td>
+  </tr>
+  {% for d in days %}
+  <tr class="divider">
+    <td>{{ d.date|date:"D, d M Y" }}</td>
+    <td class="right">{{ d.sales|floatformat:2|intcomma }}</td>
+    <td class="right">{{ d.expenses|floatformat:2|intcomma }}</td>
+    <td class="right">{{ d.purchases|floatformat:2|intcomma }}</td>
+    <td class="right {% if d.net < 0 %}neg{% endif %}">{{ d.net|floatformat:2|intcomma }}</td>
+  </tr>
+  {% endfor %}
+  <tr class="thick">
+    <td>Total</td>
+    <td class="right">{{ total_sales|floatformat:2|intcomma }}</td>
+    <td class="right">{{ total_expenses|floatformat:2|intcomma }}</td>
+    <td class="right">{{ total_purchases|floatformat:2|intcomma }}</td>
+    <td class="right {% if total_net < 0 %}neg{% endif %}">{{ total_net|floatformat:2|intcomma }}</td>
+  </tr>
+</table>
+<p class="muted" style="margin-top:10px;">Amounts in {{ organization.currency }}.</p>
+{% endblock %}

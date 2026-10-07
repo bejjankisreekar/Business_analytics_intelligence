@@ -6,10 +6,10 @@
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold text-white">Welcome back, {{ request.user.get_full_name|default:request.user.username }}</h1>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · showing <span class="text-slate-300">{{ period.label }}</span></p>
+    <p class="mt-1 text-sm text-slate-400">Showing <span class="text-slate-300">{{ period.label }}</span></p>
   </div>
   <div class="flex flex-wrap items-center gap-2">
-    <a href="{% url 'finance:analytics' %}" class="glow-btn inline-flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-sm font-medium text-brand-300" style="--glow-color: rgba(91,124,250,0.55)">Analytics Intelligence →</a>
+    <a href="{% url 'finance:analytics' %}" class="glow-btn inline-flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-sm font-medium text-brand-300" style="--glow-color: rgba(91,124,250,0.55)">Business Analytics →</a>
   </div>
 </div>
 
@@ -107,7 +107,7 @@
           <td class="py-2.5 text-right font-medium text-white">{{ e.amount|floatformat:0|intcomma }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="py-6 text-center text-slate-500">No entries yet — head to Daily Report → Bulk Entry to log your first revenue entry, expense or purchase.</td></tr>
+        <tr><td colspan="5" class="py-6 text-center text-slate-500">No entries yet — head to Daily Book → Bulk Entry to log your first revenue entry, expense or purchase.</td></tr>
         {% endfor %}
       </tbody>
     </table>

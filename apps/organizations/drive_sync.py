@@ -27,6 +27,11 @@ def get_valid_access_token(connection: CloudBackupConnection) -> str:
         return decrypt_secret(connection.access_token_encrypted)
 
     refresh_token = decrypt_secret(connection.refresh_token_encrypted)
+    if not refresh_token:
+        # Disconnected (tokens blanked, Sheet pointer kept): nothing to send
+        # Google, and a failed request would overwrite the "Disconnected"
+        # note with a confusing "Missing required parameter" error.
+        raise DriveSyncError("Disconnected — click Connect Google Drive to resume.")
     try:
         tokens = drive.refresh_access_token(refresh_token)
     except drive.GoogleDriveError as exc:
@@ -36,5 +41,6 @@ def get_valid_access_token(connection: CloudBackupConnection) -> str:
 
     connection.access_token_encrypted = encrypt_secret(tokens["access_token"])
     connection.token_expires_at = timezone.now() + datetime.timedelta(seconds=tokens["expires_in"])
-    connection.save(update_fields=["access_token_encrypted", "token_expires_at"])
+    connection.last_sync_error = ""
+    connection.save(update_fields=["access_token_encrypted", "token_expires_at", "last_sync_error"])
     return tokens["access_token"]

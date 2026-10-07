@@ -77,6 +77,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "apps.accounts.middleware.SuspendedAccountMiddleware",
     "apps.organizations.middleware.TenantSchemaMiddleware",
+    "apps.superadmin.middleware.EnvironmentDatabaseErrorMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 

@@ -18,7 +18,6 @@
 </head>
 <body>
   <h1>Invoice {{ invoice.invoice_number }}</h1>
-  <p class="muted">Prism Pulse Intelligence &amp; Analytics — internal billing record</p>
 
   <table class="meta">
     <tr>
@@ -42,6 +41,5 @@
     <tr class="thick"><td>Amount due</td><td class="right">{{ invoice.currency }} {{ invoice.amount_due }}</td></tr>
   </table>
 
-  <p class="footer">Generated automatically from the superadmin operations console. No payment gateway is connected — this reflects manually or webhook-recorded transactions only.</p>
 </body>
 </html>

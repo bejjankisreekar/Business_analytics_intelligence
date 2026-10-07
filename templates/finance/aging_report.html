@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold text-white">Aging Report</h1>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · money to receive &amp; money to pay, as of {{ as_of|date:"d M Y" }}, by how overdue they are</p>
+    <p class="mt-1 text-sm text-slate-400">Money to receive &amp; money to pay, as of {{ as_of|date:"d M Y" }}, by how overdue they are</p>
   </div>
   <a href="{% url 'finance:cash_position' %}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">← Back to Cash Position</a>
 </div>

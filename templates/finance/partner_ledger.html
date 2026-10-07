@@ -6,7 +6,7 @@
   <div>
     <a href="{% url 'finance:cash_position' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Cash Position</a>
     <h1 class="mt-1 text-2xl font-bold text-white">{{ partner.name }}</h1>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · partner ledger{% if partner.phone %} · {{ partner.phone }}{% endif %}</p>
+    <p class="mt-1 text-sm text-slate-400">Partner ledger{% if partner.phone %} · {{ partner.phone }}{% endif %}</p>
   </div>
 </div>
 

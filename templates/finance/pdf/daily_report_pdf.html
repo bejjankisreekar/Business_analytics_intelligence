@@ -1,6 +1,6 @@
 {% extends "finance/pdf/_base_pdf.html" %}
 {% load humanize %}
-{% block subtitle %}Daily Report · {{ report.date|date:"l, d F Y" }}{% endblock %}
+{% block subtitle %}Daily Book · {{ report.date|date:"l, d F Y" }}{% endblock %}
 {% block statement %}
 <table>
   {% if show_bank %}

@@ -2,7 +2,10 @@
 
 {% block body %}
 {# Work out where each environment's toggle should land: same section, other env. #}
-{% if request.resolver_match.url_name in "plan_list,plan_create,plan_edit,plan_toggle" %}
+{% if request.resolver_match.url_name == "platform_analytics" %}
+  {% url 'superadmin:platform_analytics' 'dev' as dev_href %}
+  {% url 'superadmin:platform_analytics' 'prod' as prod_href %}
+{% elif request.resolver_match.url_name in "plan_list,plan_create,plan_edit,plan_toggle" %}
   {% url 'superadmin:plan_list' 'dev' as dev_href %}
   {% url 'superadmin:plan_list' 'prod' as prod_href %}
 {% elif request.resolver_match.url_name in "coupon_list,coupon_create,coupon_edit,coupon_toggle" %}
@@ -17,6 +20,9 @@
 {% elif request.resolver_match.url_name in "subscription_list,subscription_edit" %}
   {% url 'superadmin:subscription_list' 'dev' as dev_href %}
   {% url 'superadmin:subscription_list' 'prod' as prod_href %}
+{% elif request.resolver_match.url_name in "storage_change_requests,storage_change_detail" %}
+  {% url 'superadmin:storage_change_requests' 'dev' as dev_href %}
+  {% url 'superadmin:storage_change_requests' 'prod' as prod_href %}
 {% elif request.resolver_match.url_name in "org_list,org_detail,org_create,org_edit,financial_history" %}
   {% url 'superadmin:org_list' 'dev' as dev_href %}
   {% url 'superadmin:org_list' 'prod' as prod_href %}
@@ -66,6 +72,9 @@
         <a href="{% url 'superadmin:overview' %}" class="sa-nav-link {% if request.resolver_match.url_name == 'overview' %}sa-nav-link--active{% endif %}">
           Overview
         </a>
+        <a href="{% url 'superadmin:platform_analytics' env_key|default:'prod' %}" class="sa-nav-link {% if request.resolver_match.url_name == 'platform_analytics' %}sa-nav-link--active{% endif %}">
+          Analytics
+        </a>
         <a href="{% url 'superadmin:org_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "org_list,org_detail,org_create,org_edit,financial_history" %}sa-nav-link--active{% endif %}">
           Clients
         </a>
@@ -83,6 +92,9 @@
         </a>
         <a href="{% url 'superadmin:payment_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name == "payment_list" %}sa-nav-link--active{% endif %}">
           Payments
+        </a>
+        <a href="{% url 'superadmin:storage_change_requests' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "storage_change_requests,storage_change_detail" %}sa-nav-link--active{% endif %}">
+          Storage requests
         </a>
       </nav>
     </aside>
@@ -223,6 +235,8 @@
   html[data-theme="light"] .sa-btn-ghost { border-color: rgba(15,23,42,0.1); color: #64748b; }
   html[data-theme="light"] .sa-btn-ghost:hover { border-color: rgba(15,23,42,0.2); color: #0f172a; }
   html[data-theme="light"] .sa-badge--warn { background: rgba(217,119,6,0.1); color: #b45309; border-color: rgba(217,119,6,0.25); }
+  .sa-ok { color: #34d9b8; } .sa-bad { color: #f87171; }
+  html[data-theme="light"] .sa-ok { color: #0d8a6b; } html[data-theme="light"] .sa-bad { color: #dc2626; }
   html[data-theme="light"] .sa-badge--neutral { background: rgba(100,116,139,0.1); color: #64748b; border-color: rgba(100,116,139,0.25); }
   html[data-theme="light"] .sa-input, html[data-theme="light"] .sa-select, html[data-theme="light"] select.sa-input, html[data-theme="light"] textarea.sa-input {
     border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.015); color: #0f172a;

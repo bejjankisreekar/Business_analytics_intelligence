@@ -16,54 +16,6 @@
   })();
 </script>
 <link rel="stylesheet" href="{% static 'css/theme.css' %}">
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          // Wired to CSS variables (see static/css/theme.css) so every
-          // bg-ink-900, text-slate-400, etc. across the whole app flips
-          // automatically between the dark/light themes. The
-          // rgb(var(--x) / <alpha-value>) form is Tailwind's documented
-          // technique for theme-able colors that still support opacity
-          // modifiers (e.g. bg-ink-900/95).
-          ink: {
-            950: 'rgb(var(--ink-950) / <alpha-value>)',
-            900: 'rgb(var(--ink-900) / <alpha-value>)',
-            800: 'rgb(var(--ink-800) / <alpha-value>)',
-            700: 'rgb(var(--ink-700) / <alpha-value>)',
-          },
-          brand: {
-            400: 'rgb(var(--brand-400) / <alpha-value>)',
-            500: 'rgb(var(--brand-500) / <alpha-value>)',
-            600: 'rgb(var(--brand-600) / <alpha-value>)',
-          },
-          mint: {
-            400: 'rgb(var(--mint-400) / <alpha-value>)',
-            500: 'rgb(var(--mint-500) / <alpha-value>)',
-          },
-          slate: {
-            50: 'rgb(var(--slate-50) / <alpha-value>)',
-            100: 'rgb(var(--slate-100) / <alpha-value>)',
-            200: 'rgb(var(--slate-200) / <alpha-value>)',
-            300: 'rgb(var(--slate-300) / <alpha-value>)',
-            400: 'rgb(var(--slate-400) / <alpha-value>)',
-            500: 'rgb(var(--slate-500) / <alpha-value>)',
-            600: 'rgb(var(--slate-600) / <alpha-value>)',
-            700: 'rgb(var(--slate-700) / <alpha-value>)',
-            800: 'rgb(var(--slate-800) / <alpha-value>)',
-            900: 'rgb(var(--slate-900) / <alpha-value>)',
-            950: 'rgb(var(--slate-950) / <alpha-value>)',
-          },
-        },
-        fontFamily: {
-          sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        },
-      },
-    },
-  }
-</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -173,6 +125,8 @@
 </script>
 <script src="{% static 'js/theme.js' %}"></script>
 {% block extra_head %}{% endblock %}
+{# Pre-built Tailwind (replaces the Play CDN). Rebuild: npm run build:css. Kept last in <head> so utilities cascade after the page styles above, as the CDN's injected <style> did. #}
+<link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
 </head>
 <body class="bg-ink-950 text-slate-200 antialiased">
 <style>
@@ -274,6 +228,132 @@
       if (/(pdf|excel|download|export|csv|xlsx)/i.test(f.getAttribute("action") || "")) return;
       // defer so other submit handlers (validation) can cancel first
       setTimeout(function () { if (!e.defaultPrevented) show(); }, 0);
+    });
+    // form.submit() (used by every onchange="this.form.submit()" filter, e.g. the
+    // period selector) never fires a "submit" event, so the listener above can't
+    // see it — wrap submit() itself so those navigations show the loader too.
+    var nativeSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function () {
+      var f = this;
+      if (!(f.target && f.target !== "_self") && !f.hasAttribute("data-no-loader") &&
+          !/(pdf|excel|download|export|csv|xlsx)/i.test(f.getAttribute("action") || "")) {
+        show();
+      }
+      return nativeSubmit.apply(f, arguments);
+    };
+  })();
+</script>
+<style>
+  #bai-dl { position: fixed; right: 16px; top: 68px; z-index: 100001; width: 280px; display: none; flex-direction: column; gap: 8px; }
+  .bai-dl-card {
+    border-radius: 12px; padding: 10px 12px; font-size: 12px;
+    background: rgb(var(--ink-800)); color: rgb(var(--slate-300));
+    border: 1px solid rgb(var(--tint-rgb) / .16); box-shadow: 0 12px 28px -10px rgb(0 0 0 / .45);
+  }
+  @media (min-width: 1024px) { #bai-dl { top: 16px; } }
+  .bai-dl-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .bai-dl-name { font-weight: 600; color: rgb(var(--fg-strong)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bai-dl-pct { font-variant-numeric: tabular-nums; color: rgb(var(--slate-400)); flex: none; }
+  .bai-dl-track { margin-top: 8px; height: 5px; border-radius: 999px; overflow: hidden; background: rgb(var(--tint-rgb) / .1); }
+  .bai-dl-fill { height: 100%; width: 0; border-radius: 999px; background: #3b82f6; transition: width .15s linear; }
+  .bai-dl-card.indet .bai-dl-fill { width: 35%; animation: bai-dl-slide 1.1s ease-in-out infinite; }
+  @keyframes bai-dl-slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+  .bai-dl-card.done .bai-dl-fill { background: #10b981; }
+  .bai-dl-card.fail .bai-dl-fill { background: #ef4444; }
+</style>
+<div id="bai-dl" aria-live="polite"></div>
+<script>
+  // Export/download links: fetch the file ourselves so we can show a progress
+  // card (bottom-right) instead of leaving the user guessing. The percentage
+  // is real once bytes start arriving; while the server is still building the
+  // file there is nothing to measure, so the bar shows "Preparing…".
+  (function () {
+    var host = document.getElementById("bai-dl");
+    var PATTERN = /(pdf|excel|download|export|csv|xlsx|sample)/i;
+    function fmt(n) { return n < 1048576 ? Math.max(1, Math.round(n / 1024)) + " KB" : (n / 1048576).toFixed(1) + " MB"; }
+    function fileName(res, url) {
+      var cd = res.headers.get("Content-Disposition") || "";
+      var m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/i.exec(cd);
+      if (m) { try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; } }
+      return decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "download");
+    }
+    function makeCard(name) {
+      var card = document.createElement("div");
+      card.className = "bai-dl-card indet";
+      var top = document.createElement("div"); top.className = "bai-dl-top";
+      var n = document.createElement("span"); n.className = "bai-dl-name"; n.textContent = name;
+      var pct = document.createElement("span"); pct.className = "bai-dl-pct"; pct.textContent = "Preparing…";
+      top.appendChild(n); top.appendChild(pct);
+      var track = document.createElement("div"); track.className = "bai-dl-track";
+      var fill = document.createElement("div"); fill.className = "bai-dl-fill";
+      track.appendChild(fill); card.appendChild(top); card.appendChild(track);
+      host.appendChild(card); host.style.display = "flex";
+      // Fly in from the middle of the screen to its top-right spot so the eye
+      // catches it; users otherwise miss a small card appearing in a corner.
+      if (card.animate) {
+        var r = card.getBoundingClientRect();
+        var dx = window.innerWidth / 2 - (r.left + r.width / 2);
+        var dy = window.innerHeight / 2 - (r.top + r.height / 2);
+        card.animate([
+          { transform: "translate(" + dx + "px," + dy + "px) scale(1.35)", opacity: 0 },
+          { transform: "translate(" + dx + "px," + dy + "px) scale(1.35)", opacity: 1, offset: 0.25 },
+          { transform: "none", opacity: 1 }
+        ], { duration: 750, easing: "cubic-bezier(.2,.8,.2,1)" });
+      }
+      function remove(ms) {
+        setTimeout(function () { card.remove(); if (!host.children.length) host.style.display = "none"; }, ms);
+      }
+      return { card: card, name: n, pct: pct, fill: fill, remove: remove };
+    }
+    function start(a) {
+      var url = new URL(a.href, location.href);
+      var ui = makeCard(url.pathname.split("/").filter(Boolean).pop() || "file");
+      function fail(msg) {
+        ui.card.classList.remove("indet"); ui.card.classList.add("fail");
+        ui.fill.style.width = "100%"; ui.pct.textContent = msg || "Failed"; ui.remove(5000);
+      }
+      fetch(url.href, { credentials: "same-origin" }).then(function (res) {
+        var type = res.headers.get("Content-Type") || "";
+        // An HTML answer means a redirect/error page (e.g. "PDF unavailable"):
+        // show it the normal way rather than saving it as a file.
+        if (res.redirected || !res.ok || /text\/html/i.test(type)) {
+          ui.card.remove(); if (!host.children.length) host.style.display = "none";
+          location.href = res.redirected ? res.url : url.href; return null;
+        }
+        var name = fileName(res, url); ui.name.textContent = name;
+        var total = parseInt(res.headers.get("Content-Length"), 10) || 0;
+        var got = 0, chunks = [], reader = res.body && res.body.getReader();
+        if (!reader) { return res.blob().then(function (b) { return { blob: b, name: name }; }); }
+        function pump() {
+          return reader.read().then(function (r) {
+            if (r.done) return { blob: new Blob(chunks, { type: type }), name: name };
+            chunks.push(r.value); got += r.value.length;
+            if (total) {
+              ui.card.classList.remove("indet");
+              var p = Math.min(99, Math.round(got / total * 100));
+              ui.fill.style.width = p + "%"; ui.pct.textContent = p + "%";
+            } else { ui.pct.textContent = fmt(got); }
+            return pump();
+          });
+        }
+        return pump();
+      }).then(function (out) {
+        if (!out) return;
+        ui.card.classList.remove("indet"); ui.card.classList.add("done");
+        ui.fill.style.width = "100%"; ui.pct.textContent = "Done";
+        var obj = URL.createObjectURL(out.blob), link = document.createElement("a");
+        link.href = obj; link.download = out.name; document.body.appendChild(link); link.click(); link.remove();
+        setTimeout(function () { URL.revokeObjectURL(obj); }, 10000);
+        ui.remove(2500);
+      }).catch(function () { fail("Download failed"); });
+    }
+    document.addEventListener("click", function (e) {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest && e.target.closest("a[href]");
+      if (!a || a.hasAttribute("data-no-download-progress") || (a.target && a.target !== "_self")) return;
+      if (a.origin !== location.origin || !PATTERN.test(a.pathname)) return;
+      if (!window.fetch || !window.Blob) return;
+      e.preventDefault(); start(a);
     });
   })();
 </script>

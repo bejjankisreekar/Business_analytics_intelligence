@@ -10,7 +10,7 @@ from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
-from django.db.models import Prefetch, Q, Sum
+from django.db.models import Count, Prefetch, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -860,6 +860,169 @@ class PurchaseExpenseIntelligenceView(ManagerAccountRestrictedMixin, TenantLogin
             "expense_analysis": expense_analysis,
         })
         return context
+
+
+class DailySummaryRangeMixin:
+    """Shared by the Daily Performance page and its exports: the ?from/&to range
+    (default: the last 7 days), swapped if reversed and capped at MAX_DAYS."""
+
+    MAX_DAYS = 366
+
+    def _parse_date(self, key):
+        try:
+            return datetime.date.fromisoformat(self.request.GET.get(key, ""))
+        except ValueError:
+            return None
+
+    def summary_range(self):
+        date_to = self._parse_date("to") or datetime.date.today()
+        date_from = self._parse_date("from") or date_to - datetime.timedelta(days=6)
+        if date_from > date_to:
+            date_from, date_to = date_to, date_from
+        date_from = max(date_from, date_to - datetime.timedelta(days=self.MAX_DAYS - 1))
+        return date_from, date_to
+
+
+class DailySummaryView(DailySummaryRangeMixin, TenantLoginRequiredMixin, TemplateView):
+    template_name = "finance/daily_summary.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        date_from, date_to = self.summary_range()
+        context.update({
+            "active_nav": "daily_summary",
+            "organization": self.request.user.organization,
+            "date_from": date_from,
+            "date_to": date_to,
+            "days": services.daily_series(date_from, date_to),
+        })
+        return context
+
+
+class DailySummaryExcelView(DailySummaryRangeMixin, TenantLoginRequiredMixin, View):
+    """One row per day (Date, Revenue, Expenses, Purchases, Net) plus a total row."""
+
+    def get(self, request, *args, **kwargs):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font
+
+        date_from, date_to = self.summary_range()
+        days = services.daily_series(date_from, date_to)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Daily Performance"
+        ws.append(["Date", "Day", "Revenue", "Expenses", "Purchases", "Net"])
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal="center")
+        for d in days:
+            ws.append([d["date"], d["date"].strftime("%a"), d["sales"], d["expenses"], d["purchases"], d["net"]])
+            ws.cell(row=ws.max_row, column=1).number_format = "dd mmm yyyy"
+        ws.append([
+            "Total", "",
+            sum((d["sales"] for d in days), Decimal(0)), sum((d["expenses"] for d in days), Decimal(0)),
+            sum((d["purchases"] for d in days), Decimal(0)), sum((d["net"] for d in days), Decimal(0)),
+        ])
+        for cell in ws[ws.max_row]:
+            cell.font = Font(bold=True)
+        for row in ws.iter_rows(min_row=2, min_col=3):
+            for cell in row:
+                cell.number_format = "#,##0.00"
+        ws.freeze_panes = "A2"
+        for col, width in zip("ABCDEF", (16, 8, 17, 17, 17, 17)):
+            ws.column_dimensions[col].width = width
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="daily-performance-{date_from}-{date_to}.xlsx"'
+        return response
+
+
+class DailySummaryPdfView(DailySummaryRangeMixin, TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        date_from, date_to = self.summary_range()
+        days = services.daily_series(date_from, date_to)
+        context = {
+            "organization": request.user.organization,
+            "date_from": date_from,
+            "date_to": date_to,
+            "days": days,
+            "total_sales": sum((d["sales"] for d in days), Decimal(0)),
+            "total_expenses": sum((d["expenses"] for d in days), Decimal(0)),
+            "total_purchases": sum((d["purchases"] for d in days), Decimal(0)),
+            "total_net": sum((d["net"] for d in days), Decimal(0)),
+        }
+        return _render_statement_pdf(
+            request, "finance/pdf/daily_summary_pdf.html", context,
+            f"daily-performance-{date_from}-{date_to}.pdf",
+            fallback_url_name="finance:daily_summary",
+        )
+
+
+class DailyEntryDaysView(TenantLoginRequiredMixin, View):
+    """JSON for the Daily Book's month-calendar pop-up: for ?month=YYYY-MM,
+    how many revenue/expense/purchase entries were logged on each day."""
+
+    def get(self, request, *args, **kwargs):
+        from django.http import JsonResponse
+
+        raw = request.GET.get("month", "")
+        try:
+            year, month = (int(part) for part in raw.split("-"))
+            first = datetime.date(year, month, 1)
+        except (ValueError, TypeError):
+            first = datetime.date.today().replace(day=1)
+        last = (first.replace(day=28) + datetime.timedelta(days=4))
+        last = last.replace(day=1) - datetime.timedelta(days=1)
+
+        counts = {}
+        models = (SalesEntry, ExpenseEntry, PurchaseEntry)
+        from apps.sheets_store.session import get_active_session
+
+        session = get_active_session()
+        if session is not None:
+            # Google Sheets org: the ORM-style path would download every
+            # column of all three tabs (3 slow reads). Only the date column
+            # matters here, so fetch just that, for all three tabs, in one call.
+            from openpyxl.utils import get_column_letter
+
+            from apps.sheets_store import client as sheets_client
+            from apps.sheets_store.store import _tab_name, sheet_fields
+
+            ranges = []
+            for model in models:
+                names = [f.name for f in sheet_fields(model)]
+                col = get_column_letter(names.index("date") + 1)
+                ranges.append(f"{_tab_name(model)}!{col}2:{col}100000")
+            try:
+                columns = sheets_client.batch_get_values(
+                    session.access_token, spreadsheet_id=session.spreadsheet_id, a1_ranges=ranges
+                )
+            except Exception:
+                return JsonResponse({"error": "Couldn't read entries from Google Sheets."}, status=502)
+            prefix = first.strftime("%Y-%m-")
+            for column in columns:
+                for cell in column:
+                    value = str(cell[0])[:10] if cell else ""
+                    if value.startswith(prefix):
+                        counts[value] = counts.get(value, 0) + 1
+        else:
+            for model in models:
+                rows = (
+                    model.objects.filter(date__gte=first, date__lte=last)
+                    .values("date").annotate(n=Count("id"))
+                )
+                for row in rows:
+                    key = row["date"].isoformat()
+                    counts[key] = counts.get(key, 0) + row["n"]
+        return JsonResponse({"month": first.strftime("%Y-%m"), "days": counts})
 
 
 class DailyReportView(TenantLoginRequiredMixin, TemplateView):

@@ -21,11 +21,19 @@
     </div>
     {% endif %}
 
+    {% if switch_approved %}
+    <h1 class="mt-10 text-2xl font-bold text-white sm:text-3xl">Your Google Drive switch is approved</h1>
+    <p class="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate-400">
+      Connect your Google account to finish moving your data. Your existing data will be copied into a Google Sheet
+      in your own Drive, in its own folder — nothing is lost, and you can keep using Prism Pulse as usual afterwards.
+    </p>
+    {% else %}
     <h1 class="mt-10 text-2xl font-bold text-white sm:text-3xl">One last step — connect your database</h1>
     <p class="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate-400">
       Before your workspace is set up, connect your own Google account. Your data will live in a Google Sheet
       in your own Drive, in its own folder — so it's always yours and reachable from any device.
     </p>
+    {% endif %}
 
     <a href="{% url 'accounts:connect_drive' %}" class="keep-white mt-10 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110">
       Connect Google Drive

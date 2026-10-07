@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold text-white">Categories</h1>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · organize how revenue, expenses and purchases are grouped</p>
+    <p class="mt-1 text-sm text-slate-400">Organize how revenue, expenses and purchases are grouped</p>
   </div>
   <button onclick="bai.openModal('modal-category')" class="btn-primary">+ Add Category</button>
 </div>
@@ -17,7 +17,7 @@
   {% endfor %}
 </div>
 {% if kind == "PRODUCT" %}
-<p class="mt-3 text-xs text-slate-500">Tag both a revenue entry and a purchase with the same product category to see profit by category on Analytics/Revenue Intelligence.</p>
+<p class="mt-3 text-xs text-slate-500">Tag both a revenue entry and a purchase with the same product category to see profit by category on Analytics/Revenue Insights.</p>
 {% endif %}
 
 <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

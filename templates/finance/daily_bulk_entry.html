@@ -3,12 +3,12 @@
 {% block title %}Bulk Entry · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
-<a href="{% url 'finance:daily_report' %}?date={{ selected_date|date:'Y-m-d' }}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Daily Report</a>
+<a href="{% url 'finance:daily_report' %}?date={{ selected_date|date:'Y-m-d' }}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Daily Book</a>
 
 <div class="mt-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
   <div class="min-w-0 max-w-3xl">
     <h1 class="text-2xl font-bold text-white">Bulk Entry</h1>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · enter every line for the day at once — like a spreadsheet — then save. Already-logged entries for this date show up pre-filled below, so you can edit or remove them right here; blank extra rows are ignored.</p>
+    <p class="mt-1 text-sm text-slate-400">Enter every line for the day at once — like a spreadsheet — then save. Already-logged entries for this date show up pre-filled below, so you can edit or remove them right here; blank extra rows are ignored.</p>
   </div>
   <div class="flex shrink-0 flex-nowrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-1.5">
     <a href="?date={{ prev_date|date:'Y-m-d' }}" class="flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10" title="Previous day">‹</a>

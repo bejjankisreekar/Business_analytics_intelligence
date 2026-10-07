@@ -3,6 +3,65 @@ from django.core.exceptions import ValidationError
 from .models import DataStorageChangeRequest, Organization
 
 
+# Each managed-database plan has a Drive twin; switching storage swaps between them.
+_TO_DRIVE_PLAN = {"Professional": "Professional Drive", "Business": "Business Drive"}
+_TO_DB_PLAN = {v: k for k, v in _TO_DRIVE_PLAN.items()}
+
+
+def paired_plan_name(plan_name, requested_storage):
+    """Plan name an org moves to when switching to `requested_storage`."""
+    if requested_storage == Organization.StorageMode.GOOGLE_SHEETS:
+        return _TO_DRIVE_PLAN.get(plan_name, plan_name)
+    return _TO_DB_PLAN.get(plan_name, plan_name)
+
+
+def compute_plan_impact(organization, requested_storage, using=None):
+    """Current vs. requested plan and their *net* monthly prices (after
+    discounts). Current net is what the subscription actually bills
+    (price - discount); requested net is the paired plan's discounted price.
+    Yearly subscriptions are shown per month. None if there's no subscription."""
+    from decimal import Decimal, ROUND_HALF_UP
+    from apps.billing.models import Plan, Subscription
+
+    using = using or organization._state.db or 'default'
+    sub = (
+        Subscription.objects.using(using)
+        .filter(organization_id=organization.pk, is_current=True)
+        .select_related('plan').first()
+    )
+    if not sub:
+        return None
+    yearly = sub.billing_cycle == Subscription.BillingCycle.YEARLY
+    per_month = (lambda v: v / 12) if yearly else (lambda v: v)
+    money = lambda v: Decimal(v).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    cur_price, cur_discount = sub.price or Decimal('0'), sub.discount or Decimal('0')
+    new_name = paired_plan_name(sub.plan.name, requested_storage)
+    new_plan = Plan.objects.using(using).filter(name=new_name).first() or sub.plan
+    if sub.is_complimentary or new_plan.pk == sub.plan_id:
+        # Nothing to re-price: keep what the subscription bills today.
+        new_price, new_discount = cur_price, cur_discount
+    else:
+        new_price = new_plan.yearly_price if yearly else new_plan.monthly_price
+        new_net_full = new_plan.effective_yearly_price if yearly else new_plan.effective_monthly_price
+        new_discount = new_price - new_net_full
+    return {
+        "plan": new_plan,
+        "current_plan": sub.plan.name,
+        "requested_plan": new_plan.name,
+        "current_price": money(per_month(cur_price - cur_discount)),
+        "requested_price": money(per_month(new_price - new_discount)),
+        # Gross / discount per month, for showing the breakdown
+        "current_gross": money(per_month(cur_price)),
+        "current_discount": money(per_month(cur_discount)),
+        "requested_gross": money(per_month(new_price)),
+        "requested_discount": money(per_month(new_discount)),
+        # Full-cycle amounts written to the subscription on approval
+        "new_price": new_price,
+        "new_discount": new_discount,
+    }
+
+
 class RequestStorageChangeForm(forms.ModelForm):
     """Form for clients to request a storage change."""
 
@@ -58,17 +117,12 @@ class RequestStorageChangeForm(forms.ModelForm):
         instance.organization = self.organization
         instance.current_storage = self.organization.storage_mode
 
-        # Calculate billing impact (placeholder - update based on your plan pricing logic)
-        from decimal import Decimal
-
-        # Get current plan's pricing
-        subscription = self.organization.subscriptions.filter(is_current=True).first()
-        if subscription:
-            instance.current_monthly_price = subscription.price or Decimal('0')
-            # For now, assume both storage types cost the same
-            # Update this logic if you have different pricing per storage type
-            instance.requested_monthly_price = subscription.price or Decimal('0')
-
+        impact = compute_plan_impact(self.organization, instance.requested_storage)
+        if impact:
+            instance.current_plan_name = impact["current_plan"]
+            instance.requested_plan_name = impact["requested_plan"]
+            instance.current_monthly_price = impact["current_price"]
+            instance.requested_monthly_price = impact["requested_price"]
         instance.price_difference = instance.requested_monthly_price - instance.current_monthly_price
 
         if commit:

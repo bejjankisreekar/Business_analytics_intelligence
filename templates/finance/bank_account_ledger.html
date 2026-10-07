@@ -7,7 +7,7 @@
   <div>
     <a href="{% url 'finance:bank_accounts' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Bank Accounts</a>
     <h1 class="mt-1 text-2xl font-bold text-white">{{ bank_account.name }}</h1>
-    <p class="mt-1 text-sm text-slate-400">{{ organization.name }} · {{ bank_account.display_bank }}{% if bank_account.account_number %} · {{ bank_account.account_number }}{% endif %}</p>
+    <p class="mt-1 text-sm text-slate-400">{{ bank_account.display_bank }}{% if bank_account.account_number %} · {{ bank_account.account_number }}{% endif %}</p>
   </div>
   <a href="{% url 'finance:daily_bulk_entry' %}" class="btn-primary">+ Bulk Entry</a>
 </div>

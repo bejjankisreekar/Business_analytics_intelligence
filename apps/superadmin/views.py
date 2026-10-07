@@ -20,8 +20,11 @@ from apps.billing import services as billing_services
 from apps.billing import payments as payment_services
 from apps.billing.models import Coupon, CouponRedemption, Invoice, Payment, Plan, Subscription
 from apps.organizations import service_control
-from apps.organizations.models import Organization, ServiceStatusChange
+from apps.organizations.models import DataStorageChangeRequest, Organization, ServiceStatusChange
 from apps.organizations.services import OrganizationSignupError, create_organization_with_tenant_schema_and_admin
+
+from apps.organizations.forms import ApproveStorageChangeForm
+from apps.organizations.views import _handle_approved_storage_change
 
 from .forms import (
     ApplyInvoiceCouponForm,
@@ -72,6 +75,44 @@ def _month_keys(months: int):
             m = 12
             y -= 1
     return list(reversed(keys))
+
+
+class PlatformAnalyticsView(SuperAdminRequiredMixin, TemplateView):
+    """One page of analytics for the platform itself: revenue, money given
+    back, subscriptions and client growth, for one environment."""
+
+    template_name = "superadmin/analytics.html"
+    MONTH_CHOICES = (6, 12, 24)
+
+    def get_context_data(self, **kwargs):
+        from .analytics import platform_analytics
+
+        env = kwargs["env"]
+        context = super().get_context_data(**kwargs)
+        context["env_key"] = env
+        context["env_label"] = _env_label_or_404(env)
+        try:
+            months = int(self.request.GET.get("months", 12))
+        except ValueError:
+            months = 12
+        if months not in self.MONTH_CHOICES:
+            months = 12
+        context["month_choices"] = self.MONTH_CHOICES
+        context["month_start"] = timezone.localdate().replace(day=1).isoformat()
+        try:
+            data = platform_analytics(env, months)
+            context["db_error"] = False
+        except DatabaseError:
+            # Keep the page's layout (all zeros) with a warning banner rather
+            # than replacing it with an error message.
+            logger.exception("Platform analytics: %s database unavailable", env)
+            from .analytics import empty_platform_analytics
+
+            data = empty_platform_analytics(months)
+            context["db_error"] = True
+        context["a"] = data
+        context["charts_json"] = json.dumps(data["charts"], default=float)
+        return context
 
 
 class EnvironmentOverviewView(SuperAdminRequiredMixin, TemplateView):
@@ -190,6 +231,10 @@ class OrganizationListView(SuperAdminRequiredMixin, TemplateView):
         business_type = self.request.GET.get("business_type", "")
         if business_type:
             qs = qs.filter(business_type=business_type)
+
+        created_from = self.request.GET.get("created_from", "")
+        if created_from:
+            qs = qs.filter(created_at__date__gte=created_from)
 
         plan_id = self.request.GET.get("plan", "")
         if plan_id:
@@ -762,6 +807,15 @@ class SubscriptionListView(SuperAdminRequiredMixin, TemplateView):
         if status:
             qs = qs.filter(status=status)
 
+        cancelled_from = self.request.GET.get("cancelled_from", "")
+        if cancelled_from:
+            qs = qs.filter(cancellation_date__gte=cancelled_from)
+
+        if self.request.GET.get("paying") == "1":
+            from .analytics import PAYING
+
+            qs = qs.filter(status__in=PAYING, is_complimentary=False)
+
         autopay = self.request.GET.get("autopay", "")
         if autopay == "on":
             qs = qs.filter(autopay_enabled=True)
@@ -933,6 +987,9 @@ class PaymentListView(SuperAdminRequiredMixin, TemplateView):
         if method:
             qs = qs.filter(payment_method=method)
 
+        if self.request.GET.get("refunded") == "1":
+            qs = qs.filter(refunded_amount__gt=0)
+
         date_from = self.request.GET.get("from", "")
         if date_from:
             qs = qs.filter(payment_date__date__gte=date_from)
@@ -975,6 +1032,15 @@ class InvoiceListView(SuperAdminRequiredMixin, TemplateView):
         status = self.request.GET.get("status", "")
         if status:
             qs = qs.filter(status=status)
+
+        from .analytics import BILLED, OPEN_INVOICE
+
+        if self.request.GET.get("open") == "1" or self.request.GET.get("overdue") == "1":
+            qs = qs.filter(status__in=OPEN_INVOICE)
+        if self.request.GET.get("overdue") == "1":
+            qs = qs.filter(due_date__lt=timezone.localdate())
+        if self.request.GET.get("coupon") == "1":
+            qs = qs.filter(status__in=BILLED, coupon_redemption__isnull=False)
 
         date_from = self.request.GET.get("from", "")
         if date_from:
@@ -1399,3 +1465,80 @@ class RecordPaymentView(SuperAdminRequiredMixin, View):
         else:
             messages.error(request, "Couldn't record the payment — please check the form.")
         return redirect("superadmin:financial_history", env=env, pk=pk)
+
+
+class StorageChangeRequestListView(SuperAdminRequiredMixin, TemplateView):
+    """Storage change requests clients have submitted in this environment."""
+
+    template_name = "superadmin/storage_change_requests.html"
+
+    def get_context_data(self, **kwargs):
+        env = kwargs["env"]
+        context = super().get_context_data(**kwargs)
+        context["env_key"] = env
+        context["env_label"] = _env_label_or_404(env)
+
+        status = self.request.GET.get("status", "PENDING")
+        qs = DataStorageChangeRequest.objects.using(env).select_related("organization")
+        if status in DataStorageChangeRequest.Status.values:
+            qs = qs.filter(status=status)
+        else:
+            status = "ALL"
+        context["requests"] = qs.order_by("-requested_at")
+        context["status_filter"] = status
+        context["status_choices"] = [("PENDING", "Pending"), ("APPROVED", "Awaiting client"), ("COMPLETED", "Completed"), ("REJECTED", "Rejected"), ("ALL", "All")]
+        return context
+
+
+class StorageChangeRequestDetailView(SuperAdminRequiredMixin, View):
+    """Review a storage change request: approve (switches storage mode and the
+    subscription's plan) or reject."""
+
+    def _render(self, request, env, storage_request, form):
+        return render(
+            request,
+            "superadmin/storage_change_detail.html",
+            {
+                "env_key": env,
+                "env_label": ENVIRONMENTS[env],
+                "storage_request": storage_request,
+                "organization": storage_request.organization,
+                "form": form,
+            },
+        )
+
+    def _get(self, env, pk):
+        _env_label_or_404(env)
+        return get_object_or_404(DataStorageChangeRequest.objects.using(env).select_related("organization"), pk=pk)
+
+    def get(self, request, env, pk):
+        storage_request = self._get(env, pk)
+        return self._render(request, env, storage_request, ApproveStorageChangeForm(instance=storage_request))
+
+    def post(self, request, env, pk):
+        storage_request = self._get(env, pk)
+        if storage_request.status != DataStorageChangeRequest.Status.PENDING:
+            messages.error(request, "This request has already been reviewed.")
+            return redirect("superadmin:storage_change_detail", env=env, pk=pk)
+
+        form = ApproveStorageChangeForm(request.POST, instance=storage_request)
+        if not form.is_valid():
+            return self._render(request, env, storage_request, form)
+
+        storage_request = form.save(commit=False)
+        storage_request.reviewed_by_email = request.user.email
+        storage_request.reviewed_at = timezone.now()
+        with transaction.atomic(using=env):
+            if storage_request.status == DataStorageChangeRequest.Status.APPROVED:
+                if storage_request.requested_storage == Organization.StorageMode.OUR_DATABASE:
+                    storage_request.status = DataStorageChangeRequest.Status.COMPLETED
+                    storage_request.completed_at = timezone.now()
+                # A switch to Drive stays APPROVED until the client connects
+                # their Google account (the OAuth callback completes it).
+                storage_request.save(using=env)
+                _handle_approved_storage_change(storage_request)
+                messages.success(request, f"Approved. Storage change started for {storage_request.organization.name}.")
+            else:
+                storage_request.save(using=env)
+                messages.info(request, "Request rejected.")
+        return redirect("superadmin:storage_change_requests", env=env)

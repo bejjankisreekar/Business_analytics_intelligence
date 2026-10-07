@@ -8,7 +8,6 @@ urlpatterns = [
     path('storage/change/request/', views.request_storage_change, name='request_storage_change'),
     path('storage/change/requests/', views.storage_change_requests, name='storage_change_requests'),
 
-    # Superadmin URLs
-    path('superadmin/storage-change-requests/', views.superadmin_storage_change_requests, name='storage_change_requests_admin'),
-    path('superadmin/storage-change-requests/<int:request_id>/', views.superadmin_storage_change_detail, name='storage_change_detail'),
+    path('storage/change/requests/cancel/', views.cancel_storage_change, name='cancel_storage_change'),
+
 ]

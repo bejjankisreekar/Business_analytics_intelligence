@@ -7,3 +7,4 @@ staticfiles/
 media/
 .idea/
 *.log
+node_modules/

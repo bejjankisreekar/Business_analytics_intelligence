@@ -2,6 +2,12 @@
 {% block title %}Profile · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
+<style>
+  /* A <button> shrink-wraps to its text even when display:flex, so the custom
+     dropdown trigger ended up as narrow as its label. In these form sections
+     let it fill the whole field, like the text inputs beside it. */
+  [id^="section-"] .bai-select-trigger { width: 100%; }
+</style>
 <div class="flex items-center justify-between gap-4">
   <div>
     <h1 class="text-2xl font-bold text-white">Profile</h1>
@@ -180,11 +186,21 @@
 
   {% if can_connect_drive or drive_connection %}
   <div class="mt-4 border-t border-white/5 pt-4">
-    <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Google Drive connection</h3>
+    <div class="flex items-center justify-between gap-3">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Google Drive connection</h3>
+      {% if drive_connection and not drive_disconnected %}
+      <span class="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-500">
+        <span class="relative flex h-2 w-2">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
+          <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+        </span>
+        Connected
+      </span>
+      {% endif %}
+    </div>
     <p class="mt-1 text-xs text-slate-500">Connect your own Google account so your data lives in a Sheet in your own Drive, reachable from any device signed into that account.</p>
     <div class="mt-3">
-      {% if drive_connection %}
-      <p class="text-sm text-slate-300">Connected.</p>
+      {% if drive_connection and not drive_disconnected %}
       <p class="mt-1 text-xs text-slate-500">
         Location: a "Prism Pulse Backups" folder in your Google Drive, in a sheet named "{{ request.user.organization.organization_code }} Data".
         {% if drive_connection.external_file_id %}
@@ -194,14 +210,12 @@
       {% if drive_connection.last_sync_error %}
       <p class="mt-1 text-xs text-red-400">{{ drive_connection.last_sync_error }}</p>
       {% endif %}
-      <div class="mt-3">
-        <form method="post" action="{% url 'accounts:disconnect_drive' %}">
-          {% csrf_token %}
-          <button type="submit" class="text-sm text-slate-400 hover:text-white">Disconnect</button>
-        </form>
-      </div>
       {% elif can_connect_drive %}
-      <a href="{% url 'accounts:connect_drive' %}" class="btn-primary inline-flex">Connect Google Drive</a>
+      {% if drive_disconnected %}
+      <p class="text-sm text-slate-300">Disconnected.</p>
+      <p class="mt-1 mb-3 text-xs text-slate-500">Your data is safe in your Google Sheet. Reconnect the same Google account to keep using it.</p>
+      {% endif %}
+      <a href="{% url 'accounts:connect_drive' %}" class="btn-primary inline-flex">{% if drive_disconnected %}Reconnect{% else %}Connect{% endif %} Google Drive</a>
       {% endif %}
     </div>
   </div>
