@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+from unittest import mock
 
 from django.test import Client
 
@@ -741,3 +742,124 @@ class BankAccountTests(SheetsBackedTestCase):
             cash_purchase = PurchaseEntry.objects.get(amount=Decimal("600"))
             self.assertEqual(bank_purchase.bank_account_id, icici.pk)
             self.assertIsNone(cash_purchase.bank_account_id)
+
+
+class BulkEntrySheetsBatchingTests(SheetsBackedTestCase):
+    """A Bulk Entry save on a Google Sheets org must hit the Sheets API a
+    small, fixed number of times regardless of how many rows are being
+    saved -- not once per row, which is what made saving a page of rows
+    feel like it hung (see SheetSession.batch_writes, wired into
+    _save_bulk_formset/_save_purchase_formset in apps.finance.views)."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        cache.clear()
+
+        # TenantSchemaMiddleware's prefetch() issues one batchGet call per
+        # request; FakeSheetsBackend doesn't implement it (existing tests
+        # only reach it through sheet_session(), which skips the
+        # middleware entirely) -- stand in with the equivalent per-tab
+        # reads so this test can go through the real HTTP view instead.
+        def fake_batch_get_values(access_token, *, spreadsheet_id, a1_ranges):
+            return [
+                self._sheets_backend.get_values(access_token, spreadsheet_id=spreadsheet_id, a1_range=rng)
+                for rng in a1_ranges
+            ]
+
+        patcher = mock.patch("apps.sheets_store.client.batch_get_values", side_effect=fake_batch_get_values)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        self.org, self.owner = self.create_connected_organization(
+            org_data={"name": "Batching Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
+            admin_data={"email": "owner@batchingtest.example", "password": "ownerpass123"},
+        )
+        billing_services.start_trial(self.org, Plan.objects.get(slug="free"))
+        self.client_ = Client()
+        self.client_.force_login(self.owner)
+        with sheet_session(self.org):
+            self.sales_channel = Category.objects.create(kind=Category.Kind.SALES, name="Online")
+
+    def tearDown(self):
+        delete_organization_and_tenant(self.org)
+
+    def test_saving_several_new_rows_batches_into_one_append_call(self):
+        from apps.sheets_store import client as sheets_client
+
+        day = datetime.date.today()
+        data = {
+            "selected_date": day.isoformat(),
+            "sale-TOTAL_FORMS": "5", "sale-INITIAL_FORMS": "0",
+            "sale-MIN_NUM_FORMS": "0", "sale-MAX_NUM_FORMS": "1000",
+        }
+        for i in range(5):
+            data[f"sale-{i}-date"] = day.isoformat()
+            data[f"sale-{i}-channel"] = str(self.sales_channel.pk)
+            data[f"sale-{i}-gross_amount"] = str(100 + i)
+            data[f"sale-{i}-payment_mode"] = PaymentMode.CASH
+
+        # apps.sheets_store.client.append_rows is already a Mock, patched
+        # once in SheetsBackedMixin.setUp() with side_effect bound to the
+        # fake backend -- inspect that same mock's call_count directly
+        # rather than re-patching the backend instance (a second patch on
+        # the instance method wouldn't be seen by the side_effect
+        # reference client.append_rows already captured).
+        sheets_client.append_rows.reset_mock()
+        resp = self.client_.post("/app/daily/bulk-sales/", data, follow=True)
+
+        self.assertContains(resp, "Logged 5 sales.")
+        self.assertEqual(
+            sheets_client.append_rows.call_count, 1,
+            "saving 5 new rows should make one Sheets API append call, not one per row",
+        )
+        with sheet_session(self.org):
+            self.assertEqual(SalesEntry.objects.filter(date=day).count(), 5)
+            # SalesEntry.save()'s gross_amount -> amount derivation must
+            # still run for every row even though batch_writes() defers
+            # the actual Sheets write underneath it.
+            amounts = sorted(e.amount for e in SalesEntry.objects.filter(date=day))
+            self.assertEqual(amounts, [Decimal(str(100 + i)) for i in range(5)])
+
+    def test_editing_and_deleting_existing_rows_in_the_same_save_batches_each_kind_once(self):
+        day = datetime.date.today()
+        with sheet_session(self.org):
+            keep = SalesEntry.objects.create(
+                date=day, channel=self.sales_channel, amount=Decimal("100"), payment_mode=PaymentMode.CASH,
+            )
+            remove = SalesEntry.objects.create(
+                date=day, channel=self.sales_channel, amount=Decimal("200"), payment_mode=PaymentMode.CASH,
+            )
+
+        data = {
+            "selected_date": day.isoformat(),
+            "sale-TOTAL_FORMS": "3", "sale-INITIAL_FORMS": "2",
+            "sale-MIN_NUM_FORMS": "0", "sale-MAX_NUM_FORMS": "1000",
+            "sale-0-id": str(keep.pk),
+            "sale-0-date": day.isoformat(), "sale-0-channel": str(self.sales_channel.pk),
+            "sale-0-gross_amount": "150", "sale-0-payment_mode": PaymentMode.CASH,
+            "sale-1-id": str(remove.pk),
+            "sale-1-date": day.isoformat(), "sale-1-channel": str(self.sales_channel.pk),
+            "sale-1-gross_amount": "200", "sale-1-payment_mode": PaymentMode.CASH, "sale-1-DELETE": "on",
+            "sale-2-date": day.isoformat(), "sale-2-channel": str(self.sales_channel.pk),
+            "sale-2-gross_amount": "300", "sale-2-payment_mode": PaymentMode.CASH,
+        }
+
+        from apps.sheets_store import client as sheets_client
+
+        sheets_client.append_rows.reset_mock()
+        sheets_client.batch_update_values.reset_mock()
+        sheets_client.delete_rows.reset_mock()
+        resp = self.client_.post("/app/daily/bulk-sales/", data, follow=True)
+
+        self.assertContains(resp, "Logged 2 sales.")
+        self.assertEqual(sheets_client.append_rows.call_count, 1, "the one new row should append in a single call")
+        self.assertEqual(
+            sheets_client.batch_update_values.call_count, 1, "the one edited row should update in a single call",
+        )
+        self.assertEqual(sheets_client.delete_rows.call_count, 1, "the one removed row should delete in a single call")
+        with sheet_session(self.org):
+            self.assertEqual(set(SalesEntry.objects.filter(date=day).values_list("amount", flat=True)), {
+                Decimal("150"), Decimal("300"),
+            })

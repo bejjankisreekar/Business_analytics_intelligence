@@ -1163,6 +1163,7 @@ class DailyReportView(TenantLoginRequiredMixin, TemplateView):
             "active_nav": "daily_report",
             "organization": self.request.user.organization,
             "report": report,
+            "labels": services.bulk_column_labels(),
             "selected_mode": selected_mode,
             "today": datetime.date.today(),
             "prev_date": selected_date - datetime.timedelta(days=1),
@@ -1281,6 +1282,7 @@ class DailyReportPdfView(TenantLoginRequiredMixin, View):
         context = {
             "organization": request.user.organization,
             "report": report,
+            "labels": services.bulk_column_labels(),
             "show_bank": request.GET.get("show_bank") == "1",
             **_daily_pdf_density(report),
         }
@@ -1305,6 +1307,21 @@ def _bound_bulk_formset(FormSetClass, model, request, prefix, selected_date):
     )
 
 
+def _sheets_batch():
+    """session.batch_writes() for the active Google Sheets session, or a
+    no-op context on a plain database org (no active session) — lets
+    _save_bulk_formset/_save_purchase_formset wrap their save/delete
+    loop the same way regardless of storage mode."""
+    from apps.sheets_store.session import get_active_session
+
+    session = get_active_session()
+    if session is None:
+        import contextlib
+
+        return contextlib.nullcontext()
+    return session.batch_writes()
+
+
 def _save_bulk_formset(formset, request) -> tuple[int, list]:
     """Save/update every changed row in a validated formset and delete any
     row checked for removal. New rows get created_by_email tagged; editing
@@ -1313,23 +1330,37 @@ def _save_bulk_formset(formset, request) -> tuple[int, list]:
     untouched, matching EditEntryView. Fully-blank extra rows are already
     excluded by Django's empty_permitted handling before this is called.
     Returns the count of rows saved (created or updated) and the saved
-    model instances, so the caller can show a detailed recap."""
-    count = 0
-    saved = []
+    model instances, so the caller can show a detailed recap.
+
+    On a Google Sheets org, every instance.save()/.delete() below runs
+    inside session.batch_writes(), which coalesces the actual network
+    calls into a couple of requests total instead of one Sheets API round
+    trip per row — each row still goes through its own model's normal
+    save() (e.g. SalesEntry's gross/discount -> amount derivation), only
+    the I/O underneath is batched. On a plain database org batch_writes()
+    is a no-op context (no active Sheets session), so this is identical
+    to the row-by-row save it replaced."""
+    to_delete = []
+    to_save = []
     for form in formset:
         if not form.cleaned_data:
             continue
         if form.cleaned_data.get("DELETE"):
             if form.instance.pk:
-                form.instance.delete()
+                to_delete.append(form.instance)
             continue
         entry = form.save(commit=False)
         if entry._state.adding:
             entry.created_by_email = request.user.email
-        entry.save()
-        saved.append(entry)
-        count += 1
-    return count, saved
+        to_save.append(entry)
+
+    with _sheets_batch():
+        for instance in to_delete:
+            instance.delete()
+        for entry in to_save:
+            entry.save()
+
+    return len(to_save), to_save
 
 
 def _save_purchase_formset(formset, request) -> tuple[int, int, list]:
@@ -1342,16 +1373,20 @@ def _save_purchase_formset(formset, request) -> tuple[int, int, list]:
     "On credit" only applies to a genuinely new row: for an existing
     PurchaseEntry (now editable here too), checking it is a no-op rather
     than spinning up a second, disconnected Payable for money that's
-    already been logged as paid."""
-    count = 0
+    already been logged as paid.
+
+    Like _save_bulk_formset, every save/delete below runs inside
+    session.batch_writes() on a Google Sheets org, coalescing the network
+    calls instead of one Sheets API round trip per row."""
     credit_count = 0
-    saved = []
+    to_delete = []
+    to_save = []
     for form in formset:
         if not form.cleaned_data:
             continue
         if form.cleaned_data.get("DELETE"):
             if form.instance.pk:
-                form.instance.delete()
+                to_delete.append(form.instance)
             continue
         is_new = form.instance._state.adding
         if is_new and form.cleaned_data.get("on_credit"):
@@ -1361,10 +1396,15 @@ def _save_purchase_formset(formset, request) -> tuple[int, int, list]:
         entry = form.save(commit=False)
         if is_new:
             entry.created_by_email = request.user.email
-        entry.save()
-        saved.append(entry)
-        count += 1
-    return count, credit_count, saved
+        to_save.append(entry)
+
+    with _sheets_batch():
+        for instance in to_delete:
+            instance.delete()
+        for entry in to_save:
+            entry.save()
+
+    return len(to_save), credit_count, to_save
 
 
 def _create_payable_from_purchase(cleaned_data: dict, request) -> Payable:

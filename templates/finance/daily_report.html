@@ -189,10 +189,10 @@
     {% if report.sales_by_category %}
     {% for group in report.sales_by_category %}
     <div class="mt-4 flex items-center justify-between gap-3 border-t border-white/15 pt-2{% if group.has_detail %} cursor-pointer select-none{% endif %}"{% if group.has_detail %} onclick="bai.toggleSub(this)"{% endif %}>
-      <p class="text-sm font-semibold text-white">{% if group.has_detail %}<span class="sub-chevron mr-1.5 inline-block rotate-90 text-[10px] text-slate-500 transition-transform">▸</span>{% endif %}Total {{ group.name }}</p>
+      <p class="text-sm font-semibold text-white">{% if group.has_detail %}<span class="sub-chevron mr-1.5 inline-block rotate-90 text-[10px] text-slate-500 transition-transform">▸</span>{% endif %}Total {{ group.name }}{% if group.units %} <span class="text-slate-600">-</span> <span class="text-[11px] font-normal text-slate-500">{{ group.units }} {{ labels.sale.qty }}</span>{% endif %}</p>
       <p class="shrink-0 text-base font-bold text-mint-400">{{ group.total|floatformat:0|intcomma }}</p>
     </div>
-    {% if group.has_detail %}{% include "finance/_daily_group_detail.html" %}{% endif %}
+    {% if group.has_detail %}{% include "finance/_daily_group_detail.html" with qty_label=labels.sale.qty %}{% endif %}
     {% endfor %}
     <div class="mt-auto pt-4">
     <div class="flex items-center justify-between gap-3 border-t-2 border-white/15 pt-3">
@@ -229,10 +229,10 @@
     <p class="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Purchases</p>
     {% for group in report.purchases_by_category %}
     <div class="mt-2 flex items-center justify-between gap-3 border-t border-white/15 pt-2{% if group.has_detail %} cursor-pointer select-none{% endif %}"{% if group.has_detail %} onclick="bai.toggleSub(this)"{% endif %}>
-      <p class="text-sm font-semibold text-white">{% if group.has_detail %}<span class="sub-chevron mr-1.5 inline-block rotate-90 text-[10px] text-slate-500 transition-transform">▸</span>{% endif %}Total {{ group.name }}</p>
+      <p class="text-sm font-semibold text-white">{% if group.has_detail %}<span class="sub-chevron mr-1.5 inline-block rotate-90 text-[10px] text-slate-500 transition-transform">▸</span>{% endif %}Total {{ group.name }}{% if group.units %} <span class="text-slate-600">-</span> <span class="text-[11px] font-normal text-slate-500">{{ group.units }} {{ labels.purchase.qty }}</span>{% endif %}</p>
       <p class="shrink-0 text-base font-bold text-red-400">{{ group.total|floatformat:0|intcomma }}</p>
     </div>
-    {% if group.has_detail %}{% include "finance/_daily_group_detail.html" %}{% endif %}
+    {% if group.has_detail %}{% include "finance/_daily_group_detail.html" with qty_label=labels.purchase.qty %}{% endif %}
     {% endfor %}
     {% endif %}
 

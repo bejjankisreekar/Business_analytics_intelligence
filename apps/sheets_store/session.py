@@ -24,6 +24,7 @@ cleared in `finally`.
 """
 from __future__ import annotations
 
+import contextlib
 import threading
 import uuid
 
@@ -71,6 +72,10 @@ class SheetSession:
         # touches one model from several service functions would
         # otherwise redecode every row once per function call.
         self._decoded: dict[str, list] = {}
+        # None outside a batch_writes() block. While a batch is open,
+        # append_rows/update_rows/delete_rows queue their rows here by tab
+        # instead of hitting the Sheets API immediately — see batch_writes().
+        self._batch: dict[str, dict[str, list]] | None = None
 
     def _cache_key(self, tab: str) -> str:
         return f"sheets_store:rows:{self.spreadsheet_id}:{tab}"
@@ -179,6 +184,45 @@ class SheetSession:
             self._sheet_ids = client.get_sheet_ids(self.access_token, spreadsheet_id=self.spreadsheet_id)
         return self._sheet_ids[tab]
 
+    def _pending(self, tab: str) -> dict[str, list]:
+        return self._batch.setdefault(tab, {"updates": [], "deletes": [], "appends": []})
+
+    @contextlib.contextmanager
+    def batch_writes(self):
+        """Defers every append_row/update_row/delete_row call made inside
+        this block, then flushes each tab's queued rows with at most one
+        append call, one update call and one delete call — instead of one
+        Sheets API round trip per row. Callers keep writing through plain
+        instance.save()/.delete() exactly as outside a batch (so a model's
+        own save() override, e.g. SalesEntry's gross/discount -> amount
+        derivation, still runs normally); only the actual network calls
+        underneath get coalesced. This is what turned a multi-row Bulk
+        Entry save — one API round trip per row, each costing roughly a
+        second — into a couple of requests total.
+
+        Flushed in updates -> deletes -> appends order: updates and
+        deletes were both resolved to row numbers against the same
+        pre-batch snapshot, so updates must land before any delete can
+        shift later rows up; appends have no row number to invalidate and
+        always go last. Nested calls join the already-open batch rather
+        than flushing early.
+        """
+        if self._batch is not None:
+            yield
+            return
+        self._batch = {}
+        try:
+            yield
+        finally:
+            batch, self._batch = self._batch, None
+            for tab, ops in batch.items():
+                if ops["updates"]:
+                    self.update_rows(tab, ops["updates"])
+                if ops["deletes"]:
+                    self.delete_rows(tab, ops["deletes"])
+                if ops["appends"]:
+                    self.append_rows(tab, ops["appends"])
+
     def append_row(self, tab: str, row: list) -> None:
         self.append_rows(tab, [row])
 
@@ -189,6 +233,9 @@ class SheetSession:
         bulk write (see store.bulk_create, used by an import or a demo-
         data seed, never by the live single-entry save path)."""
         if not rows:
+            return
+        if self._batch is not None:
+            self._pending(tab)["appends"].extend(rows)
             return
         client.append_rows(self.access_token, spreadsheet_id=self.spreadsheet_id, tab=tab, rows=rows)
         self._invalidate_tab(tab)
@@ -208,27 +255,52 @@ class SheetSession:
     def update_row(self, tab: str, row_number: int, row: list) -> None:
         """`row_number` is 1-indexed as seen in the sheet (header=1, so
         the first data row is 2)."""
+        self.update_rows(tab, [(row_number, row)])
+
+    def update_rows(self, tab: str, pairs: list[tuple[int, list]]) -> None:
+        """Same as update_row, but writes every (row_number, row) pair in
+        `pairs` with one Sheets API call instead of one call per row —
+        same reasoning as append_rows above, for edits/upserts to rows
+        that already exist."""
+        if not pairs:
+            return
+        if self._batch is not None:
+            self._pending(tab)["updates"].extend(pairs)
+            return
         client.batch_update_values(
             self.access_token,
             spreadsheet_id=self.spreadsheet_id,
-            data=[{"range": f"{tab}!A{row_number}", "values": [row]}],
+            data=[{"range": f"{tab}!A{row_number}", "values": [row]} for row_number, row in pairs],
         )
         self._invalidate_tab(tab)
         values = self._ensure_loaded(tab)
-        if row_number - 1 < len(values):
-            values[row_number - 1] = row
+        for row_number, row in pairs:
+            if row_number - 1 < len(values):
+                values[row_number - 1] = row
 
     def delete_row(self, tab: str, row_number: int) -> None:
+        self.delete_rows(tab, [row_number])
+
+    def delete_rows(self, tab: str, row_numbers: list[int]) -> None:
+        """Same as delete_row, but removes every row in `row_numbers` with
+        one Sheets API call instead of one call per row (e.g. a formset's
+        rows all checked for removal in the same Bulk Entry save)."""
+        if not row_numbers:
+            return
+        if self._batch is not None:
+            self._pending(tab)["deletes"].extend(row_numbers)
+            return
         client.delete_rows(
             self.access_token,
             spreadsheet_id=self.spreadsheet_id,
             sheet_id=self._sheet_id(tab),
-            row_numbers=[row_number],
+            row_numbers=row_numbers,
         )
         self._invalidate_tab(tab)
         values = self._ensure_loaded(tab)
-        if row_number - 1 < len(values):
-            del values[row_number - 1]
+        for row_number in sorted(set(row_numbers), reverse=True):
+            if row_number - 1 < len(values):
+                del values[row_number - 1]
 
 
 def set_active_session(session: SheetSession | None) -> None:

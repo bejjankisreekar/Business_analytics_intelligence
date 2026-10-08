@@ -1282,10 +1282,11 @@ def _group_by_category(entries, category_name_fn) -> list[dict]:
     for entry in entries:
         name = category_name_fn(entry)
         if name not in groups:
-            groups[name] = {"name": name, "total": ZERO, "entries": []}
+            groups[name] = {"name": name, "total": ZERO, "entries": [], "units": 0}
             order.append(name)
         groups[name]["total"] += entry.amount
         groups[name]["entries"].append(entry)
+        groups[name]["units"] += getattr(entry, "quantity", None) or 0
     rows = [groups[key] for key in order]
     for row in rows:
         # Nothing to itemize below the total when none of this category's

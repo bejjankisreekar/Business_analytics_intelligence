@@ -3,17 +3,19 @@
 One category's rows for the Daily Report PDF: the category total, then one
 compact line per sub-category (entry and unit counts included) so a busy day
 still fits on a single page.
-Expects `group`, `organization`, and an optional `tag` prefix.
+Expects `group`, `organization`, an optional `tag` prefix, and `qty_label`
+(the organization's own name for the Qty column, from Settings -> Entry
+Column Names).
 {% endcomment %}
 {% with only=group.subgroups|length %}
 <tr>
-  <td style="border-top:1px solid #ddd; padding-top:2px;"><b>{{ tag }}{{ group.name }}</b>{% if group.has_detail and pdf_detail|default_if_none:True and only == 1 %}{% for sub in group.subgroups %}{% if sub.name %} <span style="color:#666;">· {{ sub.name }}</span>{% endif %} <span style="color:#999; font-size:8px;">· {% if sub.units %}{{ sub.units }} unit{{ sub.units|pluralize }}{% else %}{{ sub.entries|length }} entr{{ sub.entries|length|pluralize:"y,ies" }}{% endif %}</span>{% endfor %}{% endif %}</td>
+  <td style="border-top:1px solid #ddd; padding-top:2px;"><b>{{ tag }}{{ group.name }}</b>{% if group.units %} <span style="color:#999; font-size:8px;">· {{ group.units }} {{ qty_label }}</span>{% endif %}{% if group.has_detail and pdf_detail|default_if_none:True and only == 1 %}{% for sub in group.subgroups %}{% if sub.name %} <span style="color:#666;">· {{ sub.name }}</span>{% endif %}{% endfor %}{% endif %}</td>
   <td class="right" style="border-top:1px solid #ddd; padding-top:2px;"><b>{{ organization.currency }} {{ group.total|floatformat:2|intcomma }}</b></td>
 </tr>
 {% if group.has_detail and pdf_detail|default_if_none:True and only != 1 %}
 {% for sub in group.subgroups %}
 <tr>
-  <td style="padding-left:12px; color:#444;">{% if sub.name %}{{ sub.name }}{% else %}Other{% endif %} <span style="color:#999; font-size:8px;">· {% if sub.units %}{{ sub.units }} unit{{ sub.units|pluralize }}{% else %}{{ sub.entries|length }} entr{{ sub.entries|length|pluralize:"y,ies" }}{% endif %}</span></td>
+  <td style="padding-left:12px; color:#444;">{% if sub.name %}{{ sub.name }}{% else %}Other{% endif %}{% if sub.units %} <span style="color:#999; font-size:8px;">· {{ sub.units }} {{ qty_label }}</span>{% endif %}</td>
   <td class="right" style="color:#444;">{{ organization.currency }} {{ sub.total|floatformat:2|intcomma }}</td>
 </tr>
 {% endfor %}
