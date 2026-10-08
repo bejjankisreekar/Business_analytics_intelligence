@@ -81,7 +81,7 @@
        `fixed` escapes that clipping; JS sets its top/left/width to match the
        trigger since it's no longer positioned relative to .bai-select-wrap. */
     position: fixed; z-index: 50; margin-top: 0.375rem;
-    max-height: 14rem; overflow-y: auto; border-radius: 0.75rem;
+    max-height: 14rem; overflow-y: auto; overscroll-behavior: contain; border-radius: 0.75rem;
     border: 1px solid rgba(255,255,255,0.1); background: #111627;
     box-shadow: 0 10px 30px rgba(0,0,0,0.45);
   }
@@ -529,10 +529,12 @@
 
       function openPanel() {
         if (select.disabled) return;
+        if (bai._openSelectPanel && bai._openSelectPanel !== closePanel) bai._openSelectPanel();
         renderPanel();
         positionPanel();
         panel.classList.remove("hidden");
         trigger.setAttribute("aria-expanded", "true");
+        bai._openSelectPanel = closePanel;
         const active = panel.querySelector(".bai-select-option--active");
         if (active) active.scrollIntoView({ block: "nearest" });
       }
@@ -540,6 +542,7 @@
       function closePanel() {
         panel.classList.add("hidden");
         trigger.setAttribute("aria-expanded", "false");
+        if (bai._openSelectPanel === closePanel) bai._openSelectPanel = null;
       }
 
       trigger.addEventListener("click", (e) => {

@@ -12,6 +12,25 @@ class Period:
     end: datetime.date
     label: str
     key: str
+    # The period's own calendar boundary — e.g. a quarter's last day, even
+    # while `end` is clipped to today because it's still in progress.
+    # Charts pad their x-axis out to this date (with no-data gaps for days
+    # that haven't happened yet) so "this quarter" reads as a full quarter,
+    # not a quietly-shrinking month-to-date view. Defaults to `end` for
+    # periods with no further boundary to show (today, a past period, a
+    # custom range, or "year to date", which is bounded by today by
+    # definition).
+    chart_end: datetime.date = None
+
+    def __post_init__(self):
+        if self.chart_end is None:
+            object.__setattr__(self, "chart_end", self.end)
+
+
+def _month_end(d: datetime.date) -> datetime.date:
+    """The last day of the calendar month containing `d`."""
+    next_month = d.replace(day=28) + datetime.timedelta(days=4)
+    return next_month.replace(day=1) - datetime.timedelta(days=1)
 
 
 def _fy_bounds_for(anchor: datetime.date, fy_start_month: int) -> tuple[datetime.date, datetime.date]:
@@ -46,11 +65,11 @@ def resolve_period(
 
     if key == "this_week":
         start = today - datetime.timedelta(days=today.weekday())
-        return Period(start, today, "This week", key)
+        return Period(start, today, "This week", key, chart_end=start + datetime.timedelta(days=6))
 
     if key == "this_month":
         start = today.replace(day=1)
-        return Period(start, today, today.strftime("%B %Y"), key)
+        return Period(start, today, today.strftime("%B %Y"), key, chart_end=_month_end(start))
 
     if key == "last_month":
         first_of_this_month = today.replace(day=1)
@@ -61,12 +80,13 @@ def resolve_period(
     if key == "this_quarter":
         q_start_month = ((today.month - 1) // 3) * 3 + 1
         start = today.replace(month=q_start_month, day=1)
-        return Period(start, today, f"Q{(q_start_month - 1) // 3 + 1} {today.year}", key)
+        quarter_end = _month_end(start.replace(month=q_start_month + 2))
+        return Period(start, today, f"Q{(q_start_month - 1) // 3 + 1} {today.year}", key, chart_end=quarter_end)
 
     if key == "this_fy":
-        start, end = _fy_bounds_for(today, fy_start_month)
-        end = min(end, today)
-        return Period(start, end, _fy_label(start), key)
+        start, fy_end = _fy_bounds_for(today, fy_start_month)
+        end = min(fy_end, today)
+        return Period(start, end, _fy_label(start), key, chart_end=fy_end)
 
     if key == "last_fy":
         this_fy_start, _ = _fy_bounds_for(today, fy_start_month)

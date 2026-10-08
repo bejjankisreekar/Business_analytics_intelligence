@@ -66,7 +66,19 @@
           <span class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
             <svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
           </span>
+          <div><dt class="text-[11px] text-slate-500">{% if subscription.status == "TRIAL" %}Trial started{% else %}Service from{% endif %}</dt><dd class="text-sm font-semibold text-white">{{ subscription.trial_start_date|default:subscription.start_date|date:"d M Y"|default:"—" }}</dd></div>
+        </div>
+        <div class="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-3.5">
+          <span class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
+            <svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </span>
           <div><dt class="text-[11px] text-slate-500">{% if subscription.status == "TRIAL" %}Trial ends{% else %}Renews / ends{% endif %}</dt><dd class="text-sm font-semibold text-white">{{ subscription.trial_end_date|default:subscription.end_date|date:"d M Y"|default:"—" }}</dd></div>
+        </div>
+        <div class="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-3.5">
+          <span class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
+            <svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+          </span>
+          <div><dt class="text-[11px] text-slate-500">Auto-renewal</dt><dd class="text-sm font-semibold text-white">{% if subscription.auto_renewal %}On{% else %}Off{% endif %}</dd></div>
         </div>
       </dl>
     </div>
@@ -110,31 +122,6 @@
   </div>
   {% endif %}
 </div>
-
-{% if subscription %}
-<div class="card mt-5 p-5">
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h2 class="text-sm font-semibold text-white">Autopay</h2>
-      <p class="mt-1 text-xs text-slate-500">
-        {% if subscription.autopay_enabled %}
-        On — your subscription renews automatically every billing cycle until you or support turns it off.
-        {% else %}
-        Off — you'll need to pay each invoice manually when it's due.
-        {% endif %}
-      </p>
-    </div>
-    {% if subscription.autopay_enabled %}
-    <form method="post" action="{% url 'finance:cancel_autopay' %}">
-      {% csrf_token %}
-      <button type="submit" class="rounded-lg border border-white/10 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Turn off autopay</button>
-    </form>
-    {% elif razorpay_configured %}
-    <button type="button" onclick="bai.autopayComingSoon()" class="btn-primary !px-4 !py-2 text-xs">Turn on autopay</button>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
 
 <div class="card mt-5 overflow-x-auto p-5">
   <h2 class="text-sm font-semibold text-white">Invoices</h2>
@@ -237,6 +224,31 @@
     </tbody>
   </table>
 </div>
+
+{% if subscription %}
+<div class="card mt-5 p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="text-sm font-semibold text-white">Autopay</h2>
+      <p class="mt-1 text-xs text-slate-500">
+        {% if subscription.autopay_enabled %}
+        On — your subscription renews automatically every billing cycle until you or support turns it off.
+        {% else %}
+        Off — you'll need to pay each invoice manually when it's due.
+        {% endif %}
+      </p>
+    </div>
+    {% if subscription.autopay_enabled %}
+    <form method="post" action="{% url 'finance:cancel_autopay' %}">
+      {% csrf_token %}
+      <button type="submit" class="rounded-lg border border-white/10 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Turn off autopay</button>
+    </form>
+    {% elif razorpay_configured %}
+    <button type="button" onclick="bai.autopayComingSoon()" class="btn-primary !px-4 !py-2 text-xs">Turn on autopay</button>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 
 <div id="modal-autopay-soon" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-autopay-soon')">
   <div class="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">

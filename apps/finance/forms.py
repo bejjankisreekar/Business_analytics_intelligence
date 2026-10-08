@@ -2,6 +2,7 @@ import datetime
 from decimal import Decimal
 
 from django import forms
+from django.db.models import QuerySet
 
 from apps.core.widgets import SearchableChoiceWidget, SearchableModelChoiceWidget
 
@@ -23,6 +24,21 @@ from .models import (
     Subcategory,
     Vendor,
 )
+
+
+def _unfetched(model):
+    """A placeholder queryset for a ModelChoiceField declared on a form
+    class body, when __init__ always overrides it with the real, per-
+    request queryset anyway (every field below does). Going through
+    `model.objects` (SheetAwareManager) here instead would eagerly fetch
+    and decode that model's entire tab the moment this module is first
+    imported in a process — for a GOOGLE_SHEETS org, Model.objects is
+    eagerly evaluated (not lazy) the instant a queryset is built, so
+    whichever org's session happened to be active at that first import
+    pays a real Sheets API round trip for a value no one ever uses. This
+    bypasses the custom manager entirely, so it can't touch Sheets or
+    Postgres at all."""
+    return QuerySet(model=model).none()
 
 
 class DateInput(forms.DateInput):
@@ -78,7 +94,8 @@ class RequireCategoryMixin:
     """Category is required going forward — an entry with no category can't
     be reported on correctly (it's silently missing from every category
     breakdown). Set `category_field` to the model field name ("channel" for
-    Sales, "category" for Expense/Purchase).
+    Sales, "category" for Expense/Purchase) and `amount_field` to the main
+    amount field ("gross_amount" for Sales, "amount" for Expense/Purchase).
 
     An already-uncategorized row from before this was enforced can still be
     re-saved without being forced to fix it right now — only a genuinely new
@@ -86,6 +103,7 @@ class RequireCategoryMixin:
     blank, gets blocked."""
 
     category_field = ""
+    amount_field = ""
 
     def clean(self):
         cleaned_data = super().clean()
@@ -97,9 +115,34 @@ class RequireCategoryMixin:
                 self.add_error(self.category_field, "Required — pick a category so this entry is reported on correctly.")
         return cleaned_data
 
+    def has_changed(self):
+        # A Bulk Entry extra row is "blank" (and so skipped by the formset,
+        # per Django's empty_permitted handling) based on has_changed() —
+        # which by default is True the moment ANY field differs from its
+        # initial, including ones that carry no real data (e.g. the Via
+        # dropdown having a non-blank default, or a stray click on Qty/Bank).
+        # That turned an untouched-looking row into one that demands
+        # Category/Amount just because the user brushed past an unrelated
+        # field. What actually makes a row worth saving is Category or
+        # Amount having something in it — everything else is just
+        # formatting for that real entry, so only those two fields decide
+        # whether this row counts as changed at all.
+        if self.is_bound and self.category_field and self.amount_field:
+            category_filled = bool(self[self.category_field].value())
+            amount_filled = bool(self[self.amount_field].value())
+            if not category_filled and not amount_filled:
+                return False
+        return super().has_changed()
+
 
 class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     category_field = "channel"
+    amount_field = "gross_amount"
+
+    channel = forms.ModelChoiceField(queryset=_unfetched(Category), required=False)
+    subcategory = forms.ModelChoiceField(queryset=_unfetched(Subcategory), required=False, label="Sub-category (optional)")
+    customer = forms.ModelChoiceField(queryset=_unfetched(Customer), required=False)
+    bank_account = forms.ModelChoiceField(queryset=_unfetched(BankAccount), required=False, label="Bank")
 
     class Meta:
         model = SalesEntry
@@ -160,6 +203,13 @@ class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hist
 
 class ExpenseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     category_field = "category"
+    amount_field = "amount"
+
+    category = forms.ModelChoiceField(queryset=_unfetched(Category))
+    subcategory = forms.ModelChoiceField(
+        queryset=_unfetched(Subcategory), required=False, label="Detail — e.g. employee name (optional)"
+    )
+    bank_account = forms.ModelChoiceField(queryset=_unfetched(BankAccount), required=False, label="Bank")
 
     class Meta:
         model = ExpenseEntry
@@ -187,6 +237,7 @@ class ExpenseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hi
 
 class PurchaseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     category_field = "category"
+    amount_field = "amount"
 
     on_credit = forms.BooleanField(
         required=False,
@@ -194,6 +245,11 @@ class PurchaseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, H
         help_text="Adds this to the vendor's payable balance instead of logging an immediate purchase — "
                    "it becomes a purchase entry once paid off from Vendor Ledgers.",
     )
+    category = forms.ModelChoiceField(queryset=_unfetched(Category))
+    subcategory = forms.ModelChoiceField(
+        queryset=_unfetched(Subcategory), required=False, label="Item / detail (optional)"
+    )
+    bank_account = forms.ModelChoiceField(queryset=_unfetched(BankAccount), required=False, label="Bank")
 
     class Meta:
         model = PurchaseEntry
@@ -259,6 +315,10 @@ def sales_import_formset(extra: int):
 
 
 class CashTransferForm(HistoricalWindowFormMixin, forms.ModelForm):
+    bank_account = forms.ModelChoiceField(
+        queryset=_unfetched(BankAccount), required=False, label="Bank account (optional)"
+    )
+
     class Meta:
         model = CashTransfer
         fields = ["date", "direction", "amount", "bank_account", "note"]
@@ -345,6 +405,9 @@ class CategoryEditForm(forms.ModelForm):
 
 
 class SubcategoryForm(forms.ModelForm):
+    category = forms.ModelChoiceField(queryset=_unfetched(Category))
+    parent = forms.ModelChoiceField(queryset=_unfetched(Subcategory), required=False)
+
     class Meta:
         model = Subcategory
         fields = ["category", "parent", "name"]
@@ -464,6 +527,8 @@ class BankAccountEditForm(BankAccountForm):
 
 
 class ReceivableForm(forms.ModelForm):
+    customer = forms.ModelChoiceField(queryset=_unfetched(Customer))
+
     class Meta:
         model = Receivable
         fields = ["customer", "invoice_date", "due_date", "amount", "note"]
@@ -547,12 +612,24 @@ class RecordPaymentForm(ClearBankAccountUnlessBankMixin, forms.Form):
     date = forms.DateField(widget=DateInput(), initial=datetime.date.today)
     amount = forms.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"))
     payment_mode = forms.ChoiceField(choices=PaymentMode.choices, initial=PaymentMode.CASH, widget=SearchableChoiceWidget(search_placeholder="Search mode..."))
+    # queryset=_unfetched(...) here, not BankAccount.objects.filter(...) — a
+    # plain forms.Form field's keyword arguments are evaluated once, at
+    # class-body (import) time, same risk as a ModelForm's auto-generated
+    # FK fields elsewhere in this module: for a GOOGLE_SHEETS org this
+    # would otherwise freeze in whichever org's bank accounts happened to
+    # be active at that first import, and serve that same frozen list to
+    # every org's form from then on. __init__ below sets the real,
+    # per-request queryset instead.
     bank_account = forms.ModelChoiceField(
-        queryset=BankAccount.objects.filter(is_active=True), required=False, empty_label="— Bank —",
+        queryset=_unfetched(BankAccount), required=False, empty_label="— Bank —",
         label="Bank",
         widget=SearchableModelChoiceWidget(search_placeholder="Search bank...")
     )
     note = forms.CharField(max_length=255, required=False, widget=forms.TextInput(attrs={"placeholder": "Optional note"}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
 
 
 class PartnerForm(forms.ModelForm):
@@ -576,6 +653,9 @@ class PartnerForm(forms.ModelForm):
 
 
 class PartnerTransactionForm(ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
+    partner = forms.ModelChoiceField(queryset=_unfetched(Partner))
+    bank_account = forms.ModelChoiceField(queryset=_unfetched(BankAccount), required=False, label="Bank")
+
     class Meta:
         model = PartnerTransaction
         fields = ["partner", "date", "kind", "amount", "payment_mode", "bank_account", "note"]

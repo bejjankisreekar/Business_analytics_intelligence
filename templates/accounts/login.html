@@ -14,7 +14,8 @@
       <span class="text-[15px] font-semibold tracking-tight text-white">Prism <span class="text-brand-400">Pulse</span></span>
     </a>
     <div class="max-w-md">
-      <h1 class="text-3xl font-bold leading-tight text-white">Welcome back. Your numbers are waiting.</h1>
+      <span class="auth-eyebrow">Welcome back</span>
+      <h1 class="auth-hero-title mt-4 text-white">Your numbers are <span class="auth-grad">waiting.</span></h1>
       <p class="mt-4 text-sm leading-relaxed text-slate-400">Sign in to see today's revenue, expenses and margins the moment you land in your workspace.</p>
       <div class="mt-10 space-y-4">
         <div class="flex items-center gap-3 text-sm text-slate-400">
@@ -38,7 +39,7 @@
         <span class="text-[15px] font-semibold text-white">Prism Pulse</span>
       </a>
 
-      <h2 class="text-2xl font-bold text-white">Sign in to your workspace</h2>
+      <h2 class="auth-title text-white">Sign in to your <span class="auth-grad">workspace</span></h2>
       <p class="mt-2 text-sm text-slate-400">Enter your email (or username) and password to continue.</p>
 
       {% if form.non_field_errors %}
@@ -119,6 +120,12 @@
 
 {% block extra_head %}
 <style>
+  .auth-grad { background: linear-gradient(90deg, #5b7cfa, #34d399); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+  .auth-eyebrow { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 999px; border: 1px solid rgba(91,124,250,0.35); background: rgba(91,124,250,0.1); color: #8fa6ff; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+  .auth-hero-title { font-size: 2.6rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
+  .auth-title { font-size: 1.85rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.025em; }
+  .auth-title::after { content: ""; display: block; width: 3rem; height: 4px; margin-top: 0.7rem; border-radius: 999px; background: linear-gradient(90deg, #5b7cfa, #34d399); }
+  html[data-theme="light"] .auth-eyebrow { color: #3a56d4; }
   input[type=email], input[type=password], input[type=text] {
     width: 100%;
     margin-top: 0.375rem;

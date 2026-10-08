@@ -14,6 +14,8 @@ from django.db.models import Count, F, Q, Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
+from apps.sheets_store.session import get_active_session
+
 from .models import (
     BankAccount,
     CashTransfer,
@@ -208,7 +210,28 @@ def partner_flow(start: datetime.date, end: datetime.date) -> tuple[Decimal, Dec
 
 def total_balance_as_of(as_of: datetime.date) -> Decimal:
     """Cash-in-hand + bank, combined — unaffected by transfers between the
-    two, since those just move money from one pool to the other."""
+    two, since those just move money from one pool to the other.
+
+    Sums every Sales/Expense/Purchase/Partner entry from the org's
+    opening date through `as_of` — there's no narrower range to query,
+    so for an org with a couple of years of history this is a real
+    amount of work to redo on every call. Cached cross-request (see
+    SheetSession.get/set_cached_balance) when a Sheets-mode session is
+    active, invalidated the moment any of those tabs is written to —
+    a GOOGLE_SHEETS org has no index to fall back on the way OUR_DATABASE
+    does, so skipping this entirely between writes matters most there."""
+    session = get_active_session()
+    if session is not None:
+        cached = session.get_cached_balance("total_balance_as_of", as_of.isoformat())
+        if cached is not None:
+            return cached
+    value = _total_balance_as_of_uncached(as_of)
+    if session is not None:
+        session.set_cached_balance("total_balance_as_of", as_of.isoformat(), value=value)
+    return value
+
+
+def _total_balance_as_of_uncached(as_of: datetime.date) -> Decimal:
     fs = get_finance_settings()
     if as_of < fs.opening_date:
         return fs.opening_balance + fs.opening_bank_balance
@@ -219,7 +242,20 @@ def total_balance_as_of(as_of: datetime.date) -> Decimal:
 def cash_and_bank_as_of(as_of: datetime.date) -> tuple[Decimal, Decimal]:
     """(cash-in-hand, bank) balances as of `as_of`, accounting for each
     entry's payment mode, every deposit/withdrawal transfer, and every
-    partner investment/withdrawal."""
+    partner investment/withdrawal. Cached the same way and for the same
+    reason as total_balance_as_of above."""
+    session = get_active_session()
+    if session is not None:
+        cached = session.get_cached_balance("cash_and_bank_as_of", as_of.isoformat())
+        if cached is not None:
+            return cached
+    value = _cash_and_bank_as_of_uncached(as_of)
+    if session is not None:
+        session.set_cached_balance("cash_and_bank_as_of", as_of.isoformat(), value=value)
+    return value
+
+
+def _cash_and_bank_as_of_uncached(as_of: datetime.date) -> tuple[Decimal, Decimal]:
     fs = get_finance_settings()
     if as_of < fs.opening_date:
         return fs.opening_balance, fs.opening_bank_balance

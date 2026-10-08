@@ -23,6 +23,13 @@
   .bulk-table th[data-col="Remove"], .bulk-table th[data-col="On credit"] { width: 4.5rem; }
   .bulk-table .bai-select-trigger { margin-top: 0; width: 100%; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
   .bulk-table select, .bulk-table input { width: 100%; }
+  .row-delete-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.75rem; height: 1.75rem; border-radius: 0.5rem;
+    border: 1px solid transparent; background: transparent; color: #f87171; cursor: pointer;
+  }
+  .row-delete-btn:hover { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.3); }
+  .row-delete-btn svg { width: 16px; height: 16px; }
   @media (max-width: 1023px) {
     .bulk-table, .bulk-table tbody { display: block; min-width: 0; table-layout: auto; }
     .bulk-table thead { display: none; }

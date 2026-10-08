@@ -100,6 +100,25 @@
     </aside>
 
     <main class="w-full min-w-0 flex-1 px-4 pb-16 pt-6 sm:px-8 lg:px-10">
+      <style>
+        /* Page titles: gradient text with a short accent bar. */
+        main h1 {
+          letter-spacing: -0.025em;
+          background: linear-gradient(90deg, #ffffff 0%, #a5b8ff 60%, #6ee7b7 100%);
+          -webkit-background-clip: text; background-clip: text;
+          -webkit-text-fill-color: transparent; color: transparent;
+          width: fit-content; max-width: 100%;
+          padding-bottom: 0.1em;
+        }
+        main h1::after {
+          content: ""; display: block; width: 2.5rem; height: 3px; margin-top: 0.45rem;
+          border-radius: 999px; background: linear-gradient(90deg, #5b7cfa, #34d399);
+        }
+        html[data-theme="light"] main h1 {
+          background: linear-gradient(90deg, #0f172a 0%, #3a56d4 65%, #059669 100%);
+          -webkit-background-clip: text; background-clip: text;
+        }
+      </style>
       {% block sa_content %}{% endblock %}
     </main>
   </div>

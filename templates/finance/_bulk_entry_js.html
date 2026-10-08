@@ -63,6 +63,24 @@
     }, 0);
   };
 
+  // Replaces the old plain "Remove" checkbox. The button's data-confirm
+  // attribute routes the click through base.html's site-wide #bai-confirm
+  // modal first (see its handler there); by the time this runs, the user
+  // has already confirmed. Mark the row's hidden DELETE field and hide it —
+  // the row still submits with the rest of the formset, so the actual
+  // delete happens server-side on Save (see _save_bulk_formset), same
+  // mechanism as before, just hidden behind a clearer control.
+  bai.confirmRemoveRow = (btn) => {
+    const row = btn.closest("tr");
+    if (!row) return;
+    const checkbox = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+    if (checkbox) {
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    row.style.display = "none";
+  };
+
   bai.addFormsetRow = (prefix) => {
     const totalInput = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
     const index = parseInt(totalInput.value, 10);

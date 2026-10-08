@@ -11,8 +11,10 @@ wired into TenantSchemaMiddleware for every org).
 """
 from __future__ import annotations
 
+import functools
 import uuid
 
+from django.db.models import F
 from django.http import Http404
 from django.utils import timezone
 
@@ -22,6 +24,24 @@ from .session import get_active_session
 
 def _tab_name(model) -> str:
     return model.__name__
+
+
+def all_sheet_backed_tabs() -> list[str]:
+    """Every model's tab name, across every installed app, that reads and
+    writes through a SheetSession (i.e. uses SheetAwareManager) — the full
+    set TenantSchemaMiddleware prefetches in one Sheets API call when a
+    GOOGLE_SHEETS org's session opens, instead of each page discovering
+    (and separately, sequentially fetching) its own subset one tab at a
+    time."""
+    from django.apps import apps as django_apps
+
+    from .queryset import SheetAwareManager
+
+    return [
+        model.__name__
+        for model in django_apps.get_models()
+        if isinstance(getattr(model, "objects", None), SheetAwareManager)
+    ]
 
 
 def sheet_fields(model) -> list:
@@ -59,12 +79,24 @@ def _instance_to_row(instance) -> list:
 
 def _all_rows(model):
     """Yields (row_number, instance) for every data row of `model`'s
-    tab, 1-indexed as seen in the sheet (header=1, first data row=2)."""
+    tab, 1-indexed as seen in the sheet (header=1, first data row=2).
+
+    Decoded once per tab per request and cached on the session (cleared
+    on any write to that tab): every `Model.objects` access builds a
+    fresh SheetAwareQuerySet, so without this a page calling several
+    service functions against the same model would redecode the whole
+    tab from scratch each time."""
     session = get_active_session()
     tab = _tab_name(model)
-    for offset, row in enumerate(session.data_rows(tab)):
-        if any(cell != "" for cell in row):  # skip a wholly-blank trailing row, if any
-            yield offset + 2, _row_to_instance(model, row)
+    cached = session.get_decoded(tab)
+    if cached is None:
+        cached = [
+            (offset + 2, _row_to_instance(model, row))
+            for offset, row in enumerate(session.data_rows(tab))
+            if any(cell != "" for cell in row)  # skip a wholly-blank trailing row, if any
+        ]
+        session.set_decoded(tab, cached)
+    yield from cached
 
 
 def all(model) -> list:
@@ -76,14 +108,18 @@ def _resolve(instance, value):
     the one shape apps.finance actually uses (comparing two columns of
     the same row, e.g. `exclude(amount_received__gte=F("amount"))`).
     Any other value passes through unchanged."""
-    from django.db.models import F
-
     if isinstance(value, F):
         return getattr(instance, value.name, None)
     return value
 
 
+@functools.lru_cache(maxsize=None)
 def _field_for(model, field_name):
+    """Memoized: a model's fields are fixed for the process lifetime, but
+    this runs once per lookup key per row checked — on a Sheets-mode org
+    with thousands of rows and `.filter()` calls that have no index to
+    fall back on, the linear scan over model._meta.fields it used to do
+    every single time was itself a measurable chunk of every page load."""
     if field_name == "pk":
         return model._meta.pk
     for f in model._meta.fields:

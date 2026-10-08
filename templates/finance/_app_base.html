@@ -127,14 +127,22 @@
         {{ request.user.organization.name|initials }}
       </span>
       <div>
-        <p class="text-xl font-semibold leading-tight text-white">{{ request.user.organization.name }}</p>
-        <p class="mt-1 flex items-center gap-2 text-[15px] text-slate-400">
-          <span>{{ request.user.organization.get_business_type_display }}</span>
-          <span class="text-slate-700">·</span>
-          <span class="font-mono">{{ request.user.organization.organization_code }}</span>
-          <span class="text-slate-700">·</span>
-          <span>{{ request.user.organization.currency }}</span>
-        </p>
+        <style>
+          .topnav-org { font-size: 1.45rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; background: linear-gradient(90deg, #ffffff 0%, #a5b8ff 55%, #6ee7b7 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; filter: drop-shadow(0 0 14px rgba(91,124,250,0.35)); }
+          html[data-theme="light"] .topnav-org { background: linear-gradient(90deg, #0f172a 0%, #3a56d4 60%, #059669 100%); -webkit-background-clip: text; background-clip: text; filter: none; }
+          .topnav-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
+          .topnav-chip { display: inline-flex; align-items: center; padding: 0.12rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #cbd5e1; }
+          .topnav-chip--type { border-color: rgba(91,124,250,0.35); background: rgba(91,124,250,0.12); color: #a5b8ff; }
+          .topnav-chip--code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.06em; }
+          .topnav-chip--cur { border-color: rgba(52,211,153,0.35); background: rgba(52,211,153,0.1); color: #6ee7b7; }
+          html[data-theme="light"] .topnav-chip { border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.03); color: #475569; }
+          html[data-theme="light"] .topnav-chip--type { border-color: rgba(67,97,238,0.3); background: rgba(67,97,238,0.08); color: #3a56d4; }
+          html[data-theme="light"] .topnav-chip--cur { border-color: rgba(5,150,105,0.3); background: rgba(5,150,105,0.08); color: #047857; }
+        </style>
+        <p class="topnav-org text-white">{{ request.user.organization.name }}</p>
+        <p class="topnav-meta">
+          <span class="topnav-chip topnav-chip--type">{{ request.user.organization.get_business_type_display }}</span>
+          <span class="topnav-chip topnav-chip--code">{{ request.user.organization.organization_code }}</span>        </p>
       </div>
     </div>
     <div class="flex items-center gap-3">
@@ -176,6 +184,25 @@
   </div>
 
   <main class="w-full flex-1 px-4 pb-16 pt-20 sm:px-8 lg:pl-72 lg:pr-10 lg:pt-24">
+    <style>
+      /* Page titles across the app: gradient text with a short accent bar. */
+      main h1:not(.dash-hello) {
+        letter-spacing: -0.025em;
+        background: linear-gradient(90deg, #ffffff 0%, #a5b8ff 60%, #6ee7b7 100%);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+        width: fit-content; max-width: 100%;
+        padding-bottom: 0.1em;
+      }
+      main h1:not(.dash-hello)::after {
+        content: ""; display: block; width: 2.5rem; height: 3px; margin-top: 0.45rem;
+        border-radius: 999px; background: linear-gradient(90deg, #5b7cfa, #34d399);
+      }
+      html[data-theme="light"] main h1:not(.dash-hello) {
+        background: linear-gradient(90deg, #0f172a 0%, #3a56d4 65%, #059669 100%);
+        -webkit-background-clip: text; background-clip: text;
+      }
+    </style>
     {% block app_content %}{% endblock %}
   </main>
 </div>

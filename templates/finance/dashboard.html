@@ -5,8 +5,18 @@
 {% block app_content %}
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-white">Welcome back, {{ request.user.get_full_name|default:request.user.username }}</h1>
-    <p class="mt-1 text-sm text-slate-400">Showing <span class="text-slate-300">{{ period.label }}</span></p>
+    <style>
+      .dash-hello { font-size: 2rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; }
+      .dash-hello-sub { display: block; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #8fa6ff; margin-bottom: 0.35rem; }
+      .dash-grad { background: linear-gradient(90deg, #5b7cfa, #34d399); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+      .dash-period { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.7rem; padding: 0.3rem 0.8rem; border-radius: 999px; border: 1px solid rgba(91,124,250,0.3); background: rgba(91,124,250,0.08); font-size: 0.8rem; color: #94a3b8; }
+      .dash-period strong { font-weight: 600; color: #e2e8f0; }
+      .dash-period::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; }
+      html[data-theme="light"] .dash-hello-sub { color: #3a56d4; }
+      html[data-theme="light"] .dash-period strong { color: #0f172a; }
+    </style>
+    <h1 class="dash-hello text-white">Welcome back, <span class="dash-grad">{{ request.user.get_full_name|default:request.user.username }}</span> ✨</h1>
+    <p class="dash-period">Showing <strong>{{ period.label }}</strong></p>
   </div>
   <div class="flex flex-wrap items-center gap-2">
     <a href="{% url 'finance:analytics' %}" class="glow-btn inline-flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-sm font-medium text-brand-300" style="--glow-color: rgba(91,124,250,0.55)">Business Analytics →</a>

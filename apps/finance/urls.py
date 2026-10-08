@@ -77,6 +77,7 @@ from .views import (
     ReportLineDetailView,
     ReportsView,
     SalesChannelTrendView,
+    SalesIntelligenceDetailsView,
     SalesIntelligenceView,
     StatementPdfView,
     ToggleBankAccountView,
@@ -117,6 +118,11 @@ urlpatterns = [
     path("analytics/", AnalyticsView.as_view(), name="analytics"),
     path("analytics/subcategory-detail/", SubcategoryDetailView.as_view(), name="subcategory_detail"),
     path("revenue-intelligence/", SalesIntelligenceView.as_view(), name="sales_intelligence"),
+    path(
+        "revenue-intelligence/details/",
+        SalesIntelligenceDetailsView.as_view(),
+        name="sales_intelligence_details",
+    ),
     path(
         "revenue-intelligence/channel-trend/",
         SalesChannelTrendView.as_view(),

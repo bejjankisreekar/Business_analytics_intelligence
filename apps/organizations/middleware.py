@@ -45,10 +45,21 @@ class TenantSchemaMiddleware:
     def _activate_sheets_session(self, org) -> None:
         from apps.organizations.drive_sync import get_valid_access_token
         from apps.sheets_store.session import SheetSession, set_active_session
+        from apps.sheets_store.store import all_sheet_backed_tabs
 
         connection = org.cloud_backup
         access_token = get_valid_access_token(connection)
-        set_active_session(SheetSession(access_token, connection.external_file_id))
+        session = SheetSession(access_token, connection.external_file_id)
+        # One batched Sheets API call for every tab instead of each tab
+        # being fetched separately the first time something asks for it —
+        # a single page can easily touch 6-9+ different tabs across its
+        # service calls (and apps.finance.forms touches most of them too,
+        # the first time that module gets imported in a process, via
+        # ModelForm's automatic per-FK-field querysets), and each of those
+        # as a separate request cost roughly a second of Sheets API
+        # latency on its own regardless of how little data it held.
+        session.prefetch(all_sheet_backed_tabs())
+        set_active_session(session)
 
     def __call__(self, request):
         from apps.organizations.drive_sync import DriveSyncError

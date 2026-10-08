@@ -16,14 +16,31 @@
     <h1 class="text-2xl font-bold text-white">Financial Reports</h1>
     <p class="mt-1 text-sm text-slate-400">{{ period.label }}</p>
   </div>
-  <form method="get" class="flex items-center gap-2">
-    <select id="period-select" name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
+  <form method="get" class="flex flex-wrap items-end gap-2">
+    <select id="period-select" name="period" onchange="bai.toggleCustomRange(this.value !== 'custom'); this.form.submit()" class="!mt-0 !w-auto">
       {% for value, label in period_choices %}
       <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
+    <div id="reports-custom-range" class="flex items-end gap-2 {% if period.key != 'custom' %}hidden{% endif %}">
+      <div>
+        <label for="reports-from" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
+        <input id="reports-from" type="date" name="from" value="{{ period.start|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+      </div>
+      <div>
+        <label for="reports-to" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">To</label>
+        <input id="reports-to" type="date" name="to" value="{{ period.end|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+      </div>
+      <button type="submit" class="btn-primary">Apply</button>
+    </div>
   </form>
 </div>
+<script>
+  window.bai = window.bai || {};
+  bai.toggleCustomRange = (hide) => {
+    document.getElementById("reports-custom-range").classList.toggle("hidden", hide);
+  };
+</script>
 
 <div class="mt-6 flex gap-2 overflow-x-auto whitespace-nowrap border-b border-white/5">
   <button onclick="bai.showTab('pnl')" id="tab-btn-pnl" class="report-tab report-tab--active">Profit &amp; Loss</button>
@@ -79,12 +96,23 @@
 <!-- Balance Sheet -->
 <section id="tab-bs" class="mt-6 hidden">
   <div class="card p-6">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 class="text-base font-semibold text-white">Balance Sheet</h2>
-        <p class="text-xs text-slate-500">As of {{ balance_sheet.as_of|date:"d M Y" }} · simplified, cash-basis · Amounts in {{ organization.currency }}</p>
+        <p class="text-xs text-slate-500">As on {{ balance_sheet.as_of|date:"d M Y" }} · simplified, cash-basis · Amounts in {{ organization.currency }}</p>
       </div>
-      <a href="{% url 'finance:balance_sheet_pdf' %}?period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
+      <div class="flex flex-wrap items-center gap-2">
+        <form method="get" class="flex items-center gap-2">
+          <input type="hidden" name="period" value="{{ period.key }}">
+          {% if period.key == "custom" %}
+          <input type="hidden" name="from" value="{{ period.start|date:'Y-m-d' }}">
+          <input type="hidden" name="to" value="{{ period.end|date:'Y-m-d' }}">
+          {% endif %}
+          <label for="bs-as-of" class="text-xs font-medium text-slate-400">As on</label>
+          <input type="date" id="bs-as-of" name="bs_as_of" value="{{ balance_sheet.as_of|date:'Y-m-d' }}" onchange="this.form.submit()" class="!mt-0 !w-40">
+        </form>
+        <a href="{% url 'finance:balance_sheet_pdf' %}?bs_as_of={{ balance_sheet.as_of|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">Download PDF</a>
+      </div>
     </div>
     <div class="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-2">
       <div>

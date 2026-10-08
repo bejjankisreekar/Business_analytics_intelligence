@@ -13,6 +13,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.views.generic import TemplateView, View
 
@@ -68,6 +69,15 @@ from .models import (
 )
 from .periods import PERIOD_CHOICES, resolve_period
 
+# Weekly/monthly trend charts show the org's full history back to
+# fs.opening_date, uncapped — fine for a new org, but for one running a
+# couple of years it means scanning (and, for a Sheets-mode org, fetching
+# and decoding) every entry ever made on every Analytics/Revenue/Cost
+# Intelligence page load. Capped here so that work — and the chart's
+# bar count — stays bounded no matter how long the org has been running.
+MAX_TREND_WEEKS = 104
+MAX_TREND_MONTHS = 36
+
 
 def _decimal_default(obj):
     if isinstance(obj, Decimal):
@@ -92,17 +102,27 @@ def to_json(data) -> str:
     )
 
 
-def _pad_daily_series(series: list[dict], min_days: int) -> list[dict]:
+def _pad_daily_series_for_period(series: list[dict], period, min_days: int = 30) -> list[dict]:
+    """`_pad_daily_series`, padded out to `period.chart_end` — the period's
+    own calendar boundary (e.g. a quarter's or month's last day) rather than
+    `period.end` (clipped to today while the period is still in progress) —
+    so the x-axis always shows the whole period, not just the days elapsed
+    so far."""
+    min_days = max(min_days, (period.chart_end - period.start).days + 1)
+    return _pad_daily_series(series, min_days, period.chart_end)
+
+
+def _pad_daily_series(series: list[dict], min_days: int, max_date: datetime.date) -> list[dict]:
     """Extend a short `daily_series` result with trailing empty days so the
     daily bar chart always has at least `min_days` slots — otherwise a
     15-day period renders fatter bars than a 30-day one. Padded days keep
     their (continuing) date so the x-axis stays labeled, but carry `None`
-    values so no bar is drawn for them."""
+    values so no bar is drawn for them. Never pads past `max_date`."""
     padded = list(series)
     if not padded:
         return padded
     next_day = padded[-1]["date"]
-    while len(padded) < min_days:
+    while len(padded) < min_days and next_day < max_date:
         next_day = next_day + datetime.timedelta(days=1)
         padded.append({"date": next_day, "sales": None, "expenses": None, "purchases": None, "net": None})
     return padded
@@ -558,8 +578,8 @@ class AnalyticsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, Per
         kpis = services.kpis_for_period(period)
         series = services.daily_series(period.start, period.end)
         today = datetime.date.today()
-        weekly_count = max(18, services.weeks_since(fs.opening_date, today))
-        monthly_count = max(18, services.months_since(fs.opening_date, today))
+        weekly_count = min(MAX_TREND_WEEKS, max(18, services.weeks_since(fs.opening_date, today)))
+        monthly_count = min(MAX_TREND_MONTHS, max(18, services.months_since(fs.opening_date, today)))
         weekly = services.weekly_trend(weekly_count)
         trend_start, trend_end = _trend_range(self.request.GET, today)
         trend = services.monthly_trend(start=trend_start, end=trend_end)
@@ -587,7 +607,7 @@ class AnalyticsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, Per
             running = running + row["net"]
             cash_running.append({"date": row["date"], "balance": running})
 
-        padded_daily = _pad_daily_series(series, 30)
+        padded_daily = _pad_daily_series_for_period(series, period)
         organization = self.request.user.organization
         quantity_word = "count" if organization.business_type == Organization.BusinessType.HEALTHCARE else "units"
 
@@ -650,7 +670,14 @@ class AnalyticsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, Per
 class SalesIntelligenceView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     """Every sales-side insight in one place: trend, channel breakdown,
     best days to sell, revenue by product, how sales are paid, and
-    auto-generated sales insights (channel momentum vs last month)."""
+    auto-generated sales insights (channel momentum vs last month).
+
+    Renders only the current period's daily trend (plus the drill-down
+    category picker) synchronously. Everything else here needs several
+    more Sheets-backed aggregations across weeks/months of history, so
+    the page's own JS fetches those from SalesIntelligenceDetailsView
+    right after first paint instead of making every chart on this page
+    block the response — see sales_intelligence.html."""
 
     template_name = "finance/sales_intelligence.html"
 
@@ -659,17 +686,46 @@ class SalesIntelligenceView(ManagerAccountRestrictedMixin, TenantLoginRequiredMi
         fs = services.get_finance_settings()
         period = self.get_period(fs.fy_start_month)
 
-        kpis = services.kpis_for_period(period)
         series = services.daily_series(period.start, period.end)
+        padded_daily = _pad_daily_series_for_period(series, period)
+
+        subcategory_groups = services.categories_with_subcategories()
+        group_ids = {str(g.id) for g in subcategory_groups}
+        selected_group_id = self.request.GET.get("category")
+        if selected_group_id not in group_ids:
+            selected_group_id = str(subcategory_groups[0].id) if subcategory_groups else None
+        selected_group = next((g for g in subcategory_groups if str(g.id) == selected_group_id), None)
+
+        context.update({
+            "active_nav": "sales_intelligence",
+            "organization": self.request.user.organization,
+            "period": period,
+            "period_choices": PERIOD_CHOICES,
+            "chart_daily_labels": to_json([r["date"].strftime("%d %b") for r in padded_daily]),
+            "chart_daily_sales": to_json([r["sales"] for r in padded_daily]),
+            "subcategory_groups": subcategory_groups,
+            "selected_group_id": selected_group_id,
+            "selected_group": selected_group,
+        })
+        return context
+
+
+class SalesIntelligenceDetailsView(TenantLoginRequiredMixin, PeriodMixin, View):
+    """Everything on Revenue Insights besides the current period's daily
+    trend and the drill-down category picker (see SalesIntelligenceView
+    above) — fetched by that page's own JS right after first paint.
+    Takes the same `period`/`category` query params as the page itself,
+    so results always match what's on screen."""
+
+    def get(self, request, *args, **kwargs):
+        fs = services.get_finance_settings()
+        period = self.get_period(fs.fy_start_month)
         today = datetime.date.today()
-        weekly_count = max(18, services.weeks_since(fs.opening_date, today))
-        monthly_count = max(18, services.months_since(fs.opening_date, today))
+        weekly_count = min(MAX_TREND_WEEKS, max(18, services.weeks_since(fs.opening_date, today)))
+        monthly_count = min(MAX_TREND_MONTHS, max(18, services.months_since(fs.opening_date, today)))
         weekly = services.weekly_trend(weekly_count)
         trend_wide = services.monthly_trend(monthly_count)
-        padded_daily = _pad_daily_series(series, 30)
         weekday = services.weekday_averages(period.start, period.end)
-        channel_breakdown = services.category_breakdown(SalesEntry, period.start, period.end, field="channel")
-        product_revenue = services.category_breakdown(SalesEntry, period.start, period.end, field="subcategory")[:10]
         payment_breakdown = services.payment_mode_breakdown(period.start, period.end, models=(SalesEntry,))
         gdn_totals = services.gross_discount_net_totals(period.start, period.end)
         sales_insights = services.sales_insights(fs.fy_start_month, weekday)
@@ -679,60 +735,58 @@ class SalesIntelligenceView(ManagerAccountRestrictedMixin, TenantLoginRequiredMi
 
         subcategory_groups = services.categories_with_subcategories()
         group_ids = {str(g.id) for g in subcategory_groups}
-        selected_group_id = self.request.GET.get("category")
+        selected_group_id = request.GET.get("category")
         if selected_group_id not in group_ids:
             selected_group_id = str(subcategory_groups[0].id) if subcategory_groups else None
         drilldown = services.subcategory_children_trend(selected_group_id, period) if selected_group_id else None
         breakdown_tree = services.category_breakdown_tree(selected_group_id, period) if selected_group_id else []
-        selected_group = next((g for g in subcategory_groups if str(g.id) == selected_group_id), None)
 
-        context.update({
-            "active_nav": "sales_intelligence",
-            "organization": self.request.user.organization,
-            "period": period,
-            "period_choices": PERIOD_CHOICES,
-            "kpis": kpis,
-            "chart_daily_labels": to_json([r["date"].strftime("%d %b") for r in padded_daily]),
-            "chart_daily_sales": to_json([r["sales"] for r in padded_daily]),
-            "chart_weekly_labels": to_json([r["label"] for r in weekly]),
-            "chart_weekly_sales": to_json([r["sales"] for r in weekly]),
-            "chart_monthly_labels": to_json([r["month"] for r in trend_wide]),
-            "chart_monthly_sales": to_json([r["sales"] for r in trend_wide]),
-            "chart_weekday_labels": to_json([r["day"] for r in weekday]),
-            "chart_weekday_avg": to_json([r["average"] for r in weekday]),
-            "chart_channel_labels": to_json([r["name"] for r in channel_breakdown]),
-            "chart_channel_values": to_json([r["amount"] for r in channel_breakdown]),
-            "chart_product_revenue_labels": to_json([r["name"] for r in product_revenue]),
-            "chart_product_revenue_values": to_json([r["amount"] for r in product_revenue]),
-            "chart_payment_labels": to_json([r["name"] for r in payment_breakdown]),
-            "chart_payment_values": to_json([r["amount"] for r in payment_breakdown]),
+        organization = request.user.organization
+        insights_rows_html = "".join(
+            render_to_string("finance/_insights_row.html", {"row": row, "organization": organization})
+            for row in sales_insights["rows"]
+        )
+
+        payload = {
+            "chart_weekly_labels": [r["label"] for r in weekly],
+            "chart_weekly_sales": [r["sales"] for r in weekly],
+            "chart_monthly_labels": [r["month"] for r in trend_wide],
+            "chart_monthly_sales": [r["sales"] for r in trend_wide],
+            "chart_payment_labels": [r["name"] for r in payment_breakdown],
+            "chart_payment_values": [r["amount"] for r in payment_breakdown],
             "gdn_totals": gdn_totals,
-            "chart_gdn_labels": to_json(["Net Revenue", "Discount Given"]),
-            "chart_gdn_values": to_json([gdn_totals["net"], gdn_totals["discount"]]),
-            "chart_perf_labels": to_json([r["month"] for r in perf_trend]),
-            "chart_perf_revenue": to_json([r["revenue"] for r in perf_trend]),
-            "chart_perf_profit": to_json([r["profit"] for r in perf_trend]),
-            "chart_perf_orders": to_json([r["orders"] for r in perf_trend]),
-            "chart_perf_aov": to_json([r["avg_order_value"] for r in perf_trend]),
-            "chart_perf_margin": to_json([r["gross_margin_pct"] for r in perf_trend]),
-            "product_revenue": product_revenue,
-            "sales_insights": sales_insights,
-            "chart_insights_labels": to_json([r["name"] for r in sales_insights["rows"]]),
-            "chart_insights_this_month": to_json([r["this_month"] for r in sales_insights["rows"]]),
-            "chart_insights_last_month": to_json([r["last_month"] for r in sales_insights["rows"]]),
+            "chart_gdn_labels": ["Net Revenue", "Discount Given"],
+            "chart_gdn_values": [gdn_totals["net"], gdn_totals["discount"]],
+            "chart_perf_labels": [r["month"] for r in perf_trend],
+            "chart_perf_revenue": [r["revenue"] for r in perf_trend],
+            "chart_perf_profit": [r["profit"] for r in perf_trend],
+            "chart_perf_orders": [r["orders"] for r in perf_trend],
+            "chart_perf_aov": [r["avg_order_value"] for r in perf_trend],
+            "chart_perf_margin": [r["gross_margin_pct"] for r in perf_trend],
+            "insights_this_month_label": sales_insights["this_month_label"],
+            "insights_last_month_label": sales_insights["last_month_label"],
+            "insights_notes": sales_insights["notes"],
+            "insights_rows_html": insights_rows_html,
+            "has_insights_chart": len(sales_insights["rows"]) > 1,
+            "chart_insights_labels": [r["name"] for r in sales_insights["rows"]],
+            "chart_insights_this_month": [r["this_month"] for r in sales_insights["rows"]],
+            "chart_insights_last_month": [r["last_month"] for r in sales_insights["rows"]],
             "vs_prev_week": vs_prev_week,
             "vs_prev_month": vs_prev_month,
-            "subcategory_groups": subcategory_groups,
-            "selected_group_id": selected_group_id,
-            "selected_group": selected_group,
-            "chart_breakdown_tree": to_json(breakdown_tree),
+            "vs_prev_week_html": render_to_string(
+                "finance/_vs_prev_panel.html", {"data": vs_prev_week, "key": "week", "organization": organization}
+            ),
+            "vs_prev_month_html": render_to_string(
+                "finance/_vs_prev_panel.html", {"data": vs_prev_month, "key": "month", "organization": organization}
+            ),
             "has_breakdown": bool(breakdown_tree),
+            "breakdown_tree": breakdown_tree,
             "has_trend": bool(drilldown and drilldown["daily"]["series"]),
-            "chart_drilldown_daily": to_json(drilldown["daily"] if drilldown else {"labels": [], "series": []}),
-            "chart_drilldown_weekly": to_json(drilldown["weekly"] if drilldown else {"labels": [], "series": []}),
-            "chart_drilldown_monthly": to_json(drilldown["monthly"] if drilldown else {"labels": [], "series": []}),
-        })
-        return context
+            "drilldown_daily": drilldown["daily"] if drilldown else {"labels": [], "series": []},
+            "drilldown_weekly": drilldown["weekly"] if drilldown else {"labels": [], "series": []},
+            "drilldown_monthly": drilldown["monthly"] if drilldown else {"labels": [], "series": []},
+        }
+        return JsonResponse(payload)
 
 
 class SubcategoryDetailView(TenantLoginRequiredMixin, PeriodMixin, View):
@@ -846,9 +900,9 @@ class PurchaseExpenseIntelligenceView(ManagerAccountRestrictedMixin, TenantLogin
         # The cost trend (daily / weekly / monthly) mirrors the revenue trend on
         # Analytics — same windows, same daily padding — so the two read alike.
         today = datetime.date.today()
-        trend_weekly = services.weekly_trend(max(18, services.weeks_since(fs.opening_date, today)))
-        trend_monthly = services.monthly_trend(max(18, services.months_since(fs.opening_date, today)))
-        trend_daily = _pad_daily_series(series, 30)
+        trend_weekly = services.weekly_trend(min(MAX_TREND_WEEKS, max(18, services.weeks_since(fs.opening_date, today))))
+        trend_monthly = services.monthly_trend(min(MAX_TREND_MONTHS, max(18, services.months_since(fs.opening_date, today))))
+        trend_daily = _pad_daily_series_for_period(series, period)
         purchase_breakdown = services.category_breakdown(PurchaseEntry, period.start, period.end)
         expense_breakdown = services.category_breakdown(ExpenseEntry, period.start, period.end)
         vendor_breakdown = services.vendor_breakdown(period.start, period.end)
@@ -1587,13 +1641,24 @@ class ReportsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, Perio
         fs = services.get_finance_settings()
         period = self.get_period(fs.fy_start_month)
 
+        # A balance sheet is a snapshot, not a range — "last month" doesn't
+        # mean anything to it the way it does to P&L/Cash Flow. It gets its
+        # own independent ?bs_as_of= date (defaulting to the shared period's
+        # end, so it still moves sensibly with the picker until the user
+        # overrides it), instead of being tied to period.end.
+        bs_as_of_raw = self.request.GET.get("bs_as_of")
+        try:
+            bs_as_of = datetime.date.fromisoformat(bs_as_of_raw) if bs_as_of_raw else period.end
+        except ValueError:
+            bs_as_of = period.end
+
         context.update({
             "active_nav": "reports",
             "organization": self.request.user.organization,
             "period": period,
             "period_choices": PERIOD_CHOICES,
             "pnl": services.profit_and_loss(period),
-            "balance_sheet": services.balance_sheet(period.end),
+            "balance_sheet": services.balance_sheet(bs_as_of),
             "cash_flow": services.cash_flow_statement(period),
             "gst": services.gst_summary(period),
         })
@@ -1882,9 +1947,14 @@ class StatementPdfView(TenantLoginRequiredMixin, PeriodMixin, View):
             template = "finance/pdf/pnl_pdf.html"
             filename = f"profit-and-loss-{period.start}-{period.end}.pdf"
         elif self.statement == "balance_sheet":
-            context = {"organization": org, "balance_sheet": services.balance_sheet(period.end)}
+            bs_as_of_raw = request.GET.get("bs_as_of")
+            try:
+                bs_as_of = datetime.date.fromisoformat(bs_as_of_raw) if bs_as_of_raw else period.end
+            except ValueError:
+                bs_as_of = period.end
+            context = {"organization": org, "balance_sheet": services.balance_sheet(bs_as_of)}
             template = "finance/pdf/balance_sheet_pdf.html"
-            filename = f"balance-sheet-{period.end}.pdf"
+            filename = f"balance-sheet-{bs_as_of}.pdf"
         elif self.statement == "gst":
             context = {"organization": org, "gst": services.gst_summary(period)}
             template = "finance/pdf/gst_pdf.html"
