@@ -3,6 +3,16 @@
 {% block title %}Billing · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
+<style>
+  .plan-name {
+    background: linear-gradient(90deg, #c4b5fd, #93c5fd);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  html[data-theme="light"] .plan-name {
+    background: linear-gradient(90deg, #7c3aed, #2563eb);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+</style>
 {% csrf_token %}
 <h1 class="text-2xl font-bold text-white">Billing</h1>
 <p class="mt-1 text-sm text-slate-400">Your subscription, invoices, and payment history.</p>
@@ -43,17 +53,24 @@
   <div class="grid grid-cols-1 lg:grid-cols-5">
     <!-- Plan details -->
     <div class="p-6 lg:col-span-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Current plan</p>
-        <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold
-          {% if subscription.status == 'ACTIVE' %}bg-mint-500/10 text-mint-400
-          {% elif subscription.status == 'TRIAL' %}bg-brand-500/10 text-brand-400
-          {% else %}bg-red-500/10 text-red-400{% endif %}">
-          <span class="h-1.5 w-1.5 rounded-full bg-current"></span>{{ subscription.get_status_display }}
+      <div class="flex items-center gap-5">
+        <span class="flex h-12 w-12 flex-none items-center justify-center rounded-2xl text-white shadow-lg shadow-brand-500/20 keep-white" style="background:linear-gradient(135deg,#a78bfa,#5b7cfa)">
+          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.2H22l-6 4.6L18.4 21 12 16.4 5.6 21 8 13.8l-6-4.6h7.6z"/></svg>
         </span>
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Current plan</p>
+            <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold
+              {% if subscription.status == 'ACTIVE' %}bg-mint-500/10 text-mint-400
+              {% elif subscription.status == 'TRIAL' %}bg-brand-500/10 text-brand-400
+              {% else %}bg-red-500/10 text-red-400{% endif %}">
+              <span class="h-1.5 w-1.5 rounded-full bg-current"></span>{{ subscription.get_status_display }}
+            </span>
+          </div>
+          <h2 class="plan-name mt-1 truncate text-[3rem] font-extrabold leading-tight">{{ subscription.plan.name }}</h2>
+        </div>
       </div>
-      <h2 class="mt-2 text-2xl font-bold text-white">{{ subscription.plan.name }}</h2>
-      <p class="mt-1 text-sm text-slate-400">Billed {{ subscription.get_billing_cycle_display|lower }}</p>
+      <p class="mt-2 text-sm text-slate-400">Billed {{ subscription.get_billing_cycle_display|lower }}</p>
 
       <dl class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div class="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-3.5">
@@ -66,7 +83,7 @@
           <span class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
             <svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
           </span>
-          <div><dt class="text-[11px] text-slate-500">Auto-renewal</dt><dd class="text-sm font-semibold text-white">{% if subscription.auto_renewal %}On{% else %}Off{% endif %}</dd></div>
+          <div><dt class="text-[11px] text-slate-500">Auto-renewal</dt><dd class="text-sm font-semibold text-white">{% if subscription.autopay_enabled %}On{% else %}Off{% endif %}</dd></div>
         </div>
         <div class="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-3.5">
           <span class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">

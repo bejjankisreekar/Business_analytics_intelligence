@@ -1,8 +1,9 @@
 import datetime
+import json
 from decimal import Decimal
 from unittest import mock
 
-from django.test import Client
+from django.test import Client, RequestFactory
 
 from apps.billing import invoicing
 from apps.billing import payments as payment_services
@@ -27,6 +28,7 @@ from apps.finance.models import (
     Subcategory,
 )
 from apps.finance.periods import Period
+from apps.finance.views import DailySummaryDayDetailView
 from apps.organizations.models import Organization
 from apps.organizations.services import delete_organization_and_tenant
 from apps.organizations.testing import SheetsBackedTestCase, sheet_session
@@ -316,7 +318,7 @@ class NewPagesSmokeTests(SheetsBackedTestCase):
     def test_bulk_entry_column_names_are_editable_per_organization(self):
         resp = self.client_.get("/app/daily/bulk-entry/?date=2026-10-08")
         self.assertContains(resp, ">Sub-category</th>")
-        resp = self.client_.post("/app/settings/", {
+        resp = self.client_.post("/app/setup/", {
             "save_column_labels": "1", "label__sale__customer": "Client", "label__sale__gross": "Gross",
         })
         self.assertEqual(resp.status_code, 302)
@@ -863,3 +865,92 @@ class BulkEntrySheetsBatchingTests(SheetsBackedTestCase):
             self.assertEqual(set(SalesEntry.objects.filter(date=day).values_list("amount", flat=True)), {
                 Decimal("150"), Decimal("300"),
             })
+
+
+class DailySummaryDayDetailTests(SheetsBackedTestCase):
+    """The Daily Performance card's "View details" drill-down: JSON of the
+    individual Revenue/Expense/Purchase entries logged on one day.
+
+    Calls the view directly (RequestFactory + sheet_session) rather than
+    through self.client_: going through the real request path hits
+    TenantSchemaMiddleware's per-request Sheets prefetch
+    (session.prefetch -> client.batch_get_values), which FakeSheetsBackend
+    doesn't stand in for, so it would 401 against the real Google API for
+    *any* client-driven test against a GOOGLE_SHEETS org, not just this
+    one — a pre-existing gap in SheetsBackedMixin, unrelated to this view.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
+            org_data={"name": "Day Detail Test Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
+            admin_data={"email": "owner@daydetailtest.example", "password": "ownerpass123"},
+        )
+        billing_services.start_trial(self.org, Plan.objects.get(slug="free"))
+        self.factory = RequestFactory()
+        with sheet_session(self.org):
+            self.sales_channel = Category.objects.create(kind=Category.Kind.SALES, name="Online")
+            self.expense_category = Category.objects.create(kind=Category.Kind.EXPENSE, name="Rent")
+            self.purchase_category = Category.objects.create(kind=Category.Kind.PURCHASE, name="Stock")
+
+    def tearDown(self):
+        delete_organization_and_tenant(self.org)
+
+    def _get(self, date_str):
+        request = self.factory.get(f"/app/daily-performance/day/{date_str}/")
+        request.user = self.owner
+        with sheet_session(self.org):
+            return DailySummaryDayDetailView.as_view()(request, date=date_str)
+
+    def test_groups_and_totals_only_the_requested_day(self):
+        day = datetime.date(2024, 5, 10)
+        other_day = datetime.date(2024, 5, 11)
+        with sheet_session(self.org):
+            SalesEntry.objects.create(
+                date=day, channel=self.sales_channel, amount=Decimal("1000"),
+                payment_mode=PaymentMode.CASH, note="Counter sale",
+            )
+            ExpenseEntry.objects.create(
+                date=day, category=self.expense_category, amount=Decimal("300"),
+                payment_mode=PaymentMode.BANK,
+            )
+            PurchaseEntry.objects.create(
+                date=day, category=self.purchase_category, amount=Decimal("200"),
+                vendor="ACME Supplies", payment_mode=PaymentMode.CASH,
+            )
+            # Belongs to a different day — must not leak into this day's totals.
+            SalesEntry.objects.create(date=other_day, channel=self.sales_channel, amount=Decimal("5000"))
+
+        resp = self._get(day.isoformat())
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+
+        self.assertEqual(len(data["sales"]), 1)
+        self.assertEqual(data["sales"][0]["category"], "Online")
+        self.assertEqual(data["sales"][0]["note"], "Counter sale")
+        self.assertEqual(data["sales"][0]["payment_mode"], "Cash")
+        self.assertEqual(Decimal(str(data["sales"][0]["amount"])), Decimal("1000"))
+
+        self.assertEqual(len(data["expenses"]), 1)
+        self.assertEqual(data["expenses"][0]["category"], "Rent")
+
+        self.assertEqual(len(data["purchases"]), 1)
+        self.assertEqual(data["purchases"][0]["vendor"], "ACME Supplies")
+
+        self.assertEqual(Decimal(str(data["totals"]["sales"])), Decimal("1000"))
+        self.assertEqual(Decimal(str(data["totals"]["expenses"])), Decimal("300"))
+        self.assertEqual(Decimal(str(data["totals"]["purchases"])), Decimal("200"))
+        self.assertEqual(Decimal(str(data["totals"]["net"])), Decimal("500"))
+
+    def test_day_with_no_entries_returns_empty_lists(self):
+        resp = self._get("2024-05-12")
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertEqual(data["sales"], [])
+        self.assertEqual(data["expenses"], [])
+        self.assertEqual(data["purchases"], [])
+        self.assertEqual(Decimal(str(data["totals"]["net"])), Decimal("0"))
+
+    def test_invalid_date_is_rejected(self):
+        resp = self._get("not-a-date")
+        self.assertEqual(resp.status_code, 400)

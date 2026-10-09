@@ -181,9 +181,15 @@
 <!-- Left (income) / right (outgoing) ledger -->
 <div class="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
   <div class="card flex flex-col p-5">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between gap-2">
       <h3 class="text-sm font-semibold text-white">Money In</h3>
-      <span class="rounded-full bg-mint-500/10 px-2.5 py-1 text-[11px] font-medium text-mint-400">{{ report.sales|length }} entr{{ report.sales|length|pluralize:"y,ies" }}</span>
+      <div class="flex items-center gap-2">
+        <span class="rounded-full bg-mint-500/10 px-2.5 py-1 text-[11px] font-medium text-mint-400">{{ report.sales|length }} entr{{ report.sales|length|pluralize:"y,ies" }}</span>
+        <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-300 transition hover:border-amber-500/60 hover:bg-amber-500/20 hover:text-amber-200" title="Edit this day's revenue entries in Bulk Entry">
+          <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+          Edit entries
+        </a>
+      </div>
     </div>
 
     {% if report.sales_by_category %}
@@ -204,13 +210,18 @@
     <p class="mt-6 py-6 text-center text-sm text-slate-500">No revenue logged for this day.</p>
     {% endif %}
 
-    <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="mt-4 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">Edit in Bulk Entry →</a>
   </div>
 
   <div class="card flex flex-col p-5">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between gap-2">
       <h3 class="text-sm font-semibold text-white">Money Out</h3>
-      <span class="rounded-full bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-400">{{ report.outgoing_count }} entries</span>
+      <div class="flex items-center gap-2">
+        <span class="rounded-full bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-400">{{ report.outgoing_count }} entries</span>
+        <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-300 transition hover:border-amber-500/60 hover:bg-amber-500/20 hover:text-amber-200" title="Edit this day's expense/purchase entries in Bulk Entry">
+          <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+          Edit entries
+        </a>
+      </div>
     </div>
 
     {% if report.outgoing_count %}
@@ -245,8 +256,6 @@
     {% else %}
     <p class="mt-6 py-6 text-center text-sm text-slate-500">No expenses or purchases logged for this day.</p>
     {% endif %}
-
-    <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="mt-4 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">Edit in Bulk Entry →</a>
   </div>
 </div>
 

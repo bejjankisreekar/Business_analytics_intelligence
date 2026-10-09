@@ -1003,6 +1003,74 @@ class DailySummaryView(DailySummaryRangeMixin, TenantLoginRequiredMixin, Templat
         return context
 
 
+class DailySummaryDayDetailView(TenantLoginRequiredMixin, View):
+    """JSON breakdown of the individual Revenue/Expenses/Purchases entries
+    for one day — fetched by the Daily Performance card's "View details"
+    button to populate its drill-down modal."""
+
+    def get(self, request, *args, **kwargs):
+        try:
+            day = datetime.date.fromisoformat(kwargs.get("date", ""))
+        except ValueError:
+            return JsonResponse({"error": "Invalid date."}, status=400)
+
+        entries = services.daily_entries(day)
+
+        def name(obj):
+            return obj.name if obj is not None else None
+
+        sales = [
+            {
+                "category": name(e.channel) or "Uncategorized",
+                "subcategory": name(e.subcategory),
+                "customer": name(e.customer),
+                "quantity": e.quantity,
+                "payment_mode": e.get_payment_mode_display(),
+                "note": e.note,
+                "amount": e.amount,
+            }
+            for e in entries["sales"]
+        ]
+        expenses = [
+            {
+                "category": name(e.category) or "Uncategorized",
+                "subcategory": name(e.subcategory),
+                "payment_mode": e.get_payment_mode_display(),
+                "note": e.note,
+                "amount": e.amount,
+            }
+            for e in entries["expenses"]
+        ]
+        purchases = [
+            {
+                "category": name(e.category) or "Uncategorized",
+                "subcategory": name(e.subcategory),
+                "vendor": e.vendor,
+                "quantity": e.quantity,
+                "payment_mode": e.get_payment_mode_display(),
+                "note": e.note,
+                "amount": e.amount,
+            }
+            for e in entries["purchases"]
+        ]
+        total_sales = sum((e.amount for e in entries["sales"]), Decimal(0))
+        total_expenses = sum((e.amount for e in entries["expenses"]), Decimal(0))
+        total_purchases = sum((e.amount for e in entries["purchases"]), Decimal(0))
+        payload = {
+            "date": day.isoformat(),
+            "sales": sales,
+            "expenses": expenses,
+            "purchases": purchases,
+            "totals": {
+                "sales": total_sales,
+                "expenses": total_expenses,
+                "purchases": total_purchases,
+                "net": total_sales - total_expenses - total_purchases,
+            },
+        }
+        return JsonResponse(json.loads(to_json(payload)))
+
+
 class DailySummaryExcelView(DailySummaryRangeMixin, TenantLoginRequiredMixin, View):
     """One row per day (Date, Revenue, Expenses, Purchases, Net) plus a total row."""
 

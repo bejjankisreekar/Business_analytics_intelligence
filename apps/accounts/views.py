@@ -13,6 +13,7 @@ from django.views.generic import FormView, View
 
 from apps.billing import services as billing_services
 from apps.billing.models import Plan
+from apps.organizations.forms import paired_plan_name
 from apps.organizations.services import (
     OrganizationSignupError,
     create_organization_with_tenant_schema_and_admin,
@@ -156,7 +157,11 @@ class SignupView(FormView):
             messages.error(self.request, str(exc))
             return self.form_invalid(form)
 
-        bootstrap_plan = Plan.objects.filter(is_active=True).order_by("monthly_price").first()
+        base_name = "Professional" if int(data["manager_logins"]) == 1 else "Business"
+        plan_name = paired_plan_name(base_name, data["storage_mode"])
+        bootstrap_plan = Plan.objects.filter(name=plan_name, is_active=True).first() or (
+            Plan.objects.filter(is_active=True, show_on_landing_page=True).order_by("monthly_price").first()
+        )
         if bootstrap_plan is not None:
             billing_services.start_trial(org, bootstrap_plan)
 

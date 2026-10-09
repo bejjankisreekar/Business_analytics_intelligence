@@ -10,4 +10,6 @@ urlpatterns = [
 
     path('storage/change/requests/cancel/', views.cancel_storage_change, name='cancel_storage_change'),
 
+    path('sheet/refresh/', views.refresh_sheet_cache, name='refresh_sheet_cache'),
+
 ]

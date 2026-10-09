@@ -1,0 +1,17 @@
+{% comment %}
+"Refresh from Sheet" — only shown for a GOOGLE_SHEETS org. The app caches
+each tab for up to 30s cross-request (see apps.sheets_store.session), so
+an edit made directly in the Sheet (not through the app) can look like it
+didn't take until that cache expires. This drops the cache immediately
+and reloads the current page. Include with an optional "extra_class".
+{% endcomment %}
+{% if request.user.organization.storage_mode == 'GOOGLE_SHEETS' %}
+<form method="post" action="{% url 'organizations:refresh_sheet_cache' %}" class="{{ extra_class }}">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <button type="submit" class="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-xs font-medium text-slate-300 hover:bg-white/5" title="Edited the Google Sheet directly? Reload the latest data from it.">
+    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-4.992M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+    <span class="hidden sm:inline">Refresh from Sheet</span>
+  </button>
+</form>
+{% endif %}

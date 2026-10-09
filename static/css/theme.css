@@ -270,7 +270,9 @@ html[data-theme="light"] .text-red-200,
 html[data-theme="light"] .text-red-300 { color: #dc2626; }
 html[data-theme="light"] .text-amber-200,
 html[data-theme="light"] .text-amber-300 { color: #b45309; }
-html[data-theme="light"] .text-emerald-300 { color: #0d8a6b; }
+html[data-theme="light"] .text-emerald-300,
+html[data-theme="light"] .text-green-300 { color: #0d8a6b; }
+html[data-theme="light"] .text-blue-200 { color: #1d4ed8; }
 
 /* ---- Theme toggle button (used in every nav shell) ---- */
 .theme-toggle-btn {

@@ -60,6 +60,34 @@ _BALANCE_AFFECTING_TABS = frozenset({
 })
 
 
+def _raw_cache_key(spreadsheet_id: str, tab: str) -> str:
+    return f"sheets_store:rows:{spreadsheet_id}:{tab}"
+
+
+def _decoded_cache_key(spreadsheet_id: str, tab: str) -> str:
+    return f"sheets_store:decoded:{spreadsheet_id}:{tab}"
+
+
+def _balance_generation_key(spreadsheet_id: str) -> str:
+    return f"sheets_store:balance_gen:{spreadsheet_id}"
+
+
+def invalidate_all_for_spreadsheet(spreadsheet_id: str, tabs: list[str]) -> None:
+    """Drops the cross-request cache (_CACHE_TTL_SECONDS) for every tab of
+    `spreadsheet_id`, plus its cached running balance — used by the
+    "Refresh from Sheet" action. A normal write through the app clears a
+    tab's cache itself (see SheetSession._invalidate_tab), but an edit
+    made directly in the Sheet UI has no such hook: without this, the
+    app would keep serving whatever it last cached for up to 30 seconds
+    (or longer, if nothing the app itself writes happens to touch that
+    tab again). Works off the spreadsheet id alone, no live SheetSession
+    required, since cache keys never depend on anything else."""
+    for tab in tabs:
+        cache.delete(_raw_cache_key(spreadsheet_id, tab))
+        cache.delete(_decoded_cache_key(spreadsheet_id, tab))
+    cache.delete(_balance_generation_key(spreadsheet_id))
+
+
 class SheetSession:
     def __init__(self, access_token: str, spreadsheet_id: str):
         self.access_token = access_token
@@ -78,7 +106,7 @@ class SheetSession:
         self._batch: dict[str, dict[str, list]] | None = None
 
     def _cache_key(self, tab: str) -> str:
-        return f"sheets_store:rows:{self.spreadsheet_id}:{tab}"
+        return _raw_cache_key(self.spreadsheet_id, tab)
 
     def _ensure_loaded(self, tab: str) -> list[list]:
         if tab not in self._raw_rows:
@@ -123,7 +151,7 @@ class SheetSession:
             cache.set(self._cache_key(tab), rows, _CACHE_TTL_SECONDS)
 
     def _decoded_cache_key(self, tab: str) -> str:
-        return f"sheets_store:decoded:{self.spreadsheet_id}:{tab}"
+        return _decoded_cache_key(self.spreadsheet_id, tab)
 
     def get_decoded(self, tab: str) -> list | None:
         if tab in self._decoded:
@@ -145,7 +173,7 @@ class SheetSession:
         cache.set(self._decoded_cache_key(tab), rows, _CACHE_TTL_SECONDS)
 
     def _balance_generation_key(self) -> str:
-        return f"sheets_store:balance_gen:{self.spreadsheet_id}"
+        return _balance_generation_key(self.spreadsheet_id)
 
     def _balance_cache_key(self, name: str, args: tuple) -> str:
         # The generation token is created on first use and deleted by

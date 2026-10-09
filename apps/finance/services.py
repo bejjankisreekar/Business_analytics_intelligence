@@ -388,6 +388,27 @@ def daily_series(start: datetime.date, end: datetime.date) -> list[dict]:
     return series
 
 
+def daily_entries(day: datetime.date) -> dict:
+    """The individual Revenue/Expense/Purchase entries logged on one day —
+    backs the "view details" drill-down on the Daily Performance cards."""
+    sales = list(
+        SalesEntry.objects.filter(date=day)
+        .select_related("channel", "subcategory", "customer")
+        .order_by("-amount")
+    )
+    expenses = list(
+        ExpenseEntry.objects.filter(date=day)
+        .select_related("category", "subcategory", "bank_account")
+        .order_by("-amount")
+    )
+    purchases = list(
+        PurchaseEntry.objects.filter(date=day)
+        .select_related("category", "subcategory", "bank_account")
+        .order_by("-amount")
+    )
+    return {"sales": sales, "expenses": expenses, "purchases": purchases}
+
+
 def weekday_averages(start: datetime.date, end: datetime.date) -> list[dict]:
     """Average sales for each weekday across the period — helps spot best/worst days."""
     totals = [ZERO] * 7

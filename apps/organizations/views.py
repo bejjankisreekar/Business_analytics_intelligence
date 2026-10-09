@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.db.models import Q
 
 from .models import DataStorageChangeRequest, Organization
@@ -166,6 +167,36 @@ def cancel_storage_change(request):
     else:
         messages.info(request, "There is no pending request to cancel.")
     return redirect('organizations:storage_change_requests')
+
+
+@login_required
+@require_http_methods(["POST"])
+def refresh_sheet_cache(request):
+    """Drops the app's cached copy of every finance tab in the org's
+    Google Sheet (see apps.sheets_store.session._CACHE_TTL_SECONDS), so
+    the next page load re-fetches live from Google instead of serving
+    up to 30s of stale rows — for when someone edited the Sheet
+    directly rather than through the app, which the app's own
+    write-time cache invalidation never sees."""
+    organization = request.user.organization
+    if not organization:
+        messages.error(request, "You don't have access to an organization.")
+        return redirect('finance:dashboard')
+
+    connection = getattr(organization, 'cloud_backup', None)
+    if organization.storage_mode == Organization.StorageMode.GOOGLE_SHEETS and connection and connection.external_file_id:
+        from apps.sheets_store.session import invalidate_all_for_spreadsheet
+        from apps.sheets_store.store import all_sheet_backed_tabs
+
+        invalidate_all_for_spreadsheet(connection.external_file_id, all_sheet_backed_tabs())
+        messages.success(request, "Refreshed — showing the latest data from your Google Sheet.")
+    else:
+        messages.info(request, "Nothing to refresh — this organization isn't connected to a Google Sheet.")
+
+    next_url = request.POST.get('next') or request.META.get('HTTP_REFERER')
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return redirect(next_url)
+    return redirect('finance:dashboard')
 
 
 @login_required

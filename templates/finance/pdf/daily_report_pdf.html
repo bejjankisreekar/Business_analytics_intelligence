@@ -21,7 +21,6 @@
         {% if not report.sales %}
         <tr><td colspan="2" class="muted">No revenue logged.</td></tr>
         {% endif %}
-        <tr class="thick"><td>Total income</td><td class="right pos">{{ organization.currency }} {{ report.total_sales|floatformat:2|intcomma }}</td></tr>
       </table>
     </td>
     <td style="width:50%; vertical-align:top; padding-left:10px;">
@@ -36,8 +35,15 @@
         {% if not report.expenses and not report.purchases %}
         <tr><td colspan="2" class="muted">No expenses or purchases logged.</td></tr>
         {% endif %}
-        <tr class="thick"><td>Total outgoing</td><td class="right neg">{{ organization.currency }} {{ report.total_outgoing|floatformat:2|intcomma }}</td></tr>
       </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="width:50%; vertical-align:top; padding-right:10px;">
+      <table><tr class="thick"><td>Total income</td><td class="right pos">{{ organization.currency }} {{ report.total_sales|floatformat:2|intcomma }}</td></tr></table>
+    </td>
+    <td style="width:50%; vertical-align:top; padding-left:10px;">
+      <table><tr class="thick"><td>Total outgoing</td><td class="right neg">{{ organization.currency }} {{ report.total_outgoing|floatformat:2|intcomma }}</td></tr></table>
     </td>
   </tr>
 </table>

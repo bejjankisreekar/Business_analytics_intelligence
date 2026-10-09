@@ -52,7 +52,7 @@
 
 {% if bank_account_rows %}
 <!-- Individual bank accounts -->
-<div class="mt-8 flex items-center justify-between">
+<div class="mt-8 flex items-start justify-between gap-3">
   <div>
     <h2 class="text-sm font-semibold text-white">Bank Accounts</h2>
     <p class="mt-0.5 text-xs text-slate-500">Only entries explicitly tagged to a specific account count here — it's a breakdown of the Bank total above, not a separate figure.</p>
@@ -112,7 +112,7 @@
 {% endif %}
 
 <!-- Vendors -->
-<div class="mt-8 flex items-center justify-between">
+<div class="mt-8 flex items-start justify-between gap-3">
   <div>
     <h2 class="text-sm font-semibold text-white">Vendor Ledgers <span class="font-normal text-red-400">— money to pay</span></h2>
     <p class="mt-0.5 text-xs text-slate-500">Bills owed to a vendor — opening balances, Add Money to Pay entries, and Daily Entries purchases logged as "Not paid yet (on credit)". A purchase paid in full at the time of entry never shows up here.</p>

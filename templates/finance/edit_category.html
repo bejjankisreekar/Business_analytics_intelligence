@@ -2,30 +2,105 @@
 {% block title %}Edit category · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
+<style>
+  /* Icon badge color per category kind — same palette used on the Setup
+     Categories cards (settings.html) so this page reads as the same system. */
+  .kind-badge--SALES, .kind-pill--SALES { background: rgb(var(--mint-500) / .1); color: rgb(var(--mint-400)); }
+  .kind-badge--EXPENSE, .kind-pill--EXPENSE { background: rgb(239 68 68 / .1); color: #f87171; }
+  html[data-theme="light"] .kind-badge--EXPENSE, html[data-theme="light"] .kind-pill--EXPENSE { color: #dc2626; }
+  .kind-badge--PURCHASE, .kind-pill--PURCHASE { background: rgb(var(--brand-500) / .1); color: rgb(var(--brand-400)); }
+  .kind-badge--PRODUCT, .kind-pill--PRODUCT { background: rgb(var(--mint-500) / .1); color: rgb(var(--mint-400)); }
+  .kind-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: .2rem .65rem; font-size: .72rem; font-weight: 600; }
+
+  /* Small icon-only action buttons used on sub-category cards/chips, in
+     place of the bare ⏻ / ✎ / ✕ glyphs the old markup used. */
+  .cat-icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.6rem; height: 1.6rem; border-radius: .4rem; flex-shrink: 0;
+    color: rgb(var(--slate-500)); transition: background-color .15s, color .15s;
+  }
+  .cat-icon-btn svg { width: .85rem; height: .85rem; }
+  .cat-icon-btn:hover { background: rgb(var(--tint-rgb) / .06); color: rgb(var(--fg-strong)); }
+  .cat-icon-btn--danger:hover { background: rgb(239 68 68 / .12); color: #f87171; }
+  html[data-theme="light"] .cat-icon-btn--danger:hover { color: #dc2626; }
+  .cat-icon-btn--brand:hover { background: rgb(var(--brand-500) / .12); color: rgb(var(--brand-400)); }
+  .cat-icon-btn--on { color: rgb(var(--mint-400)); }
+
+  .chip-icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.1rem; height: 1.1rem; border-radius: .3rem; flex-shrink: 0;
+    color: rgb(var(--slate-500)); transition: background-color .15s, color .15s;
+  }
+  .chip-icon-btn svg { width: .62rem; height: .62rem; }
+  .chip-icon-btn:hover { background: rgb(var(--tint-rgb) / .08); color: rgb(var(--fg-strong)); }
+  .chip-icon-btn--danger:hover { color: #f87171; }
+  html[data-theme="light"] .chip-icon-btn--danger:hover { color: #dc2626; }
+
+  .subcat-card { border-radius: .9rem; border: 1px solid rgb(var(--tint-rgb) / .08); background: rgb(var(--tint-rgb) / .015); transition: border-color .15s, background-color .15s; }
+  .subcat-card:hover { border-color: rgb(var(--brand-500) / .25); }
+  html[data-theme="light"] .subcat-card { background: rgb(var(--tint-rgb) / .012); }
+</style>
+
 <div class="mx-auto max-w-5xl">
-  <a href="{{ next }}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to categories</a>
-  <div class="mt-2 flex flex-wrap items-start justify-between gap-3">
-    <div>
-      <h1 class="text-2xl font-bold text-white">Edit category</h1>
-      <p class="mt-1 text-sm text-slate-400">Rename "{{ category.name }}". Its type ({{ category.get_kind_display }}) can't be changed.</p>
+  <a href="{{ next }}" class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-200">
+    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+    Back to categories
+  </a>
+
+  <div class="mt-3 flex flex-wrap items-start justify-between gap-4">
+    <div class="flex items-start gap-3.5">
+      <div class="kind-badge--{{ category.kind }} flex h-12 w-12 flex-none items-center justify-center rounded-xl">
+        {% if category.kind == "SALES" %}
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.706 2.602-7.201.116-.48-.230-.949-.724-.949H4.5m0 0L3.106 4.835m0 0L4.5 14.25m0 0L6 17.25m10.5-3a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM8.25 18.75a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
+        {% elif category.kind == "EXPENSE" %}
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
+        {% elif category.kind == "PURCHASE" %}
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+        {% else %}
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/></svg>
+        {% endif %}
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold text-white">Edit category</h1>
+        <p class="mt-1 text-sm text-slate-400">Rename "{{ category.name }}". Its type can't be changed after creation.</p>
+        <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+          <span class="kind-pill kind-pill--{{ category.kind }}">{{ category.get_kind_display }}</span>
+          {% if category.is_active %}
+          <span class="kind-pill" style="background: rgb(var(--mint-500) / .1); color: rgb(var(--mint-400));">Active</span>
+          {% else %}
+          <span class="kind-pill" style="background: rgb(var(--tint-rgb) / .06); color: rgb(var(--slate-500));">Inactive</span>
+          {% endif %}
+          {% if category.gst_rate %}
+          <span class="kind-pill" style="background: rgb(var(--tint-rgb) / .06); color: rgb(var(--slate-400));">{{ category.gst_rate|floatformat:-2 }}% GST</span>
+          {% endif %}
+        </div>
+      </div>
     </div>
-    <div class="flex items-center gap-3">
+
+    <div class="flex items-center gap-2.5">
       <form method="post" action="{% url 'finance:toggle_category' category.pk %}">
         {% csrf_token %}
         <input type="hidden" name="next" value="{{ next }}">
-        <button type="submit" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5">{% if category.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+        <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/5">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9"/></svg>
+          {% if category.is_active %}Deactivate{% else %}Activate{% endif %}
+        </button>
       </form>
       <form method="post" action="{% url 'finance:delete_category' category.pk %}" data-confirm="Delete this category? Entries already logged under it will show as Uncategorized.">
         {% csrf_token %}
         <input type="hidden" name="next" value="{{ next }}">
-        <button type="submit" class="rounded-lg border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10">Delete</button>
+        <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-400 transition hover:bg-red-500/10">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+          Delete
+        </button>
       </form>
     </div>
   </div>
 
   {% if form.non_field_errors %}
-  <div class="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+  <div class="mt-4 flex items-start gap-2.5 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+    <svg class="mt-0.5 h-4 w-4 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+    <div>{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
   </div>
   {% endif %}
 
@@ -33,7 +108,14 @@
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ next }}">
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div class="flex items-center gap-2.5">
+      <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+      </div>
+      <h2 class="text-sm font-semibold text-white">Category details</h2>
+    </div>
+
+    <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div>
         <label class="block text-xs font-medium text-slate-400">Name</label>
         {{ form.name }}
@@ -47,80 +129,189 @@
         <p class="mt-1 text-xs text-slate-500">{{ form.gst_rate.help_text }}</p>
         {% for error in form.gst_rate.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
       </div>
+      {% else %}
+      <div>
+        <label class="block text-xs font-medium text-slate-400">Type</label>
+        <div class="mt-[0.3rem] flex h-[2.35rem] items-center rounded-lg border border-white/10 bg-white/[0.02] px-3">
+          <span class="kind-pill kind-pill--{{ category.kind }}">{{ category.get_kind_display }}</span>
+        </div>
+      </div>
       {% endif %}
     </div>
 
-    <div class="flex gap-3 pt-5">
+    <div class="mt-6 flex gap-3 border-t border-white/5 pt-5">
       <button type="submit" class="btn-primary flex-1 sm:flex-none sm:px-10">Save changes</button>
-      <a href="{{ next }}" class="inline-flex items-center justify-center rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Cancel</a>
+      <a href="{{ next }}" class="inline-flex items-center justify-center rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5">Cancel</a>
     </div>
   </form>
 
   <div class="card mt-6 p-6">
-    <h2 class="text-sm font-semibold text-white">Sub-categories</h2>
-    <p class="mt-1 text-xs text-slate-500">Manage what sits under this category.</p>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5">
+        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-mint-500/10 text-mint-400">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75h6.5v6.5h-6.5v-6.5zm10 0h6.5v6.5h-6.5v-6.5zm-10 10h6.5v6.5h-6.5v-6.5zm10 0h6.5v6.5h-6.5v-6.5z"/></svg>
+        </div>
+        <div>
+          <h2 class="text-sm font-semibold text-white">Sub-categories</h2>
+          <p class="text-xs text-slate-500">Manage what sits under this category.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        {% if subcategories %}<span class="kind-pill" style="background: rgb(var(--tint-rgb) / .06); color: rgb(var(--slate-400));">{{ subcategories|length }} top-level</span>{% endif %}
+        <button type="button" class="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/40 bg-brand-500/10 px-2.5 py-1 text-[11px] font-semibold text-brand-400 transition hover:border-brand-500/60 hover:bg-brand-500/20 hover:text-brand-300" onclick="bai.openAddSubcatModal(this)" data-parent="" data-context="Under {{ category.name }}" data-placeholder="{{ sub_placeholder }}">
+          <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          Add sub-category
+        </button>
+      </div>
+    </div>
 
     {% if subcategories %}
-    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {% for s in subcategories %}
-      <div class="rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
+      <div class="subcat-card p-3.5">
         <div class="flex items-start justify-between gap-2">
           <span class="text-sm font-medium {% if s.is_active %}text-slate-200{% else %}text-slate-600 line-through{% endif %}">{{ s.name }}</span>
-          <div class="flex flex-none items-center gap-2 text-xs">
-            <form method="post" action="{% url 'finance:toggle_subcategory' s.pk %}" class="inline">
+          <div class="flex flex-none items-center gap-0.5">
+            <button type="button" class="cat-icon-btn cat-icon-btn--brand" title="Add under {{ s.name }}" onclick="bai.openAddSubcatModal(this)" data-parent="{{ s.pk }}" data-context="Under {{ s.name }}" data-placeholder="{{ sub_placeholder }}">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            </button>
+            <form method="post" action="{% url 'finance:toggle_subcategory' s.pk %}" class="inline-flex">
               {% csrf_token %}
               <input type="hidden" name="next" value="{{ next }}">
-              <button type="submit" class="text-slate-500 hover:text-white" title="{% if s.is_active %}Deactivate{% else %}Activate{% endif %}">{% if s.is_active %}⏻{% else %}○{% endif %}</button>
+              <button type="submit" class="cat-icon-btn {% if s.is_active %}cat-icon-btn--on{% endif %}" title="{% if s.is_active %}Deactivate{% else %}Activate{% endif %}">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9"/></svg>
+              </button>
             </form>
-            <a href="{% url 'finance:edit_subcategory' s.pk %}?next={{ request.get_full_path|urlencode }}" class="text-slate-500 hover:text-brand-300" title="Rename">✎</a>
-            <form method="post" action="{% url 'finance:delete_subcategory' s.pk %}" class="inline" data-confirm="Delete this sub-category?">
+            <button type="button" class="cat-icon-btn cat-icon-btn--brand" title="Rename" onclick="bai.openSubcatModal(this)" data-action="{% url 'finance:edit_subcategory' s.pk %}" data-name="{{ s.name }}" data-context="Under {{ category.name }}">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+            </button>
+            <form method="post" action="{% url 'finance:delete_subcategory' s.pk %}" class="inline-flex" data-confirm="Delete this sub-category?">
               {% csrf_token %}
               <input type="hidden" name="next" value="{{ next }}">
-              <button type="submit" class="text-slate-500 hover:text-red-300" title="Delete">✕</button>
+              <button type="submit" class="cat-icon-btn cat-icon-btn--danger" title="Delete">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
             </form>
           </div>
         </div>
 
         {% if s.children.all %}
-        <div class="mt-2.5 flex flex-wrap gap-1.5">
+        <div class="mt-3 flex flex-wrap gap-1.5">
           {% for child in s.children.all %}
-          <span class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] {% if child.is_active %}border-white/10 bg-white/[0.02] text-slate-400{% else %}border-white/5 text-slate-600 line-through{% endif %}">
+          <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] {% if child.is_active %}border-white/10 bg-white/[0.02] text-slate-300{% else %}border-white/5 text-slate-600 line-through{% endif %}">
             <form method="post" action="{% url 'finance:toggle_subcategory' child.pk %}" class="inline">
               {% csrf_token %}
               <input type="hidden" name="next" value="{{ next }}">
               <button type="submit" title="{% if child.is_active %}Deactivate{% else %}Activate{% endif %}">{{ child.name }}</button>
             </form>
-            <a href="{% url 'finance:edit_subcategory' child.pk %}?next={{ request.get_full_path|urlencode }}" class="text-slate-500 hover:text-brand-300" title="Rename">✎</a>
+            <button type="button" class="chip-icon-btn" title="Rename" onclick="bai.openSubcatModal(this)" data-action="{% url 'finance:edit_subcategory' child.pk %}" data-name="{{ child.name }}" data-context="Under {{ s.name }}">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+            </button>
             <form method="post" action="{% url 'finance:delete_subcategory' child.pk %}" class="inline" data-confirm="Delete this?">
               {% csrf_token %}
               <input type="hidden" name="next" value="{{ next }}">
-              <button type="submit" class="text-slate-500 hover:text-red-300">✕</button>
+              <button type="submit" class="chip-icon-btn chip-icon-btn--danger" title="Delete">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
             </form>
           </span>
           {% endfor %}
         </div>
         {% endif %}
-
-        <form method="post" action="{% url 'finance:add_subcategory' %}" class="mt-2.5 flex items-center gap-2">
-          {% csrf_token %}
-          <input type="hidden" name="category" value="{{ category.pk }}">
-          <input type="hidden" name="parent" value="{{ s.pk }}">
-          <input type="hidden" name="next" value="{{ next }}">
-          <input type="text" name="name" placeholder="+ Add under {{ s.name }}" class="!mt-0 flex-1 !py-1 !text-[11px]">
-          <button type="submit" class="rounded-lg border border-white/10 px-2 py-1 text-[10px] font-medium text-slate-300 hover:bg-white/5">Add</button>
-        </form>
       </div>
       {% endfor %}
     </div>
+    {% else %}
+    <div class="mt-5 flex flex-col items-center gap-2 rounded-xl border border-dashed border-white/10 py-10 text-center">
+      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-slate-500">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75h6.5v6.5h-6.5v-6.5zm10 0h6.5v6.5h-6.5v-6.5zm-10 10h6.5v6.5h-6.5v-6.5zm10 0h6.5v6.5h-6.5v-6.5z"/></svg>
+      </div>
+      <p class="text-sm text-slate-500">No sub-categories yet — add one above.</p>
+    </div>
     {% endif %}
+  </div>
+</div>
 
-    <form method="post" action="{% url 'finance:add_subcategory' %}" class="mt-4 flex items-center gap-2">
+<!-- Modal: Add sub-category (shared by the header "+ Add sub-category" button and every per-card "+" above) -->
+<div id="modal-add-subcategory" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-add-subcategory')">
+  <div class="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Add sub-category</h3>
+      <button type="button" onclick="bai.closeModal('modal-add-subcategory')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p id="subcat-add-context" class="mt-1 text-xs text-slate-500"></p>
+    <form id="subcat-add-form" method="post" action="{% url 'finance:add_subcategory' %}" class="mt-4 space-y-4">
       {% csrf_token %}
       <input type="hidden" name="category" value="{{ category.pk }}">
       <input type="hidden" name="next" value="{{ next }}">
-      <input type="text" name="name" placeholder="+ Add sub-category ({{ sub_placeholder }})" class="!mt-0 flex-1 !py-1.5 !text-xs">
-      <button type="submit" class="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 hover:bg-white/5">Add</button>
+      <input type="hidden" id="subcat-add-parent" name="parent" value="">
+      <div>
+        <label class="block text-xs font-medium text-slate-400">Name</label>
+        <input type="text" id="subcat-add-name" name="name" required maxlength="100">
+      </div>
+      <div class="flex gap-3">
+        <button type="submit" class="btn-primary flex-1">Add sub-category</button>
+        <button type="button" onclick="bai.closeModal('modal-add-subcategory')" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5">Cancel</button>
+      </div>
     </form>
   </div>
 </div>
+
+<!-- Modal: Rename sub-category (shared by every rename pencil above) -->
+<div id="modal-edit-subcategory" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-edit-subcategory')">
+  <div class="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Rename sub-category</h3>
+      <button type="button" onclick="bai.closeModal('modal-edit-subcategory')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p id="subcat-edit-context" class="mt-1 text-xs text-slate-500"></p>
+    <form id="subcat-edit-form" method="post" class="mt-4 space-y-4">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <div>
+        <label class="block text-xs font-medium text-slate-400">Name</label>
+        <input type="text" id="subcat-edit-name" name="name" required maxlength="100">
+      </div>
+      <div class="flex gap-3">
+        <button type="submit" class="btn-primary flex-1">Save changes</button>
+        <button type="button" onclick="bai.closeModal('modal-edit-subcategory')" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+
+  bai.openSubcatModal = (btn) => {
+    const form = document.getElementById("subcat-edit-form");
+    const input = document.getElementById("subcat-edit-name");
+    form.action = btn.dataset.action;
+    input.value = btn.dataset.name;
+    document.getElementById("subcat-edit-context").textContent = btn.dataset.context || "";
+    bai.openModal("modal-edit-subcategory");
+    input.focus();
+    input.select();
+  };
+
+  bai.openAddSubcatModal = (btn) => {
+    const input = document.getElementById("subcat-add-name");
+    document.getElementById("subcat-add-parent").value = btn.dataset.parent || "";
+    document.getElementById("subcat-add-context").textContent = btn.dataset.context || "";
+    input.value = "";
+    input.placeholder = btn.dataset.placeholder || "";
+    bai.openModal("modal-add-subcategory");
+    input.focus();
+  };
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    bai.closeModal("modal-edit-subcategory");
+    bai.closeModal("modal-add-subcategory");
+  });
+</script>
 {% endblock %}

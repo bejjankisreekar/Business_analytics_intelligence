@@ -39,6 +39,7 @@ from .views import (
     DailyReportPdfView,
     DailyEntryDaysView,
     DailyReportView,
+    DailySummaryDayDetailView,
     DailySummaryExcelView,
     DailySummaryPdfView,
     DailySummaryView,
@@ -140,6 +141,11 @@ urlpatterns = [
     ),
     path("daily/", DailyReportView.as_view(), name="daily_report"),
     path("daily-performance/", DailySummaryView.as_view(), name="daily_summary"),
+    path(
+        "daily-performance/day/<str:date>/",
+        DailySummaryDayDetailView.as_view(),
+        name="daily_summary_day_detail",
+    ),
     # Old address, kept so existing bookmarks/links still land on the page.
     path("daily-summary/", RedirectView.as_view(pattern_name="finance:daily_summary", query_string=True)),
     path("daily-performance/export.xlsx", DailySummaryExcelView.as_view(), name="daily_summary_excel"),
@@ -185,7 +191,9 @@ urlpatterns = [
     ),
     path("reports/cash-flow.pdf", StatementPdfView.as_view(statement="cash_flow"), name="cash_flow_pdf"),
     path("reports/gst-summary.pdf", StatementPdfView.as_view(statement="gst"), name="gst_pdf"),
-    path("settings/", FinanceSettingsView.as_view(), name="settings"),
+    path("setup/", FinanceSettingsView.as_view(), name="settings"),
+    # Old address, kept so existing bookmarks/links still land on the page.
+    path("settings/", RedirectView.as_view(pattern_name="finance:settings", query_string=True)),
     path("categories/", CategoriesView.as_view(), name="categories"),
     path("categories/add/", AddCategoryView.as_view(), name="add_category"),
     path("categories/<uuid:pk>/edit/", EditCategoryView.as_view(), name="edit_category"),
