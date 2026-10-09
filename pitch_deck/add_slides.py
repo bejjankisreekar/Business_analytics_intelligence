@@ -8,8 +8,8 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from PIL import Image
 
-SRC = "Prism_Pulse_Client_Deck.backup.pptx"
-OUT = "Prism_Pulse_Client_Deck_v2.pptx"
+SRC = "Finday_Client_Deck.backup.pptx"
+OUT = "Finday_Client_Deck_v2.pptx"
 prs = Presentation(SRC)
 L = {l.name: l for l in prs.slide_layouts}
 sldnum = [sh for sh in prs.slides[9].shapes if sh.name.startswith("Slide Number")][0]._element
@@ -90,16 +90,16 @@ for title, a, b in tour:
         pic = s.shapes.add_picture(path, Inches(0.6 + i * 4.5), Inches(1.45), Inches(w), Inches(h))
         pic.name = f"Screenshot {k}"
         pic._element.nvPicPr.cNvPr.set("descr", f"Product screenshot: {k} view")
-    text(s, "Real numbers from a live account: a multi-department hospital using Prism Pulse every day.",
+    text(s, "Real numbers from a live account: a multi-department hospital using Finday every day.",
          0.6, 4.85, 8.2, 0.25, size=11, col=TC.ACCENT_3, italic=True, name="Screenshot caption")
     tour_slides.append(s)
 
 # ---------------- pricing slide ----------------
 s = new_slide("LIGHT", "Pricing: pick where your data lives")
 plans = [
-    ("Professional", "Prism Pulse DB", "1 team member", "1,299", "1,999", "35%", "15,592", False),
+    ("Professional", "Finday DB", "1 team member", "1,299", "1,999", "35%", "15,592", False),
     ("Professional Drive", "Your Google Drive", "1 team member", "1,499", "2,499", "40%", "17,993", False),
-    ("Business", "Prism Pulse DB", "2 team members", "1,599", "2,499", "36%", "19,192", True),
+    ("Business", "Finday DB", "2 team members", "1,599", "2,499", "36%", "19,192", True),
     ("Business Drive", "Your Google Drive", "2 team members", "1,799", "2,999", "40%", "21,593", False),
 ]
 cw, gap, y0, ch = 2.05, 0.2, 1.45, 3.1

@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
             model_name='organization',
             name='storage_mode',
             field=models.CharField(
-                choices=[('GOOGLE_SHEETS', "Your own Google Drive"), ('OUR_DATABASE', "Prism Pulse's own database")],
+                choices=[('GOOGLE_SHEETS', "Your own Google Drive"), ('OUR_DATABASE', "Finday's own database")],
                 default='GOOGLE_SHEETS',
                 max_length=20,
             ),

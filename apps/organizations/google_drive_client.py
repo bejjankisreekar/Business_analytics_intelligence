@@ -26,11 +26,22 @@ DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
 USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email"
 
-BACKUP_FOLDER_NAME = "Prism Pulse Backups"
+BACKUP_FOLDER_NAME = "Finday Backups"
 
 
 class GoogleDriveError(RuntimeError):
     pass
+
+
+def _request(method: str, url: str, *, error: str, **kwargs) -> requests.Response:
+    """requests.request, but a connection-level failure (SSL error, DNS
+    blip, timeout, proxy interference) raises GoogleDriveError instead of
+    the raw requests/urllib3 exception — so every caller only ever has to
+    handle one exception type, same as a bad HTTP status from Google."""
+    try:
+        return requests.request(method, url, **kwargs)
+    except requests.exceptions.RequestException as exc:
+        raise GoogleDriveError(f"{error}: {exc}") from exc
 
 
 def is_configured() -> bool:
@@ -56,8 +67,10 @@ def build_authorization_url(*, redirect_uri: str, state: str) -> str:
 def exchange_code_for_tokens(*, code: str, redirect_uri: str) -> dict:
     """Returns {"access_token", "refresh_token", "expires_in"} or raises
     GoogleDriveError with a client-facing message."""
-    resp = requests.post(
+    resp = _request(
+        "POST",
         TOKEN_URL,
+        error="Couldn't reach Google to connect your Drive",
         data={
             "code": code,
             "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
@@ -82,8 +95,10 @@ def fetch_connected_email(access_token: str) -> str:
     """Returns the email of the Google account that just authorized
     access, for display on Profile. Best-effort: callers treat a
     failure here as non-fatal since it's purely informational."""
-    resp = requests.get(
+    resp = _request(
+        "GET",
         USERINFO_URL,
+        error="Couldn't look up the connected Google account",
         headers={"Authorization": f"Bearer {access_token}"},
         timeout=10,
     )
@@ -94,8 +109,10 @@ def fetch_connected_email(access_token: str) -> str:
 
 def refresh_access_token(refresh_token: str) -> dict:
     """Returns {"access_token", "expires_in"} for a stored refresh_token."""
-    resp = requests.post(
+    resp = _request(
+        "POST",
         TOKEN_URL,
+        error="Couldn't reach Google to refresh your Drive connection",
         data={
             "refresh_token": refresh_token,
             "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
@@ -128,8 +145,11 @@ def ensure_backup_folder(access_token: str) -> str:
         f"name='{BACKUP_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' "
         "and trashed=false"
     )
-    resp = requests.get(
-        DRIVE_FILES_URL, headers=_headers(access_token), params={"q": query, "fields": "files(id)"}, timeout=10
+    resp = _request(
+        "GET",
+        DRIVE_FILES_URL,
+        error="Couldn't look up your Drive backup folder",
+        headers=_headers(access_token), params={"q": query, "fields": "files(id)"}, timeout=10,
     )
     if not resp.ok:
         raise GoogleDriveError(f"Couldn't look up your Drive backup folder: {resp.text[:300]}")
@@ -137,8 +157,10 @@ def ensure_backup_folder(access_token: str) -> str:
     if files:
         return files[0]["id"]
 
-    resp = requests.post(
+    resp = _request(
+        "POST",
         DRIVE_FILES_URL,
+        error="Couldn't create your Drive backup folder",
         headers=_headers(access_token),
         json={"name": BACKUP_FOLDER_NAME, "mimeType": "application/vnd.google-apps.folder"},
         timeout=10,
@@ -150,8 +172,11 @@ def ensure_backup_folder(access_token: str) -> str:
 
 def _find_file(access_token: str, *, folder_id: str, filename: str) -> str | None:
     query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
-    resp = requests.get(
-        DRIVE_FILES_URL, headers=_headers(access_token), params={"q": query, "fields": "files(id)"}, timeout=10
+    resp = _request(
+        "GET",
+        DRIVE_FILES_URL,
+        error=f"Couldn't look up '{filename}' in your Drive backup folder",
+        headers=_headers(access_token), params={"q": query, "fields": "files(id)"}, timeout=10,
     )
     if not resp.ok:
         raise GoogleDriveError(f"Couldn't look up '{filename}' in your Drive backup folder: {resp.text[:300]}")
@@ -184,8 +209,10 @@ def upload_or_replace_file(
     existing_id = _find_file(access_token, folder_id=folder_id, filename=filename)
 
     if existing_id:
-        resp = requests.patch(
+        resp = _request(
+            "PATCH",
             f"{DRIVE_UPLOAD_URL}/{existing_id}",
+            error=f"Couldn't update '{filename}' in your Drive",
             headers={**_headers(access_token), "Content-Type": mimetype},
             params={"uploadType": "media"},
             data=content,
@@ -198,8 +225,10 @@ def upload_or_replace_file(
     metadata = {"name": filename, "parents": [folder_id]}
     if convert_to_sheet:
         metadata["mimeType"] = "application/vnd.google-apps.spreadsheet"
-    resp = requests.post(
+    resp = _request(
+        "POST",
         DRIVE_UPLOAD_URL,
+        error=f"Couldn't upload '{filename}' to your Drive",
         headers=_headers(access_token),
         params={"uploadType": "multipart"},
         files={

@@ -5,7 +5,7 @@ const sharp = require("sharp");
 const fa = require("react-icons/fa");
 const { applyTheme } = require("C:/Users/User/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/ffee8d08-76d9-40c3-b05e-999ab836268b/f8d8adf1-c9bd-4d4e-a888-1b695217460a/skills/pptx/scripts/apply_theme.js");
 
-const THEME = { name: "Prism Pulse", headFontFace: "Cambria", bodyFontFace: "Calibri",
+const THEME = { name: "Finday", headFontFace: "Cambria", bodyFontFace: "Calibri",
   colors: { dk1: "13242B", lt1: "FFFFFF", dk2: "0B3B3C", lt2: "EAF4F2", accent1: "1FA89A", accent2: "F2A541",
     accent3: "5E7C82", accent4: "2F6F73", accent5: "D9644A", accent6: "8FD3C8", hlink: "1FA89A", folHlink: "5E7C82" } };
 const H = { teal: "1FA89A", amber: "F2A541", ink: "13242B", deep: "0B3B3C", mist: "EAF4F2", mint: "8FD3C8", slate: "5E7C82", white: "FFFFFF" };
@@ -19,7 +19,7 @@ async function icon(name, color) {
 (async () => {
   const pres = new pptxgen();
   pres.layout = "LAYOUT_16x9";
-  pres.title = "Prism Pulse Intelligence & Analytics";
+  pres.title = "Finday Intelligence";
   pres.theme = { headFontFace: "Cambria", bodyFontFace: "Calibri" };
   const C = pres.SchemeColor;
 
@@ -49,9 +49,9 @@ async function icon(name, color) {
 
   // 1 Title
   let s = dark("Intro");
-  T(s, "PRISM PULSE", { x: 0.7, y: 1.2, w: 6, h: 0.4, fontSize: 14, bold: true, color: H.amber, charSpacing: 6 });
+  T(s, "FINDAY", { x: 0.7, y: 1.2, w: 6, h: 0.4, fontSize: 14, bold: true, color: H.amber, charSpacing: 6 });
   T(s, "Know exactly how your business is doing, every single day", { x: 0.7, y: 1.7, w: 6.4, h: 1.9, fontSize: 38, bold: true, fontFace: "Cambria", color: C.background1, valign: "top" });
-  T(s, "Intelligence & Analytics for owners who run the business, not just watch it.", { x: 0.7, y: 3.8, w: 5.8, h: 0.8, fontSize: 16, color: H.mint, valign: "top" });
+  T(s, "Intelligence for owners who run the business, not just watch it.", { x: 0.7, y: 3.8, w: 5.8, h: 0.8, fontSize: 16, color: H.mint, valign: "top" });
   [[7.4, 0.9, 3.2, "2F6F73"], [7.9, 1.4, 2.2, H.teal], [8.4, 1.9, 1.2, H.amber]].forEach(([x, y, d, c], i) =>
     s.addShape(pres.ShapeType.ellipse, { x, y, w: d, h: d, fill: { color: c }, line: { color: c }, objectName: "pulse ring " + i }));
   s.addImage({ data: await icon("FaChartLine", H.deep), x: 8.7, y: 2.2, w: 0.6, h: 0.6, altText: "Chart icon" });
@@ -133,7 +133,7 @@ async function icon(name, color) {
   s = dark("Trust");
   T(s, "Your data, your choice", { x: 0.7, y: 0.4, w: 8, h: 0.8, fontSize: 36, bold: true, fontFace: "Cambria", color: C.background1 });
   const opts = [["FaGoogleDrive", "Your own Google Drive", ["Data lives in a Google Sheet in your Drive", "You own the file: open or export any time", "We never keep a copy of your financial data", "We touch only the one Sheet we create"]],
-    ["FaDatabase", "Prism Pulse managed database", ["No Google account needed", "Secure and managed for you", "Dedicated, isolated data store", "Switch later with a storage change request"]]];
+    ["FaDatabase", "Finday managed database", ["No Google account needed", "Secure and managed for you", "Dedicated, isolated data store", "Switch later with a storage change request"]]];
   for (let i = 0; i < 2; i++) {
     const x = 0.7 + i * 4.4; s.addShape(pres.ShapeType.roundRect, { x, y: 1.5, w: 4.1, h: 3.4, rectRadius: 0.12, fill: { color: "114E50" }, line: { color: "114E50" } });
     await circle(s, opts[i][0], x + 0.3, 1.75, 0.7, H.amber, H.deep, opts[i][1]);
@@ -177,7 +177,7 @@ async function icon(name, color) {
   [[7.5, 1.2, 2.2, "2F6F73"], [8.0, 1.7, 1.2, H.teal]].forEach(([x, y, d, c], i) => s.addShape(pres.ShapeType.ellipse, { x, y, w: d, h: d, fill: { color: c }, line: { color: c }, objectName: "pulse ring " + i }));
   s.addImage({ data: await icon("FaRocket", H.white), x: 8.25, y: 1.95, w: 0.7, h: 0.7, altText: "Rocket" });
 
-  await pres.writeFile({ fileName: "Prism_Pulse_Client_Deck.pptx" });
-  await applyTheme("Prism_Pulse_Client_Deck.pptx", THEME);
+  await pres.writeFile({ fileName: "Finday_Client_Deck.pptx" });
+  await applyTheme("Finday_Client_Deck.pptx", THEME);
   console.log("ok");
 })().catch(e => { console.error(e); process.exit(1); });

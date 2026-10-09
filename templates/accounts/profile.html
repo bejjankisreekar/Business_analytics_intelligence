@@ -7,6 +7,7 @@
      dropdown trigger ended up as narrow as its label. In these form sections
      let it fill the whole field, like the text inputs beside it. */
   [id^="section-"] .bai-select-trigger { width: 100%; }
+  #{{ user_form.username.id_for_label }}{% if org_form %}, #{{ org_form.name.id_for_label }}{% endif %} { font-family: var(--font-identity); }
 </style>
 <div class="flex items-center justify-between gap-4">
   <div>
@@ -174,7 +175,7 @@
         <p class="text-sm font-semibold text-white">Database — your own Google Sheet</p>
         <p class="mt-0.5 text-xs text-slate-500">Your data lives entirely in a Google Sheet in your own Drive — never on our servers.</p>
         {% else %}
-        <p class="text-sm font-semibold text-white">Database — Prism Pulse's own database</p>
+        <p class="text-sm font-semibold text-white">Database — Finday's own database</p>
         <p class="mt-0.5 text-xs text-slate-500">Your data lives in our managed database — no Google account needed.</p>
         {% endif %}
       </div>
@@ -202,7 +203,7 @@
     <div class="mt-3">
       {% if drive_connection and not drive_disconnected %}
       <p class="mt-1 text-xs text-slate-500">
-        Location: a "Prism Pulse Backups" folder in your Google Drive, in a sheet named "{{ request.user.organization.organization_code }} Data".
+        Location: a "Finday Backups" folder in your Google Drive, in a sheet named "{{ request.user.organization.organization_code }} Data".
         {% if drive_connection.external_file_id %}
         <a href="https://docs.google.com/spreadsheets/d/{{ drive_connection.external_file_id }}/edit" target="_blank" rel="noopener" class="text-brand-400 hover:text-brand-300">Open in Google Drive →</a>
         {% endif %}
@@ -231,7 +232,7 @@
       {% if can_switch_to_sheets %}
       <p class="mt-1 text-xs text-slate-500">Move your existing data into a Google Sheet in your own Drive. Your current database is left untouched, just no longer used.</p>
       {% elif can_switch_to_our_database %}
-      <p class="mt-1 text-xs text-slate-500">Move your existing data into Prism Pulse's own database. Your Google Sheet is left untouched, just no longer used — and Google Drive will be disconnected.</p>
+      <p class="mt-1 text-xs text-slate-500">Move your existing data into Finday's own database. Your Google Sheet is left untouched, just no longer used — and Google Drive will be disconnected.</p>
       {% endif %}
     </div>
     {% if can_switch_to_sheets %}
@@ -240,9 +241,9 @@
     </a>
     {% elif can_switch_to_our_database %}
     <form method="post" action="{% url 'accounts:switch_to_our_database' %}"
-          data-confirm="Switch to Prism Pulse's own database? Your existing data will be copied there and Google Drive will be disconnected. Your Google Sheet is kept untouched, just no longer used.">
+          data-confirm="Switch to Finday's own database? Your existing data will be copied there and Google Drive will be disconnected. Your Google Sheet is kept untouched, just no longer used.">
       {% csrf_token %}
-      <button type="submit" class="rounded-lg border border-white/20 px-4 py-2 text-sm text-slate-300 hover:border-white/40 hover:text-white transition whitespace-nowrap">Switch to Prism Pulse's own database</button>
+      <button type="submit" class="rounded-lg border border-white/20 px-4 py-2 text-sm text-slate-300 hover:border-white/40 hover:text-white transition whitespace-nowrap">Switch to Finday's own database</button>
     </form>
     {% endif %}
   </div>

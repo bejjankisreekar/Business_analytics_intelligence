@@ -47,7 +47,7 @@ if _RENDER_HOST:
     if f"https://{_RENDER_HOST}" not in CSRF_TRUSTED_ORIGINS:
         CSRF_TRUSTED_ORIGINS.append(f"https://{_RENDER_HOST}")
 
-SITE_NAME = "Prism Pulse Intelligence & Analytics"
+SITE_NAME = "Finday Intelligence"
 
 INSTALLED_APPS = [
     "django.contrib.admin",

@@ -10,8 +10,8 @@
     <div class="flex items-center gap-2.5 px-6 py-6">
       <img src="{% static 'img/logo.png' %}" alt="" class="h-11 w-11 rounded-xl object-contain">
       <span class="leading-tight">
-        <span class="block whitespace-nowrap text-[17px] font-semibold text-white">Prism Pulse</span>
-        <span class="block whitespace-nowrap text-[10px] font-semibold text-white">Intelligence &amp; Analytics</span>
+        <span class="font-logotype block whitespace-nowrap font-semibold text-white" style="font-size: 26px;">Finday</span>
+        <span class="block whitespace-nowrap text-[10px] font-semibold text-white">Intelligence</span>
       </span>
     </div>
     <nav class="space-y-5 px-4" onclick="if (event.target.closest('a')) baiNav.closeDrawer()">
@@ -113,7 +113,7 @@
     <a href="{% url 'finance:dashboard' %}" class="flex min-w-0 flex-1 items-center gap-2">
       <img src="{% static 'img/logo.png' %}" alt="" class="h-10 w-10 flex-none rounded-lg object-contain">
       <span class="min-w-0 leading-tight">
-        <span class="block truncate text-base font-semibold text-white">{{ request.user.organization.name }}</span>
+        <span class="font-identity block truncate text-base font-semibold text-white">{{ request.user.organization.name }}</span>
         <span class="block truncate font-mono text-[10px] text-slate-500">{{ request.user.organization.organization_code }}</span>
       </span>
     </a>
@@ -128,7 +128,7 @@
       </span>
       <div>
         <style>
-          .topnav-org { font-size: 1.45rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; background: linear-gradient(90deg, #ffffff 0%, #a5b8ff 55%, #6ee7b7 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; filter: drop-shadow(0 0 14px rgba(91,124,250,0.35)); }
+          .topnav-org { font-family: var(--font-identity); font-size: 1.45rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; background: linear-gradient(90deg, #ffffff 0%, #a5b8ff 55%, #6ee7b7 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; filter: drop-shadow(0 0 14px rgba(91,124,250,0.35)); }
           html[data-theme="light"] .topnav-org { background: linear-gradient(90deg, #0f172a 0%, #3a56d4 60%, #059669 100%); -webkit-background-clip: text; background-clip: text; filter: none; }
           .topnav-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
           .topnav-chip { display: inline-flex; align-items: center; padding: 0.12rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #cbd5e1; }

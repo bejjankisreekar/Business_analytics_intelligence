@@ -1,7 +1,7 @@
 # Storage Change Request Feature Implementation Guide
 
 ## Overview
-This feature allows clients to request changing their data storage from Google Drive to Prism Pulse's database (or vice versa). Superadmins must approve requests, and clients can see billing impact before submitting.
+This feature allows clients to request changing their data storage from Google Drive to Finday's database (or vice versa). Superadmins must approve requests, and clients can see billing impact before submitting.
 
 ## What's Been Created
 

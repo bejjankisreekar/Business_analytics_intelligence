@@ -54,7 +54,7 @@ class Organization(models.Model):
         # (see SheetAwareManager/SheetAwareModelMixin, which auto-scope
         # every query/save to the current request's organization when
         # no Sheets session is active). No Google account needed.
-        OUR_DATABASE = "OUR_DATABASE", "Prism Pulse's secure managed database"
+        OUR_DATABASE = "OUR_DATABASE", "Finday's secure managed database"
         # Finance data lives entirely in the org's own Google Sheet,
         # read/written live over the Sheets API via its own OAuth grant
         # (apps.sheets_store) — never written to our database. Gated
@@ -252,7 +252,7 @@ class CloudBackupConnection(models.Model):
     token_expires_at = models.DateTimeField()
 
     # The dedicated app-created folder in the client's Drive everything
-    # gets uploaded into (e.g. "Prism Pulse Backups") — never an arbitrary
+    # gets uploaded into (e.g. "Finday Backups") — never an arbitrary
     # folder of theirs, since the drive.file OAuth scope only ever lets us
     # see files/folders this app itself created.
     external_folder_id = models.CharField(max_length=128)

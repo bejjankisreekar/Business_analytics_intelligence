@@ -73,7 +73,7 @@ To complete the process, please log in to your account and navigate to the Googl
 Your existing data will be automatically migrated to a Google Sheet in your own Google Drive.
 
 Best regards,
-Prism Pulse Team
+Finday Team
 """
                 send_mail(
                     subject,
@@ -87,7 +87,7 @@ Prism Pulse Team
                 pass
 
     elif storage_request.requested_storage == Organization.StorageMode.OUR_DATABASE:
-        # Switching to Prism Pulse's database
+        # Switching to Finday's database
         organization.storage_mode = Organization.StorageMode.OUR_DATABASE
         organization.save(update_fields=['storage_mode'])
         # TODO: If switching from Google Sheets, implement data migration

@@ -175,7 +175,6 @@ class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hist
         self.fields["customer"].queryset = Customer.objects.filter(is_active=True)
         self.fields["customer"].required = False
         self.fields["quantity"].required = False
-        self.fields["quantity"].widget.attrs["placeholder"] = "Qty"
         # Both fields carry a model-level default=0 (so a fresh SalesEntry
         # created without discount info still gets a sane gross/discount) —
         # but that default becomes this form field's fallback "initial" for
@@ -289,7 +288,6 @@ class PurchaseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, H
         self.fields["subcategory"].required = False
         self.fields["subcategory"].widget.attrs["data-subcategory-for"] = "category"
         self.fields["quantity"].required = False
-        self.fields["quantity"].widget.attrs["placeholder"] = "Qty"
         self.fields["amount"].widget.attrs["placeholder"] = "0.00"
         self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
         self.fields["bank_account"].required = False

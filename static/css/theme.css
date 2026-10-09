@@ -51,8 +51,18 @@ html {
   --chart-grid-soft: rgba(255, 255, 255, 0.05);
   --chart-tick: #9aa4bd;
 
+  /* Named fonts, set once here — every org name, greeting, and brand
+     wordmark across the app references these variables instead of a
+     literal font stack, so swapping the typeface is a one-line change
+     here rather than an edit in every template that uses it. */
+  --font-identity: 'IBM Plex Sans', 'Inter', sans-serif;   /* org name, user greetings/usernames */
+  --font-logotype: 'Space Grotesk', 'Inter', sans-serif;   /* the "Finday" brand wordmark */
+
   color-scheme: dark;
 }
+
+.font-identity { font-family: var(--font-identity); }
+.font-logotype { font-family: var(--font-logotype); }
 
 html[data-theme="light"] {
   --ink-950: 244 246 250;

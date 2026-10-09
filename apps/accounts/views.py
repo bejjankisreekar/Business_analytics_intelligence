@@ -163,7 +163,7 @@ class SignupView(FormView):
         login(self.request, admin)
         messages.success(
             self.request,
-            f"Welcome to Prism Pulse Intelligence & Analytics, {org.name}! Your workspace is ready.",
+            f"Welcome to Finday Intelligence, {org.name}! Your workspace is ready.",
         )
         return redirect("finance:dashboard")
 
@@ -530,7 +530,7 @@ class SwitchToOurDatabaseView(LoginRequiredMixin, View):
             pass  # best-effort — the switch itself matters more than revocation succeeding
         connection.delete()
 
-        messages.success(request, "Switched to Prism Pulse's own database — your existing data has been copied over.")
+        messages.success(request, "Switched to Finday's own database — your existing data has been copied over.")
         return redirect("accounts:profile")
 
 

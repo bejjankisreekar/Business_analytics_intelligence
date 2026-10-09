@@ -2,7 +2,7 @@
 
 ## 🎉 What's Been Built
 
-A **production-ready storage change request system** that allows clients to migrate between Google Drive and Prism Pulse's database with superadmin approval and billing impact visibility.
+A **production-ready storage change request system** that allows clients to migrate between Google Drive and Finday's database with superadmin approval and billing impact visibility.
 
 ---
 

@@ -1,4 +1,4 @@
-{% load static %}<!DOCTYPE html>
+{% load static static_cache_bust %}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -9,16 +9,17 @@
   // theme. Kept inline (not in theme.js) since it must run synchronously,
   // before any CSS is applied.
   (function () {
-    var theme = "dark";
-    try { theme = localStorage.getItem("bai-theme") || "dark"; } catch (e) { /* storage unavailable */ }
+    var theme = "light";
+    try { theme = localStorage.getItem("bai-theme") || "light"; } catch (e) { /* storage unavailable */ }
     document.documentElement.setAttribute("data-theme", theme);
     document.documentElement.style.colorScheme = theme === "light" ? "light" : "dark";
   })();
 </script>
-<link rel="stylesheet" href="{% static 'css/theme.css' %}">
+{# static_v (not static): appends the file's mtime so edits to theme.css are never served stale from the browser cache — same reasoning as tailwind.css below. #}
+<link rel="stylesheet" href="{% static_v 'css/theme.css' %}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="{% static 'img/logo.png' %}" type="image/png">
 <style>
   body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
@@ -158,7 +159,8 @@
 <script src="{% static 'js/theme.js' %}"></script>
 {% block extra_head %}{% endblock %}
 {# Pre-built Tailwind (replaces the Play CDN). Rebuild: npm run build:css. Kept last in <head> so utilities cascade after the page styles above, as the CDN's injected <style> did. #}
-<link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+{# static_v (not static): appends the file's mtime so a rebuilt tailwind.css is never served stale from the browser cache. #}
+<link rel="stylesheet" href="{% static_v 'css/tailwind.css' %}">
 <!-- Custom scrollbars (see the init script near the end of <body>): Chrome's
      native "overlay scrollbar" feature hides the real scrollbar until hover/
      scroll and ignores page-level ::-webkit-scrollbar styling entirely —

@@ -19,14 +19,14 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='organization',
             name='storage_mode',
-            field=models.CharField(choices=[('OUR_DATABASE', "Prism Pulse's secure managed database"), ('GOOGLE_SHEETS', 'Your own Google Drive')], default='GOOGLE_SHEETS', max_length=20),
+            field=models.CharField(choices=[('OUR_DATABASE', "Finday's secure managed database"), ('GOOGLE_SHEETS', 'Your own Google Drive')], default='GOOGLE_SHEETS', max_length=20),
         ),
         migrations.CreateModel(
             name='DataStorageChangeRequest',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('current_storage', models.CharField(choices=[('OUR_DATABASE', "Prism Pulse's secure managed database"), ('GOOGLE_SHEETS', 'Your own Google Drive')], max_length=20)),
-                ('requested_storage', models.CharField(choices=[('OUR_DATABASE', "Prism Pulse's secure managed database"), ('GOOGLE_SHEETS', 'Your own Google Drive')], max_length=20)),
+                ('current_storage', models.CharField(choices=[('OUR_DATABASE', "Finday's secure managed database"), ('GOOGLE_SHEETS', 'Your own Google Drive')], max_length=20)),
+                ('requested_storage', models.CharField(choices=[('OUR_DATABASE', "Finday's secure managed database"), ('GOOGLE_SHEETS', 'Your own Google Drive')], max_length=20)),
                 ('current_monthly_price', models.DecimalField(decimal_places=2, default=0, max_digits=10)),
                 ('requested_monthly_price', models.DecimalField(decimal_places=2, default=0, max_digits=10)),
                 ('price_difference', models.DecimalField(decimal_places=2, default=0, max_digits=10)),
