@@ -411,6 +411,20 @@ class GoogleDriveOAuthCallbackView(LoginRequiredMixin, View):
         redirect_uri = request.build_absolute_uri(reverse("accounts:drive_oauth_callback"))
         try:
             tokens = drive.exchange_code_for_tokens(code=request.GET.get("code", ""), redirect_uri=redirect_uri)
+        except drive.GoogleDriveScopeDeclinedError:
+            # They reached Google's consent screen but unchecked the
+            # Drive permission box. Route through profile (same as the
+            # error case below) rather than straight back into Google,
+            # so this message actually renders before they retry — for
+            # a brand-new org the tenant gate bounces this to
+            # connect_database_gate.html, which has its own "Connect
+            # Google Drive" button.
+            messages.warning(
+                request,
+                "To finish connecting, please check the box allowing Google Drive access — "
+                "we need it to create your private backup folder. Let's try again.",
+            )
+            return redirect("accounts:profile")
         except drive.GoogleDriveError as exc:
             messages.error(request, str(exc))
             return redirect("accounts:profile")

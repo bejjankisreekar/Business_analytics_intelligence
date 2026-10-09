@@ -33,6 +33,13 @@ class GoogleDriveError(RuntimeError):
     pass
 
 
+class GoogleDriveScopeDeclinedError(GoogleDriveError):
+    """The token exchange succeeded but the granted scope is missing
+    drive.file — the client unchecked Drive access on Google's consent
+    screen. Distinct from GoogleDriveError so the callback view can send
+    them back to reconsent instead of surfacing a raw Drive API error."""
+
+
 def _request(method: str, url: str, *, error: str, **kwargs) -> requests.Response:
     """requests.request, but a connection-level failure (SSL error, DNS
     blip, timeout, proxy interference) raises GoogleDriveError instead of
@@ -87,6 +94,14 @@ def exchange_code_for_tokens(*, code: str, redirect_uri: str) -> dict:
         raise GoogleDriveError(
             "Google didn't return a refresh token — please disconnect any prior access at "
             "myaccount.google.com/permissions and try connecting again."
+        )
+    # Google lets the client uncheck individual permissions on the
+    # consent screen, so the token it hands back can carry a narrower
+    # scope than what we asked for — catch that here, before any Drive
+    # call runs, rather than letting it surface as a raw 403 later.
+    if "https://www.googleapis.com/auth/drive.file" not in data.get("scope", "").split():
+        raise GoogleDriveScopeDeclinedError(
+            "Google Drive access wasn't granted — please check the Drive permission box to continue."
         )
     return data
 

@@ -96,8 +96,11 @@
   .bai-select-wrap.sel-wide { min-width: 22rem; }
   @media (max-width: 480px) { .bai-select-wrap.sel-wide { min-width: 0; width: 100% !important; } }
   .bai-select-wrap.sel-wide .bai-select-trigger { width: 100%; padding: 0.65rem 0.9rem; font-size: 0.9rem; }
-  .bai-select-wrap.sel-wide .bai-select-panel { max-height: 26rem; }
-  .bai-select-wrap.sel-wide .bai-select-option { padding: 0.65rem 1rem; font-size: 0.9rem; }
+  /* `.bai-select-panel` is appended to <body>, not inside `.bai-select-wrap`
+     (see enhanceSelect), so its own "sel-wide" class drives this directly
+     rather than a wrap->panel descendant selector. */
+  .bai-select-panel.sel-wide { max-height: 26rem; }
+  .bai-select-panel.sel-wide .bai-select-option { padding: 0.65rem 1rem; font-size: 0.9rem; }
   /* Long emails/URLs/IDs in label-value grids wrap instead of widening the page. */
   dl > div { min-width: 0; }
   dt, dd { overflow-wrap: anywhere; }
@@ -477,9 +480,16 @@
       wrap.appendChild(trigger);
 
       const panel = document.createElement("div");
-      panel.className = "bai-select-panel hidden";
+      panel.className = "bai-select-panel hidden" + (select.classList.contains("sel-wide") ? " sel-wide" : "");
       panel.setAttribute("role", "listbox");
-      wrap.appendChild(panel);
+      // Appended to <body>, not `wrap`: this select can sit inside a
+      // horizontally-scrollable table (bulk entry) or other container, and
+      // on some machines/zoom levels that ancestor ends up establishing a
+      // containing block for `position: fixed` (e.g. the OverlayScrollbars
+      // wrapper), which would clip or misposition the panel instead of
+      // letting it float over the page. A direct <body> child is immune to
+      // whatever its trigger's ancestors do.
+      document.body.appendChild(panel);
 
       const labelEl = trigger.querySelector(".bai-select-trigger-label");
 
@@ -572,7 +582,7 @@
         }
       });
       document.addEventListener("click", (e) => {
-        if (!wrap.contains(e.target)) closePanel();
+        if (!wrap.contains(e.target) && !panel.contains(e.target)) closePanel();
       });
 
       select.addEventListener("change", syncLabel);
