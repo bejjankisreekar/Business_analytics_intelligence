@@ -144,19 +144,23 @@ class SheetSession:
                 still_missing.append(tab)
         if not still_missing:
             return
+        ranges = [f"{tab}!A1:ZZ100000" for tab in still_missing]
         try:
-            results = client.batch_get_values(
-                self.access_token,
-                spreadsheet_id=self.spreadsheet_id,
-                a1_ranges=[f"{tab}!A1:ZZ100000" for tab in still_missing],
-            )
+            results = client.batch_get_values(self.access_token, spreadsheet_id=self.spreadsheet_id, a1_ranges=ranges)
         except client.SheetsAPIError:
-            # One tab missing from the spreadsheet (e.g. a model added after
-            # the sheet was provisioned — see sync_sheet_tabs) fails the whole
-            # batch. Don't take every request down with it: skip the prefetch
-            # and let each tab load on its own when a page actually uses it.
-            logger.exception("Sheets prefetch failed; falling back to per-tab loads")
-            return
+            # One tab missing from the spreadsheet (a model added after the
+            # sheet was provisioned) fails the whole batch. Create the missing
+            # tabs and retry once; if that still fails, skip the prefetch so
+            # each tab loads on its own when a page actually uses it.
+            from .provisioning import add_missing_tabs
+
+            try:
+                added = add_missing_tabs(self.access_token, self.spreadsheet_id)
+                results = client.batch_get_values(self.access_token, spreadsheet_id=self.spreadsheet_id, a1_ranges=ranges)
+            except client.SheetsAPIError:
+                logger.exception("Sheets prefetch failed; falling back to per-tab loads")
+                return
+            logger.warning("Added missing Sheets tabs for spreadsheet %s: %s", self.spreadsheet_id, added)
         for tab, rows in zip(still_missing, results):
             self._raw_rows[tab] = rows
             cache.set(self._cache_key(tab), rows, _CACHE_TTL_SECONDS)

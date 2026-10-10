@@ -31,6 +31,22 @@ def _header_row(model) -> list:
     return [field.verbose_name.title() for field in store.sheet_fields(model)]
 
 
+def add_missing_tabs(access_token: str, spreadsheet_id: str) -> list[str]:
+    """Adds a tab (with its header row) for every finance model that doesn't
+    have one yet in an existing spreadsheet — for models added after the sheet
+    was first provisioned. Returns the names of the tabs it added; safe to call
+    repeatedly."""
+    models = tenant_models()
+    existing = set(client.get_sheet_ids(access_token, spreadsheet_id=spreadsheet_id))
+    missing = [m for m in models if m.__name__ not in existing]
+    if not missing:
+        return []
+    client.add_sheet_tabs(access_token, spreadsheet_id=spreadsheet_id, titles=[m.__name__ for m in missing])
+    header_data = [{"range": f"{m.__name__}!A1", "values": [_header_row(m)]} for m in missing]
+    client.batch_update_values(access_token, spreadsheet_id=spreadsheet_id, data=header_data)
+    return [m.__name__ for m in missing]
+
+
 def provision_sheet_tenant(org, *, access_token: str, folder_id: str) -> str:
     """Creates the spreadsheet (one tab per finance model, header row
     only), seeds default categories + FinanceSettings as real rows, and
