@@ -25,12 +25,15 @@ cleared in `finally`.
 from __future__ import annotations
 
 import contextlib
+import logging
 import threading
 import uuid
 
 from django.core.cache import cache
 
 from . import client
+
+logger = logging.getLogger(__name__)
 
 _local = threading.local()
 
@@ -141,11 +144,19 @@ class SheetSession:
                 still_missing.append(tab)
         if not still_missing:
             return
-        results = client.batch_get_values(
-            self.access_token,
-            spreadsheet_id=self.spreadsheet_id,
-            a1_ranges=[f"{tab}!A1:ZZ100000" for tab in still_missing],
-        )
+        try:
+            results = client.batch_get_values(
+                self.access_token,
+                spreadsheet_id=self.spreadsheet_id,
+                a1_ranges=[f"{tab}!A1:ZZ100000" for tab in still_missing],
+            )
+        except client.SheetsAPIError:
+            # One tab missing from the spreadsheet (e.g. a model added after
+            # the sheet was provisioned — see sync_sheet_tabs) fails the whole
+            # batch. Don't take every request down with it: skip the prefetch
+            # and let each tab load on its own when a page actually uses it.
+            logger.exception("Sheets prefetch failed; falling back to per-tab loads")
+            return
         for tab, rows in zip(still_missing, results):
             self._raw_rows[tab] = rows
             cache.set(self._cache_key(tab), rows, _CACHE_TTL_SECONDS)
