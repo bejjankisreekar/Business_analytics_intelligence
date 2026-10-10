@@ -1863,16 +1863,21 @@ class ReportLineDetailView(TenantLoginRequiredMixin, View):
         elif gst_rate:
             qs = qs.filter(**{f"{field}__gst_rate": gst_rate})
 
-        qs = qs.select_related(field, "subcategory").order_by("-date", "-created_at")
+        qs = qs.select_related(field, "subcategory", "subcategory__parent").order_by("-date", "-created_at")
         total_count = qs.count()
         total = qs.aggregate(t=Sum("amount"))["t"] or services.ZERO
 
         entries = []
         for e in qs[: self.MAX_ENTRIES]:
             top = getattr(e, field)
+            subcategory = None
+            if e.subcategory_id:
+                sc = e.subcategory
+                subcategory = f"{sc.parent.name} → {sc.name}" if sc.parent_id else sc.name
             entries.append({
                 "date": e.date.isoformat(),
-                "name": e.subcategory.name if e.subcategory_id else (top.name if top else "Uncategorized"),
+                "category": top.name if top else "Uncategorized",
+                "subcategory": subcategory,
                 "note": e.note,
                 "amount": e.amount,
             })

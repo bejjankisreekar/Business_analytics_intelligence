@@ -10,6 +10,44 @@
   .rpt-row:hover td:first-child { color: #cbd5e1; }
   html[data-theme="light"] .rpt-row:hover { background: rgba(67,97,238,0.08); }
   html[data-theme="light"] .rpt-row:hover td:first-child { color: #1e293b; }
+
+  /* Spreadsheet-style line-detail table (same look as Daily Performance's day drill-down) */
+  .rld-table-wrap { overflow-x: auto; border: 1px solid rgb(var(--tint-rgb) / .12); border-radius: .65rem; }
+  .rld-table { width: 100%; min-width: 30rem; border-collapse: collapse; font-size: .8rem; }
+  .rld-table th {
+    position: sticky; top: 0; z-index: 1; background: rgb(var(--tint-rgb) / .07);
+    text-align: left; font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    color: rgb(var(--slate-500)); padding: .55rem .7rem; border-bottom: 1px solid rgb(var(--tint-rgb) / .14);
+    white-space: nowrap;
+  }
+  .rld-table th.rld-col-amount, .rld-table td.rld-col-amount { text-align: right; }
+  .rld-table td {
+    padding: .48rem .7rem; border-bottom: 1px solid rgb(var(--tint-rgb) / .06); border-right: 1px solid rgb(var(--tint-rgb) / .05);
+    color: rgb(var(--fg-strong)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem;
+  }
+  .rld-table td:last-child, .rld-table th:last-child { border-right: 0; }
+  .rld-table tbody tr:last-child td { border-bottom: 0; }
+  .rld-table tbody tr:nth-child(even) td { background: rgb(var(--tint-rgb) / .025); }
+  .rld-table tbody tr:hover td { background: rgb(var(--tint-rgb) / .06); }
+  .rld-table td.rld-col-amount { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .rld-table td.rld-col-muted { color: rgb(var(--slate-500)); }
+  .rld-table tfoot td { padding: .55rem .7rem; font-weight: 700; font-variant-numeric: tabular-nums; border-top: 2px solid rgb(var(--tint-rgb) / .14); background: rgb(var(--tint-rgb) / .045); color: rgb(var(--fg-strong)); }
+
+  /* Below ~480px the spreadsheet table gets too cramped — swap it for stacked rows */
+  .rld-rows { display: none; }
+  @media (max-width: 480px) {
+    .rld-table-wrap { display: none; }
+    .rld-rows { display: block; }
+  }
+  .rld-mrow { padding: .7rem 0; border-bottom: 1px solid rgb(var(--tint-rgb) / .06); }
+  .rld-mrow:last-child { border-bottom: 0; }
+  .rld-mrow-top { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; }
+  .rld-mrow-title { font-size: .86rem; font-weight: 600; color: rgb(var(--fg-strong)); }
+  .rld-mrow-amount { flex-shrink: 0; font-size: .86rem; font-weight: 700; font-variant-numeric: tabular-nums; color: rgb(var(--fg-strong)); white-space: nowrap; }
+  .rld-mrow-sub { margin-top: 4px; font-size: .76rem; color: rgb(var(--slate-500)); }
+  .rld-mrow-note { margin-top: 3px; font-size: .76rem; line-height: 1.4; color: rgb(var(--slate-500)); }
+  .rld-mrow-total { padding-top: .8rem; margin-top: .2rem; border-top: 2px solid rgb(var(--tint-rgb) / .14); border-bottom: 0; }
+  .rld-mrow-total .rld-mrow-title, .rld-mrow-total .rld-mrow-amount { font-weight: 700; }
 </style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
@@ -245,7 +283,7 @@
 
 <!-- Line-item drill-down: what makes up a clicked row's amount -->
 <div id="line-detail-modal" class="modal-overlay fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="line-detail-title" onclick="if (event.target === this) bai.closeModal('line-detail-modal')">
-  <div class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-900 shadow-2xl">
+  <div class="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-900 shadow-2xl" style="width:960px; max-width:95vw;">
     <div class="flex items-start justify-between gap-4 border-b border-white/5 p-5">
       <div class="min-w-0">
         <h3 id="line-detail-title" class="truncate text-base font-semibold text-white"></h3>
@@ -259,17 +297,27 @@
       <p id="line-detail-loading" class="py-10 text-center text-sm text-slate-500">Loading…</p>
       <p id="line-detail-empty" class="hidden py-10 text-center text-sm text-slate-500">Nothing recorded for this line in this period.</p>
       <div id="line-detail-table-wrap" class="hidden">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              <th class="pb-2 pr-3">Date</th>
-              <th class="pb-2 pr-3">Category</th>
-              <th class="pb-2 pr-3">Note</th>
-              <th class="pb-2 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody id="line-detail-tbody"></tbody>
-        </table>
+        <div class="rld-table-wrap">
+          <table class="rld-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Subcategory</th>
+                <th>Note</th>
+                <th class="rld-col-amount">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="line-detail-tbody"></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4">Total</td>
+                <td id="line-detail-total" class="rld-col-amount"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div id="line-detail-rows" class="rld-rows"></div>
         <p id="line-detail-truncated" class="mt-3 hidden text-xs text-amber-300">Showing the first 300 entries — narrow the period to see the rest.</p>
       </div>
     </div>
@@ -383,13 +431,33 @@
           document.getElementById("line-detail-empty").classList.remove("hidden");
           return;
         }
+        const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
         document.getElementById("line-detail-tbody").innerHTML = data.entries.map((e) => `
-          <tr class="border-b border-white/5">
-            <td class="py-2 pr-3 whitespace-nowrap text-slate-400">${new Date(e.date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
-            <td class="py-2 pr-3 text-slate-200">${bai.escapeHtml(e.name)}</td>
-            <td class="py-2 pr-3 max-w-[14rem] truncate text-slate-500">${bai.escapeHtml(e.note) || "—"}</td>
-            <td class="py-2 text-right font-medium text-white">${bai.fmtAmount(e.amount)}</td>
+          <tr>
+            <td>${fmtDate(e.date)}</td>
+            <td>${bai.escapeHtml(e.category)}</td>
+            <td class="rld-col-muted">${e.subcategory ? bai.escapeHtml(e.subcategory) : "—"}</td>
+            <td class="rld-col-muted">${e.note ? bai.escapeHtml(e.note) : "—"}</td>
+            <td class="rld-col-amount">${bai.fmtAmount(e.amount)}</td>
           </tr>`).join("");
+        document.getElementById("line-detail-total").textContent = bai.fmtAmount(data.total || 0);
+
+        document.getElementById("line-detail-rows").innerHTML = data.entries.map((e) => `
+          <div class="rld-mrow">
+            <div class="rld-mrow-top">
+              <span class="rld-mrow-title">${bai.escapeHtml(e.category)}</span>
+              <span class="rld-mrow-amount">{{ organization.currency }} ${bai.fmtAmount(e.amount)}</span>
+            </div>
+            <div class="rld-mrow-sub">${fmtDate(e.date)}${e.subcategory ? " · " + bai.escapeHtml(e.subcategory) : ""}</div>
+            ${e.note ? `<div class="rld-mrow-note">${bai.escapeHtml(e.note)}</div>` : ""}
+          </div>`).join("") + `
+          <div class="rld-mrow rld-mrow-total">
+            <div class="rld-mrow-top">
+              <span class="rld-mrow-title">Total</span>
+              <span class="rld-mrow-amount">{{ organization.currency }} ${bai.fmtAmount(data.total || 0)}</span>
+            </div>
+          </div>`;
+
         document.getElementById("line-detail-truncated").classList.toggle("hidden", !data.truncated);
         document.getElementById("line-detail-table-wrap").classList.remove("hidden");
       })
