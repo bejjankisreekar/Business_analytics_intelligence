@@ -54,7 +54,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     # Personal details — collected from the Profile page after signup, not
     # during signup itself, to keep the signup form minimal.
     phone = models.CharField(max_length=20, blank=True)
-    designation = models.CharField("Job title", max_length=100, blank=True)
+    designation = models.CharField("Role", max_length=100, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
 
     # Emergency contact — a person to reach if this user can't be, separate

@@ -13,27 +13,27 @@ the Qty column, from Settings -> Entry Column Names.
     <p class="min-w-0 truncate font-medium text-slate-200">{{ sub.name }}{% if sub.units %} <span class="text-slate-600">-</span> <span class="text-[11px] font-normal text-slate-500">{{ sub.units }} {{ qty_label }}</span>{% endif %}</p>
     <p class="shrink-0 pr-12 font-semibold text-slate-200">{{ sub.total|floatformat:2|intcomma }}</p>
   </div>
-  {% for e in sub.entries %}
+  {% for e in sub.lines %}
   <div class="flex items-center justify-between gap-3 py-1.5 pl-5 text-sm">
     <div class="min-w-0 text-slate-400">
       <span class="text-slate-300">{{ e.subcategory.name }}</span>
       {% if e.quantity %}<span class="text-slate-600"> -</span> <span class="text-[11px] text-slate-500">{{ e.quantity }} {{ qty_label }}</span>{% endif %}
       {% if e.vendor %}<span class="text-slate-600"> · {{ e.vendor }}</span>{% endif %}
       {% if e.note %}<span class="text-slate-600"> · {{ e.note }}</span>{% endif %}
-      <span class="ml-1.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">{{ e.get_payment_mode_display }}{% if e.bank_account %} · {{ e.bank_account.name }}{% endif %}</span>
+      <span class="ml-1.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">{{ e.payment_label }}{% if e.bank_account %} · {{ e.bank_account.name }}{% endif %}</span>
     </div>
     <div class="shrink-0 pr-12 font-medium text-slate-200">{{ e.amount|floatformat:2|intcomma }}</div>
   </div>
   {% endfor %}
   {% else %}
-  {% for e in sub.entries %}
+  {% for e in sub.lines %}
   <div class="flex items-center justify-between gap-3 py-1.5 text-sm">
     <div class="min-w-0 text-slate-400">
       <span class="text-slate-300">{% if e.subcategory %}{{ e.subcategory.name }}{% else %}—{% endif %}</span>
       {% if e.quantity %}<span class="text-slate-600"> -</span> <span class="text-[11px] text-slate-500">{{ e.quantity }} {{ qty_label }}</span>{% endif %}
       {% if e.vendor %}<span class="text-slate-600"> · {{ e.vendor }}</span>{% endif %}
       {% if e.note %}<span class="text-slate-600"> · {{ e.note }}</span>{% endif %}
-      <span class="ml-1.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">{{ e.get_payment_mode_display }}{% if e.bank_account %} · {{ e.bank_account.name }}{% endif %}</span>
+      <span class="ml-1.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">{{ e.payment_label }}{% if e.bank_account %} · {{ e.bank_account.name }}{% endif %}</span>
     </div>
     <div class="shrink-0 pr-12 font-medium text-slate-200">{{ e.amount|floatformat:2|intcomma }}</div>
   </div>

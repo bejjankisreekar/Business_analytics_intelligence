@@ -21,6 +21,7 @@ mode a given org is in.
 """
 import datetime
 import uuid
+from decimal import Decimal
 
 from django.db import models
 
@@ -245,6 +246,10 @@ class SalesEntry(SheetAwareModelMixin, models.Model):
     note = models.CharField(max_length=255, blank=True)
     created_by_email = models.CharField(max_length=254, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    kickback_bill = models.ForeignKey(
+        "KickbackEntry", on_delete=models.SET_NULL, null=True, blank=True, related_name="received_sales",
+        help_text="The kickback bill this receipt relates to (optional)",
+    )
 
     class Meta:
         base_manager_name = "objects"
@@ -270,7 +275,18 @@ class SalesEntry(SheetAwareModelMixin, models.Model):
             self.amount = self.gross_amount - self.discount
         elif self.amount:
             self.gross_amount = self.amount
+        previous_bill_id = None
+        if self.pk:
+            previous = SalesEntry.objects.filter(pk=self.pk).first()
+            previous_bill_id = previous.kickback_bill_id if previous else None
         super().save(*args, **kwargs)
+        for bill_id in {previous_bill_id, self.kickback_bill_id}:
+            sync_kickback_received(bill_id)
+
+    def delete(self, *args, **kwargs):
+        bill_id = self.kickback_bill_id
+        super().delete(*args, **kwargs)
+        sync_kickback_received(bill_id)
 
 
 class ExpenseEntry(SheetAwareModelMixin, models.Model):
@@ -293,6 +309,14 @@ class ExpenseEntry(SheetAwareModelMixin, models.Model):
     note = models.CharField(max_length=255, blank=True)
     created_by_email = models.CharField(max_length=254, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    paid_to_ledger = models.ForeignKey(
+        "GeneralLedger", on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_payments",
+        help_text="The general ledger this payment went to (optional)",
+    )
+    kickback_bill = models.ForeignKey(
+        "KickbackEntry", on_delete=models.SET_NULL, null=True, blank=True, related_name="expenses",
+        help_text="The kickback bill this payment relates to (optional)",
+    )
 
     class Meta:
         base_manager_name = "objects"
@@ -301,6 +325,33 @@ class ExpenseEntry(SheetAwareModelMixin, models.Model):
 
     def __str__(self) -> str:
         return f"Expense {self.date} — {self.amount}"
+
+    def save(self, *args, **kwargs):
+        previous_bill_id = None
+        if self.pk:
+            previous = ExpenseEntry.objects.filter(pk=self.pk).first()
+            previous_bill_id = previous.kickback_bill_id if previous else None
+        super().save(*args, **kwargs)
+        for bill_id in {previous_bill_id, self.kickback_bill_id}:
+            sync_kickback_total(bill_id)
+
+    def delete(self, *args, **kwargs):
+        bill_id = self.kickback_bill_id
+        super().delete(*args, **kwargs)
+        sync_kickback_total(bill_id)
+
+
+def sync_kickback_total(bill_id) -> None:
+    """A bill's kickback is whatever the Daily Book expenses linked to it add up to."""
+    if not bill_id:
+        return
+    bill = KickbackEntry.objects.filter(pk=bill_id).first()
+    if bill is None:
+        return
+    total = sum((e.amount for e in ExpenseEntry.objects.filter(kickback_bill_id=bill_id)), Decimal("0"))
+    if bill.kickback_amount != total:
+        bill.kickback_amount = total
+        bill.save()
 
 
 class PurchaseEntry(SheetAwareModelMixin, models.Model):
@@ -558,6 +609,13 @@ class FinanceSettings(SheetAwareModelMixin, models.Model):
     # organization's own bulk-entry column names. Kept as text (not
     # JSONField) so the Sheets store can round-trip it; blank = defaults.
     bulk_column_labels = models.TextField(blank=True, default="")
+    kickback_column_labels = models.TextField(blank=True, default="")
+    # The category whose sub-categories and items are the hospital's
+    # consulting doctors — the Kickbacks "Consulting doctor" dropdown reads it.
+    kickback_doctor_category = models.ForeignKey(
+        Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        help_text="Category whose sub-categories and items are the consulting doctors",
+    )
 
     class Meta:
         base_manager_name = "objects"
@@ -566,3 +624,121 @@ class FinanceSettings(SheetAwareModelMixin, models.Model):
 
     def __str__(self) -> str:
         return f"Finance settings (FY starts month {self.fy_start_month})"
+
+
+class KickbackEntry(SheetAwareModelMixin, models.Model):
+    """One hospital bill tracked for the commission/kickback paid out
+    against it — a Business/Business Drive plan exclusive (see
+    finance:kickbacks). `net_amount` is always derived from
+    final_amount - kickback_amount, the same pattern SalesEntry uses
+    for its own derived `amount`.
+    """
+
+    objects = SheetAwareManager()
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    bill_number = models.CharField(max_length=50)
+    admission_date = models.DateField()
+    discharge_date = models.DateField(null=True, blank=True)
+    amount_received = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    ref_date = models.DateField("Ref date", null=True, blank=True, help_text="Date the amount was paid")
+    consulting_doctor = models.CharField("Consulting doctor", max_length=150, blank=True)
+    consulting_doctor_item = models.ForeignKey(
+        Subcategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="kickback_bills",
+        help_text="The hospital doctor, picked from the doctors' category set in Finance Settings (optional)",
+    )
+    # Every referrer on the bill, as one comma-separated list of names (a bill
+    # can have more than one). Kept as text so Sheets-backed orgs round-trip it.
+    referred_by = models.CharField(max_length=500, blank=True)
+    final_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    kickback_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    net_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_by_email = models.CharField(max_length=254, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    patient_name = models.CharField(max_length=150, blank=True)
+    patient_address = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        base_manager_name = "objects"
+        ordering = ["-admission_date", "-created_at"]
+        indexes = [models.Index(fields=["admission_date"])]
+        verbose_name = "Kickback entry"
+
+    def __str__(self) -> str:
+        return f"Bill {self.bill_number} — {self.final_amount}"
+
+    def save(self, *args, **kwargs):
+        self.net_amount = self.final_amount - self.kickback_amount
+        super().save(*args, **kwargs)
+
+
+def sync_kickback_received(bill_id) -> None:
+    """A bill's received total and last paid date come only from the Daily Book
+    revenue entries linked to it. The Final bill is entered by hand."""
+    if not bill_id:
+        return
+    bill = KickbackEntry.objects.filter(pk=bill_id).first()
+    if bill is None:
+        return
+    sales = list(SalesEntry.objects.filter(kickback_bill_id=bill_id))
+    received = sum((s.amount for s in sales), Decimal("0"))
+    latest = max((s.date for s in sales), default=None)
+    if bill.amount_received != received or bill.ref_date != latest:
+        bill.amount_received = received
+        bill.ref_date = latest
+        bill.save()
+
+
+class GeneralLedger(SheetAwareModelMixin, models.Model):
+    """A free-standing ledger for any account the business wants to track
+    on its own — not tied to a customer, vendor, cash or bank. Balance is
+    opening_balance + sum(debit) - sum(credit) over its LedgerEntry rows."""
+
+    objects = SheetAwareManager()
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    name = models.CharField(max_length=150)
+    opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    opening_date = models.DateField(default=datetime.date.today)
+    profession = models.CharField(max_length=100, blank=True)
+    village = models.CharField(max_length=100, blank=True)
+    mandal = models.CharField(max_length=100, blank=True)
+    district = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    note = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        base_manager_name = "objects"
+        ordering = ["name"]
+        verbose_name = "General ledger"
+
+    def __str__(self) -> str:
+        return self.name
+
+    @property
+    def address(self) -> str:
+        return ", ".join(part for part in (self.village, self.mandal, self.district, self.state) if part)
+
+
+class LedgerEntry(SheetAwareModelMixin, models.Model):
+    objects = SheetAwareManager()
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    ledger = models.ForeignKey(GeneralLedger, on_delete=models.CASCADE, related_name="entries")
+    date = models.DateField(db_index=True)
+    particular = models.CharField(max_length=255, blank=True)
+    debit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    credit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        base_manager_name = "objects"
+        ordering = ["date", "created_at"]
+        verbose_name = "Ledger entry"
+
+    def __str__(self) -> str:
+        return f"{self.ledger} {self.date} — Dr {self.debit} / Cr {self.credit}"

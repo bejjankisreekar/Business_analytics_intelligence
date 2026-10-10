@@ -25,18 +25,18 @@
 
 <form method="get" class="card mt-4 flex flex-wrap items-end gap-3 p-4">
   <input type="hidden" name="kind" value="{{ kind }}">
-  <div>
+  <div class="cs-field">
     <label for="cs-category" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Category</label>
-    <select id="cs-category" name="category" data-plain class="!mt-1">
+    <select id="cs-category" name="category" data-searchable class="!mt-1">
       <option value="">— Select category —</option>
       {% for c in categories %}
       <option value="{{ c.id }}" {% if c.id|stringformat:"s" == category_id %}selected{% endif %}>{{ c.name }}</option>
       {% endfor %}
     </select>
   </div>
-  <div>
+  <div class="cs-field">
     <label for="cs-subcategory" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Sub-category / Item</label>
-    <select id="cs-subcategory" name="subcategory" data-plain data-initial="{{ subcategory_id }}" class="!mt-1"></select>
+    <select id="cs-subcategory" name="subcategory" data-searchable data-initial="{{ subcategory_id }}" class="!mt-1"></select>
   </div>
   <div>
     <label for="cs-from" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
@@ -89,18 +89,18 @@
   <table class="w-full text-left text-sm">
     <thead>
       <tr class="text-[11px] uppercase tracking-wide text-slate-500">
-        <th class="pb-2 pr-4 font-medium">Date</th>
-        <th class="pb-2 pr-4 font-medium">Sub-category</th>
-        <th class="pb-2 pr-4 font-medium">Item</th>
-        <th class="pb-2 pr-4 font-medium">{% if kind == 'purchases' %}Vendor{% else %}Customer{% endif %}</th>
-        <th class="pb-2 pr-4 text-right font-medium">Qty</th>
+        <th class="pb-2 pr-4 font-medium">{{ labels.date }}</th>
+        <th class="pb-2 pr-4 font-medium">{{ labels.subcategory }}</th>
+        <th class="pb-2 pr-4 font-medium">{{ labels.item }}</th>
+        <th class="pb-2 pr-4 font-medium">{{ labels.party }}</th>
+        <th class="pb-2 pr-4 text-right font-medium">{{ labels.qty }}</th>
         {% if kind == "sales" %}
-        <th class="pb-2 pr-4 text-right font-medium">Gross</th>
-        <th class="pb-2 pr-4 text-right font-medium">Discount</th>
+        <th class="pb-2 pr-4 text-right font-medium">{{ labels.gross }}</th>
+        <th class="pb-2 pr-4 text-right font-medium">{{ labels.discount }}</th>
         {% endif %}
-        <th class="pb-2 pr-4 text-right font-medium">{% if kind == 'sales' %}Net{% else %}Amount{% endif %}</th>
-        <th class="pb-2 pr-4 font-medium">Via</th>
-        <th class="pb-2 font-medium">Note</th>
+        <th class="pb-2 pr-4 text-right font-medium">{{ labels.amount }}</th>
+        <th class="pb-2 pr-4 font-medium">{{ labels.via }}</th>
+        <th class="pb-2 font-medium">{{ labels.note }}</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-white/5">
@@ -179,14 +179,17 @@
   .report-tab--active { color: #fff; border-color: #5b7cfa; background: rgba(91,124,250,0.1); }
   .report-tab--active:hover { color: #fff; }
 
-  /* #cs-category/#cs-subcategory stay data-plain (JS rebuilds their options
-     directly, which the bai-select-trigger enhancer doesn't support) — but
-     that leaves them as bare <select> elements, and Tailwind's preflight
-     reset (padding:0 on all form controls) loads after _app_base.html's own
-     shared `select { padding:... }` rule, winning the tie and leaving these
-     two flat and unstyled next to the date inputs. Re-asserting the exact
-     same look here, at higher specificity, is simpler than fighting load
-     order. */
+  /* The Category and Sub-category fields are wide enough to read a full name,
+     and their dropdowns fill the field at the same height as the date inputs
+     beside them — for every report kind and organization. */
+  .cs-field { flex: 1 1 15rem; min-width: 15rem; }
+  .cs-field .bai-select-wrap { display: block; width: 100%; }
+  .cs-field .bai-select-trigger { width: 100%; height: 2.5rem; box-sizing: border-box; }
+
+  /* #cs-category/#cs-subcategory are searchable dropdowns: the enhancer
+     hides the native <select> and draws its own trigger, so this rule styles
+     the hidden select only. Re-asserting the look at higher specificity keeps
+     load order from flattening the select. */
   #cs-category, #cs-subcategory {
     appearance: none; -webkit-appearance: none; -moz-appearance: none;
     width: 100%; margin-top: 0.3rem; border-radius: 0.6rem;

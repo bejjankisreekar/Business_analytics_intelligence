@@ -751,7 +751,7 @@ class BulkEntrySheetsBatchingTests(SheetsBackedTestCase):
     small, fixed number of times regardless of how many rows are being
     saved -- not once per row, which is what made saving a page of rows
     feel like it hung (see SheetSession.batch_writes, wired into
-    _save_bulk_formset/_save_purchase_formset in apps.finance.views)."""
+    _save_bulk_formset in apps.finance.views)."""
 
     def setUp(self):
         super().setUp()

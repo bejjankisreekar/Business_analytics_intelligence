@@ -83,6 +83,10 @@
     </div>
     {% for error in org_form.non_field_errors %}<p class="mt-2 text-xs text-red-400">{{ error }}</p>{% endfor %}
     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <label class="block text-xs font-medium text-slate-400">Organization ID (provided by Finday)</label>
+        <p class="mt-1 text-sm text-white font-mono">{{ request.user.organization.organization_code }}</p>
+      </div>
       {% for field in org_form %}
         {% if field.name != "bank_account_holder" and field.name != "bank_account_number" and field.name != "bank_ifsc" and field.name != "bank_name" %}
         <div{% if field.name == "address" or field.name == "registered_address" %} class="sm:col-span-2"{% endif %}>

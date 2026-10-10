@@ -1,0 +1,87 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Bill {{ bill.bill_number }} · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+  <div>
+    <a href="{% url 'finance:kickbacks' %}" class="text-sm font-medium text-slate-500 hover:text-slate-300">← Back to Kickbacks</a>
+    <h1 class="mt-2 text-2xl font-bold text-white">Bill {{ bill.bill_number }}</h1>
+    <p class="mt-1 text-sm text-slate-400">
+      {% if bill.patient_name %}{{ bill.patient_name }} · {% endif %}{% if bill.consulting_doctor %}{{ bill.consulting_doctor }} · {% endif %}Admitted {{ bill.admission_date|date:"d M Y" }}
+    </p>
+  </div>
+  <a href="{% url 'finance:edit_kickback_entry' bill.pk %}" class="btn-primary shrink-0 !px-5 !py-2.5 !text-sm">Edit bill</a>
+</div>
+
+<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Final bill</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ bill.final_amount|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Kickback paid</p>
+    <p class="mt-1.5 text-xl font-bold text-amber-400">{{ organization.currency }} {{ bill.kickback_amount|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Net</p>
+    <p class="mt-1.5 text-xl font-bold {% if bill.net_amount < 0 %}text-red-400{% else %}text-mint-400{% endif %}">{{ organization.currency }} {{ bill.net_amount|floatformat:0|intcomma }}</p>
+  </div>
+</div>
+
+<div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
+  <div class="card p-6 lg:col-span-2">
+    <h2 class="text-sm font-semibold text-white">Bill details</h2>
+    <dl class="mt-4 divide-y divide-white/5 text-sm">
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Bill number</dt><dd class="text-right text-slate-200">{{ bill.bill_number }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Patient name</dt><dd class="text-right text-slate-200">{{ bill.patient_name|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Address</dt><dd class="text-right text-slate-200">{{ bill.patient_address|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Admitted on</dt><dd class="text-right text-slate-200">{{ bill.admission_date|date:"d M Y" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Discharged on</dt><dd class="text-right text-slate-200">{% if bill.discharge_date %}{{ bill.discharge_date|date:"d M Y" }}{% else %}—{% endif %}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Consulting doctor</dt><dd class="text-right text-slate-200">{{ bill.consulting_doctor|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Referred by</dt><dd class="text-right text-slate-200">{{ bill.referred_by|default:"—" }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="card p-6 lg:col-span-3">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h2 class="text-sm font-semibold text-white">Paid out in Daily Book</h2>
+        <p class="mt-0.5 text-xs text-slate-500">Expenses linked to this bill in the Daily Book.</p>
+      </div>
+      <p class="text-sm font-semibold text-amber-400">{{ organization.currency }} {{ payments_total|floatformat:0|intcomma }}</p>
+    </div>
+    <div class="mt-4 overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead>
+          <tr class="text-sm font-medium text-slate-400">
+            <th class="pb-2 pr-3 font-medium">Date</th>
+            <th class="pb-2 pr-3 font-medium">Category</th>
+            <th class="pb-2 pr-3 text-right font-medium">Amount</th>
+            <th class="pb-2 pr-3 font-medium">Paid via</th>
+            <th class="pb-2 pr-3 font-medium">Paid to</th>
+            <th class="pb-2 font-medium"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          {% for p in payments %}
+          <tr>
+            <td class="py-2.5 pr-3 text-slate-300">{{ p.date|date:"d M Y" }}</td>
+            <td class="py-2.5 pr-3 text-slate-200">{{ p.category.name|default:"—" }}{% if p.subcategory %} · {{ p.subcategory.name }}{% endif %}{% if p.note %}<p class="text-xs text-slate-500">{{ p.note }}</p>{% endif %}</td>
+            <td class="py-2.5 pr-3 text-right font-medium text-amber-400">{{ organization.currency }} {{ p.amount|floatformat:0|intcomma }}</td>
+            <td class="py-2.5 pr-3 text-slate-400">{{ p.get_payment_mode_display }}{% if p.bank_account %} · {{ p.bank_account.name }}{% endif %}</td>
+            <td class="py-2.5 pr-3 text-slate-400">{{ p.paid_to_ledger.name|default:"—" }}</td>
+            <td class="py-2.5 text-right">
+              <a href="{% url 'finance:daily_report' %}?date={{ p.date|date:'Y-m-d' }}" class="text-sm font-medium text-brand-400 hover:text-brand-300">Open in Daily Book →</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="py-8 text-center text-slate-500">No payments are linked to this bill yet. Pick it in the Kickback bill column of a Daily Book expense.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

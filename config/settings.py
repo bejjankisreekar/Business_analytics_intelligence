@@ -94,6 +94,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "config.context_processors.site_meta",
+                "config.context_processors.kickbacks_access",
             ],
         },
     },

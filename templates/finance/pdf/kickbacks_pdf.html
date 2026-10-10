@@ -1,0 +1,53 @@
+{% extends "finance/pdf/_base_pdf.html" %}
+{% load humanize %}
+{% block page_size %}A4 landscape{% endblock %}
+{% block subtitle %}Kickbacks{% if filters.paid_from or filters.paid_to %} · Paid {% if filters.paid_from %}from {{ filters.paid_from|date:"d M Y" }}{% endif %} {% if filters.paid_to %}to {{ filters.paid_to|date:"d M Y" }}{% endif %}{% endif %}{% endblock %}
+{% block statement %}
+<p class="doc-meta">Generated {{ generated_on|date:"d M Y" }} · {{ bills|length }} bill{{ bills|length|pluralize }}</p>
+<table style="border-collapse:collapse; width:100%; margin-top:6px;">
+  <thead>
+    <tr style="background:#e8ecf5;">
+      <th style="{{ cell }} width:7%; text-align:left;">Bill No.</th>
+      <th style="{{ cell }} width:10%; text-align:left;">Patient</th>
+      <th style="{{ cell }} width:12%; text-align:left;">Address</th>
+      <th style="{{ cell }} width:7%; text-align:left;">Admitted</th>
+      <th style="{{ cell }} width:7%; text-align:left;">Discharged</th>
+      <th style="{{ cell }} width:9%; text-align:left;">Doctor</th>
+      <th style="{{ cell }} width:9%; text-align:left;">Referred By</th>
+      <th style="{{ cell }} width:9%; text-align:left;">Paid On</th>
+      <th style="{{ cell }} width:7%; text-align:right;">Final</th>
+      <th style="{{ cell }} width:7%; text-align:right;">Kickback</th>
+      <th style="{{ cell }} width:7%; text-align:right;">Net</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in bills %}
+    <tr>
+      <td style="{{ cell }}">{{ row.entry.bill_number }}</td>
+      <td style="{{ cell }}">{{ row.entry.patient_name|default:"—" }}</td>
+      <td style="{{ cell }}">{{ row.entry.patient_address|default:"—" }}</td>
+      <td style="{{ cell }}">{{ row.entry.admission_date|date:"d M Y" }}</td>
+      <td style="{{ cell }}">{% if row.entry.discharge_date %}{{ row.entry.discharge_date|date:"d M Y" }}{% else %}—{% endif %}</td>
+      <td style="{{ cell }}">{{ row.entry.consulting_doctor|default:"—" }}</td>
+      <td style="{{ cell }}">{{ row.entry.referred_by|default:"—" }}</td>
+      <td style="{{ cell }}">{% for p in row.payments %}{{ p.date|date:"d M Y" }}<br>{% empty %}—{% endfor %}</td>
+      <td style="{{ cell }} text-align:right;">{{ row.entry.final_amount|floatformat:2|intcomma }}</td>
+      <td style="{{ cell }} text-align:right;">{{ row.entry.kickback_amount|floatformat:2|intcomma }}</td>
+      <td style="{{ cell }} text-align:right;">{{ row.entry.net_amount|floatformat:2|intcomma }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="11" style="{{ cell }} text-align:center; color:#666;">No bills match these filters.</td></tr>
+    {% endfor %}
+    {% if bills %}
+    <tr style="background:#f4f6fa; font-weight:bold;">
+      <td colspan="5" style="{{ cell }}">Total</td>
+      <td style="{{ cell }}" colspan="3"></td>
+      <td style="{{ cell }} text-align:right;">{{ totals.final_amount|floatformat:2|intcomma }}</td>
+      <td style="{{ cell }} text-align:right;">{{ totals.kickback_amount|floatformat:2|intcomma }}</td>
+      <td style="{{ cell }} text-align:right;">{{ totals.net_amount|floatformat:2|intcomma }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+<p class="muted" style="margin-top:8px;">Amounts in {{ organization.currency }}.</p>
+{% endblock %}

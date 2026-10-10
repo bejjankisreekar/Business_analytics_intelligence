@@ -1,0 +1,373 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Kickbacks · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Kickbacks</h1>
+    <p class="mt-1 text-sm text-slate-400">Bill-wise billing &amp; kickback tracker — entered manually, one row per bill</p>
+  </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <a href="{% url 'finance:kickbacks_excel' %}?{{ pager.page_query }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ Excel</a>
+    <a href="{% url 'finance:kickbacks_csv' %}?{{ pager.page_query }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ CSV</a>
+    <a href="{% url 'finance:kickbacks_pdf' %}?{{ pager.page_query }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ PDF</a>
+    <button onclick="bai.openModal('modal-kb-columns')" class="rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Column names</button>
+    <button onclick="bai.openModal('modal-kickback-import')" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬆ Import</button>
+    <button onclick="bai.openModal('modal-kickback')" class="btn-primary">+ Add Bill</button>
+  </div>
+</div>
+
+<style>
+  /* Filter bar: one grid so every label sits on the same line and every
+     control is the same height, whatever kind of control it is. */
+  .kb-filters { display: grid; gap: 0.9rem 1rem; grid-template-columns: minmax(0, 1fr); align-items: end; }
+  .kb-filters .kb-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+  /* Desktop: two rows on a 12-column grid. Row 1 is search (half) and Doctor
+     and Referred by (a quarter each); row 2 is the four dates, rows per page
+     and the buttons, six equal slots. */
+  @media (min-width: 640px) {
+    .kb-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kb-filters .kb-field--search, .kb-filters .kb-actions { grid-column: span 2; }
+  }
+  @media (min-width: 1024px) {
+    .kb-filters { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+    .kb-filters > * { grid-column: span 2; }
+    .kb-filters .kb-field--search { grid-column: span 6; }
+    .kb-filters .kb-field--third { grid-column: span 3; }
+    .kb-filters .kb-actions { grid-column: span 4; }
+  }
+  .kb-filters label { display: block; margin: 0 0 0.35rem 0; font-size: 0.75rem; font-weight: 500; color: rgb(var(--slate-400)); }
+  .kb-filters input:not([type=checkbox]), .kb-filters select, .kb-filters .bai-select-trigger {
+    box-sizing: border-box; width: 100%; height: 2.625rem; margin: 0; padding: 0 0.75rem; font-size: 0.875rem; border-radius: 0.6rem;
+  }
+  .kb-filters .bai-select-wrap { display: block; width: 100%; }
+  .kb-filters .bai-select-trigger { display: flex; align-items: center; justify-content: space-between; }
+  .kb-filters .kb-clear { display: inline-flex; align-items: center; height: 2.625rem; padding: 0 0.9rem; border-radius: 0.6rem; border: 1px solid rgba(255,255,255,0.1); font-size: 0.875rem; font-weight: 500; color: #cbd5e1; white-space: nowrap; }
+  .kb-filters .kb-clear:hover { background: rgba(255,255,255,0.05); }
+  .kb-filters .kb-apply { height: 2.625rem; min-width: 11.5rem; padding: 0 2rem; white-space: nowrap; }
+</style>
+<form method="get" class="kb-filters card mt-6 p-4" data-searchable-selects>
+  <div class="kb-field kb-field--search">
+    <label for="kb-q">Search</label>
+    <input id="kb-q" type="text" name="q" value="{{ filter_query }}" placeholder="Bill no., patient, address, doctor, referred by">
+  </div>
+  <div class="kb-field kb-field--third">
+    <label for="kb-doctor">Doctor</label>
+    <select id="kb-doctor" name="doctor">
+      <option value="">All doctors</option>
+      {% for name in doctor_options %}<option value="{{ name }}" {% if name == filter_doctor %}selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="kb-field kb-field--third">
+    <label for="kb-referred">Referred by</label>
+    <select id="kb-referred" name="referred">
+      <option value="">All referrers</option>
+      {% for name in referred_options %}<option value="{{ name }}" {% if name == filter_referred %}selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="kb-field">
+    <label for="kb-from">Admitted from</label>
+    <input id="kb-from" type="date" name="from" value="{{ filter_from|date:'Y-m-d' }}">
+  </div>
+  <div class="kb-field">
+    <label for="kb-to">Admitted to</label>
+    <input id="kb-to" type="date" name="to" value="{{ filter_to|date:'Y-m-d' }}">
+  </div>
+  <div class="kb-field">
+    <label for="kb-paid-from">Paid from</label>
+    <input id="kb-paid-from" type="date" name="paid_from" value="{{ filter_paid_from|date:'Y-m-d' }}">
+  </div>
+  <div class="kb-field">
+    <label for="kb-paid-to">Paid to</label>
+    <input id="kb-paid-to" type="date" name="paid_to" value="{{ filter_paid_to|date:'Y-m-d' }}">
+  </div>
+  <div class="kb-actions">
+    {% if filter_query or filter_doctor or filter_referred or filter_from or filter_to or filter_paid_from or filter_paid_to %}<a href="{% url 'finance:kickbacks' %}" class="kb-clear">Clear</a>{% endif %}
+    <button type="submit" class="btn-primary kb-apply">Apply</button>
+  </div>
+</form>
+
+<div class="card mt-6 overflow-x-auto p-5">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="text-sm font-medium text-slate-400">
+        <th class="pb-2 pr-4 font-medium whitespace-nowrap">{{ kb_labels.bill_number }}</th>
+        <th class="pb-2 pr-4 font-medium whitespace-nowrap">{{ kb_labels.patient_name }}</th>
+        <th class="pb-2 pr-4 font-medium whitespace-nowrap">{{ kb_labels.patient_address }}</th>
+        <th class="pb-2 pr-4 font-medium whitespace-nowrap">{{ kb_labels.admission_date }}</th>
+        <th class="pb-2 pr-4 font-medium whitespace-nowrap">{{ kb_labels.discharge_date }}</th>
+        <th class="pb-2 pr-4 font-medium whitespace-nowrap">{{ kb_labels.consulting_doctor }}</th>
+        <th class="pb-2 pr-4 font-medium whitespace-nowrap">{{ kb_labels.referred_by }}</th>
+        <th class="pb-2 pr-4 font-medium whitespace-nowrap">{{ kb_labels.ref_date }}</th>
+        <th class="pb-2 pr-4 text-right font-medium whitespace-nowrap">{{ kb_labels.final_amount }}</th>
+        <th class="pb-2 pr-4 text-right font-medium whitespace-nowrap">{{ kb_labels.kickback_amount }}</th>
+        <th class="pb-2 pr-4 text-right font-medium whitespace-nowrap">{{ kb_labels.net_amount }}</th>
+        <th class="pb-2 text-right font-medium"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-white/5">
+      {% for entry in entries %}
+      <tr class="kb-row" data-href="{% url 'finance:kickback_detail' entry.pk %}">
+        <td class="py-2.5 pr-4 font-medium text-slate-200">{{ entry.bill_number }}</td>
+        <td class="py-2.5 pr-4 text-slate-200">{{ entry.patient_name|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ entry.patient_address|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ entry.admission_date|date:"d M Y" }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{% if entry.discharge_date %}{{ entry.discharge_date|date:"d M Y" }}{% else %}—{% endif %}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ entry.consulting_doctor|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{{ entry.referred_by|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-slate-400">{% with latest=entry.payment_list|last %}{% if latest %}<div class="whitespace-nowrap">{{ latest.date|date:"d M Y" }}</div>{% else %}—{% endif %}{% endwith %}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-300">{{ entry.final_amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right font-medium text-amber-400">{{ entry.kickback_amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right font-medium text-mint-400">{{ entry.net_amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 text-right">
+          <button type="button" class="kb-action-btn" aria-label="Actions for bill {{ entry.bill_number }}" data-bill="{{ entry.bill_number }}" data-edit-url="{% url 'finance:edit_kickback_entry' entry.pk %}" data-delete-url="{% url 'finance:delete_kickback_entry' entry.pk %}" onclick="bai.toggleKbMenu(this, event)">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+          </button>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="12" class="py-8 text-center text-slate-500">No bills yet — add one above.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if entries %}
+    <tfoot>
+      <tr class="border-t border-white/10 text-sm font-semibold text-white">
+        <td class="py-2.5 pr-4" colspan="5">Total</td>
+        <td class="py-2.5 pr-4" colspan="2"></td>
+        <td class="py-2.5 pr-4"></td>
+        <td class="py-2.5 pr-4 text-right">{{ totals.final_amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right text-amber-400">{{ totals.kickback_amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right text-mint-400">{{ totals.net_amount|floatformat:0|intcomma }}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+{% include "finance/_pager.html" with pg=pager.page_obj pq=pager.page_query param="page" numbers=pager.page_numbers %}
+
+<div id="kb-menu" class="fixed z-50 hidden w-40 overflow-hidden rounded-xl border border-white/10 bg-ink-900 py-1 shadow-2xl">
+  <a id="kb-menu-edit" href="#" class="block px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5">Edit</a>
+  <form id="kb-menu-delete" method="post" action="" class="m-0">
+    {% csrf_token %}
+    <button type="submit" class="block w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/10">Delete</button>
+  </form>
+</div>
+
+<!-- Modal: Column names -->
+<div id="modal-kb-columns" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-6" onclick="if(event.target===this) bai.closeModal('modal-kb-columns')">
+  <div class="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-900 shadow-2xl">
+    <div class="flex items-start justify-between gap-4 border-b border-white/5 px-6 py-5 sm:px-8">
+      <div>
+        <h3 class="text-lg font-semibold text-white">Column names</h3>
+        <p class="mt-0.5 text-sm text-slate-400">Rename the headers on this page. Exports and imports keep the original names.</p>
+      </div>
+      <button type="button" onclick="bai.closeModal('modal-kb-columns')" aria-label="Close" class="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white">
+        <svg style="width:18px;height:18px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form method="post" action="{% url 'finance:kickback_column_labels' %}" class="flex min-h-0 flex-1 flex-col">
+      {% csrf_token %}
+      <div class="min-h-0 flex-1 overflow-y-auto px-6 py-6 sm:px-8">
+        <div class="grid gap-5 sm:grid-cols-2">
+          {% for field in kb_label_fields %}
+          <div>
+            <label for="kbl-{{ field.key }}" class="mb-1.5 block text-sm font-medium text-slate-300">{{ field.default }}</label>
+            <input id="kbl-{{ field.key }}" type="text" name="label__{{ field.key }}" value="{{ field.value }}" maxlength="40" placeholder="{{ field.default }}" class="!mt-0">
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="flex flex-col-reverse gap-3 border-t border-white/5 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+        <button type="submit" name="reset" value="1" formnovalidate class="text-sm font-medium text-slate-400 hover:text-white">Reset to defaults</button>
+        <div class="flex flex-col-reverse gap-3 sm:flex-row">
+          <button type="button" onclick="bai.closeModal('modal-kb-columns')" class="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5">Cancel</button>
+          <button type="submit" class="btn-primary sm:px-8">Save names</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") bai.closeModal("modal-kb-columns");
+  });
+</script>
+
+<!-- Modal: Add bill -->
+<div id="modal-kickback" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-6" onclick="if(event.target===this) bai.closeModal('modal-kickback')">
+  <div class="flex h-[90vh] max-h-[880px] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-900 shadow-2xl">
+    <div class="flex items-start justify-between gap-4 border-b border-white/5 px-6 py-5 sm:px-8">
+      <div class="flex items-center gap-4">
+        <span class="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-brand-500/15 text-brand-400">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        </span>
+        <div>
+          <h3 class="text-lg font-semibold text-white">Add a bill</h3>
+          <p class="mt-0.5 text-sm text-slate-400">Record a hospital bill. Its kickback comes from the Daily Book.</p>
+        </div>
+      </div>
+      <button type="button" onclick="bai.closeModal('modal-kickback')" aria-label="Close" class="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white">
+        <svg class="h-4.5 w-4.5" style="width:18px;height:18px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <form id="kb-add-form" method="post" action="{% url 'finance:add_kickback_entry' %}" class="flex min-h-0 flex-1 flex-col">
+      {% csrf_token %}
+      <div class="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 sm:px-8">
+
+        <section>
+          <h4 class="kb-section-title">Bill details</h4>
+          <div class="kb-grid">
+            <div><label class="kb-label" for="{{ kickback_form.bill_number.id_for_label }}">{{ kickback_form.bill_number.label }}</label>{{ kickback_form.bill_number }}</div>
+            <div><label class="kb-label" for="{{ kickback_form.patient_name.id_for_label }}">{{ kickback_form.patient_name.label }}</label>{{ kickback_form.patient_name }}</div>
+            <div><label class="kb-label" for="{{ kickback_form.patient_address.id_for_label }}">{{ kickback_form.patient_address.label }}</label>{{ kickback_form.patient_address }}</div>
+            <div><label class="kb-label" for="{{ kickback_form.admission_date.id_for_label }}">{{ kickback_form.admission_date.label }}</label>{{ kickback_form.admission_date }}</div>
+            <div><label class="kb-label" for="{{ kickback_form.discharge_date.id_for_label }}">{{ kickback_form.discharge_date.label }}</label>{{ kickback_form.discharge_date }}</div>
+          </div>
+        </section>
+
+        <section>
+          <h4 class="kb-section-title">Referral</h4>
+          <div class="kb-grid">
+            <div><label class="kb-label" for="{{ kickback_form.consulting_doctor_item.id_for_label }}">{{ kickback_form.consulting_doctor_item.label }}</label>{{ kickback_form.consulting_doctor_item }}
+              {% if kickback_form.doctor_category %}<a href="{% url 'finance:categories' %}?kind={{ kickback_form.doctor_category.kind }}" target="_blank" rel="noopener" class="mt-1.5 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">+ Add a doctor to “{{ kickback_form.doctor_category.name }}” (opens in a new tab)</a>
+              {% else %}<p class="mt-1.5 text-xs text-amber-400">Set the doctors category first — <a href="{% url 'finance:settings' %}" target="_blank" rel="noopener" class="underline hover:text-amber-300">Settings → Hospital Consulting Doctors</a>.</p>{% endif %}
+            </div>
+            <div><span class="kb-label">{{ kickback_form.referred_by_names.label }}</span>{% include "finance/_referrer_checklist.html" with field=kickback_form.referred_by_names %}<a href="{% url 'finance:ledgers' %}" target="_blank" rel="noopener" class="mt-1.5 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">+ Add a ledger (opens in a new tab)</a></div>
+          </div>
+        </section>
+
+        <section>
+          <h4 class="kb-section-title">Amounts</h4>
+          <div class="kb-grid">
+            <div><label class="kb-label" for="{{ kickback_form.final_amount.id_for_label }}">{{ kickback_form.final_amount.label }}</label>{{ kickback_form.final_amount }}</div>
+          </div>
+          <p class="mt-4 text-xs text-slate-500">The kickback is added automatically from the Daily Book expenses linked to this bill, and the net amount follows from it.</p>
+        </section>
+
+      </div>
+
+      <div class="flex flex-col-reverse gap-3 border-t border-white/5 px-6 py-4 sm:flex-row sm:justify-end sm:px-8">
+        <button type="button" onclick="bai.closeModal('modal-kickback')" class="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5">Cancel</button>
+        <button type="submit" class="btn-primary sm:px-8">Save bill</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Import bills -->
+<div id="modal-kickback-import" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closeModal('modal-kickback-import')">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-white">Import bills</h3>
+      <button onclick="bai.closeModal('modal-kickback-import')" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p class="mt-1 text-xs text-slate-500">Upload a .csv or .xlsx file. Only the columns below are read — any other column in your file is ignored.</p>
+    <table class="mt-3 w-full text-left text-xs">
+      <thead>
+        <tr class="text-slate-500"><th class="pb-1 font-medium">Column name</th><th class="pb-1 font-medium">Required</th></tr>
+      </thead>
+      <tbody class="divide-y divide-white/5 text-slate-300">
+        <tr><td class="py-1 pr-2">Bill Number</td><td class="py-1 text-amber-400">Required</td></tr>
+        <tr><td class="py-1 pr-2">Patient Name</td><td class="py-1 text-slate-500">Optional</td></tr>
+        <tr><td class="py-1 pr-2">Address</td><td class="py-1 text-slate-500">Optional</td></tr>
+        <tr><td class="py-1 pr-2">Admission Date</td><td class="py-1 text-amber-400">Required (YYYY-MM-DD)</td></tr>
+        <tr><td class="py-1 pr-2">Discharge Date</td><td class="py-1 text-slate-500">Optional</td></tr>
+        <tr><td class="py-1 pr-2">Consult Doctor</td><td class="py-1 text-slate-500">Optional</td></tr>
+        <tr><td class="py-1 pr-2">Reffered By</td><td class="py-1 text-slate-500">Optional</td></tr>
+        <tr><td class="py-1 pr-2">Final Amount</td><td class="py-1 text-slate-500">Optional</td></tr>
+      </tbody>
+    </table>
+    <p class="mt-2 text-xs text-slate-500">Net Amount isn't a column to fill in — it's always calculated as Final amount − Kickback amount.</p>
+    <a href="{% url 'finance:kickbacks_import_sample' %}" class="mt-3 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">⬇ Download a sample file with these exact column names</a>
+    <form method="post" action="{% url 'finance:import_kickback_entries' %}" enctype="multipart/form-data" class="mt-4 space-y-3">
+      {% csrf_token %}
+      <input type="file" name="file" accept=".csv,.xlsx,.xlsm" required>
+      <button type="submit" class="btn-primary w-full">Upload &amp; import</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+
+  document.addEventListener("click", (e) => {
+    const row = e.target.closest("tr[data-href]");
+    if (!row || e.target.closest("a, button, input, select, textarea, label, form")) return;
+    window.location.href = row.dataset.href;
+  });
+
+  (() => {
+    const menu = document.getElementById("kb-menu");
+    const editLink = document.getElementById("kb-menu-edit");
+    const deleteForm = document.getElementById("kb-menu-delete");
+    let openBtn = null;
+    const close = () => { menu.classList.add("hidden"); openBtn = null; };
+    bai.toggleKbMenu = (btn, e) => {
+      e.stopPropagation();
+      if (openBtn === btn) return close();
+      openBtn = btn;
+      editLink.href = btn.dataset.editUrl;
+      deleteForm.action = btn.dataset.deleteUrl;
+      deleteForm.setAttribute("data-confirm", `Delete bill ${btn.dataset.bill}? This can't be undone.`);
+      menu.classList.remove("hidden");
+      const r = btn.getBoundingClientRect();
+      let top = r.bottom + 6;
+      if (top + menu.offsetHeight > window.innerHeight) top = r.top - menu.offsetHeight - 6;
+      menu.style.left = Math.max(8, r.right - menu.offsetWidth) + "px";
+      menu.style.top = Math.max(8, top) + "px";
+    };
+    document.addEventListener("click", (e) => { if (!menu.contains(e.target)) close(); });
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+  })();
+
+  (() => {
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        bai.closeModal("modal-kickback");
+        bai.closeModal("modal-kickback-import");
+      }
+    });
+  })();
+</script>
+<style>
+  #modal-kickback .kb-section-title {
+    margin-bottom: 0.9rem; font-size: 0.7rem; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase; color: rgb(var(--slate-500));
+  }
+  #modal-kickback .kb-grid { display: grid; gap: 1.25rem 1.5rem; grid-template-columns: 1fr; }
+  @media (min-width: 640px) { #modal-kickback .kb-grid { grid-template-columns: 1fr 1fr; } }
+  #modal-kickback .bai-select-wrap, #modal-kickback .bai-select-trigger { width: 100%; }
+  #modal-kickback .kb-label {
+    display: block; margin-bottom: 0.45rem; font-size: 0.8rem; font-weight: 500; color: rgb(var(--slate-300));
+  }
+  #modal-kickback input[type=text],
+  #modal-kickback input[type=number],
+  #modal-kickback input[type=date] {
+    margin-top: 0; padding: 0.65rem 0.85rem; font-size: 0.9rem;
+    border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.04);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  html[data-theme="light"] #modal-kickback input[type=text],
+  html[data-theme="light"] #modal-kickback input[type=number],
+  html[data-theme="light"] #modal-kickback input[type=date] {
+    border-color: rgba(15,23,42,0.16); background: #ffffff; color: #0f172a;
+  }
+  #modal-kickback input:focus {
+    border-color: #5b7cfa; box-shadow: 0 0 0 3px rgba(91,124,250,0.18);
+  }
+  .kb-row { cursor: pointer; }
+  .kb-row:hover td { background: rgba(127,127,127,0.06); }
+  .kb-action-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 0.5rem; color: rgb(var(--slate-400)); transition: background .15s, color .15s; }
+  .kb-action-btn:hover { background: rgba(127,127,127,0.12); color: rgb(var(--fg-strong)); }
+  #modal-kickback input::placeholder { color: rgb(var(--slate-500)); opacity: 0.7; }
+</style>
+{% endblock %}

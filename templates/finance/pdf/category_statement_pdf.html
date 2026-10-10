@@ -3,95 +3,64 @@
 {% block page_size %}A4 landscape{% endblock %}
 {% block subtitle %}Category Statement · {{ kind_label }}{% if category %} · {{ category.name }}{% endif %}{% if subcategory %} · {{ subcategory.name }}{% endif %} ({{ date_from|date:"d M Y" }} – {{ date_to|date:"d M Y" }}){% endblock %}
 {% block statement %}
-<table style="width:100%; margin-bottom:2px;">
-  <tr>
-    {% if kind == "sales" %}
-    <td style="width:32%; border:1px solid #ccc; padding:5px 8px;">
-      <div style="font-size:8px; color:#888; text-transform:uppercase; letter-spacing:0.5px;">Total Gross</div>
-      <div style="font-size:13px; font-weight:bold; margin-top:2px;">{{ organization.currency }} {{ totals.gross|floatformat:2|intcomma }}</div>
-    </td>
-    <td style="width:2%;"></td>
-    <td style="width:32%; border:1px solid #ccc; padding:5px 8px;">
-      <div style="font-size:8px; color:#888; text-transform:uppercase; letter-spacing:0.5px;">Total Discount</div>
-      <div style="font-size:13px; font-weight:bold; margin-top:2px; color:#b45309;">{{ organization.currency }} {{ totals.discount|floatformat:2|intcomma }}</div>
-    </td>
-    <td style="width:2%;"></td>
-    <td style="width:32%; border:1px solid #ccc; padding:5px 8px;">
-      <div style="font-size:8px; color:#888; text-transform:uppercase; letter-spacing:0.5px;">Total Net</div>
-      <div style="font-size:13px; font-weight:bold; margin-top:2px; color:#0f766e;">{{ organization.currency }} {{ totals.amount|floatformat:2|intcomma }}</div>
-    </td>
-    {% else %}
-    <td style="width:100%; border:1px solid #ccc; padding:5px 8px;">
-      <div style="font-size:8px; color:#888; text-transform:uppercase; letter-spacing:0.5px;">Total Amount</div>
-      <div style="font-size:14px; font-weight:bold; margin-top:2px;">{{ organization.currency }} {{ totals.amount|floatformat:2|intcomma }}</div>
-    </td>
-    {% endif %}
-  </tr>
-</table>
-<p class="muted" style="margin:2px 0 6px 0;">{{ totals.count }} entr{{ totals.count|pluralize:"y,ies" }}</p>
-<table repeat="1" style="width:100%;">
+<p class="doc-meta">Generated {{ generated_on|date:"d M Y" }} · {{ totals.count }} entr{{ totals.count|pluralize:"y,ies" }}</p>
+<table style="border-collapse:collapse; width:100%; margin-top:6px;">
   <thead>
-  <tr>
-    {% if kind == "sales" %}
-    <td class="section-label" style="width:7%;">Date</td>
-    <td class="section-label" style="width:10%;">Sub-category</td>
-    <td class="section-label" style="width:9%;">Item</td>
-    <td class="section-label" style="width:10%;">Customer/Vendor</td>
-    <td class="section-label right" style="width:3%;">Qty</td>
-    <td class="section-label right" style="width:8%;">Gross</td>
-    <td class="section-label right" style="width:8%;">Discount</td>
-    <td class="section-label right" style="width:8%; padding-right:8px;">Net</td>
-    <td class="section-label" style="width:5%;">Via</td>
-    <td class="section-label" style="width:4%;">Bank</td>
-    <td class="section-label" style="width:28%; padding-right:8px;">Note</td>
-    {% else %}
-    <td class="section-label" style="width:8%;">Date</td>
-    <td class="section-label" style="width:12%;">Sub-category</td>
-    <td class="section-label" style="width:11%;">Item</td>
-    <td class="section-label" style="width:11%;">Customer/Vendor</td>
-    <td class="section-label right" style="width:4%;">Qty</td>
-    <td class="section-label right" style="width:10%; padding-right:8px;">Amount</td>
-    <td class="section-label" style="width:6%;">Via</td>
-    <td class="section-label" style="width:5%;">Bank</td>
-    <td class="section-label" style="width:33%; padding-right:8px;">Note</td>
-    {% endif %}
-  </tr>
+    <tr style="background:#e8ecf5;">
+      <th style="{{ cell }} width:7%; text-align:left;">{{ labels.date }}</th>
+      <th style="{{ cell }} width:10%; text-align:left;">{{ labels.subcategory }}</th>
+      <th style="{{ cell }} width:9%; text-align:left;">{{ labels.item }}</th>
+      <th style="{{ cell }} width:10%; text-align:left;">{{ labels.party }}</th>
+      {% if kind == "sales" %}
+      <th style="{{ cell }} width:4%; text-align:right;">{{ labels.qty }}</th>
+      <th style="{{ cell }} width:8%; text-align:right;">{{ labels.gross }}</th>
+      <th style="{{ cell }} width:8%; text-align:right;">{{ labels.discount }}</th>
+      <th style="{{ cell }} width:8%; text-align:right;">{{ labels.amount }}</th>
+      <th style="{{ cell }} width:6%; text-align:left;">{{ labels.via }}</th>
+      <th style="{{ cell }} width:6%; text-align:left;">{{ labels.bank }}</th>
+      <th style="{{ cell }} width:17%; text-align:left;">{{ labels.note }}</th>
+      {% else %}
+      <th style="{{ cell }} width:5%; text-align:right;">{{ labels.qty }}</th>
+      <th style="{{ cell }} width:11%; text-align:right;">{{ labels.amount }}</th>
+      <th style="{{ cell }} width:8%; text-align:left;">{{ labels.via }}</th>
+      <th style="{{ cell }} width:7%; text-align:left;">{{ labels.bank }}</th>
+      <th style="{{ cell }} width:18%; text-align:left;">{{ labels.note }}</th>
+      {% endif %}
+    </tr>
   </thead>
   <tbody>
-  {% for e in entries %}
-  <tr class="divider">
-    <td>{{ e.date|date:"d M Y" }}</td>
-    <td>{{ e.subcategory|default:"—" }}</td>
-    <td>{{ e.item|default:"—" }}</td>
-    <td>{{ e.customer|default:e.vendor|default:"—" }}</td>
-    <td class="right">{{ e.quantity|default:"—" }}</td>
-    {% if kind == "sales" %}
-    <td class="right">{{ e.gross_amount|floatformat:2|intcomma }}</td>
-    <td class="right">{{ e.discount|floatformat:2|intcomma }}</td>
+    {% for e in entries %}
+    <tr>
+      <td style="{{ cell }}">{{ e.date|date:"d M Y" }}</td>
+      <td style="{{ cell }}">{{ e.subcategory|default:"—" }}</td>
+      <td style="{{ cell }}">{{ e.item|default:"—" }}</td>
+      <td style="{{ cell }}">{{ e.customer|default:e.vendor|default:"—" }}</td>
+      <td style="{{ cell }} text-align:right;">{{ e.quantity|default:"—" }}</td>
+      {% if kind == "sales" %}
+      <td style="{{ cell }} text-align:right;">{{ e.gross_amount|floatformat:2|intcomma }}</td>
+      <td style="{{ cell }} text-align:right;">{{ e.discount|floatformat:2|intcomma }}</td>
+      {% endif %}
+      <td style="{{ cell }} text-align:right;">{{ e.amount|floatformat:2|intcomma }}</td>
+      <td style="{{ cell }}">{{ e.payment_mode|default:"—" }}</td>
+      <td style="{{ cell }}">{{ e.bank_account|default:"—" }}</td>
+      <td style="{{ cell }}">{{ e.note|default:"—" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="{% if kind == 'sales' %}11{% else %}9{% endif %}" style="{{ cell }} text-align:center; color:#666;">No entries in this range.</td></tr>
+    {% endfor %}
+    {% if entries %}
+    <tr style="background:#f4f6fa; font-weight:bold;">
+      <td colspan="4" style="{{ cell }}">Total</td>
+      <td style="{{ cell }} text-align:right;">{{ totals.quantity }}</td>
+      {% if kind == "sales" %}
+      <td style="{{ cell }} text-align:right;">{{ totals.gross|floatformat:2|intcomma }}</td>
+      <td style="{{ cell }} text-align:right;">{{ totals.discount|floatformat:2|intcomma }}</td>
+      {% endif %}
+      <td style="{{ cell }} text-align:right;">{{ totals.amount|floatformat:2|intcomma }}</td>
+      <td style="{{ cell }}" colspan="3"></td>
+    </tr>
     {% endif %}
-    <td class="right" style="padding-right:8px;">{{ e.amount|floatformat:2|intcomma }}</td>
-    <td>{{ e.payment_mode }}</td>
-    <td>{{ e.bank_account|default:"—" }}</td>
-    <td style="padding-right:8px;">{{ e.note|default:"—" }}</td>
-  </tr>
-  {% empty %}
-  <tr><td colspan="{% if kind == 'sales' %}11{% else %}9{% endif %}" class="muted">No entries in this range.</td></tr>
-  {% endfor %}
   </tbody>
-  {% if entries %}
-  <tfoot>
-  <tr class="thick">
-    <td colspan="4">Total</td>
-    <td class="right">{{ totals.quantity }}</td>
-    {% if kind == "sales" %}
-    <td class="right">{{ totals.gross|floatformat:2|intcomma }}</td>
-    <td class="right">{{ totals.discount|floatformat:2|intcomma }}</td>
-    {% endif %}
-    <td class="right" style="padding-right:8px;">{{ totals.amount|floatformat:2|intcomma }}</td>
-    <td colspan="3"></td>
-  </tr>
-  </tfoot>
-  {% endif %}
 </table>
-<p class="muted" style="margin-top:10px;">Amounts in {{ organization.currency }}.</p>
+<p class="muted" style="margin-top:8px;">Amounts in {{ organization.currency }}.</p>
 {% endblock %}

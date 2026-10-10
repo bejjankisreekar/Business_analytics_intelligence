@@ -1,0 +1,84 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Edit bill · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="mx-auto max-w-3xl">
+  <a href="{% url 'finance:kickbacks' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Kickbacks</a>
+  <h1 class="mt-2 text-2xl font-bold text-white">Edit bill</h1>
+  <p class="mt-1 text-sm text-slate-400">Update bill {{ entry.bill_number }}. Net amount is calculated automatically as Final amount − Kickback amount.</p>
+
+  {% if form.non_field_errors %}
+  <div class="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="post" class="card mt-6 space-y-4 p-6">
+    {% csrf_token %}
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.bill_number.label }}</label>
+        {{ form.bill_number }}
+        {% for error in form.bill_number.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.patient_name.label }}</label>
+        {{ form.patient_name }}
+        {% for error in form.patient_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.patient_address.label }}</label>
+        {{ form.patient_address }}
+        {% for error in form.patient_address.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.admission_date.label }}</label>
+        {{ form.admission_date }}
+        {% for error in form.admission_date.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.discharge_date.label }}</label>
+        {{ form.discharge_date }}
+        {% for error in form.discharge_date.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.consulting_doctor_item.label }}</label>
+        {{ form.consulting_doctor_item }}
+        {% if form.doctor_category %}<a href="{% url 'finance:categories' %}?kind={{ form.doctor_category.kind }}" target="_blank" rel="noopener" class="mt-1.5 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">+ Add a doctor to “{{ form.doctor_category.name }}” (opens in a new tab)</a>
+        {% else %}<p class="mt-1.5 text-xs text-amber-400">Set the doctors category first — <a href="{% url 'finance:settings' %}" target="_blank" rel="noopener" class="underline hover:text-amber-300">Settings → Hospital Consulting Doctors</a>.</p>{% endif %}
+        {% for error in form.consulting_doctor_item.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <span class="block text-xs font-medium text-slate-400">{{ form.referred_by_names.label }}</span>
+        {% include "finance/_referrer_checklist.html" with field=form.referred_by_names %}
+        <a href="{% url 'finance:ledgers' %}" target="_blank" rel="noopener" class="mt-1.5 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">+ Add a ledger (opens in a new tab)</a>
+        {% for error in form.referred_by_names.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.final_amount.label }}</label>
+        {{ form.final_amount }}
+        {% for error in form.final_amount.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-slate-400">Kickback amount (from Daily Book)</label>
+        <p class="mt-2 text-sm font-semibold text-amber-400">{{ organization.currency }} {{ entry.kickback_amount|floatformat:0 }}</p>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">Net amount (auto)</label>
+        <p class="mt-2 text-sm font-semibold text-mint-400">{{ organization.currency }} {{ entry.net_amount|floatformat:0 }}</p>
+      </div>
+    </div>
+
+    <div class="flex gap-3 pt-2">
+      <button type="submit" class="btn-primary flex-1 sm:flex-none sm:px-10">Save changes</button>
+      <a href="{% url 'finance:kickbacks' %}" class="inline-flex items-center justify-center rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

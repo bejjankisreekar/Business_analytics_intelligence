@@ -1,0 +1,187 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Single Entry · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="se-page">
+  <div class="se-topbar">
+    <a href="{% url 'finance:daily_report' %}?date={{ selected_date|date:'Y-m-d' }}" class="se-back">← Daily Book</a>
+    <a href="{{ bulk_url }}" class="se-bulk-link">Bulk Entry →</a>
+  </div>
+
+  <header class="se-header">
+    <div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+      <h1 class="text-xl font-bold text-white">Single Entry</h1>
+      <span class="text-sm text-slate-400">{{ selected_date|date:"D, d M Y" }}</span>
+    </div>
+    <div class="se-type-switch" role="tablist">
+      {% for tab in tabs %}
+      <a href="{{ tab.url }}" role="tab" aria-selected="{% if tab.kind == kind %}true{% else %}false{% endif %}" class="se-type {% if tab.kind == kind %}se-type--active{% endif %}">{{ tab.label }}</a>
+      {% endfor %}
+    </div>
+  </header>
+
+  <div class="se-body">
+    <form method="post" action="{{ request.get_full_path }}" class="se-card se-form" id="se-form" data-searchable-selects novalidate>
+      {% csrf_token %}
+      {% for error in form.non_field_errors %}
+      <div class="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ error }}</div>
+      {% endfor %}
+
+      <div class="se-grid">
+        {% for title, fields in groups %}
+        {% for field in fields %}
+        <div class="se-field {% if field.name == 'note' %}se-span-full{% endif %}">
+          {% if field.field.widget.input_type == "checkbox" %}
+          <label class="se-check">
+            {{ field }}
+            <span>{{ field.label }}{% if field.help_text %} <small>{{ field.help_text }}</small>{% endif %}</span>
+          </label>
+          {% else %}
+          {% if field.name != "note" %}<label for="{{ field.id_for_label }}" class="se-label">{{ field.label }}</label>{% endif %}
+          {{ field }}
+          {% endif %}
+          {% for error in field.errors %}<p class="se-error">{{ error }}</p>{% endfor %}
+        </div>
+        {% if field.name == "discount" and kind == "sale" %}
+        <div class="se-field">
+          <span class="se-label">Net after discount</span>
+          <div class="se-net"><span class="se-net-value">{{ organization.currency }} <span id="se-net">0.00</span></span></div>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endfor %}
+      </div>
+
+      <div class="mt-3 flex items-center justify-between gap-3 border-t border-white/5 pt-3">
+        <p class="text-xs text-slate-500">Saves to {{ selected_date|date:"d M Y" }}</p>
+        <button type="submit" class="btn-primary">Save {{ label|lower }}</button>
+      </div>
+    </form>
+
+    <aside class="se-card se-list">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="text-sm font-semibold text-white">{{ label }}s today <span class="ml-1 rounded-full bg-white/5 px-2 py-0.5 text-xs font-medium text-slate-400">{{ day_entries|length }}</span></h2>
+        <a href="{{ bulk_url }}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Edit in Bulk →</a>
+      </div>
+      {% if day_entries %}
+      <ul class="se-list-items divide-y divide-white/5">
+        {% for e in day_entries %}
+        <li class="flex items-center justify-between gap-3 py-2 text-sm">
+          <span class="min-w-0 truncate text-slate-300">{{ e.label }}{% if e.note %} <span class="text-slate-500">· {{ e.note }}</span>{% endif %}</span>
+          <span class="shrink-0 font-semibold tabular-nums text-white">{{ organization.currency }} {{ e.amount|floatformat:2|intcomma }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="mt-3 rounded-lg border border-dashed border-white/10 px-3 py-5 text-center text-sm text-slate-500">Nothing logged for this type yet.</p>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+  /* Fit the whole screen: the page fills the viewport and only the day's list scrolls. */
+  .se-page { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
+  .se-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+  .se-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.6rem; }
+  .se-topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem; }
+  .se-back { display: inline-flex; align-items: center; white-space: nowrap; border-radius: 0.6rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02); padding: 0.35rem 0.8rem; font-size: 0.8rem; font-weight: 500; color: #cbd5e1; }
+  .se-back:hover { background: rgba(255,255,255,0.05); color: #fff; }
+  html[data-theme="light"] .se-back { border-color: rgba(15,23,42,0.12); background: #ffffff; color: #334155; }
+  html[data-theme="light"] .se-back:hover { background: rgba(15,23,42,0.04); color: #0f172a; }
+  .se-type-switch { display: inline-flex; max-width: 100%; gap: 0.2rem; overflow-x: auto; border-radius: 0.75rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02); padding: 0.2rem; }
+  .se-type { border-radius: 0.5rem; padding: 0.35rem 0.9rem; font-size: 0.8rem; font-weight: 500; color: #94a3b8; white-space: nowrap; }
+  .se-type:hover { color: #e2e8f0; background: rgba(255,255,255,0.04); }
+  .se-type--active { color: #fff; background: rgba(91,124,250,0.22); box-shadow: inset 0 0 0 1px rgba(91,124,250,0.45); }
+  .se-bulk-link { display: inline-flex; align-items: center; white-space: nowrap; border-radius: 0.6rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02); padding: 0.35rem 0.8rem; font-size: 0.8rem; font-weight: 500; color: #e2e8f0; }
+  .se-bulk-link:hover { background: rgba(255,255,255,0.05); }
+
+  .se-body { display: grid; align-items: start; gap: 0.75rem; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 1024px) { .se-body { grid-template-columns: minmax(0, 1fr) minmax(0, 300px); } }
+  .se-card { border-radius: 0.875rem; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); padding: 1rem; min-height: 0; }
+  .se-form { display: flex; flex-direction: column; }
+  .se-grid { display: grid; gap: 0.6rem 0.9rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: 640px) { .se-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 1280px) { .se-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .se-span-full { grid-column: 1 / -1; }
+  .se-label { display: block; margin-bottom: 0.2rem; font-size: 0.7rem; font-weight: 500; color: #94a3b8; }
+  .se-error { margin-top: 0.2rem; font-size: 0.7rem; color: #f87171; }
+  /* Every control fills its cell so the grid lines up, including the enhanced selects. */
+  .se-field input:not([type=checkbox]), .se-field textarea { width: 100%; }
+  .se-field .bai-select-wrap { display: block; width: 100%; }
+  .se-field .bai-select-trigger { width: 100%; }
+  .se-field input:disabled { opacity: 0.5; }
+  .se-check { display: flex; align-items: center; gap: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02); padding: 0.5rem 0.75rem; font-size: 0.8rem; font-weight: 500; color: #e2e8f0; }
+  .se-check small { font-size: 0.7rem; font-weight: 400; color: #64748b; }
+  .se-net { display: flex; align-items: center; height: 2.4rem; border-radius: 0.5rem; background: rgba(255,255,255,0.03); padding: 0 0.75rem; }
+  .se-net-value { font-size: 1rem; font-weight: 700; color: #fff; }
+  .se-list { display: flex; flex-direction: column; }
+  .se-list-items { max-height: 17rem; overflow-y: auto; margin-top: 0.5rem; }
+
+  /* ---- Light theme ---- */
+  html[data-theme="light"] .se-bulk-link { border-color: rgba(15,23,42,0.12); background: #ffffff; color: #0f172a; }
+  html[data-theme="light"] .se-bulk-link:hover { background: rgba(15,23,42,0.04); }
+  html[data-theme="light"] .se-type-switch { border-color: rgba(15,23,42,0.1); background: #ffffff; }
+  html[data-theme="light"] .se-type { color: #64748b; }
+  html[data-theme="light"] .se-type:hover { color: #0f172a; background: rgba(15,23,42,0.04); }
+  html[data-theme="light"] .se-type--active { color: #1e3a8a; background: rgba(67,97,238,0.12); box-shadow: inset 0 0 0 1px rgba(67,97,238,0.35); }
+  html[data-theme="light"] .se-card { border-color: rgba(15,23,42,0.08); background: #ffffff; box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
+  html[data-theme="light"] .se-label { color: #475569; }
+  html[data-theme="light"] .se-check { border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.015); color: #0f172a; }
+  html[data-theme="light"] .se-check small { color: #64748b; }
+  html[data-theme="light"] .se-net { background: rgba(15,23,42,0.035); }
+  html[data-theme="light"] .se-net-value { color: #0f172a; }
+
+</style>
+<script>
+  (() => {
+    const SUBCATEGORY_MAP = {{ subcategory_map_json|default:"{}"|safe }};
+    const mainEl = document.getElementById("id_{{ main_field }}");
+    const subEl = document.getElementById("id_subcategory");
+    const payEl = document.getElementById("id_payment_mode");
+    const bankEl = document.getElementById("id_bank_account");
+
+    // Flat sub-category list for the chosen category: each top-level
+    // sub-category followed by its items, indented. The form accepts either.
+    const fillSubcategories = (keep) => {
+      const parents = SUBCATEGORY_MAP[mainEl.value] || [];
+      subEl.innerHTML = "";
+      subEl.add(new Option("None", ""));
+      parents.forEach((p) => {
+        subEl.add(new Option(p.name, p.id));
+        p.children.forEach((c) => subEl.add(new Option("   ↳ " + c.name, c.id)));
+      });
+      subEl.value = keep || "";
+    };
+    mainEl.addEventListener("change", () => fillSubcategories(""));
+    fillSubcategories(subEl.value);
+
+    // A bank account only applies when paid via Bank — same rule as the bulk rows.
+    const syncBank = () => {
+      const isBank = payEl.value === "BANK";
+      bankEl.disabled = !isBank;
+      if (!isBank) bankEl.value = "";
+    };
+    payEl.addEventListener("change", syncBank);
+    syncBank();
+
+    // Live net for revenue: gross minus discount.
+    const grossEl = document.getElementById("id_gross_amount");
+    const discountEl = document.getElementById("id_discount");
+    const netEl = document.getElementById("se-net");
+    if (grossEl && discountEl && netEl) {
+      const refreshNet = () => {
+        const gross = parseFloat(grossEl.value);
+        const discount = parseFloat(discountEl.value) || 0;
+        netEl.textContent = isNaN(gross) ? "0.00" : (gross - discount).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      };
+      grossEl.addEventListener("input", refreshNet);
+      discountEl.addEventListener("input", refreshNet);
+      refreshNet();
+    }
+  })();
+</script>
+{% endblock %}

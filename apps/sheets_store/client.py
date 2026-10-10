@@ -67,6 +67,21 @@ def create_spreadsheet(access_token: str, *, title: str, tab_names: list[str], f
     return spreadsheet_id
 
 
+def add_sheet_tabs(access_token: str, *, spreadsheet_id: str, titles: list[str]) -> None:
+    """Adds one or more new, empty tabs (at the end) to an already
+    existing spreadsheet in one call — used to catch up a tenant's
+    spreadsheet with a model added after it was first provisioned
+    (see apps.organizations.management.commands.sync_sheet_tabs)."""
+    if not titles:
+        return
+    body = {"requests": [{"addSheet": {"properties": {"title": title}}} for title in titles]}
+    resp = requests.post(
+        f"{SHEETS_BASE}/{spreadsheet_id}:batchUpdate", headers=_headers(access_token), json=body, timeout=30
+    )
+    if not resp.ok:
+        raise SheetsAPIError(f"Couldn't add tab(s) {titles}: {resp.text[:300]}")
+
+
 def get_values(access_token: str, *, spreadsheet_id: str, a1_range: str) -> list[list]:
     resp = requests.get(
         f"{SHEETS_BASE}/{spreadsheet_id}/values/{requests.utils.quote(a1_range)}",

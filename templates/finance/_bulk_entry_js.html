@@ -154,7 +154,7 @@
     const tabEl = document.getElementById(`tab-total-${prefix}`);
     if (totalEl) totalEl.textContent = `${CURRENCY} ${money}`;
     if (countEl) countEl.textContent = `${count} ${count === 1 ? "entry" : "entries"}`;
-    if (tabEl) tabEl.textContent = count ? `· ${total.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "";
+    if (tabEl) tabEl.textContent = count ? total.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "";
   };
 
   window.baiBulkPrefixes.forEach(({ prefix, main_field }) => {

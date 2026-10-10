@@ -106,6 +106,9 @@
 <!-- Actions -->
 <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
   <div class="flex flex-wrap items-center gap-2">
+    <a href="{% url 'finance:single_entry' %}?type=sale&date={{ report.date|date:'Y-m-d' }}" class="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">
+      <svg class="h-4 w-4 text-mint-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Single entry
+    </a>
     <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex items-center gap-2 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Bulk entry
     </a>

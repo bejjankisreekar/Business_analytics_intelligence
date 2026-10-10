@@ -64,13 +64,13 @@
         <div>
           <div class="space-y-4">
             <div>
-              <label for="{{ form.organization_name.id_for_label }}" class="block text-xs font-medium text-slate-200">Organization name</label>
+              <label for="{{ form.organization_name.id_for_label }}" class="block text-xs font-medium text-slate-200">Organization name <span class="required-mark">*</span></label>
               {{ form.organization_name }}
               {% for error in form.organization_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
             </div>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label for="business-type-search" class="block text-xs font-medium text-slate-200">Business type</label>
+                <label for="business-type-search" class="block text-xs font-medium text-slate-200">Business type <span class="required-mark">*</span></label>
                 <div class="relative" id="business-type-combobox">
                   {{ form.business_type }}
                   <input type="text" id="business-type-search" autocomplete="off" placeholder="Search business type…">
@@ -78,7 +78,7 @@
                 </div>
               </div>
               <div>
-                <label for="size-search" class="block text-xs font-medium text-slate-200">Team size</label>
+                <label for="size-search" class="block text-xs font-medium text-slate-200">Team size <span class="required-mark">*</span></label>
                 <div class="relative" id="size-combobox">
                   {{ form.size }}
                   <input type="text" id="size-search" autocomplete="off" placeholder="Search team size…">
@@ -93,7 +93,7 @@
           <div class="space-y-4">
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label for="{{ form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-200">First name</label>
+                <label for="{{ form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-200">First name <span class="required-mark">*</span></label>
                 {{ form.first_name }}
                 {% for error in form.first_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
               </div>
@@ -103,13 +103,13 @@
               </div>
             </div>
             <div>
-              <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-200">Email</label>
+              <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-200">Email <span class="required-mark">*</span></label>
               {{ form.email }}
               {% for error in form.email.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username</label>
+                <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username <span class="required-mark">*</span></label>
                 <button type="button" class="info-tooltip relative inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-600 text-white text-xs hover:bg-slate-500 transition" title="Only letters, numbers, underscores, dots and hyphens. No spaces.">
                   i
                 </button>
@@ -120,7 +120,7 @@
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <div class="flex items-center gap-2">
-                  <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password</label>
+                  <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password <span class="required-mark">*</span></label>
                   <button type="button" class="info-tooltip relative inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-600 text-white text-xs hover:bg-slate-500 transition" title="Password must be at least 8 characters. No spaces or emojis allowed.">
                     i
                   </button>
@@ -129,7 +129,7 @@
                 {% for error in form.password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
               </div>
               <div>
-                <label for="{{ form.confirm_password.id_for_label }}" class="block text-xs font-medium text-slate-200">Confirm password</label>
+                <label for="{{ form.confirm_password.id_for_label }}" class="block text-xs font-medium text-slate-200">Confirm password <span class="required-mark">*</span></label>
                 {{ form.confirm_password }}
                 {% for error in form.confirm_password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
               </div>
@@ -139,7 +139,7 @@
 
         <div>
           <div class="flex items-center gap-2">
-            <label class="block text-xs font-medium text-slate-200">Where should your data be stored?</label>
+            <label class="block text-xs font-medium text-slate-200">Where should your data be stored? <span class="required-mark">*</span></label>
             <button type="button" class="info-tooltip relative inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-600 text-white text-xs hover:bg-slate-500 transition" title="Whichever you pick, your data is exportable to Excel any time from your profile.">
               i
             </button>
@@ -163,7 +163,7 @@
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-200">{{ form.manager_logins.label }}</label>
+          <label class="block text-xs font-medium text-slate-200">{{ form.manager_logins.label }} <span class="required-mark">*</span></label>
           <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {% for radio in form.manager_logins %}
             <label class="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 cursor-pointer transition hover:border-brand-500/30 hover:bg-white/[0.05]">
@@ -363,6 +363,7 @@
 {% block extra_head %}
 <style>
   .auth-grad { background: linear-gradient(90deg, #5b7cfa, #34d399); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+  .required-mark { color: #f87171; }
   .auth-eyebrow { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 999px; border: 1px solid rgba(91,124,250,0.35); background: rgba(91,124,250,0.1); color: #8fa6ff; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
   .auth-hero-title { font-size: 2.6rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
   .auth-title { font-size: 1.85rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.025em; }

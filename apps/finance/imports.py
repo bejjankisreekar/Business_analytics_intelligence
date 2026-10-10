@@ -180,6 +180,104 @@ def _match_payment_mode(value) -> str:
     return PaymentMode.CASH if "cash" in text else PaymentMode.BANK
 
 
+KICKBACK_SAMPLE_ROWS = [
+    ["Bill Number", "Patient Name", "Address", "Admission Date", "Discharge Date", "Consult Doctor", "Reffered By",
+     "Final Amount"],
+    ["BL-1001", "Ramesh Kumar", "Kothapalli, Narasapur, West Godavari", "2026-10-01", "2026-10-05",
+     "Dr. Akash Bansal", "Dr. Aisha Khan", "60000"],
+    ["BL-1002", "Sita Devi", "Madhapur, Hyderabad", "2026-10-03", "", "Dr. Neha Verma", "", "35000"],
+]
+
+# Every uploaded column is matched against these aliases by normalized name
+# (exact, then loose containment) — a column that matches nothing here is
+# simply never read, i.e. ignored, so an uploaded file can carry extra
+# columns (hospital internal refs, etc.) without issue. "Net Amount" is
+# deliberately not mappable — KickbackEntry.save() always derives it.
+KICKBACK_FIELD_ALIASES = {
+    "bill_number": ["bill number", "bill no", "billno", "invoice number", "invoice no"],
+    "patient_name": ["patient name", "patient", "name of patient", "pt name", "patient full name"],
+    "patient_address": ["address", "patient address", "addr", "residence"],
+    "admission_date": ["admission date", "admit date", "date of admission"],
+    "discharge_date": ["discharge date", "date of discharge"],
+    "consulting_doctor": ["consult doctor", "consulting doctor", "doctor", "consultant"],
+    "referred_by": ["reffered by", "referred by", "reference", "referral", "referred"],
+    "final_amount": ["final amount", "bill amount", "total amount", "total bill amount"],
+}
+
+KICKBACK_REQUIRED_FIELDS = ("bill_number", "admission_date")
+
+
+def map_kickback_columns(headers: list[str]) -> dict[str, str | None]:
+    """Best-effort match of uploaded headers to KickbackEntry fields — see
+    KICKBACK_FIELD_ALIASES. Any header that doesn't match a known column
+    name is left out of the mapping and never read."""
+    normalized = {h: _normalize(h) for h in headers}
+    used: set[str] = set()
+    mapping: dict[str, str | None] = {}
+    for field, aliases in KICKBACK_FIELD_ALIASES.items():
+        alias_norms = [_normalize(a) for a in aliases]
+        mapping[field] = next((h for h in headers if h not in used and normalized[h] in alias_norms), None)
+        if mapping[field]:
+            used.add(mapping[field])
+    for field, aliases in KICKBACK_FIELD_ALIASES.items():
+        if mapping[field]:
+            continue
+        alias_norms = [_normalize(a) for a in aliases]
+        mapping[field] = next(
+            (
+                h for h in headers if h not in used and normalized[h]
+                and any(a and (a in normalized[h] or normalized[h] in a) for a in alias_norms)
+            ),
+            None,
+        )
+        if mapping[field]:
+            used.add(mapping[field])
+    return mapping
+
+
+def build_kickback_rows(
+    headers: list[str], data_rows: list[list], mapping: dict[str, str | None]
+) -> tuple[list[dict], list[tuple[int, str]]]:
+    """Applies `mapping` to every parsed row, producing one
+    KickbackEntry-ready dict per valid row, plus (row_number, reason) for
+    every row skipped outright (missing bill number or an unrecognized
+    admission date) — row_number counts the uploaded file's own rows,
+    header included, so it matches what the user sees in a spreadsheet."""
+    index = {h: i for i, h in enumerate(headers)}
+
+    def cell(row, field):
+        header = mapping.get(field)
+        if not header or header not in index:
+            return ""
+        i = index[header]
+        return row[i] if i < len(row) else ""
+
+    rows = []
+    errors = []
+    for row_number, row in enumerate(data_rows, start=2):
+        bill_number = str(cell(row, "bill_number") or "").strip()
+        admission_date = _parse_date_cell(cell(row, "admission_date"))
+        row_errors = []
+        if not bill_number:
+            row_errors.append("bill number is missing")
+        if not admission_date:
+            row_errors.append("admission date is missing or not recognized")
+        if row_errors:
+            errors.append((row_number, "; ".join(row_errors)))
+            continue
+        rows.append({
+            "bill_number": bill_number,
+            "patient_name": str(cell(row, "patient_name") or "").strip(),
+            "patient_address": str(cell(row, "patient_address") or "").strip(),
+            "admission_date": admission_date,
+            "discharge_date": _parse_date_cell(cell(row, "discharge_date")),
+            "consulting_doctor": str(cell(row, "consulting_doctor") or "").strip(),
+            "referred_by": str(cell(row, "referred_by") or "").strip(),
+            "final_amount": _parse_decimal_cell(cell(row, "final_amount")),
+        })
+    return rows, errors
+
+
 def build_initial_rows(
     headers: list[str], data_rows: list[list], mapping: dict[str, str | None]
 ) -> tuple[list[dict], list[list[str]]]:

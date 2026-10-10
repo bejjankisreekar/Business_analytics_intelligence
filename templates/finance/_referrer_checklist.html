@@ -1,0 +1,52 @@
+<style>
+  /* A bill can have several referrers, so they're ticked from a list. */
+  .referrer-checklist { display: grid; gap: 0.4rem; max-height: 9.5rem; overflow-y: auto; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.6rem; padding: 0.6rem 0.75rem; background: rgba(255,255,255,0.04); }
+  .referrer-checklist label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #e2e8f0; cursor: pointer; }
+  .referrer-checklist input[type=checkbox] { width: 1rem; height: 1rem; margin: 0; flex: none; }
+  .referrer-checklist[hidden], .referrer-checklist label[hidden] { display: none; }
+  .referrer-picker { display: grid; gap: 0.45rem; }
+  .referrer-search { width: 100%; box-sizing: border-box; height: 2.25rem; padding: 0 0.75rem; font-size: 0.85rem; border-radius: 0.6rem; }
+  .referrer-count { font-size: 0.75rem; color: #94a3b8; min-height: 1rem; }
+  html[data-theme="light"] .referrer-checklist { border-color: rgba(15,23,42,0.16); background: #ffffff; }
+  html[data-theme="light"] .referrer-checklist label { color: #0f172a; }
+</style>
+<div class="referrer-picker">
+  <input type="search" class="referrer-search" placeholder="Search ledgers…" aria-label="Search ledgers">
+  <div class="referrer-checklist" hidden>
+    {% for option in field %}
+    <label data-name="{{ option.choice_label|lower }}" data-label="{{ option.choice_label }}">{{ option.tag }}<span>{{ option.choice_label }}</span></label>
+    {% empty %}
+    <p class="text-xs text-slate-500">No ledgers yet — add one below.</p>
+    {% endfor %}
+  </div>
+  <p class="referrer-count"></p>
+</div>
+<script>
+  // Clicking into the search box opens the full ledger list; typing narrows
+  // it; leaving the picker closes it. The line under the box names the ticked
+  // ledgers, so they stay visible while the list is closed.
+  (() => {
+    const root = document.currentScript.parentElement;
+    const search = root.querySelector(".referrer-search");
+    const list = root.querySelector(".referrer-checklist");
+    const labels = [...list.querySelectorAll("label")];
+    const count = root.querySelector(".referrer-count");
+    const filter = () => {
+      const q = search.value.trim().toLowerCase();
+      labels.forEach((l) => { l.hidden = Boolean(q) && !l.dataset.name.includes(q); });
+    };
+    const summary = () => {
+      const ticked = labels.filter((l) => l.querySelector("input").checked).map((l) => l.dataset.label);
+      count.textContent = ticked.length ? `Selected: ${ticked.join(", ")}` : "";
+    };
+    search.addEventListener("focus", () => { list.hidden = false; filter(); });
+    search.addEventListener("input", filter);
+    root.addEventListener("focusout", (e) => {
+      if (!root.contains(e.relatedTarget)) list.hidden = true;
+    });
+    // Keep focus in the search box while a tick box or label is clicked.
+    list.addEventListener("mousedown", (e) => e.preventDefault());
+    labels.forEach((l) => l.querySelector("input").addEventListener("change", summary));
+    summary();
+  })();
+</script>

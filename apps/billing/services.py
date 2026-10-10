@@ -19,6 +19,18 @@ def get_current_subscription(organization_id, using: str = "default"):
     )
 
 
+# Plan.slug values for the "Business" and "Business Drive" tiers (see
+# apps/billing/migrations/0017_sync_plan_catalog.py) — the only plans that
+# unlock business-tier-only pages like Kickbacks.
+BUSINESS_TIER_PLAN_SLUGS = {"smart-drive", "enterprise"}
+
+
+def has_business_tier_plan(organization, using: str = "default") -> bool:
+    """Whether `organization`'s current plan is Business or Business Drive."""
+    sub = get_current_subscription(organization.id, using=using)
+    return bool(sub and sub.plan.slug in BUSINESS_TIER_PLAN_SLUGS)
+
+
 def _supersede_current(organization_id, using: str) -> None:
     """Mark whatever subscription is currently `is_current=True` for this
     org as no longer current, WITHOUT touching its other fields — it stays

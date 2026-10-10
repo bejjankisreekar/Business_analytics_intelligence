@@ -80,6 +80,12 @@
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5A2.5 2.5 0 0014.5 7H19M12 4.5A2.5 2.5 0 019.5 7H5m7-2.5V21m0 0H6.5A1.5 1.5 0 015 19.5v-15A1.5 1.5 0 016.5 3h7.379a1.5 1.5 0 011.06.44l3.622 3.62a1.5 1.5 0 01.439 1.061V19.5a1.5 1.5 0 01-1.5 1.5H12z"/></svg>
           Ledgers
         </a>
+        {% if kickbacks_enabled %}
+        <a href="{% url 'finance:kickbacks' %}" class="app-nav-link {% if active_nav == 'kickbacks' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1014.625 7.5H12V4.875zM12 4.875A2.625 2.625 0 109.375 7.5H12V4.875zM12 7.5H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H12zM12 7.5v12"/></svg>
+          Kickbacks
+        </a>
+        {% endif %}
         {% endif %}
       </div>
       {% endif %}

@@ -9,6 +9,7 @@ column.
 """
 import datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 from django.db.models import Count, F, Q, Sum
 from django.db.models.functions import TruncMonth
@@ -60,10 +61,42 @@ BULK_COLUMN_DEFAULTS = {
     "purchase": {
         "category": "Category", "subcategory": "Sub-category", "item": "Item", "vendor": "Vendor",
         "qty": "Qty", "amount": "Amount", "via": "Via", "bank": "Bank", "note": "Note",
-        "on_credit": "On credit",
     },
 }
 BULK_TAB_TITLES = {"sale": "Revenue", "expense": "Expenses", "purchase": "Purchases"}
+
+KICKBACK_COLUMN_DEFAULTS = {
+    "bill_number": "Bill No.",
+    "patient_name": "Patient",
+    "patient_address": "Address",
+    "admission_date": "Admitted On",
+    "discharge_date": "Discharged On",
+    "consulting_doctor": "Doctor",
+    "referred_by": "Referred By",
+    "ref_date": "Paid On",
+    "final_amount": "Bill Amount",
+    "kickback_amount": "Kickback",
+    "net_amount": "Net",
+}
+
+
+def kickback_column_labels(fs: FinanceSettings | None = None) -> dict:
+    """{field: label} for the Kickbacks table — the organization's own names
+    layered over KICKBACK_COLUMN_DEFAULTS, so a blank or corrupt entry falls
+    back to the default."""
+    import json
+
+    fs = fs or get_finance_settings()
+    try:
+        saved = json.loads(fs.kickback_column_labels or "{}")
+    except ValueError:
+        saved = {}
+    if not isinstance(saved, dict):
+        saved = {}
+    return {
+        key: (saved[key].strip() if isinstance(saved.get(key), str) and saved[key].strip() else default)
+        for key, default in KICKBACK_COLUMN_DEFAULTS.items()
+    }
 
 
 def bulk_column_labels(fs: FinanceSettings | None = None) -> dict:
@@ -1269,6 +1302,32 @@ def _cash_bank_split(entries, label_fn) -> list[dict]:
     return [groups[key] for key in order]
 
 
+def _merge_identical_lines(entries) -> list:
+    """Collapse entries that would print the same line on the Daily Report
+    (same item, vendor, note, payment mode and bank) into one line with the
+    amounts and quantities summed — e.g. two 1-visit consultations by the
+    same doctor, both paid in cash, show as one line for 2 visits."""
+    lines: dict[tuple, SimpleNamespace] = {}
+    for e in entries:
+        vendor = getattr(e, "vendor", "") or ""
+        key = (e.subcategory_id, vendor, e.note or "", e.payment_mode, e.bank_account_id)
+        line = lines.get(key)
+        if line is None:
+            line = lines[key] = SimpleNamespace(
+                subcategory=e.subcategory,
+                vendor=vendor,
+                note=e.note,
+                payment_mode=e.payment_mode,
+                payment_label=e.get_payment_mode_display(),
+                bank_account=e.bank_account,
+                quantity=0,
+                amount=ZERO,
+            )
+        line.quantity += getattr(e, "quantity", None) or 0
+        line.amount += e.amount
+    return list(lines.values())
+
+
 def _group_by_subcategory(entries) -> list[dict]:
     """Split one category's entries by their middle level, so a three-deep
     tagging (OPD Consultation -> Orthopedics -> Dr. Khan) gets a subtotal for
@@ -1290,6 +1349,8 @@ def _group_by_subcategory(entries) -> list[dict]:
         if parent is not None:
             groups[name]["nested"] = True
     rows = [groups[key] for key in order]
+    for row in rows:
+        row["lines"] = _merge_identical_lines(row["entries"])
     rows.sort(key=lambda r: r["total"], reverse=True)
     return rows
 

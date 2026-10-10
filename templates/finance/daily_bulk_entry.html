@@ -32,14 +32,21 @@
 {% endif %}
 
 <div class="card mt-4 p-5">
-  <div class="flex gap-2 overflow-x-auto whitespace-nowrap border-b border-white/5">
-    <button type="button" onclick="bai.showBulkTab('sale')" id="bulk-tab-btn-sale" class="report-tab {% if active_bulk_tab == 'sale' %}report-tab--active{% endif %}">Revenue <span class="ml-1 text-xs font-normal text-slate-500" id="tab-total-sale"></span></button>
-    <button type="button" onclick="bai.showBulkTab('expense')" id="bulk-tab-btn-expense" class="report-tab {% if active_bulk_tab == 'expense' %}report-tab--active{% endif %}">Expenses <span class="ml-1 text-xs font-normal text-slate-500" id="tab-total-expense"></span></button>
-    <button type="button" onclick="bai.showBulkTab('purchase')" id="bulk-tab-btn-purchase" class="report-tab {% if active_bulk_tab == 'purchase' %}report-tab--active{% endif %}">Purchases <span class="ml-1 text-xs font-normal text-slate-500" id="tab-total-purchase"></span></button>
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+  <div class="bulk-seg" role="tablist">
+    <button type="button" role="tab" onclick="bai.showBulkTab('sale')" id="bulk-tab-btn-sale" class="bulk-tab {% if active_bulk_tab == 'sale' %}bulk-tab--active{% endif %}">Revenue <span class="bulk-tab-count" id="tab-total-sale"></span></button>
+    <button type="button" role="tab" onclick="bai.showBulkTab('expense')" id="bulk-tab-btn-expense" class="bulk-tab {% if active_bulk_tab == 'expense' %}bulk-tab--active{% endif %}">Expenses <span class="bulk-tab-count" id="tab-total-expense"></span></button>
+    <button type="button" role="tab" onclick="bai.showBulkTab('purchase')" id="bulk-tab-btn-purchase" class="bulk-tab {% if active_bulk_tab == 'purchase' %}bulk-tab--active{% endif %}">Purchases <span class="bulk-tab-count" id="tab-total-purchase"></span></button>
+  </div>
+    <label id="kb-col-toggle-expense" class="flex shrink-0 items-center gap-2 pb-3 text-sm font-medium text-slate-300 whitespace-nowrap {% if not kickback_in_use_expense %}cursor-pointer{% endif %}"
+      {% if kickback_in_use_expense %}title="Kickback bill is used in Expenses on this date, so its column stays shown"{% endif %}>
+      <input id="kb-col-check-expense" type="checkbox" class="h-4 w-4 rounded" {% if kickback_in_use_expense %}checked disabled{% endif %}>
+      Kickback bill
+    </label>
   </div>
 
   <!-- Revenue bulk entry -->
-  <section id="bulk-tab-sale" class="mt-4 {% if active_bulk_tab != 'sale' %}hidden{% endif %}">
+  <section id="bulk-tab-sale" data-searchable-selects class="mt-4 {% if active_bulk_tab != 'sale' %}hidden{% endif %}">
     <form method="post" action="{% url 'finance:bulk_add_sales' %}">
       {% csrf_token %}
       <input type="hidden" name="next" value="{% url 'finance:daily_bulk_entry' %}?date={{ selected_date|date:'Y-m-d' }}">
@@ -54,9 +61,9 @@
         <table class="bulk-table bulk-table--wide w-full text-left text-sm">
           <thead>
             <tr class="text-[11px] uppercase tracking-wide text-slate-500">
-              <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.sale.category|default:'Category' }}</th>
-              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.sale.subcategory|default:'Sub-category' }}</th>
-              <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.sale.item|default:'Item' }}</th>
+              <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.sale.category|default:'Category' }}<a href="{% url 'finance:categories' %}?kind=SALES" class="bulk-plus" target="_blank" rel="noopener" title="Add a new revenue category">+</a></th>
+              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.sale.subcategory|default:'Sub-category' }}<a href="{% url 'finance:categories' %}?kind=SALES" class="bulk-plus" target="_blank" rel="noopener" title="Add a new sub-category">+</a></th>
+              <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.sale.item|default:'Item' }}<a href="{% url 'finance:categories' %}?kind=SALES" class="bulk-plus" target="_blank" rel="noopener" title="Add a new item under a sub-category">+</a></th>
               <th data-col="Customer" class="px-1 pb-1.5 font-medium">{{ labels.sale.customer|default:'Customer' }}</th>
               <th data-col="Qty" class="px-1 pb-1.5 font-medium">{{ labels.sale.qty|default:'Qty' }}</th>
               <th data-col="Gross" class="px-1 pb-1.5 font-medium">{{ labels.sale.gross|default:'Gross' }}</th>
@@ -86,7 +93,7 @@
   </section>
 
   <!-- Expenses bulk entry -->
-  <section id="bulk-tab-expense" class="mt-4 {% if active_bulk_tab != 'expense' %}hidden{% endif %}">
+  <section id="bulk-tab-expense" data-searchable-selects class="mt-4 {% if active_bulk_tab != 'expense' %}hidden{% endif %}">
     <form method="post" action="{% url 'finance:bulk_add_expenses' %}">
       {% csrf_token %}
       <input type="hidden" name="next" value="{% url 'finance:daily_bulk_entry' %}?date={{ selected_date|date:'Y-m-d' }}">
@@ -101,9 +108,11 @@
         <table class="bulk-table w-full text-left text-sm">
           <thead>
             <tr class="text-[11px] uppercase tracking-wide text-slate-500">
-              <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.expense.category|default:'Category' }}</th>
-              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.expense.subcategory|default:'Sub-category' }}</th>
-              <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.expense.item|default:'Item' }}</th>
+              <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.expense.category|default:'Category' }}<a href="{% url 'finance:categories' %}?kind=EXPENSE" class="bulk-plus" target="_blank" rel="noopener" title="Add a new expense category">+</a></th>
+              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.expense.subcategory|default:'Sub-category' }}<a href="{% url 'finance:categories' %}?kind=EXPENSE" class="bulk-plus" target="_blank" rel="noopener" title="Add a new sub-category">+</a></th>
+              <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.expense.item|default:'Item' }}<a href="{% url 'finance:categories' %}?kind=EXPENSE" class="bulk-plus" target="_blank" rel="noopener" title="Add a new item under a sub-category">+</a></th>
+              <th data-col="Paid to" class="px-1 pb-1.5 font-medium">Paid to</th>
+              <th data-col="Kickback bill" class="px-1 pb-1.5 font-medium">Kickback bill<span class="bulk-info" tabindex="0" role="img" aria-label="Each option shows: Bill No, patient name, consulting doctor, admission date" title="Each option shows, in this order: Bill No · Patient name · Consulting doctor · Admission date">i</span></th>
               <th data-col="Amount" class="px-1 pb-1.5 font-medium">{{ labels.expense.amount|default:'Amount' }}</th>
               <th data-col="Via" class="px-1 pb-1.5 font-medium">{{ labels.expense.via|default:'Via' }}</th>
               <th data-col="Bank" class="px-1 pb-1.5 font-medium">{{ labels.expense.bank|default:'Bank' }}</th>
@@ -129,7 +138,7 @@
   </section>
 
   <!-- Purchases bulk entry -->
-  <section id="bulk-tab-purchase" class="mt-4 {% if active_bulk_tab != 'purchase' %}hidden{% endif %}">
+  <section id="bulk-tab-purchase" data-searchable-selects class="mt-4 {% if active_bulk_tab != 'purchase' %}hidden{% endif %}">
     <form method="post" action="{% url 'finance:bulk_add_purchases' %}">
       {% csrf_token %}
       <input type="hidden" name="next" value="{% url 'finance:daily_bulk_entry' %}?date={{ selected_date|date:'Y-m-d' }}">
@@ -144,16 +153,15 @@
         <table class="bulk-table w-full text-left text-sm">
           <thead>
             <tr class="text-[11px] uppercase tracking-wide text-slate-500">
-              <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.purchase.category|default:'Category' }}</th>
-              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.purchase.subcategory|default:'Sub-category' }}</th>
-              <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.purchase.item|default:'Item' }}</th>
+              <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.purchase.category|default:'Category' }}<a href="{% url 'finance:categories' %}?kind=PURCHASE" class="bulk-plus" target="_blank" rel="noopener" title="Add a new purchase category">+</a></th>
+              <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.purchase.subcategory|default:'Sub-category' }}<a href="{% url 'finance:categories' %}?kind=PURCHASE" class="bulk-plus" target="_blank" rel="noopener" title="Add a new sub-category">+</a></th>
+              <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.purchase.item|default:'Item' }}<a href="{% url 'finance:categories' %}?kind=PURCHASE" class="bulk-plus" target="_blank" rel="noopener" title="Add a new item under a sub-category">+</a></th>
               <th data-col="Vendor" class="px-1 pb-1.5 font-medium">{{ labels.purchase.vendor|default:'Vendor' }}</th>
               <th data-col="Qty" class="px-1 pb-1.5 font-medium">{{ labels.purchase.qty|default:'Qty' }}</th>
               <th data-col="Amount" class="px-1 pb-1.5 font-medium">{{ labels.purchase.amount|default:'Amount' }}</th>
               <th data-col="Via" class="px-1 pb-1.5 font-medium">{{ labels.purchase.via|default:'Via' }}</th>
               <th data-col="Bank" class="px-1 pb-1.5 font-medium">{{ labels.purchase.bank|default:'Bank' }}</th>
               <th data-col="Note" class="px-1 pb-1.5 font-medium">{{ labels.purchase.note|default:'Note' }}</th>
-              <th data-col="On credit" class="px-1 pb-1.5 font-medium">{{ labels.purchase.on_credit|default:'On credit' }}</th>
               <th data-col="Remove" class="px-1 pb-1.5 font-medium">Remove</th>
             </tr>
           </thead>
@@ -209,14 +217,74 @@
   bai.showBulkTab = (type) => {
     ["sale", "expense", "purchase"].forEach((t) => {
       document.getElementById("bulk-tab-" + t).classList.toggle("hidden", t !== type);
-      document.getElementById("bulk-tab-btn-" + t).classList.toggle("report-tab--active", t === type);
+      document.getElementById("bulk-tab-btn-" + t).classList.toggle("bulk-tab--active", t === type);
     });
+    document.getElementById("kb-col-toggle-expense").classList.toggle("hidden", type !== "expense");
   };
+  ["expense"].forEach((t) => {
+    const KEY = "bai.bulkKickbackColumn." + t;
+    const check = document.getElementById("kb-col-check-" + t);
+    const section = document.getElementById("bulk-tab-" + t);
+    const apply = () => section.classList.toggle("kb-cols-hidden", !check.checked);
+    let saved = null;
+    try { saved = window.localStorage.getItem(KEY); } catch (e) {}
+    check.checked = check.disabled || saved === "1";
+    check.addEventListener("change", () => {
+      try { window.localStorage.setItem(KEY, check.checked ? "1" : "0"); } catch (e) {}
+      apply();
+    });
+    apply();
+  });
+  (() => {
+    const active = ["sale", "expense", "purchase"].find((t) => !document.getElementById("bulk-tab-" + t).classList.contains("hidden")) || "sale";
+    bai.showBulkTab(active);
+  })();
+</script>
+<script>
+  (() => {
+    const bill = new URLSearchParams(location.search).get("bill");
+    if (!bill) return;
+    const rows = [...document.querySelectorAll("#expense-formset-body tr")].filter((tr) => {
+      const sel = tr.querySelector('select[name$="-kickback_bill"]');
+      return sel && sel.value === bill;
+    });
+    rows.forEach((tr) => tr.classList.add("kb-linked-row"));
+    if (rows[0]) rows[0].scrollIntoView({ block: "center" });
+  })();
 </script>
 {% include "finance/_bulk_entry_js.html" with bulk_prefixes_json=bulk_prefixes_json %}
 <style>
-  .report-tab { padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500; color: #6b7488; border-bottom: 2px solid transparent; }
-  .report-tab--active { color: #fff; border-color: #5b7cfa; }
+  /* Section switch: one rounded track, equal segments, the active one raised. */
+  .bulk-seg { display: flex; width: 100%; gap: 4px; padding: 4px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); }
+  @media (min-width: 640px) { .bulk-seg { width: auto; } }
+  .bulk-tab { flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; border: 0; border-radius: 10px; padding: 0.5rem 0.4rem; font-size: 0.8rem; font-weight: 600; color: #94a3b8; white-space: nowrap; background: transparent; transition: background-color .15s, color .15s, box-shadow .15s; }
+  @media (min-width: 640px) { .bulk-tab { gap: 0.5rem; padding: 0.55rem 1.1rem; font-size: 0.875rem; } }
+  .bulk-tab:hover { color: #e2e8f0; }
+  .bulk-tab:focus-visible { outline: 2px solid rgba(91,124,250,0.6); outline-offset: 2px; }
+  .bulk-tab--active, .bulk-tab--active:hover { color: #fff; background: linear-gradient(135deg, rgba(91,124,250,0.38), rgba(91,124,250,0.18)); box-shadow: inset 0 0 0 1px rgba(91,124,250,0.55), 0 6px 16px -8px rgba(91,124,250,0.7); }
+  .bulk-tab-count { flex: 0 0 auto; display: inline-block; line-height: 1.25; font-size: 0.72rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; border-radius: 999px; padding: 0.15rem 0.55rem; background: rgba(255,255,255,0.08); color: #94a3b8; }
+  .bulk-tab-count:empty { display: none; }
+  .bulk-tab--active .bulk-tab-count { background: rgba(255,255,255,0.16); color: #fff; }
+  html[data-theme="light"] .bulk-seg { border-color: rgba(15,23,42,0.07); background: rgba(15,23,42,0.045); }
+  html[data-theme="light"] .bulk-tab { color: #64748b; }
+  html[data-theme="light"] .bulk-tab:hover { color: #0f172a; }
+  html[data-theme="light"] .bulk-tab--active, html[data-theme="light"] .bulk-tab--active:hover { color: #1e3a8a; background: #ffffff; box-shadow: 0 1px 2px rgba(15,23,42,0.08), 0 4px 12px -4px rgba(67,97,238,0.35); }
+  html[data-theme="light"] .bulk-tab-count { background: rgba(15,23,42,0.06); color: #475569; }
+  html[data-theme="light"] .bulk-tab--active .bulk-tab-count { background: rgba(67,97,238,0.12); color: #1e3a8a; }
+  .kb-cols-hidden [data-col="Kickback bill"], .kb-cols-hidden [data-label="Kickback bill"] { display: none !important; }
+  #kb-col-toggle input { accent-color: #5b7cfa; }
+  .bulk-info { display: inline-flex; align-items: center; justify-content: center; width: 1.2rem; height: 1.2rem;
+    margin-left: 0.35rem; border-radius: 999px; border: 1px solid rgba(127,127,127,0.5); color: rgb(var(--slate-400));
+    font-size: 0.7rem; font-weight: 700; font-style: italic; text-transform: none; letter-spacing: 0; cursor: help;
+    vertical-align: middle; }
+  #expense-formset-body tr.kb-linked-row td { background: rgba(91,124,250,0.16); }
+  .bulk-plus {
+    display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
+    width: 1.5rem; height: 1.5rem; margin-left: 0.4rem; border-radius: 0.45rem;
+    background: rgba(91,124,250,0.16); color: rgb(var(--brand-400)); font-size: 1rem; font-weight: 700;
+    line-height: 1; text-transform: none; letter-spacing: 0; transition: background .15s;
+  }
+  .bulk-plus:hover { background: rgba(91,124,250,0.28); }
 </style>
 {% include "finance/_bulk_table_style.html" %}
 {% endblock %}

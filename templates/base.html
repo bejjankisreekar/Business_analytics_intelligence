@@ -101,6 +101,17 @@
      rather than a wrap->panel descendant selector. */
   .bai-select-panel.sel-wide { max-height: 26rem; }
   .bai-select-panel.sel-wide .bai-select-option { padding: 0.65rem 1rem; font-size: 0.9rem; }
+  .bai-select-panel--searchable { display: flex; flex-direction: column; overflow: hidden; padding: 0.5rem; }
+  .bai-select-panel--searchable .bai-select-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .bai-select-search {
+    display: block; flex: none; width: 100%; box-sizing: border-box;
+    margin: 0 0 0.45rem; padding: 0.5rem 0.7rem; border-radius: 0.5rem; outline: none;
+    border: 1px solid rgba(255,255,255,0.12); background: #0b1020;
+    color: #e2e8f0; font-size: 0.85rem;
+  }
+  .bai-select-search:focus { border-color: #5b7cfa; box-shadow: 0 0 0 3px rgba(91,124,250,0.15); }
+  html[data-theme="light"] .bai-select-panel input.bai-select-search { border-color: rgba(15,23,42,0.16); background: #ffffff; color: #0f172a; }
+  .bai-select-empty { padding: 0.5rem 0.75rem; font-size: 0.8rem; color: #9aa4bd; }
   /* Long emails/URLs/IDs in label-value grids wrap instead of widening the page. */
   dl > div { min-width: 0; }
   dt, dd { overflow-wrap: anywhere; }
@@ -491,6 +502,33 @@
       // whatever its trigger's ancestors do.
       document.body.appendChild(panel);
 
+      const searchable = select.hasAttribute("data-searchable") || !!select.closest("[data-searchable-selects]");
+      let searchInput = null;
+      let listEl = panel;
+      if (searchable) {
+        searchInput = document.createElement("input");
+        searchInput.type = "text";
+        searchInput.className = "bai-select-search";
+        searchInput.placeholder = "Search…";
+        searchInput.setAttribute("aria-label", "Search options");
+        panel.classList.add("bai-select-panel--searchable");
+        panel.appendChild(searchInput);
+        listEl = document.createElement("div");
+        listEl.className = "bai-select-list";
+        panel.appendChild(listEl);
+        searchInput.addEventListener("input", () => renderPanel(searchInput.value));
+        searchInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            const first = listEl.querySelector(".bai-select-option:not([disabled])");
+            if (first) first.click();
+          } else if (e.key === "Escape") {
+            closePanel();
+            trigger.focus();
+          }
+        });
+      }
+
       const labelEl = trigger.querySelector(".bai-select-trigger-label");
 
       function syncLabel() {
@@ -499,10 +537,12 @@
         trigger.disabled = select.disabled;
       }
 
-      function renderPanel() {
-        panel.innerHTML = "";
+      function renderPanel(filter) {
+        listEl.innerHTML = "";
+        const q = (filter || "").trim().toLowerCase();
         Array.from(select.options).forEach((o, i) => {
           if (o.hidden) return;
+          if (q && !o.text.toLowerCase().includes(q)) return;
           const btn = document.createElement("button");
           btn.type = "button";
           btn.setAttribute("role", "option");
@@ -515,8 +555,14 @@
             closePanel();
             trigger.focus();
           });
-          panel.appendChild(btn);
+          listEl.appendChild(btn);
         });
+        if (q && !listEl.children.length) {
+          const empty = document.createElement("p");
+          empty.className = "bai-select-empty";
+          empty.textContent = "No matches";
+          listEl.appendChild(empty);
+        }
       }
 
       function positionPanel() {
@@ -542,12 +588,14 @@
       function openPanel() {
         if (select.disabled) return;
         if (bai._openSelectPanel && bai._openSelectPanel !== closePanel) bai._openSelectPanel();
-        renderPanel();
+        if (searchInput) searchInput.value = "";
+        renderPanel("");
         positionPanel();
         panel.classList.remove("hidden");
         trigger.setAttribute("aria-expanded", "true");
         bai._openSelectPanel = closePanel;
-        const active = panel.querySelector(".bai-select-option--active");
+        if (searchInput) searchInput.focus();
+        const active = listEl.querySelector(".bai-select-option--active");
         if (active) active.scrollIntoView({ block: "nearest" });
       }
 

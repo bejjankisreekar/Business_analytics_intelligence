@@ -24,6 +24,7 @@ from apps.billing.models import Invoice, Payment
 from apps.organizations.models import Organization
 
 from . import imports, services
+from .access import has_kickbacks_access
 from .forms import (
     BankAccountEditForm,
     BankAccountForm,
@@ -34,6 +35,9 @@ from .forms import (
     ExpenseEntryForm,
     ExpenseEntryFormSet,
     FinanceSettingsForm,
+    GeneralLedgerForm,
+    KickbackEntryForm,
+    LedgerEntryForm,
     PartnerForm,
     PartnerTransactionForm,
     PayableEditForm,
@@ -57,6 +61,9 @@ from .models import (
     Category,
     Customer,
     ExpenseEntry,
+    GeneralLedger,
+    KickbackEntry,
+    LedgerEntry,
     Partner,
     PartnerTransaction,
     Payable,
@@ -1262,6 +1269,7 @@ def _bulk_entry_context(request, selected_date, *, active_bulk_tab="sale", sale_
     report = services.daily_report(selected_date)
     min_date = _historical_min_date(request)
     return {
+        "kickback_in_use_expense": any(e.kickback_bill_id for e in ExpenseEntry.objects.filter(date=selected_date)),
         "active_nav": "daily_report",
         "organization": request.user.organization,
         "selected_date": selected_date,
@@ -1378,7 +1386,7 @@ def _bound_bulk_formset(FormSetClass, model, request, prefix, selected_date):
 def _sheets_batch():
     """session.batch_writes() for the active Google Sheets session, or a
     no-op context on a plain database org (no active session) — lets
-    _save_bulk_formset/_save_purchase_formset wrap their save/delete
+    _save_bulk_formset wraps its save/delete
     loop the same way regardless of storage mode."""
     from apps.sheets_store.session import get_active_session
 
@@ -1429,77 +1437,6 @@ def _save_bulk_formset(formset, request) -> tuple[int, list]:
             entry.save()
 
     return len(to_save), to_save
-
-
-def _save_purchase_formset(formset, request) -> tuple[int, int, list]:
-    """Like _save_bulk_formset, but a row marked "on credit" becomes a
-    Payable (see _create_payable_from_purchase) instead of an immediate
-    PurchaseEntry. Returns (purchases saved, on-credit rows saved, the
-    PurchaseEntry instances) — the on-credit count is separate since those
-    rows have no PurchaseEntry to show in the "just saved" recap.
-
-    "On credit" only applies to a genuinely new row: for an existing
-    PurchaseEntry (now editable here too), checking it is a no-op rather
-    than spinning up a second, disconnected Payable for money that's
-    already been logged as paid.
-
-    Like _save_bulk_formset, every save/delete below runs inside
-    session.batch_writes() on a Google Sheets org, coalescing the network
-    calls instead of one Sheets API round trip per row."""
-    credit_count = 0
-    to_delete = []
-    to_save = []
-    for form in formset:
-        if not form.cleaned_data:
-            continue
-        if form.cleaned_data.get("DELETE"):
-            if form.instance.pk:
-                to_delete.append(form.instance)
-            continue
-        is_new = form.instance._state.adding
-        if is_new and form.cleaned_data.get("on_credit"):
-            _create_payable_from_purchase(form.cleaned_data, request)
-            credit_count += 1
-            continue
-        entry = form.save(commit=False)
-        if is_new:
-            entry.created_by_email = request.user.email
-        to_save.append(entry)
-
-    with _sheets_batch():
-        for instance in to_delete:
-            instance.delete()
-        for entry in to_save:
-            entry.save()
-
-    return len(to_save), credit_count, to_save
-
-
-def _create_payable_from_purchase(cleaned_data: dict, request) -> Payable:
-    """A Daily Entries purchase logged as "on credit" becomes a Payable
-    instead of an immediate PurchaseEntry — the PurchaseEntry only gets
-    created later, when the bill is actually paid off (mirrors
-    RecordPayablePaymentView), so cash/bank/P&L never double-count a
-    purchase that hasn't been paid for yet. The category/subcategory/qty
-    detail PurchaseEntry would normally carry has no home on Payable, so it
-    gets folded into the note instead of silently dropped."""
-    detail_bits = [b for b in [
-        cleaned_data["category"].name if cleaned_data.get("category") else None,
-        cleaned_data["subcategory"].name if cleaned_data.get("subcategory") else None,
-        f"Qty {cleaned_data['quantity']}" if cleaned_data.get("quantity") else None,
-    ] if b]
-    detail = " · ".join(detail_bits)
-    note = cleaned_data.get("note") or ""
-    if detail:
-        note = f"{detail} — {note}" if note else detail
-    return Payable.objects.create(
-        vendor=cleaned_data["vendor"],
-        bill_date=cleaned_data["date"],
-        due_date=cleaned_data["date"] + datetime.timedelta(days=30),
-        amount=cleaned_data["amount"],
-        note=note,
-        created_by_email=request.user.email,
-    )
 
 
 def _describe_saved(entries, kind: str) -> list[dict]:
@@ -1683,14 +1620,9 @@ class BulkAddPurchasesView(TenantLoginRequiredMixin, View):
         selected_date = _parse_date(request.POST.get("selected_date"))
         formset = _bound_bulk_formset(PurchaseEntryFormSet, PurchaseEntry, request, "purchase", selected_date)
         if formset.is_valid():
-            count, credit_count, saved = _save_purchase_formset(formset, request)
-            if count or credit_count:
-                parts = []
-                if count:
-                    parts.append(f"{count} purchase{'s' if count != 1 else ''}")
-                if credit_count:
-                    parts.append(f"{credit_count} on credit (added to vendor payables)")
-                messages.success(request, "Logged " + " and ".join(parts) + ".")
+            count, saved = _save_bulk_formset(formset, request)
+            if count:
+                messages.success(request, f"Logged {count} purchase{'s' if count != 1 else ''}.")
             context = _bulk_entry_context(request, selected_date, active_bulk_tab="purchase")
             context["just_saved_type"] = "purchase"
             context["just_saved_entries"] = _describe_saved(saved, "purchase")
@@ -1700,6 +1632,93 @@ class BulkAddPurchasesView(TenantLoginRequiredMixin, View):
             request, selected_date, active_bulk_tab="purchase", purchase_formset=formset
         )
         return render(request, "finance/daily_bulk_entry.html", context)
+
+
+SINGLE_ENTRY_TYPES = {
+    "sale": {"form": SalesEntryForm, "model": SalesEntry, "label": "Revenue", "main_field": "channel", "tab": "sale"},
+    "expense": {"form": ExpenseEntryForm, "model": ExpenseEntry, "label": "Expense", "main_field": "category", "tab": "expense"},
+    "purchase": {"form": PurchaseEntryForm, "model": PurchaseEntry, "label": "Purchase", "main_field": "category", "tab": "purchase"},
+}
+
+
+def _single_entry_groups(form, main_field: str) -> list[tuple[str, list]]:
+    """Group the single-entry form's fields into labelled sections for the
+    page. Names a given type doesn't have (e.g. Customer on a purchase) are
+    skipped, so one layout serves all three forms."""
+    layout = [
+        ("Details", ["date", main_field, "subcategory", "customer", "vendor", "quantity"]),
+        ("Amount", ["gross_amount", "discount", "amount"]),
+        ("Payment", ["payment_mode", "bank_account", "paid_to_ledger", "kickback_bill"]),
+        ("Note", ["note"]),
+    ]
+    return [(title, [form[name] for name in names if name in form.fields]) for title, names in layout]
+
+
+class SingleEntryView(TenantLoginRequiredMixin, View):
+    """Record one revenue/expense/purchase at a time. The row is written to the
+    same SalesEntry/ExpenseEntry/PurchaseEntry table the bulk screen reads from,
+    so it shows up in Bulk Entry on its date and is edited or removed there like
+    any other row. This screen only makes the entry."""
+
+    template_name = "finance/single_entry.html"
+
+    def _kind(self):
+        kind = self.request.GET.get("type") or self.request.POST.get("type")
+        return kind if kind in SINGLE_ENTRY_TYPES else "sale"
+
+    def _context(self, kind, form, selected_date):
+        config = SINGLE_ENTRY_TYPES[kind]
+        day_entries = config["model"].objects.filter(date=selected_date).order_by("created_at")
+        date_param = selected_date.strftime("%Y-%m-%d")
+        return {
+            "active_nav": "daily_report",
+            "organization": self.request.user.organization,
+            "kind": kind,
+            "label": config["label"],
+            "main_field": config["main_field"],
+            "form": form,
+            "groups": _single_entry_groups(form, config["main_field"]),
+            "selected_date": selected_date,
+            "min_date": _historical_min_date(self.request),
+            "subcategory_map_json": to_json(services.subcategory_map()),
+            "tabs": [
+                {
+                    "kind": k,
+                    "label": c["label"],
+                    "url": f"{self.request.path}?type={k}&date={date_param}",
+                }
+                for k, c in SINGLE_ENTRY_TYPES.items()
+            ],
+            "day_entries": _describe_saved(day_entries, kind),
+            "bulk_url": f"{reverse('finance:daily_bulk_entry')}?date={date_param}&tab={config['tab']}",
+        }
+
+    def get(self, request, *args, **kwargs):
+        kind = self._kind()
+        selected_date = _parse_date(request.GET.get("date"))
+        form = SINGLE_ENTRY_TYPES[kind]["form"](
+            initial={"date": selected_date}, min_date=_historical_min_date(request)
+        )
+        return render(request, self.template_name, self._context(kind, form, selected_date))
+
+    def post(self, request, *args, **kwargs):
+        kind = self._kind()
+        config = SINGLE_ENTRY_TYPES[kind]
+        form = config["form"](
+            request.POST,
+            initial={"date": _parse_date(request.GET.get("date"))},
+            min_date=_historical_min_date(request),
+        )
+        if not form.is_valid():
+            messages.error(request, "Couldn't save this entry — check the highlighted fields.")
+            return render(request, self.template_name, self._context(kind, form, _parse_date(request.GET.get("date"))))
+
+        entry_date = form.cleaned_data["date"]
+        entry = form.save(commit=False)
+        entry.created_by_email = request.user.email
+        entry.save()
+        messages.success(request, f"{config['label']} saved for {entry_date:%d %b %Y}. Edit it in Bulk Entry anytime.")
+        return redirect(f"{request.path}?type={kind}&date={entry_date:%Y-%m-%d}")
 
 
 class EditTransferView(TenantLoginRequiredMixin, View):
@@ -2087,6 +2106,27 @@ CATEGORY_KIND_FOR_REPORT_KIND = {
 }
 
 
+def _category_statement_labels(kind: str) -> dict:
+    """Column headers for the Category Statement table, using the names the
+    organization set in Settings (bulk-entry column names) so the page and
+    every export read the same as the entry screens."""
+    names = services.bulk_column_labels()[{"sales": "sale", "expenses": "expense", "purchases": "purchase"}[kind]]
+    party = {"sales": names.get("customer"), "purchases": names.get("vendor")}.get(kind) or "Customer/Vendor"
+    return {
+        "date": "Date",
+        "subcategory": names["subcategory"],
+        "item": names["item"],
+        "party": party,
+        "qty": names.get("qty", "Qty"),
+        "gross": names.get("gross", "Gross"),
+        "discount": names.get("discount", "Discount"),
+        "amount": names["net"] if kind == "sales" else names["amount"],
+        "via": names["via"],
+        "bank": names["bank"],
+        "note": names["note"],
+    }
+
+
 def _category_statement_query(request) -> dict:
     """Parses ?kind=&category=&subcategory=&from=&to= the same way for the
     Category Statement page and its Excel/CSV/PDF exports, so the three
@@ -2139,6 +2179,7 @@ def _category_statement_query(request) -> dict:
         "default_range": default_range,
         "entries": result["entries"],
         "totals": result["totals"],
+        "labels": _category_statement_labels(kind),
     }
 
 
@@ -2208,10 +2249,11 @@ class CategoryStatementExcelView(TenantLoginRequiredMixin, View):
         _letterhead_row(date_range, Font(italic=True, size=9, color="666666"))
         ws.append([])
 
-        header = ["Date", "Sub-category", "Item", "Customer/Vendor", "Qty"]
+        lb = data["labels"]
+        header = [lb["date"], lb["subcategory"], lb["item"], lb["party"], lb["qty"]]
         if is_sales:
-            header += ["Gross", "Discount"]
-        header += ["Net" if is_sales else "Amount", "Via", "Bank", "Note"]
+            header += [lb["gross"], lb["discount"]]
+        header += [lb["amount"], lb["via"], lb["bank"], lb["note"]]
         ws.append(header)
         header_row = ws.max_row
         for cell in ws[header_row]:
@@ -2256,10 +2298,11 @@ class CategoryStatementCsvView(TenantLoginRequiredMixin, View):
         buffer = io.StringIO()
         writer = csv.writer(buffer)
 
-        header = ["Date", "Sub-category", "Item", "Customer/Vendor", "Qty"]
+        lb = data["labels"]
+        header = [lb["date"], lb["subcategory"], lb["item"], lb["party"], lb["qty"]]
         if is_sales:
-            header += ["Gross", "Discount"]
-        header += ["Net" if is_sales else "Amount", "Via", "Bank", "Note"]
+            header += [lb["gross"], lb["discount"]]
+        header += [lb["amount"], lb["via"], lb["bank"], lb["note"]]
         writer.writerow(header)
 
         for e in data["entries"]:
@@ -2284,7 +2327,12 @@ class CategoryStatementCsvView(TenantLoginRequiredMixin, View):
 class CategoryStatementPdfView(TenantLoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         data = _category_statement_query(request)
-        context = {"organization": request.user.organization, **data}
+        context = {
+            "organization": request.user.organization,
+            "cell": "border:1px solid #9aa3b5; padding:3px 4px; font-size:8px; vertical-align:top;",
+            "generated_on": datetime.date.today(),
+            **data,
+        }
         filename = f"category-statement-{data['kind']}-{data['date_from']}-{data['date_to']}.pdf"
         return _render_statement_pdf(
             request, "finance/pdf/category_statement_pdf.html", context, filename,
@@ -2322,6 +2370,8 @@ class FinanceSettingsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixi
         context["customer_form"] = CustomerForm()
         context["vendors"] = Vendor.objects.all()
         context["bank_accounts"] = BankAccount.objects.all()
+        context["kickback_doctor_category"] = fs.kickback_doctor_category
+        context["active_categories"] = [c for c in categories if c.is_active]
         labels = services.bulk_column_labels(fs)
         context["label_groups"] = [
             {
@@ -2353,6 +2403,11 @@ class FinanceSettingsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixi
             fs.bulk_column_labels = json.dumps(custom) if custom else ""
             fs.save()
             messages.success(request, "Entry column names updated.")
+            return redirect("finance:settings")
+        if "save_kickback_doctor_category" in request.POST and has_kickbacks_access(request):
+            fs.kickback_doctor_category = Category.objects.filter(pk=request.POST.get("kickback_doctor_category") or None).first()
+            fs.save()
+            messages.success(request, "Consulting doctors category updated.")
             return redirect("finance:settings")
         form = FinanceSettingsForm(request.POST, instance=fs)
         if form.is_valid():
@@ -2648,6 +2703,390 @@ def _ledger_filter_context(request, entries, paginate=True):
     return result
 
 
+def _kickback_receipts_by_bill() -> dict:
+    """Daily Book revenue entries linked to each bill, oldest first."""
+    grouped = {}
+    for sale in SalesEntry.objects.all():
+        if sale.kickback_bill_id:
+            grouped.setdefault(str(sale.kickback_bill_id), []).append(sale)
+    for sales in grouped.values():
+        sales.sort(key=lambda s: s.date)
+    return grouped
+
+
+def _parse_iso_date(raw):
+    try:
+        return datetime.date.fromisoformat(raw or "")
+    except ValueError:
+        return None
+
+
+def _kickback_filtered(request) -> dict:
+    """The bills matching the Kickbacks page's filters, with their payments.
+    A paid-date range keeps only bills with a payment in that range and shows
+    only those payments. Shared by the page and every export, so they agree."""
+    query = (request.GET.get("q") or "").strip()
+    date_from = _parse_iso_date(request.GET.get("from"))
+    date_to = _parse_iso_date(request.GET.get("to"))
+    paid_from = _parse_iso_date(request.GET.get("paid_from"))
+    paid_to = _parse_iso_date(request.GET.get("paid_to"))
+    doctor = (request.GET.get("doctor") or "").strip()
+    referred = (request.GET.get("referred") or "").strip()
+
+    payments = _kickback_receipts_by_bill()
+    entries = sorted(KickbackEntry.objects.all(), key=lambda e: e.admission_date, reverse=True)
+    if query:
+        needle = query.lower()
+        entries = [
+            e for e in entries
+            if needle in " ".join([
+                e.bill_number, e.patient_name, e.patient_address, e.consulting_doctor, e.referred_by,
+            ]).lower()
+        ]
+    if doctor:
+        entries = [e for e in entries if e.consulting_doctor == doctor]
+    if referred:
+        entries = [e for e in entries if referred in _referrer_names(e)]
+    if date_from:
+        entries = [e for e in entries if e.admission_date >= date_from]
+    if date_to:
+        entries = [e for e in entries if e.admission_date <= date_to]
+    if paid_from or paid_to:
+        def in_paid_range(p):
+            return (not paid_from or p.date >= paid_from) and (not paid_to or p.date <= paid_to)
+        entries = [e for e in entries if any(in_paid_range(p) for p in payments.get(str(e.pk), []))]
+        for e in entries:
+            payments[str(e.pk)] = [p for p in payments.get(str(e.pk), []) if in_paid_range(p)]
+    return {
+        "entries": entries,
+        "payments": payments,
+        "filters": {
+            "query": query, "from": date_from, "to": date_to,
+            "paid_from": paid_from, "paid_to": paid_to,
+            "doctor": doctor, "referred": referred,
+        },
+    }
+
+
+def _referrer_names(entry) -> list[str]:
+    """The separate referrers on a bill — its "Referred by" text is a comma-separated list."""
+    return [name.strip() for name in entry.referred_by.split(",") if name.strip()]
+
+
+def _kickback_names(field: str) -> list[str]:
+    """Distinct, non-blank values of a bill's doctor or referrer name, for the filter dropdowns.
+    Each bill's referrers are listed separately, so "A, B" contributes "A" and "B"."""
+    if field == "referred_by":
+        names = {name for e in KickbackEntry.objects.all() for name in _referrer_names(e)}
+    else:
+        names = {getattr(e, field).strip() for e in KickbackEntry.objects.all()} - {""}
+    return sorted(names, key=str.lower)
+
+
+class KickbacksView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, TemplateView):
+    """Kickbacks tracking — a Business/Business Drive plan exclusive.
+    One bill per row, entered manually, spreadsheet-style."""
+
+    template_name = "finance/kickbacks.html"
+
+    def get(self, request, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        data = _kickback_filtered(self.request)
+        entries = data["entries"]
+        pager = _paginate(self.request, entries, param="page")
+        page_entries = pager["page_obj"].object_list
+        for entry in page_entries:
+            entry.payment_list = data["payments"].get(str(entry.pk), [])
+        totals = {
+            "final_amount": sum((e.final_amount for e in entries), services.ZERO),
+            "kickback_amount": sum((e.kickback_amount for e in entries), services.ZERO),
+            "net_amount": sum((e.net_amount for e in entries), services.ZERO),
+        }
+        filters = data["filters"]
+        context.update({
+            "active_nav": "kickbacks",
+            "organization": self.request.user.organization,
+            "entries": page_entries,
+            "pager": pager,
+            "filter_query": filters["query"],
+            "filter_from": filters["from"],
+            "filter_to": filters["to"],
+            "filter_paid_from": filters["paid_from"],
+            "filter_paid_to": filters["paid_to"],
+            "filter_doctor": filters["doctor"],
+            "filter_referred": filters["referred"],
+            "doctor_options": _kickback_names("consulting_doctor"),
+            "referred_options": _kickback_names("referred_by"),
+            "totals": totals,
+            "kb_labels": services.kickback_column_labels(),
+            "kb_label_fields": [
+                {"key": key, "default": default, "value": services.kickback_column_labels()[key]}
+                for key, default in services.KICKBACK_COLUMN_DEFAULTS.items()
+            ],
+            "kickback_form": KickbackEntryForm(auto_id="id_kickback_%s"),
+        })
+        return context
+
+
+class AddKickbackEntryView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        form = KickbackEntryForm(request.POST)
+        if form.is_valid():
+            entry = form.save(commit=False)
+            entry.created_by_email = request.user.email
+            entry.save()
+            messages.success(request, "Bill added.")
+        else:
+            messages.error(request, "Couldn't add that bill — check the highlighted fields.")
+        return redirect("finance:kickbacks")
+
+
+class EditKickbackEntryView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, TemplateView):
+    template_name = "finance/edit_kickback.html"
+
+    def get(self, request, pk, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        entry = get_object_or_404(KickbackEntry, pk=pk)
+        form = KickbackEntryForm(instance=entry)
+        return self.render(request, entry, form)
+
+    def post(self, request, pk, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        entry = get_object_or_404(KickbackEntry, pk=pk)
+        form = KickbackEntryForm(request.POST, instance=entry)
+        if not form.is_valid():
+            return self.render(request, entry, form)
+        form.save()
+        messages.success(request, "Bill updated.")
+        return redirect("finance:kickbacks")
+
+    def render(self, request, entry, form):
+        return render(request, self.template_name, {
+            "active_nav": "kickbacks",
+            "organization": request.user.organization,
+            "entry": entry,
+            "form": form,
+        })
+
+
+class KickbackDetailView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, TemplateView):
+    template_name = "finance/kickback_detail.html"
+
+    def get(self, request, pk, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        return super().get(request, pk=pk, *args, **kwargs)
+
+    def get_context_data(self, pk, **kwargs):
+        context = super().get_context_data(**kwargs)
+        bill = get_object_or_404(KickbackEntry, pk=pk)
+        payments = sorted(ExpenseEntry.objects.filter(kickback_bill=bill), key=lambda e: e.date)
+        context.update({
+            "active_nav": "kickbacks",
+            "organization": self.request.user.organization,
+            "bill": bill,
+            "payments": payments,
+            "payments_total": sum((p.amount for p in payments), services.ZERO),
+        })
+        return context
+
+
+class KickbackColumnLabelsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        fs = services.get_finance_settings()
+        if "reset" in request.POST:
+            fs.kickback_column_labels = ""
+            messages.success(request, "Column names reset to the defaults.")
+        else:
+            custom = {}
+            for key, default in services.KICKBACK_COLUMN_DEFAULTS.items():
+                value = (request.POST.get(f"label__{key}") or "").strip()[:40]
+                if value and value != default:
+                    custom[key] = value
+            fs.kickback_column_labels = json.dumps(custom) if custom else ""
+            messages.success(request, "Column names saved.")
+        fs.save()
+        return redirect("finance:kickbacks")
+
+
+class DeleteKickbackEntryView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        entry = get_object_or_404(KickbackEntry, pk=pk)
+        entry.delete()
+        messages.success(request, "Bill deleted.")
+        return redirect("finance:kickbacks")
+
+
+_KICKBACK_EXPORT_HEADERS = [
+    "Bill Number", "Patient Name", "Address", "Admission Date", "Discharge Date",
+    "Consult Doctor", "Reffered By", "Final Amount", "Kickback Amount", "Net Amount",
+    "Paid On",
+]
+
+
+def _kickback_export_rows(request) -> list:
+    """One row per payment (a bill with no payments gets one row, blank payment
+    columns), so a bill paid in several parts shows each part."""
+    data = _kickback_filtered(request)
+    rows = []
+    for entry in data["entries"]:
+        bill = [
+            entry.bill_number, entry.patient_name, entry.patient_address,
+            entry.admission_date.isoformat() if entry.admission_date else "",
+            entry.discharge_date.isoformat() if entry.discharge_date else "",
+            entry.consulting_doctor, entry.referred_by,
+            entry.final_amount, entry.kickback_amount, entry.net_amount,
+        ]
+        for payment in data["payments"].get(str(entry.pk)) or [None]:
+            rows.append(bill + [payment.date.isoformat() if payment else ""])
+    return rows
+
+
+class KickbackEntriesCsvView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(_KICKBACK_EXPORT_HEADERS)
+        for row in _kickback_export_rows(request):
+            writer.writerow(row)
+        response = HttpResponse(buffer.getvalue(), content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="kickbacks.csv"'
+        return response
+
+
+class KickbackEntriesExcelView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+        from openpyxl.utils import get_column_letter
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Kickbacks"
+        ws.append(_KICKBACK_EXPORT_HEADERS)
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+        money_columns = [
+            i + 1 for i, h in enumerate(_KICKBACK_EXPORT_HEADERS)
+            if h in ("Final Amount", "Kickback Amount", "Net Amount")
+        ]
+        for row in _kickback_export_rows(request):
+            ws.append(row)
+            for col in money_columns:
+                ws.cell(row=ws.max_row, column=col).number_format = "#,##0.00"
+        for col_idx in range(1, len(_KICKBACK_EXPORT_HEADERS) + 1):
+            ws.column_dimensions[get_column_letter(col_idx)].width = 18
+        ws.freeze_panes = "A2"
+
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="kickbacks.xlsx"'
+        return response
+
+
+class KickbackEntriesPdfView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        data = _kickback_filtered(request)
+        bills = [
+            {"entry": entry, "payments": data["payments"].get(str(entry.pk), [])}
+            for entry in data["entries"]
+        ]
+        context = {
+            "organization": request.user.organization,
+            "bills": bills,
+            "cell": "border:1px solid #9aa3b5; padding:3px 4px; font-size:8px; vertical-align:top;",
+            "totals": {
+                "final_amount": sum((e.final_amount for e in data["entries"]), services.ZERO),
+                "kickback_amount": sum((e.kickback_amount for e in data["entries"]), services.ZERO),
+                "net_amount": sum((e.net_amount for e in data["entries"]), services.ZERO),
+            },
+            "filters": data["filters"],
+            "generated_on": datetime.date.today(),
+        }
+        return _render_statement_pdf(
+            request, "finance/pdf/kickbacks_pdf.html", context, "kickbacks.pdf",
+            fallback_url_name="finance:kickbacks",
+        )
+
+
+class KickbackImportSampleView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        for row in imports.KICKBACK_SAMPLE_ROWS:
+            writer.writerow(row)
+        response = HttpResponse(buffer.getvalue(), content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="kickbacks-sample.csv"'
+        return response
+
+
+class ImportKickbackEntriesView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        uploaded = request.FILES.get("file")
+        if not uploaded:
+            messages.error(request, "Choose a .csv or .xlsx file to import.")
+            return redirect("finance:kickbacks")
+
+        try:
+            headers, data_rows = imports.parse_upload(uploaded)
+        except imports.ImportParseError as exc:
+            messages.error(request, str(exc))
+            return redirect("finance:kickbacks")
+
+        mapping = imports.map_kickback_columns(headers)
+        missing = [field for field in imports.KICKBACK_REQUIRED_FIELDS if not mapping.get(field)]
+        if missing:
+            messages.error(
+                request,
+                "Couldn't find a column for: " + ", ".join(missing)
+                + ". Check the column names against the sample file.",
+            )
+            return redirect("finance:kickbacks")
+
+        rows, errors = imports.build_kickback_rows(headers, data_rows, mapping)
+        for data in rows:
+            entry = KickbackEntry(**data)
+            entry.created_by_email = request.user.email
+            entry.save()
+
+        if rows:
+            messages.success(request, f"Imported {len(rows)} bill{'s' if len(rows) != 1 else ''}.")
+        if errors:
+            preview = "; ".join(f"row {n}: {msg}" for n, msg in errors[:5])
+            more = f" (+{len(errors) - 5} more)" if len(errors) > 5 else ""
+            messages.error(request, f"Skipped {len(errors)} row(s) — {preview}{more}")
+        if not rows and not errors:
+            messages.error(request, "That file has no data rows.")
+        return redirect("finance:kickbacks")
+
+
 class LedgersView(TenantLoginRequiredMixin, TemplateView):
     """Every ledger in the business in one place: Cash and Bank (current
     balance, linking into their full transaction history), plus a
@@ -2705,8 +3144,109 @@ class LedgersView(TenantLoginRequiredMixin, TemplateView):
             "page_sizes": PAGE_SIZES,
             "query": query,
             "as_of": as_of,
+            "general_ledgers": _general_ledger_summaries(),
+            "general_ledger_form": GeneralLedgerForm(auto_id="id_general_ledger_%s"),
         })
         return context
+
+
+def _general_ledger_movements(ledger) -> list[dict]:
+    movements = [
+        {"date": e.date, "particular": e.particular, "debit": e.debit, "credit": e.credit, "entry": e}
+        for e in LedgerEntry.objects.filter(ledger=ledger)
+    ]
+    for expense in ExpenseEntry.objects.filter(paid_to_ledger=ledger):
+        parts = [expense.category.name if expense.category else "Expense"]
+        if expense.subcategory:
+            parts.append(expense.subcategory.name)
+        particular = " · ".join(parts) + (f" — {expense.note}" if expense.note else "")
+        movements.append({
+            "date": expense.date, "particular": particular, "debit": expense.amount,
+            "credit": services.ZERO, "entry": None,
+        })
+    movements.sort(key=lambda m: m["date"])
+    return movements
+
+
+def _general_ledger_summaries() -> list:
+    ledgers = list(GeneralLedger.objects.all())
+    for ledger in ledgers:
+        movements = _general_ledger_movements(ledger)
+        ledger.entry_count = len(movements)
+        ledger.balance = ledger.opening_balance + sum(
+            (m["debit"] for m in movements), services.ZERO
+        ) - sum((m["credit"] for m in movements), services.ZERO)
+    return ledgers
+
+
+class AddGeneralLedgerView(TenantLoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        form = GeneralLedgerForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "Couldn't add that ledger — check the name and amounts.")
+            return redirect("finance:ledgers")
+        ledger = form.save(commit=False)
+        ledger.opening_balance = ledger.opening_balance or services.ZERO
+        ledger.save()
+        messages.success(request, f"Ledger “{ledger.name}” added.")
+        return redirect("finance:general_ledger", pk=ledger.pk)
+
+
+class GeneralLedgerDetailView(TenantLoginRequiredMixin, TemplateView):
+    template_name = "finance/general_ledger_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        ledger = get_object_or_404(GeneralLedger, pk=kwargs["pk"])
+        movements = _general_ledger_movements(ledger)
+        running = ledger.opening_balance
+        rows = []
+        for movement in movements:
+            running += movement["debit"] - movement["credit"]
+            rows.append({**movement, "balance": running})
+        context.update({
+            "active_nav": "ledgers",
+            "organization": self.request.user.organization,
+            "ledger": ledger,
+            "rows": rows,
+            "total_debit": sum((m["debit"] for m in movements), services.ZERO),
+            "total_credit": sum((m["credit"] for m in movements), services.ZERO),
+            "closing_balance": running,
+        })
+        return context
+
+
+class AddLedgerEntryView(TenantLoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        ledger = get_object_or_404(GeneralLedger, pk=pk)
+        form = LedgerEntryForm(request.POST)
+        if form.is_valid():
+            entry = form.save(commit=False)
+            entry.ledger = ledger
+            entry.save()
+            messages.success(request, "Entry added.")
+        else:
+            messages.error(request, " ".join(form.non_field_errors()) or "Check the date and amounts for that entry.")
+        return redirect("finance:general_ledger", pk=ledger.pk)
+
+
+class DeleteLedgerEntryView(TenantLoginRequiredMixin, View):
+    def post(self, request, pk, entry_pk, *args, **kwargs):
+        entry = get_object_or_404(LedgerEntry, pk=entry_pk, ledger_id=pk)
+        entry.delete()
+        messages.success(request, "Entry deleted.")
+        return redirect("finance:general_ledger", pk=pk)
+
+
+class DeleteGeneralLedgerView(TenantLoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        ledger = get_object_or_404(GeneralLedger, pk=pk)
+        for entry in LedgerEntry.objects.filter(ledger=ledger):
+            entry.delete()
+        name = ledger.name
+        ledger.delete()
+        messages.success(request, f"Ledger “{name}” deleted.")
+        return redirect("finance:ledgers")
 
 
 class CustomerLedgerView(TenantLoginRequiredMixin, TemplateView):

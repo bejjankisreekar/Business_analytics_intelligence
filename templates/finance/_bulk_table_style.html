@@ -20,7 +20,7 @@
   .bulk-table th[data-col="Amount"], .bulk-table th[data-col="Gross"], .bulk-table th[data-col="Discount"], .bulk-table th[data-col="Net"] { width: 6.5rem; }
   .bulk-table th[data-col="Via"] { width: 7rem; }
   .bulk-table th[data-col="Bank"] { width: 9rem; }
-  .bulk-table th[data-col="Remove"], .bulk-table th[data-col="On credit"] { width: 4.5rem; }
+  .bulk-table th[data-col="Remove"] { width: 4.5rem; }
   .bulk-table .bai-select-trigger { margin-top: 0; width: 100%; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
   .bulk-table select, .bulk-table input { width: 100%; }
   .row-delete-btn {
@@ -36,8 +36,8 @@
     .bulk-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; padding: 0.85rem; margin-bottom: 0.75rem; border: 1px solid rgba(255,255,255,0.08); border-radius: 0.75rem; background: rgba(255,255,255,0.02); }
     .bulk-table td { display: block; padding: 0 !important; width: auto !important; min-width: 0; }
     .bulk-table td::before { content: attr(data-label); display: block; margin-bottom: 0.2rem; font-size: 10px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7488; }
-    .bulk-table td[data-col="Note"], .bulk-table td[data-col="Remove"], .bulk-table td[data-col="On credit"] { grid-column: 1 / -1; }
-    .bulk-table td[data-col="Remove"], .bulk-table td[data-col="On credit"] { display: flex; align-items: center; gap: 0.5rem; }
-    .bulk-table td[data-col="Remove"]::before, .bulk-table td[data-col="On credit"]::before { margin: 0; order: 2; }
+    .bulk-table td[data-col="Note"], .bulk-table td[data-col="Remove"] { grid-column: 1 / -1; }
+    .bulk-table td[data-col="Remove"] { display: flex; align-items: center; gap: 0.5rem; }
+    .bulk-table td[data-col="Remove"]::before { margin: 0; order: 2; }
   }
 </style>

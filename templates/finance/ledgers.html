@@ -6,13 +6,23 @@
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold text-white">Ledgers</h1>
-    <p class="mt-1 text-sm text-slate-400">Every account's ledger — cash, bank{% if has_customers %}, customers{% endif %} and vendors</p>
+    <p class="mt-1 text-sm text-slate-400">Every account's ledger — cash, bank, general ledgers{% if has_customers %}, customers{% endif %} and vendors</p>
   </div>
 </div>
 
 <!-- Search + as-of date -->
 <style>
   #ld-per + .bai-select-trigger { padding: 0.65rem 1rem; font-size: 0.9rem; }
+  .ld-action {
+    display: inline-flex; align-items: center; gap: 0.3rem; border-radius: 0.55rem;
+    background: rgba(91,124,250,0.14); padding: 0.5rem 0.95rem;
+    font-size: 1rem; font-weight: 600; color: rgb(var(--brand-400));
+    transition: background .15s;
+  }
+  .ld-action:hover { background: rgba(91,124,250,0.24); }
+  .gl-label { display: block; margin-bottom: 0.4rem; font-size: 0.8rem; font-weight: 500; color: rgb(var(--slate-300)); }
+  #modal-general-ledger input { margin-top: 0; padding: 0.65rem 0.85rem; font-size: 0.9rem; }
+  #modal-general-ledger input::placeholder { color: rgb(var(--slate-500)); opacity: 0.7; }
 </style>
 <form method="get" class="card mt-5 flex flex-wrap items-end gap-3 p-4">
   <div class="min-w-[14rem] flex-1">
@@ -41,12 +51,12 @@
   <a href="{% url 'finance:cash_ledger' %}" class="card card-link p-5">
     <p class="text-xs font-medium text-slate-500">Cash in Hand</p>
     <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ cash_balance|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-xs font-medium text-brand-400">View ledger →</p>
+    <span class="ld-action mt-3">View ledger →</span>
   </a>
   <a href="{% url 'finance:bank_ledger' %}" class="card card-link p-5">
     <p class="text-xs font-medium text-slate-500">Bank</p>
     <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ bank_balance|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-xs font-medium text-brand-400">View ledger →</p>
+    <span class="ld-action mt-3">View ledger →</span>
   </a>
 </div>
 
@@ -57,24 +67,117 @@
     <h2 class="text-sm font-semibold text-white">Bank Accounts</h2>
     <p class="mt-0.5 text-xs text-slate-500">Only entries explicitly tagged to a specific account count here — it's a breakdown of the Bank total above, not a separate figure.</p>
   </div>
-  <a href="{% url 'finance:bank_accounts' %}" class="shrink-0 text-xs font-medium text-brand-400 hover:text-brand-300">Manage →</a>
+  <a href="{% url 'finance:bank_accounts' %}" class="ld-action shrink-0">Manage →</a>
 </div>
 <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
   {% for row in bank_account_rows %}
   <a href="{% url 'finance:bank_account_ledger' row.account.pk %}" class="card card-link p-5">
     <p class="text-xs font-medium text-slate-500">{{ row.account.name }} <span class="text-slate-600">· {{ row.account.display_bank }}</span></p>
     <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ row.balance|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-xs font-medium text-brand-400">View ledger →</p>
+    <span class="ld-action mt-3">View ledger →</span>
   </a>
   {% endfor %}
 </div>
 {% endif %}
 
+<!-- General ledgers -->
+<div class="mt-8 flex items-start justify-between gap-3">
+  <div>
+    <h2 class="text-sm font-semibold text-white">General Ledgers</h2>
+    <p class="mt-0.5 text-xs text-slate-500">Any account you want to track on its own — loans, deposits, owner's current account. Not linked to a customer or vendor.</p>
+  </div>
+  <button type="button" onclick="bai.openModal('modal-general-ledger')" class="btn-primary shrink-0 !px-4 !py-2 !text-sm">+ Add Ledger</button>
+</div>
+{% if general_ledgers %}
+<div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  {% for g in general_ledgers %}
+  <a href="{% url 'finance:general_ledger' g.pk %}" class="card card-link p-5">
+    <p class="text-sm font-semibold text-slate-200">{{ g.name }}</p>
+    {% if g.profession %}<p class="mt-0.5 text-xs text-slate-400">{{ g.profession }}</p>{% endif %}
+    <p class="mt-1 text-xs text-slate-500">{{ g.entry_count }} entr{{ g.entry_count|pluralize:"y,ies" }}</p>
+    <p class="mt-2 text-xl font-bold {% if g.balance < 0 %}text-red-400{% else %}text-mint-400{% endif %}">{{ organization.currency }} {{ g.balance|floatformat:0|intcomma }}</p>
+    <span class="ld-action mt-3">View ledger →</span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card mt-3 p-8 text-center text-sm text-slate-500">No general ledgers yet — add one to track any account on its own.</div>
+{% endif %}
+
+<div id="modal-general-ledger" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-6" onclick="if(event.target===this) bai.closeModal('modal-general-ledger')">
+  <div class="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-y-auto rounded-2xl border border-white/10 bg-ink-900 shadow-2xl">
+    <div class="flex items-start justify-between gap-4 border-b border-white/5 px-6 py-5 sm:px-8">
+      <div class="flex items-center gap-4">
+        <span class="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-brand-500/15 text-brand-400">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        </span>
+        <div>
+          <h3 class="text-lg font-semibold text-white">Add a ledger</h3>
+          <p class="mt-0.5 text-sm text-slate-400">Track any account on its own, with its own opening balance.</p>
+        </div>
+      </div>
+      <button type="button" onclick="bai.closeModal('modal-general-ledger')" aria-label="Close" class="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white">
+        <svg style="width:18px;height:18px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form method="post" action="{% url 'finance:add_general_ledger' %}" class="space-y-6 px-6 py-6 sm:px-8">
+      {% csrf_token %}
+      <div>
+        <label class="gl-label" for="{{ general_ledger_form.name.id_for_label }}">{{ general_ledger_form.name.label }} <span class="text-red-400">*</span></label>
+        {{ general_ledger_form.name }}
+      </div>
+      <div class="grid gap-5 sm:grid-cols-2">
+        <div>
+          <label class="gl-label" for="{{ general_ledger_form.profession.id_for_label }}">{{ general_ledger_form.profession.label }}</label>
+          {{ general_ledger_form.profession }}
+        </div>
+        <div>
+          <label class="gl-label" for="{{ general_ledger_form.opening_balance.id_for_label }}">{{ general_ledger_form.opening_balance.label }}</label>
+          {{ general_ledger_form.opening_balance }}
+        </div>
+        <div>
+          <label class="gl-label" for="{{ general_ledger_form.opening_date.id_for_label }}">{{ general_ledger_form.opening_date.label }}</label>
+          {{ general_ledger_form.opening_date }}
+        </div>
+      </div>
+      <div>
+        <h4 class="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Address</h4>
+        <div class="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label class="gl-label" for="{{ general_ledger_form.village.id_for_label }}">{{ general_ledger_form.village.label }}</label>
+            {{ general_ledger_form.village }}
+          </div>
+          <div>
+            <label class="gl-label" for="{{ general_ledger_form.mandal.id_for_label }}">{{ general_ledger_form.mandal.label }}</label>
+            {{ general_ledger_form.mandal }}
+          </div>
+          <div>
+            <label class="gl-label" for="{{ general_ledger_form.district.id_for_label }}">{{ general_ledger_form.district.label }}</label>
+            {{ general_ledger_form.district }}
+          </div>
+          <div>
+            <label class="gl-label" for="{{ general_ledger_form.state.id_for_label }}">{{ general_ledger_form.state.label }}</label>
+            {{ general_ledger_form.state }}
+          </div>
+        </div>
+      </div>
+      <div>
+        <label class="gl-label" for="{{ general_ledger_form.note.id_for_label }}">{{ general_ledger_form.note.label }}</label>
+        {{ general_ledger_form.note }}
+      </div>
+      <div class="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+        <button type="button" onclick="bai.closeModal('modal-general-ledger')" class="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5">Cancel</button>
+        <button type="submit" class="btn-primary sm:px-8">Save ledger</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 {% if has_customers %}
 <!-- Customers -->
 <div class="mt-8 flex items-center justify-between">
   <h2 class="text-sm font-semibold text-white">Customer Ledgers <span class="font-normal text-mint-400">— money to receive</span></h2>
-  <a href="{% url 'finance:settings' %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">+ Add Customer</a>
+  <a href="{% url 'finance:settings' %}" class="ld-action">+ Add Customer</a>
 </div>
 <div class="card mt-3 overflow-x-auto p-5">
   <table class="w-full text-left text-sm">
@@ -99,7 +202,7 @@
           </span>
         </td>
         <td class="py-2.5 text-right">
-          <a href="{% url 'finance:customer_ledger' c.pk %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">View Ledger →</a>
+          <a href="{% url 'finance:customer_ledger' c.pk %}" class="ld-action">View Ledger →</a>
         </td>
       </tr>
       {% empty %}
@@ -115,9 +218,9 @@
 <div class="mt-8 flex items-start justify-between gap-3">
   <div>
     <h2 class="text-sm font-semibold text-white">Vendor Ledgers <span class="font-normal text-red-400">— money to pay</span></h2>
-    <p class="mt-0.5 text-xs text-slate-500">Bills owed to a vendor — opening balances, Add Money to Pay entries, and Daily Entries purchases logged as "Not paid yet (on credit)". A purchase paid in full at the time of entry never shows up here.</p>
+    <p class="mt-0.5 text-xs text-slate-500">Bills owed to a vendor — opening balances and Add Money to Pay entries.</p>
   </div>
-  <a href="{% url 'finance:vendors' %}" class="shrink-0 text-xs font-medium text-brand-400 hover:text-brand-300">+ Add Vendor</a>
+  <a href="{% url 'finance:vendors' %}" class="btn-primary shrink-0 !px-4 !py-2 !text-sm">+ Add Vendor</a>
 </div>
 <div class="card mt-3 overflow-x-auto p-5">
   <table class="w-full text-left text-sm">
@@ -142,7 +245,7 @@
           </span>
         </td>
         <td class="py-2.5 text-right">
-          <a href="{% url 'finance:vendor_ledger' v.pk %}" class="text-xs font-medium text-brand-400 hover:text-brand-300">View Ledger →</a>
+          <a href="{% url 'finance:vendor_ledger' v.pk %}" class="ld-action">View Ledger →</a>
         </td>
       </tr>
       {% empty %}
@@ -152,4 +255,15 @@
   </table>
 </div>
 {% include "finance/_pager.html" with pg=vendor_pager.page_obj pq=vendor_pager.page_query param="vpage" numbers=vendor_pager.page_numbers %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
+  bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") bai.closeModal("modal-general-ledger");
+  });
+</script>
 {% endblock %}

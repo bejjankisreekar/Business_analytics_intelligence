@@ -6,6 +6,7 @@ from django.db.models import QuerySet
 
 from apps.core.widgets import SearchableChoiceWidget, SearchableModelChoiceWidget
 
+from . import services
 from .models import (
     BankAccount,
     BankChoices,
@@ -14,6 +15,9 @@ from .models import (
     Customer,
     ExpenseEntry,
     FinanceSettings,
+    GeneralLedger,
+    KickbackEntry,
+    LedgerEntry,
     Partner,
     PartnerTransaction,
     Payable,
@@ -135,6 +139,39 @@ class RequireCategoryMixin:
         return super().has_changed()
 
 
+class KickbackBillChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, bill):
+        parts = [bill.bill_number, bill.patient_name, bill.consulting_doctor, bill.admission_date.strftime("%d %b %Y")]
+        return " · ".join(part for part in parts if part)
+
+
+class DoctorChoiceField(forms.ModelChoiceField):
+    """"Consulting doctor" option: the doctor's name, prefixed by the sub-category it sits under."""
+
+    def label_from_instance(self, doctor):
+        return f"{doctor.parent.name} · {doctor.name}" if doctor.parent_id else doctor.name
+
+
+def _ledger_label(ledger) -> str:
+    """name - profession - village, skipping any part that's blank."""
+    parts = [ledger.name, ledger.profession, ledger.village]
+    return " - ".join(part for part in parts if part)
+
+
+class GeneralLedgerChoiceField(forms.ModelChoiceField):
+    """"Paid to" option: name - profession - village."""
+
+    def label_from_instance(self, ledger):
+        return _ledger_label(ledger)
+
+
+class ReferrerChoiceField(forms.ModelMultipleChoiceField):
+    """"Referred by" option: name - profession - village."""
+
+    def label_from_instance(self, ledger):
+        return _ledger_label(ledger)
+
+
 class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     category_field = "channel"
     amount_field = "gross_amount"
@@ -209,10 +246,15 @@ class ExpenseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hi
         queryset=_unfetched(Subcategory), required=False, label="Detail — e.g. employee name (optional)"
     )
     bank_account = forms.ModelChoiceField(queryset=_unfetched(BankAccount), required=False, label="Bank")
+    paid_to_ledger = GeneralLedgerChoiceField(queryset=_unfetched(GeneralLedger), required=False, label="Paid to")
+    kickback_bill = KickbackBillChoiceField(queryset=_unfetched(KickbackEntry), required=False, label="Kickback bill")
 
     class Meta:
         model = ExpenseEntry
-        fields = ["date", "category", "subcategory", "amount", "payment_mode", "bank_account", "note"]
+        fields = [
+            "date", "category", "subcategory", "amount", "payment_mode", "bank_account", "note",
+            "paid_to_ledger", "kickback_bill",
+        ]
         labels = {"subcategory": "Detail — e.g. employee name (optional)", "bank_account": "Bank"}
         widgets = {
             "date": DateInput(),
@@ -232,18 +274,16 @@ class ExpenseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hi
         self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
         self.fields["bank_account"].required = False
         self.fields["bank_account"].empty_label = "— Bank —"
+        self.fields["paid_to_ledger"].queryset = GeneralLedger.objects.all()
+        self.fields["paid_to_ledger"].empty_label = "— Paid to —"
+        self.fields["kickback_bill"].queryset = KickbackEntry.objects.all()
+        self.fields["kickback_bill"].empty_label = "— Kickback bill —"
 
 
 class PurchaseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     category_field = "category"
     amount_field = "amount"
 
-    on_credit = forms.BooleanField(
-        required=False,
-        label="Not paid yet (on credit)",
-        help_text="Adds this to the vendor's payable balance instead of logging an immediate purchase — "
-                   "it becomes a purchase entry once paid off from Vendor Ledgers.",
-    )
     category = forms.ModelChoiceField(queryset=_unfetched(Category))
     subcategory = forms.ModelChoiceField(
         queryset=_unfetched(Subcategory), required=False, label="Item / detail (optional)"
@@ -292,12 +332,6 @@ class PurchaseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, H
         self.fields["bank_account"].queryset = BankAccount.objects.filter(is_active=True)
         self.fields["bank_account"].required = False
         self.fields["bank_account"].empty_label = "— Bank —"
-
-    def clean(self):
-        cleaned_data = super().clean()
-        if cleaned_data.get("on_credit") and not cleaned_data.get("vendor"):
-            self.add_error("vendor", "Required to log this as on credit — a payable needs a vendor.")
-        return cleaned_data
 
 
 SalesEntryFormSet = forms.modelformset_factory(SalesEntry, form=SalesEntryForm, extra=5, can_delete=True)
@@ -480,6 +514,133 @@ class VendorEditForm(forms.ModelForm):
         self.fields["phone"].required = False
         self.fields["details"].required = False
         self.fields["opening_balance"].required = False
+
+
+class KickbackEntryForm(forms.ModelForm):
+    class Meta:
+        model = KickbackEntry
+        fields = [
+            "bill_number", "patient_name", "patient_address", "admission_date", "discharge_date",
+            "consulting_doctor_item", "final_amount",
+        ]
+        labels = {
+            "bill_number": "Bill number",
+            "patient_name": "Patient name",
+            "patient_address": "Address",
+            "admission_date": "Admission date",
+            "discharge_date": "Discharge date (optional)",
+            "consulting_doctor_item": "Consulting doctor",
+            "final_amount": "Final amount",
+        }
+        widgets = {
+            "admission_date": DateInput(),
+            "discharge_date": DateInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The doctor dropdown lists the items under the category mapped in
+        # Finance Settings; with no mapping yet it stays empty.
+        self.doctor_category = services.get_finance_settings().kickback_doctor_category
+        doctors = Subcategory.objects.none()
+        if self.doctor_category:
+            doctors = Subcategory.objects.filter(category=self.doctor_category, is_active=True).select_related("parent")
+        self.fields["consulting_doctor_item"] = DoctorChoiceField(queryset=doctors, required=False, label="Consulting doctor")
+        # "Referred by" is a checklist of ledgers — a bill can have several.
+        # Names on an older bill that match no ledger are kept as typed.
+        self.fields["referred_by_names"] = ReferrerChoiceField(
+            queryset=GeneralLedger.objects.all(), required=False, label="Referred by",
+            widget=forms.CheckboxSelectMultiple,
+        )
+        typed = [name.strip() for name in self.instance.referred_by.split(",") if name.strip()]
+        ledgers = {ledger.name: ledger.pk for ledger in GeneralLedger.objects.filter(name__in=typed)}
+        self.fields["referred_by_names"].initial = [ledgers[name] for name in typed if name in ledgers]
+        self._typed_referrers = [name for name in typed if name not in ledgers]
+        # A bill saved before the dropdown existed keeps its typed doctor name
+        # until someone picks a doctor or clears a linked one.
+        self._was_linked = self.instance.consulting_doctor_item_id is not None
+        self.fields["discharge_date"].required = False
+        self.fields["patient_name"].required = False
+        self.fields["patient_address"].required = False
+        self.fields["final_amount"].required = False
+        self.fields["final_amount"].widget.attrs["placeholder"] = "0.00"
+
+    def save(self, commit=True):
+        entry = super().save(commit=False)
+        doctor = self.cleaned_data.get("consulting_doctor_item")
+        if doctor:
+            entry.consulting_doctor = doctor.name
+        elif self._was_linked:
+            entry.consulting_doctor = ""
+        referrers = [ledger.name for ledger in self.cleaned_data.get("referred_by_names") or []]
+        entry.referred_by = ", ".join(referrers + self._typed_referrers)
+        if commit:
+            entry.save()
+        return entry
+
+
+class GeneralLedgerForm(forms.ModelForm):
+    class Meta:
+        model = GeneralLedger
+        fields = [
+            "name", "profession", "opening_balance", "opening_date",
+            "village", "mandal", "district", "state", "note",
+        ]
+        labels = {
+            "note": "Note",
+            "name": "Ledger name",
+            "profession": "Profession",
+            "opening_balance": "Opening balance",
+            "opening_date": "Opening balance as on",
+            "village": "Village",
+            "mandal": "Mandal",
+            "district": "District",
+            "state": "State",
+        }
+        widgets = {
+            "opening_date": DateInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ("profession", "opening_balance", "village", "mandal", "district", "state", "note"):
+            self.fields[name].required = False
+        self.fields["opening_balance"].widget.attrs["placeholder"] = "0.00"
+        self.fields["opening_date"].initial = datetime.date.today()
+
+
+class LedgerEntryForm(forms.ModelForm):
+    class Meta:
+        model = LedgerEntry
+        fields = ["date", "particular", "debit", "credit"]
+        labels = {"particular": "Particulars", "debit": "Debit (paid)", "credit": "Credit (received)"}
+        widgets = {
+            "date": DateInput(),
+            "particular": forms.TextInput(attrs={"placeholder": "What this entry is for"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["particular"].required = False
+        self.fields["debit"].required = False
+        self.fields["credit"].required = False
+        self.fields["debit"].widget.attrs["placeholder"] = "0.00"
+        self.fields["credit"].widget.attrs["placeholder"] = "0.00"
+        self.fields["date"].initial = datetime.date.today()
+
+    def clean(self):
+        cleaned = super().clean()
+        debit = cleaned.get("debit") or Decimal("0")
+        credit = cleaned.get("credit") or Decimal("0")
+        if debit < 0 or credit < 0:
+            raise forms.ValidationError("Debit and credit can't be negative.")
+        if debit == 0 and credit == 0:
+            raise forms.ValidationError("Enter an amount in either Debit (paid) or Credit (received).")
+        if debit > 0 and credit > 0:
+            raise forms.ValidationError("An entry is either a debit or a credit — use two entries for both.")
+        cleaned["debit"] = debit
+        cleaned["credit"] = credit
+        return cleaned
 
 
 class BankAccountForm(forms.ModelForm):
