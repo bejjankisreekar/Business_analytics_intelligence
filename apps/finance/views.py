@@ -572,7 +572,7 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
         kpis = services.kpis_for_period(period)
         series = services.daily_series(period.start, period.end)
         today = datetime.date.today()
-        weekly_count = min(MAX_TREND_WEEKS, max(18, services.weeks_since(fs.opening_date, today)))
+        weekly_count = services.trend_week_count(today, MAX_TREND_WEEKS)
         monthly_count = min(MAX_TREND_MONTHS, max(18, services.months_since(fs.opening_date, today)))
         weekly = services.weekly_trend(weekly_count)
         trend_start, trend_end = _trend_range(self.request.GET, today)
@@ -715,7 +715,7 @@ class SalesIntelligenceDetailsView(TenantLoginRequiredMixin, PeriodMixin, View):
         fs = services.get_finance_settings()
         period = self.get_period(fs.fy_start_month)
         today = datetime.date.today()
-        weekly_count = min(MAX_TREND_WEEKS, max(18, services.weeks_since(fs.opening_date, today)))
+        weekly_count = services.trend_week_count(today, MAX_TREND_WEEKS)
         monthly_count = min(MAX_TREND_MONTHS, max(18, services.months_since(fs.opening_date, today)))
         weekly = services.weekly_trend(weekly_count)
         trend_wide = services.monthly_trend(monthly_count)
@@ -894,7 +894,7 @@ class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, Tem
         # The cost trend (daily / weekly / monthly) mirrors the revenue trend on
         # Analytics — same windows, same daily padding — so the two read alike.
         today = datetime.date.today()
-        trend_weekly = services.weekly_trend(min(MAX_TREND_WEEKS, max(18, services.weeks_since(fs.opening_date, today))))
+        trend_weekly = services.weekly_trend(services.trend_week_count(today, MAX_TREND_WEEKS))
         trend_monthly = services.monthly_trend(min(MAX_TREND_MONTHS, max(18, services.months_since(fs.opening_date, today))))
         trend_daily = _pad_daily_series_for_period(series, period)
         purchase_breakdown = services.category_breakdown(PurchaseEntry, period.start, period.end)

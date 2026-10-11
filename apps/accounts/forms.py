@@ -28,7 +28,9 @@ class LoginForm(forms.Form):
         if identifier and password:
             email = identifier
             if "@" not in identifier:
-                by_username = User.objects.filter(username=identifier).first()
+                # Case-insensitive: usernames set via superadmin/profile edits keep
+                # their original casing, while the identifier is lowercased above.
+                by_username = User.objects.filter(username__iexact=identifier).first()
                 if by_username is not None:
                     email = by_username.email
             user = authenticate(email=email, password=password)

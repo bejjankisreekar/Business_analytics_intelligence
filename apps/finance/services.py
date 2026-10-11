@@ -873,6 +873,25 @@ def weeks_since(start: datetime.date, end: datetime.date) -> int:
     return ((end_monday - start_monday).days // 7) + 1
 
 
+def first_entry_date() -> datetime.date | None:
+    """Date of the earliest sales/expense/purchase entry, or None if there are none."""
+    dates = [
+        d for d in (
+            model.objects.order_by("date").values_list("date", flat=True).first()
+            for model in (SalesEntry, ExpenseEntry, PurchaseEntry)
+        ) if d is not None
+    ]
+    return min(dates) if dates else None
+
+
+def trend_week_count(today: datetime.date, max_weeks: int, min_weeks: int = 12) -> int:
+    """Weeks the weekly trend should span: back to the first week with data,
+    but never fewer than `min_weeks` and never more than `max_weeks`."""
+    first = first_entry_date()
+    needed = weeks_since(first, today) if first else 0
+    return min(max_weeks, max(min_weeks, needed))
+
+
 def months_since(start: datetime.date, end: datetime.date) -> int:
     """How many monthly buckets monthly_trend needs to reach back to `start`."""
     if start > end:

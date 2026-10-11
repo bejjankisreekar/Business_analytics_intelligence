@@ -7,7 +7,11 @@ def grant_daily_book_to_existing_managers(apps, schema_editor):
     # Existing manager accounts were only ever able to open the Daily Book, so
     # keep exactly that until the owner ticks more pages for them.
     User = apps.get_model("accounts", "User")
-    User.objects.filter(role="MANAGER").update(manager_pages=["daily_report"])
+    # Must use the migrating connection: a different alias is a separate
+    # connection that blocks on the table lock AddField is holding.
+    User.objects.using(schema_editor.connection.alias).filter(role="MANAGER").update(
+        manager_pages=["daily_report"]
+    )
 
 
 class Migration(migrations.Migration):
