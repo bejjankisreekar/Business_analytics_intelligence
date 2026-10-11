@@ -5,7 +5,9 @@ from .views import (
     ConnectDatabaseGateView,
     ConnectGoogleDriveView,
     CreateManagerAccountView,
+    ManagerPageAccessView,
     DisconnectGoogleDriveView,
+    EditManagerView,
     ExportFinanceDataExcelView,
     ForgotPasswordView,
     GoogleDriveOAuthCallbackView,
@@ -38,4 +40,6 @@ urlpatterns = [
     path("reset-password/", ResetPasswordView.as_view(), name="reset_password"),
     path("manager/reset-password/", ResetManagerPasswordView.as_view(), name="reset_manager_password"),
     path("manager/create/", CreateManagerAccountView.as_view(), name="create_manager"),
+    path("manager/edit/", EditManagerView.as_view(), name="edit_manager"),
+    path("manager/pages/", ManagerPageAccessView.as_view(), name="manager_pages"),
 ]

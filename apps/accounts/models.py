@@ -71,6 +71,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_name="users",
     )
 
+    # Manager accounts only: the finance pages the org owner/admin allowed
+    # (keys from apps.accounts.manager_pages). Ignored for every other role.
+    manager_pages = models.JSONField(default=list, blank=True)
+
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)

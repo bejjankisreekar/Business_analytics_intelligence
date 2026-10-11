@@ -22,14 +22,17 @@ from apps.organizations.services import (
 from .forms import (
     ChangePasswordForm,
     CreateManagerAccountForm,
+    EditManagerForm,
     ForgotPasswordForm,
     LoginForm,
     OrganizationProfileForm,
     OrganizationSignupForm,
     ProfileForm,
+    ManagerPageAccessForm,
     ResetManagerPasswordForm,
     ResetPasswordForm,
 )
+from .manager_pages import PAGE_CHOICES
 from .manager_service import ManagerAccountError, validate_manager_account_creation
 from .models import PasswordResetOTP, User
 
@@ -274,6 +277,19 @@ class ProfileView(LoginRequiredMixin, View):
             "drive_connection": drive_connection,
             "drive_disconnected": drive_disconnected,
             "manager_account": manager_account,
+            "manager_edit_form": EditManagerForm(
+                manager=manager_account,
+                initial={
+                    "email": manager_account.email,
+                    "first_name": manager_account.first_name,
+                    "last_name": manager_account.last_name,
+                    "username": manager_account.username,
+                    "pages": manager_account.manager_pages,
+                },
+            ) if manager_account else None,
+            "manager_page_labels": [
+                label for key, label in PAGE_CHOICES if key in (manager_account.manager_pages or ())
+            ] if manager_account else [],
             "can_create_manager": can_create_manager,
             "show_manager_button": show_manager_button,
             "disable_manager_button": disable_manager_button,
@@ -614,6 +630,52 @@ class ResetManagerPasswordView(LoginRequiredMixin, View):
         return JsonResponse({"ok": True, "message": f"Password reset for {manager.email}."})
 
 
+class EditManagerView(LoginRequiredMixin, View):
+    """JSON endpoint behind the profile page's "Edit manager" pop-up."""
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        if not user.organization_id or user.role not in (User.Role.OWNER, User.Role.ADMIN):
+            return JsonResponse({"errors": {"__all__": ["You don't have permission to do this."]}}, status=403)
+        manager = User.objects.filter(organization=user.organization, role=User.Role.MANAGER).first()
+        if manager is None:
+            return JsonResponse({"errors": {"__all__": ["No manager account to edit."]}}, status=404)
+        form = EditManagerForm(request.POST, manager=manager)
+        if not form.is_valid():
+            return JsonResponse({"errors": {k: [str(e) for e in v] for k, v in form.errors.items()}}, status=400)
+        data = form.cleaned_data
+        manager.email = data["email"]
+        manager.first_name = data["first_name"]
+        manager.last_name = data["last_name"]
+        manager.username = data["username"]
+        manager.manager_pages = data["pages"]
+        manager.save(update_fields=["email", "first_name", "last_name", "username", "manager_pages"])
+        messages.success(request, f"Manager details updated for {manager.email}.")
+        return JsonResponse({"ok": True})
+
+
+class ManagerPageAccessView(LoginRequiredMixin, View):
+    """Profile page's "Manager page access" card: owner/admin changes which
+    finance pages the organization's manager account can open."""
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        if not user.organization_id or user.role not in (User.Role.OWNER, User.Role.ADMIN):
+            raise Http404
+        manager = User.objects.filter(organization=user.organization, role=User.Role.MANAGER).first()
+        if manager is None:
+            raise Http404
+        form = ManagerPageAccessForm(request.POST)
+        if form.is_valid():
+            manager.manager_pages = form.cleaned_data["pages"]
+            manager.save(update_fields=["manager_pages"])
+            messages.success(request, f"Page access updated for {manager.email}.")
+        else:
+            for error in form.errors.get("pages", []):
+                messages.error(request, error)
+        return redirect("accounts:profile")
+
+
 class SuspendedView(LoginRequiredMixin, View):
     """The one screen a suspended organization's users ever see."""
 
@@ -674,6 +736,7 @@ class CreateManagerAccountView(LoginRequiredMixin, FormView):
             last_name=data["last_name"],
             organization=organization,
             role=User.Role.MANAGER,
+            manager_pages=data["pages"],
         )
 
         messages.success(

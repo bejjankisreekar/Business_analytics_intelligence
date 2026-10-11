@@ -6,22 +6,22 @@
   <a href="{% url 'accounts:profile' %}" class="text-sm text-brand-400 hover:text-brand-300">← Back to profile</a>
 </div>
 
-<div class="max-w-2xl">
+<div class="w-full">
   <h1 class="text-2xl font-bold text-white">Create Manager Account</h1>
-  <p class="mt-1 text-sm text-slate-400">Manager accounts can only enter daily transactions. They won't see opening/closing balances or financial analytics.</p>
+  <p class="mt-1 text-sm text-slate-400">Choose which pages this manager can open. Anything you leave unticked stays hidden from them, even if they type the address.</p>
 
-  <form method="post" class="mt-6 space-y-6">
+  <form method="post" class="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
     {% csrf_token %}
 
     {% if form.non_field_errors %}
-    <div class="rounded-lg border border-red-900/50 bg-red-900/10 p-4">
+    <div class="rounded-lg border border-red-900/50 bg-red-900/10 p-4 lg:col-span-5">
       {% for error in form.non_field_errors %}
       <p class="text-sm text-red-400">{{ error }}</p>
       {% endfor %}
     </div>
     {% endif %}
 
-    <div class="card p-6 space-y-4">
+    <div class="card flex flex-col gap-5 p-6 lg:col-span-2">
       <div>
         <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.email.label }}</label>
         {{ form.email }}
@@ -61,9 +61,23 @@
       </div>
     </div>
 
-    <div class="flex gap-3">
+    <div class="card p-6 lg:col-span-3">
+      <label class="block text-xs font-medium text-slate-400">{{ form.pages.label }}</label>
+      <p class="mt-1 text-xs text-slate-500">The Daily Book is where a manager enters transactions. Setup &amp; masters covers categories, vendors and bank accounts.</p>
+      <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {% for box in form.pages %}
+        <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 transition hover:border-brand-500/30 hover:bg-white/[0.05]">
+          {{ box.tag }}
+          <span class="whitespace-nowrap text-sm font-medium text-slate-200">{{ box.choice_label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {% for error in form.pages.errors %}<p class="mt-2 text-xs text-red-400">{{ error }}</p>{% endfor %}
+    </div>
+
+    <div class="flex flex-col-reverse gap-3 border-t border-white/5 pt-6 sm:flex-row sm:justify-end lg:col-span-5">
+      <a href="{% url 'accounts:profile' %}" class="rounded-lg border border-white/20 px-4 py-2 text-center text-sm text-slate-300 transition hover:border-white/40 hover:text-white">Cancel</a>
       <button type="submit" class="btn-primary">Create Manager Account</button>
-      <a href="{% url 'accounts:profile' %}" class="btn-secondary">Cancel</a>
     </div>
   </form>
 </div>

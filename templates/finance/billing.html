@@ -12,6 +12,10 @@
     background: linear-gradient(90deg, #7c3aed, #2563eb);
     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   }
+  /* Phone-only: let a long plan name wrap instead of being cut off with "...". */
+  @media (max-width: 639px) {
+    .plan-name { font-size: 2rem !important; white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere; }
+  }
 </style>
 {% csrf_token %}
 <h1 class="text-2xl font-bold text-white">Billing</h1>

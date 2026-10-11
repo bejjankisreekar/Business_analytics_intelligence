@@ -136,7 +136,7 @@ c = new_slide("DARK")
 text(c, "Let's talk", 0.7, 1.0, 6, 0.9, size=40, bold=True, head=True, col=TC.BACKGROUND_1, name="Contact title")
 text(c, "Questions before you sign up? Reach out directly.", 0.7, 1.95, 6, 0.5, size=18, col=TC.ACCENT_6,
      name="Contact lead")
-rows = [("icons/FaEnvelope.png", "Email", "prismpulse.intelligence@gmail.com"),
+rows = [("icons/FaEnvelope.png", "Email", "finday.intelligence@gmail.com"),
         ("icons/FaPhoneAlt.png", "Phone", "9700364800")]
 for i, (ic, label, val) in enumerate(rows):
     y = 2.9 + i * 0.95

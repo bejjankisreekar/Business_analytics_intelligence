@@ -77,6 +77,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "apps.accounts.middleware.SuspendedAccountMiddleware",
     "apps.organizations.middleware.TenantSchemaMiddleware",
+    "apps.accounts.middleware.ManagerPageAccessMiddleware",
     "apps.superadmin.middleware.EnvironmentDatabaseErrorMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -95,6 +96,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "config.context_processors.site_meta",
                 "config.context_processors.kickbacks_access",
+                "config.context_processors.page_access",
             ],
         },
     },
@@ -260,8 +262,9 @@ EMAIL_PORT = config("EMAIL_PORT", cast=int, default=587)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", cast=bool, default=True)
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "no-reply@example.com")
 
-# Contact details shown on the public landing page.
-CONTACT_EMAIL = EMAIL_HOST_USER
+# Contact details shown on the public landing page, and where contact-form
+# submissions are delivered. Defaults to the SMTP sender when unset.
+CONTACT_EMAIL = config("CONTACT_EMAIL", default=EMAIL_HOST_USER)
 CONTACT_PHONE = config("CONTACT_PHONE", default="")
 
 LOGGING = {

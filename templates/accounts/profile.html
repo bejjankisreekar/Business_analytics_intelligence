@@ -136,6 +136,7 @@
   <div class="card p-6" id="section-manager">
     <div class="flex items-center justify-between gap-2">
       <h2 class="text-sm font-semibold text-white">Manager Details</h2>
+      <button type="button" id="open-edit-manager" class="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-white/40 hover:text-white">Edit</button>
     </div>
     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <div>
@@ -155,6 +156,16 @@
         <p class="mt-1 text-sm text-white">{{ manager_account.username }}</p>
       </div>
     </div>
+    <div class="mt-4">
+      <label class="block text-xs font-medium text-slate-400">Pages this manager can open</label>
+      <div class="mt-2 flex flex-wrap gap-2">
+        {% for label in manager_page_labels %}
+        <span class="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-200">{{ label }}</span>
+        {% empty %}
+        <span class="text-xs text-slate-500">No pages assigned.</span>
+        {% endfor %}
+      </div>
+    </div>
     <div class="mt-4 border-t border-white/5 pt-4">
       <button type="button" id="open-reset-manager" class="text-sm text-slate-400 hover:text-white">Reset manager password</button>
     </div>
@@ -168,6 +179,7 @@
 </form>
 
 {% if request.user.organization_id %}
+
 <div class="card mt-6 p-6" id="section-database">
   <div class="flex items-center justify-between gap-4">
     <div class="flex items-center gap-3">
@@ -256,6 +268,52 @@
 {% endif %}
 
 {% if manager_account %}
+<dialog id="edit-manager-dialog" class="w-full max-w-2xl rounded-2xl border border-white/10 bg-ink-900 p-6 text-slate-200 backdrop:bg-black/60">
+  <form id="edit-manager-form" method="post" action="{% url 'accounts:edit_manager' %}" class="space-y-4">
+    {% csrf_token %}
+    <h2 class="text-base font-semibold text-white">Edit manager</h2>
+    <p class="text-xs text-slate-400">Update the manager's details and choose which pages they can open.</p>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div>
+      <label for="{{ manager_edit_form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-400">First name</label>
+      {{ manager_edit_form.first_name }}
+      <p class="mt-1 hidden text-xs text-red-400" data-error-for="first_name"></p>
+    </div>
+    <div>
+      <label for="{{ manager_edit_form.last_name.id_for_label }}" class="block text-xs font-medium text-slate-400">Last name</label>
+      {{ manager_edit_form.last_name }}
+      <p class="mt-1 hidden text-xs text-red-400" data-error-for="last_name"></p>
+    </div>
+    <div>
+      <label for="{{ manager_edit_form.email.id_for_label }}" class="block text-xs font-medium text-slate-400">Email</label>
+      {{ manager_edit_form.email }}
+      <p class="mt-1 hidden text-xs text-red-400" data-error-for="email"></p>
+    </div>
+    <div>
+      <label for="{{ manager_edit_form.username.id_for_label }}" class="block text-xs font-medium text-slate-400">Username</label>
+      {{ manager_edit_form.username }}
+      <p class="mt-1 hidden text-xs text-red-400" data-error-for="username"></p>
+    </div>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-slate-400">Pages this manager can open</label>
+      <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {% for box in manager_edit_form.pages %}
+        <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 transition hover:border-brand-500/30 hover:bg-white/[0.05]">
+          {{ box.tag }}
+          <span class="text-sm font-medium text-slate-200">{{ box.choice_label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="mt-1 hidden text-xs text-red-400" data-error-for="pages"></p>
+    </div>
+    <p class="hidden text-xs text-red-400" data-error-for="__all__"></p>
+    <div class="flex justify-end gap-3 pt-2">
+      <button type="button" id="em-cancel" class="text-sm text-slate-400 hover:text-white">Cancel</button>
+      <button type="submit" class="btn-primary">Save changes</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="reset-manager-dialog" class="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 text-slate-200 backdrop:bg-black/60">
   <form id="reset-manager-form" method="post" action="{% url 'accounts:reset_manager_password' %}" class="space-y-4">
     {% csrf_token %}
@@ -295,6 +353,27 @@
 {% block extra_js %}
 <script>
   bai.initFieldLocks(document.getElementById("profile-form"));
+
+  (function () {
+    const dialog = document.getElementById("edit-manager-dialog");
+    if (!dialog) return;
+    const form = document.getElementById("edit-manager-form");
+    const clearMessages = () => form.querySelectorAll("[data-error-for]").forEach((el) => { el.textContent = ""; el.classList.add("hidden"); });
+    document.getElementById("open-edit-manager").addEventListener("click", () => { clearMessages(); dialog.showModal(); });
+    document.getElementById("em-cancel").addEventListener("click", () => { form.reset(); dialog.close(); });
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      clearMessages();
+      const resp = await fetch(form.action, { method: "POST", body: new FormData(form), headers: { "X-Requested-With": "XMLHttpRequest" } });
+      const data = await resp.json().catch(() => ({ errors: { __all__: ["Something went wrong. Please try again."] } }));
+      if (resp.ok) { window.location.reload(); return; }
+      Object.entries(data.errors || {}).forEach(([field, msgs]) => {
+        const el = form.querySelector('[data-error-for="' + field + '"]') || form.querySelector('[data-error-for="__all__"]');
+        el.textContent = msgs.join(" "); el.classList.remove("hidden");
+      });
+    });
+  })();
+
 
   (function () {
     const dialog = document.getElementById("reset-manager-dialog");

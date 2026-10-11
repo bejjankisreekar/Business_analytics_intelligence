@@ -9,8 +9,12 @@
      rows above — a fixed min-height makes every card the same size
      regardless of row position or how many lines its own text wraps to. */
   .setup-card { min-height: 10.5rem; }
+  /* Phone-only: a smaller title, so the long heading wraps cleanly. */
+  @media (max-width: 639px) {
+    .setup-title { font-size: 1.5rem; line-height: 1.2; letter-spacing: -.01em; }
+  }
 </style>
-<h1 class="text-2xl font-bold text-white">Setup your Categories, Sub-Categories & Bank Accounts</h1>
+<h1 class="setup-title text-2xl font-bold text-white">Setup your Categories, Sub-Categories & Bank Accounts</h1>
 <p class="mt-1 text-sm text-slate-400">Controls how {{ organization.name }}'s reports and financial year are calculated. Click a card to edit it.</p>
 
 <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -5,10 +5,10 @@
 {% block app_content %}
 <a href="{% url 'finance:reports' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Financial Reports</a>
 
-<h1 class="mt-2 text-2xl font-bold text-white">Category Statement</h1>
+<h1 class="cs-title mt-2 text-2xl font-bold text-white">Category Statement</h1>
 <p class="mt-1 max-w-2xl text-sm text-slate-400">Pick a category — or drill into one sub-category or a specific item (e.g. one doctor, one employee) — and a date range, to see every entry behind the total.</p>
 
-<div class="mt-4 flex gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap border-b border-white/5">
+<div class="cs-tabs mt-4 flex gap-1 whitespace-nowrap border-b border-white/5">
   <a href="?kind=sales" class="report-tab {% if kind == 'sales' %}report-tab--active{% endif %}">
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.706 2.602-7.201.116-.48-.230-.949-.724-.949H4.5m0 0L3.106 4.835m0 0L4.5 14.25m0 0L6 17.25m10.5-3a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM8.25 18.75a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
     Revenue
@@ -23,7 +23,7 @@
   </a>
 </div>
 
-<form method="get" class="card mt-4 flex flex-wrap items-end gap-3 p-4">
+<form method="get" class="cs-form card mt-4 flex flex-wrap items-end gap-3 p-4">
   <input type="hidden" name="kind" value="{{ kind }}">
   <div class="cs-field">
     <label for="cs-category" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Category</label>
@@ -38,15 +38,15 @@
     <label for="cs-subcategory" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Sub-category / Item</label>
     <select id="cs-subcategory" name="subcategory" data-searchable data-initial="{{ subcategory_id }}" class="!mt-1"></select>
   </div>
-  <div>
-    <label for="cs-from" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
+  <div class="cs-date">
+    <label for="cs-from"class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
     <input id="cs-from" type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" class="!mt-1 !w-auto">
   </div>
-  <div>
-    <label for="cs-to" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">To</label>
+  <div class="cs-date">
+    <label for="cs-to"class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">To</label>
     <input id="cs-to" type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" class="!mt-1 !w-auto">
   </div>
-  <div class="flex flex-wrap items-center gap-2">
+  <div class="cs-apply flex flex-wrap items-center gap-2">
     <button type="submit" class="btn-primary">Apply</button>
   </div>
   {% if default_range %}<p class="w-full text-xs text-slate-500">This month by default — pick a different range above, or clear both dates and Apply for all time.</p>{% endif %}
@@ -79,7 +79,7 @@
   {% endif %}
 </div>
 
-<div class="mt-4 flex flex-wrap items-center justify-end gap-3">
+<div class="cs-exports mt-4 flex flex-wrap items-center justify-end gap-3">
   <a href="{% url 'finance:category_statement_excel' %}?kind={{ kind }}&category={{ category_id }}&subcategory={{ subcategory_id }}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}" class="btn-primary" style="background:linear-gradient(90deg,#1fc4a0,#159c81)">⬇ Excel</a>
   <a href="{% url 'finance:category_statement_csv' %}?kind={{ kind }}&category={{ category_id }}&subcategory={{ subcategory_id }}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ CSV</a>
   <a href="{% url 'finance:category_statement_pdf' %}?kind={{ kind }}&category={{ category_id }}&subcategory={{ subcategory_id }}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ PDF</a>
@@ -203,5 +203,25 @@
   #cs-category:hover, #cs-subcategory:hover { border-color: rgba(255,255,255,0.24); background-color: rgba(255,255,255,0.06); }
   #cs-category:focus, #cs-subcategory:focus { border-color: #5b7cfa; box-shadow: 0 0 0 3px rgba(91,124,250,0.15); }
   #cs-category option, #cs-subcategory option { background: #111627; color: #fff; padding: 0.5rem; }
+
+  /* Phone-only layout: desktop is untouched. !important is needed where a
+     Tailwind utility on the same element (flex, items-end, border-b, ...) would
+     otherwise win on source order. */
+  @media (max-width: 639px) {
+    .cs-title { font-size: 1.75rem; line-height: 1.15; letter-spacing: -.01em; }
+    .cs-tabs { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .25rem; overflow: hidden !important; background: rgba(255,255,255,0.03); border-radius: .8rem; padding: .25rem; border-bottom: 0 !important; }
+    .cs-tabs .report-tab { justify-content: center; min-width: 0; margin: 0; border-bottom: 0; border-radius: .6rem; padding: .55rem .3rem; font-size: .8rem; white-space: nowrap; }
+    .cs-tabs .report-tab--active { border: 1px solid rgba(91,124,250,0.45); }
+    .cs-form { display: grid !important; grid-template-columns: 1fr 1fr; gap: .75rem; padding: 1rem; border-radius: 1rem; }
+    .cs-form > .cs-field { grid-column: 1 / -1; flex: none; min-width: 0; }
+    .cs-field .bai-select-trigger { height: 2.75rem; }
+    .cs-date { min-width: 0; }
+    .cs-date input { width: 100% !important; }
+    .cs-form > .cs-apply { grid-column: 1 / -1; display: block !important; }
+    .cs-apply .btn-primary { display: flex !important; width: 100%; justify-content: center; padding: .7rem; }
+    .cs-form > p { grid-column: 1 / -1; }
+    .cs-exports { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+    .cs-exports > a { display: flex !important; justify-content: center; align-items: center; text-align: center; padding: .6rem .4rem; }
+  }
 </style>
 {% endblock %}

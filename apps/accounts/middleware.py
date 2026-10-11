@@ -31,3 +31,29 @@ class SuspendedAccountMiddleware:
         ):
             return redirect("accounts:suspended")
         return self.get_response(request)
+
+
+class ManagerPageAccessMiddleware:
+    """Manager accounts may only open the finance pages their owner ticked
+    (see apps.accounts.manager_pages). Anything else is sent to a page they
+    do have. Must sit after AuthenticationMiddleware, so request.user is set."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        from apps.accounts.manager_pages import first_allowed_url, manager_can_open
+        from apps.accounts.models import User
+
+        user = request.user
+        match = request.resolver_match
+        if not (user.is_authenticated and user.role == User.Role.MANAGER) or match is None:
+            return None
+        if match.namespace != "finance":
+            return None
+        if manager_can_open(user.manager_pages, match.url_name):
+            return None
+        return redirect(first_allowed_url(user.manager_pages))

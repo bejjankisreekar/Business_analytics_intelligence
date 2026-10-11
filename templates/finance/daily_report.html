@@ -104,24 +104,25 @@
 </div>
 
 <!-- Actions -->
-<div class="mt-5 flex flex-wrap items-center justify-between gap-3">
-  <div class="flex flex-wrap items-center gap-2">
-    <a href="{% url 'finance:single_entry' %}?type=sale&date={{ report.date|date:'Y-m-d' }}" class="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">
-      <svg class="h-4 w-4 text-mint-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Single entry
+<div class="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+  <!-- 2×2 action grid on phones, inline row from sm up -->
+  <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+    <a href="{% url 'finance:single_entry' %}?type=sale&date={{ report.date|date:'Y-m-d' }}" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5 sm:justify-start sm:px-4">
+      <svg class="h-4 w-4 flex-none text-mint-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Single entry
     </a>
-    <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex items-center gap-2 whitespace-nowrap" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">
-      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Bulk entry
+    <a href="{% url 'finance:daily_bulk_entry' %}?date={{ report.date|date:'Y-m-d' }}" class="btn-primary inline-flex items-center justify-center gap-2 whitespace-nowrap px-3 sm:justify-start sm:px-4" style="background:linear-gradient(90deg,#a78bfa,#5b7cfa)">
+      <svg class="h-4 w-4 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Bulk entry
     </a>
-    <a href="{% url 'finance:import_sales' %}" class="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">
-      <svg class="h-4 w-4 text-mint-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 20h16"/></svg>Import revenue
+    <a href="{% url 'finance:import_sales' %}" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5 sm:justify-start sm:px-4">
+      <svg class="h-4 w-4 flex-none text-mint-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 20h16"/></svg>Import revenue
     </a>
-    <button type="button" onclick="bai.openModal('modal-transfer')" class="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">
-      <svg class="h-4 w-4 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13m0 0l-3-3m3 3l-3 3M17 17H4m0 0l3-3m-3 3l3 3"/></svg>Cash / Bank transfer
+    <button type="button" onclick="bai.openModal('modal-transfer')" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5 sm:justify-start sm:px-4">
+      <svg class="h-4 w-4 flex-none text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13m0 0l-3-3m3 3l-3 3M17 17H4m0 0l3-3m-3 3l3 3"/></svg>Cash / Bank transfer
     </button>
   </div>
-  <div class="flex flex-wrap items-center gap-4">
+  <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
   {% if not is_manager and selected_mode == 'all' %}
-  <label for="toggle-bank-balance" class="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-400">
+  <label for="toggle-bank-balance" class="flex cursor-pointer items-center justify-between gap-2 text-xs font-medium text-slate-400 sm:justify-start">
     Show bank balance
     <span class="bai-switch">
       <input type="checkbox" id="toggle-bank-balance" onchange="bai.setBankBalanceVisible(this.checked)">
@@ -129,10 +130,10 @@
     </span>
   </label>
   {% endif %}
-  <div class="flex gap-1 rounded-xl border border-white/10 bg-white/[0.02] p-1">
-    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=all" class="granularity-btn {% if selected_mode == 'all' %}granularity-btn--active{% endif %}">Both</a>
-    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=cash" class="granularity-btn {% if selected_mode == 'cash' %}granularity-btn--active{% endif %}">Cash</a>
-    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=bank" class="granularity-btn {% if selected_mode == 'bank' %}granularity-btn--active{% endif %}">Bank</a>
+  <div class="flex w-full gap-1 rounded-xl border border-white/10 bg-white/[0.02] p-1 sm:w-auto">
+    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=all" class="granularity-btn flex-1 text-center sm:flex-none {% if selected_mode == 'all' %}granularity-btn--active{% endif %}">Both</a>
+    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=cash" class="granularity-btn flex-1 text-center sm:flex-none {% if selected_mode == 'cash' %}granularity-btn--active{% endif %}">Cash</a>
+    <a href="?date={{ report.date|date:'Y-m-d' }}&mode=bank" class="granularity-btn flex-1 text-center sm:flex-none {% if selected_mode == 'bank' %}granularity-btn--active{% endif %}">Bank</a>
   </div>
   </div>
 </div>

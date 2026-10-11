@@ -167,19 +167,6 @@ def _historical_min_date(request):
     return billing_services.historical_window_start(request.user.organization)
 
 
-class ManagerAccountRestrictedMixin:
-    """Restricts manager accounts to daily entry views only.
-    Add to views that should not be accessible to manager accounts."""
-
-    def dispatch(self, request, *args, **kwargs):
-        from apps.accounts.models import User
-
-        user = request.user
-        if user.is_authenticated and user.role == User.Role.MANAGER:
-            return redirect("finance:daily_report")
-        return super().dispatch(request, *args, **kwargs)
-
-
 class TenantLoginRequiredMixin(LoginRequiredMixin):
     """Every tenant-facing view requires this. Two independent gates:
 
@@ -233,7 +220,7 @@ class PeriodMixin:
         return resolve_period(key, fy_start_month, custom_from=custom_from, custom_to=custom_to)
 
 
-class DashboardView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, TemplateView):
+class DashboardView(TenantLoginRequiredMixin, TemplateView):
     """A deliberately light home screen: this month's numbers (with growth
     vs the prior period), a couple of headline charts, quick-add, and
     what just happened. The full, period-driven chart set lives on the
@@ -571,7 +558,7 @@ def _trend_range(params, today, default_months=6, max_months=36):
     return first, end
 
 
-class AnalyticsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, PeriodMixin, TemplateView):
+class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     """Every chart and period-driven number lives here — pick a period at
     the top and the whole page (KPIs + every chart) updates to match it."""
 
@@ -674,7 +661,7 @@ class AnalyticsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, Per
         return context
 
 
-class SalesIntelligenceView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, PeriodMixin, TemplateView):
+class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     """Every sales-side insight in one place: trend, channel breakdown,
     best days to sell, revenue by product, how sales are paid, and
     auto-generated sales insights (channel momentum vs last month).
@@ -888,7 +875,7 @@ class SalesChannelTrendView(TenantLoginRequiredMixin, View):
         return JsonResponse(json.loads(to_json(payload)))
 
 
-class PurchaseExpenseIntelligenceView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, PeriodMixin, TemplateView):
+class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     """Every purchase- and expense-side insight in one place: trend,
     category/vendor breakdowns, cost by product category, and how outflow
     is paid."""
@@ -1760,7 +1747,7 @@ class AddTransferView(TenantLoginRequiredMixin, View):
         return redirect(request.POST.get("next") or "finance:dashboard")
 
 
-class ReportsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, PeriodMixin, TemplateView):
+class ReportsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
     template_name = "finance/reports.html"
 
     def get_context_data(self, **kwargs):
@@ -2346,7 +2333,7 @@ MONTH_NAMES = {
 }
 
 
-class FinanceSettingsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, TemplateView):
+class FinanceSettingsView(TenantLoginRequiredMixin, TemplateView):
     template_name = "finance/settings.html"
 
     def get_context_data(self, **kwargs):
@@ -2783,7 +2770,7 @@ def _kickback_names(field: str) -> list[str]:
     return sorted(names, key=str.lower)
 
 
-class KickbacksView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, TemplateView):
+class KickbacksView(TenantLoginRequiredMixin, TemplateView):
     """Kickbacks tracking — a Business/Business Drive plan exclusive.
     One bill per row, entered manually, spreadsheet-style."""
 
@@ -2833,7 +2820,7 @@ class KickbacksView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, Tem
         return context
 
 
-class AddKickbackEntryView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+class AddKickbackEntryView(TenantLoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         if not has_kickbacks_access(request):
             return redirect("finance:dashboard")
@@ -2848,7 +2835,7 @@ class AddKickbackEntryView(ManagerAccountRestrictedMixin, TenantLoginRequiredMix
         return redirect("finance:kickbacks")
 
 
-class EditKickbackEntryView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, TemplateView):
+class EditKickbackEntryView(TenantLoginRequiredMixin, TemplateView):
     template_name = "finance/edit_kickback.html"
 
     def get(self, request, pk, *args, **kwargs):
@@ -2878,7 +2865,7 @@ class EditKickbackEntryView(ManagerAccountRestrictedMixin, TenantLoginRequiredMi
         })
 
 
-class KickbackDetailView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, TemplateView):
+class KickbackDetailView(TenantLoginRequiredMixin, TemplateView):
     template_name = "finance/kickback_detail.html"
 
     def get(self, request, pk, *args, **kwargs):
@@ -2900,7 +2887,7 @@ class KickbackDetailView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin
         return context
 
 
-class KickbackColumnLabelsView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+class KickbackColumnLabelsView(TenantLoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         if not has_kickbacks_access(request):
             return redirect("finance:dashboard")
@@ -2920,7 +2907,7 @@ class KickbackColumnLabelsView(ManagerAccountRestrictedMixin, TenantLoginRequire
         return redirect("finance:kickbacks")
 
 
-class DeleteKickbackEntryView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+class DeleteKickbackEntryView(TenantLoginRequiredMixin, View):
     def post(self, request, pk, *args, **kwargs):
         if not has_kickbacks_access(request):
             return redirect("finance:dashboard")
@@ -2955,7 +2942,7 @@ def _kickback_export_rows(request) -> list:
     return rows
 
 
-class KickbackEntriesCsvView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+class KickbackEntriesCsvView(TenantLoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         if not has_kickbacks_access(request):
             return redirect("finance:dashboard")
@@ -2969,7 +2956,7 @@ class KickbackEntriesCsvView(ManagerAccountRestrictedMixin, TenantLoginRequiredM
         return response
 
 
-class KickbackEntriesExcelView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+class KickbackEntriesExcelView(TenantLoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         if not has_kickbacks_access(request):
             return redirect("finance:dashboard")
@@ -3005,7 +2992,7 @@ class KickbackEntriesExcelView(ManagerAccountRestrictedMixin, TenantLoginRequire
         return response
 
 
-class KickbackEntriesPdfView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+class KickbackEntriesPdfView(TenantLoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         if not has_kickbacks_access(request):
             return redirect("finance:dashboard")
@@ -3032,7 +3019,7 @@ class KickbackEntriesPdfView(ManagerAccountRestrictedMixin, TenantLoginRequiredM
         )
 
 
-class KickbackImportSampleView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+class KickbackImportSampleView(TenantLoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         if not has_kickbacks_access(request):
             return redirect("finance:dashboard")
@@ -3045,7 +3032,7 @@ class KickbackImportSampleView(ManagerAccountRestrictedMixin, TenantLoginRequire
         return response
 
 
-class ImportKickbackEntriesView(ManagerAccountRestrictedMixin, TenantLoginRequiredMixin, View):
+class ImportKickbackEntriesView(TenantLoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         if not has_kickbacks_access(request):
             return redirect("finance:dashboard")

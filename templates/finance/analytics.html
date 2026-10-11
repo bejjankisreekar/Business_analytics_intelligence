@@ -5,13 +5,31 @@
 {% block app_content %}
 <style>
   #period-select + .bai-select-trigger { min-width: 12rem; }
+  /* Phone-only polish: desktop layout is untouched. */
+  @media (max-width: 639px) {
+    .an-title { font-size: 1.75rem; line-height: 1.15; letter-spacing: -.01em; }
+    .an-period { width: 100%; margin-top: .25rem; }
+    #period-select + .bai-select-trigger { min-width: 0; width: 100%; }
+    .an-hint {
+      margin-top: .75rem; padding: .6rem .8rem; border-radius: .75rem; line-height: 1.5;
+      background: rgb(var(--tint-rgb) / .04); border: 1px solid rgb(var(--tint-rgb) / .08);
+    }
+    .an-page .card.p-5 { padding: 1rem; border-radius: 1rem; }
+    .an-page .card.p-4 { border-radius: 1rem; }
+    .an-kpi { border-left: 3px solid var(--tone); padding: .9rem 1rem; }
+    .an-kpi .an-val { font-size: 1.5rem; line-height: 1.25; }
+    .an-seg { width: 100%; }
+    .an-seg > * { flex: 1 1 0; text-align: center; }
+    .an-page h3 { font-size: .9rem; }
+  }
 </style>
+<div class="an-page">
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-white">Business Analytics</h1>
+    <h1 class="an-title text-2xl font-bold text-white">Business Analytics</h1>
     <p class="mt-1 text-sm text-slate-400">Showing <span class="text-slate-300">{{ period.label }}</span></p>
   </div>
-  <form method="get" class="flex items-center gap-2">
+  <form method="get" class="an-period flex items-center gap-2">
     <select id="period-select" name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
       {% for value, label in period_choices %}
       <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
@@ -19,35 +37,35 @@
     </select>
   </form>
 </div>
-<p class="mt-1 text-xs text-slate-500">Change the period above and every chart on this page updates with it. Headline totals and the expense breakdown are on the Dashboard.</p>
+<p class="an-hint mt-1 text-xs text-slate-500">Change the period above and every chart on this page updates with it. Headline totals and the expense breakdown are on the Dashboard.</p>
 
 <!-- KPI row -->
 <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-  <div class="card kpi-card min-w-0 p-4">
+  <div class="card kpi-card an-kpi min-w-0 p-4" style="--tone:#34d399">
     <p class="text-xs font-medium text-slate-500">Total Revenue</p>
-    <p class="mt-1.5 truncate text-lg font-bold xl:text-xl text-mint-400">{{ organization.currency }} {{ kpis.sales|floatformat:0|intcomma }}</p>
+    <p class="an-val mt-1.5 truncate text-lg font-bold xl:text-xl text-mint-400">{{ organization.currency }} {{ kpis.sales|floatformat:0|intcomma }}</p>
     {% if kpis.sales_growth_pct is not None %}
     <p class="mt-0.5 text-xs {% if kpis.sales_growth_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">{{ kpis.sales_growth_pct|floatformat:1 }}% vs prior period</p>
     {% endif %}
   </div>
-  <div class="card kpi-card min-w-0 p-4">
+  <div class="card kpi-card an-kpi min-w-0 p-4" style="--tone:#f87171">
     <p class="text-xs font-medium text-slate-500">Expenses</p>
-    <p class="mt-1.5 truncate text-lg font-bold xl:text-xl text-red-400">{{ organization.currency }} {{ kpis.expenses|floatformat:0|intcomma }}</p>
+    <p class="an-val mt-1.5 truncate text-lg font-bold xl:text-xl text-red-400">{{ organization.currency }} {{ kpis.expenses|floatformat:0|intcomma }}</p>
     <p class="mt-0.5 text-xs text-slate-500">Operating expenses, {{ period.label }}</p>
   </div>
-  <div class="card kpi-card min-w-0 p-4">
+  <div class="card kpi-card an-kpi min-w-0 p-4" style="--tone:#5b7cfa">
     <p class="text-xs font-medium text-slate-500">Net Profit</p>
-    <p class="mt-1.5 truncate text-lg font-bold xl:text-xl {% if kpis.net_profit >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ kpis.net_profit|floatformat:0|intcomma }}</p>
+    <p class="an-val mt-1.5 truncate text-lg font-bold xl:text-xl {% if kpis.net_profit >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ kpis.net_profit|floatformat:0|intcomma }}</p>
     <p class="mt-0.5 text-xs text-slate-500">Revenue − purchases − expenses</p>
   </div>
-  <div class="card kpi-card min-w-0 p-4">
+  <div class="card kpi-card an-kpi min-w-0 p-4" style="--tone:#a78bfa">
     <p class="text-xs font-medium text-slate-500">Margin</p>
-    <p class="mt-1.5 truncate text-lg font-bold xl:text-xl text-white">{{ kpis.margin_pct|floatformat:1 }}%</p>
+    <p class="an-val mt-1.5 truncate text-lg font-bold xl:text-xl text-white">{{ kpis.margin_pct|floatformat:1 }}%</p>
     <p class="mt-0.5 text-xs text-slate-500">Net profit / revenue</p>
   </div>
-  <div class="card kpi-card min-w-0 p-4">
+  <div class="card kpi-card an-kpi min-w-0 p-4" style="--tone:#38bdf8">
     <p class="text-xs font-medium text-slate-500">Cash &amp; Bank</p>
-    <p class="mt-1.5 truncate text-lg font-bold xl:text-xl text-white">{{ organization.currency }} {{ kpis.cash_balance|floatformat:0|intcomma }}</p>
+    <p class="an-val mt-1.5 truncate text-lg font-bold xl:text-xl text-white">{{ organization.currency }} {{ kpis.cash_balance|floatformat:0|intcomma }}</p>
     <p class="mt-0.5 text-xs text-slate-500">As of {{ period.end|date:"d M Y" }}</p>
   </div>
 </div>
@@ -59,7 +77,7 @@
       <h3 class="text-sm font-semibold text-white">Revenue, expenses &amp; purchases trend</h3>
       <p class="text-xs text-slate-500">Switch between daily, weekly and monthly views</p>
     </div>
-    <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+    <div class="an-seg flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
       <button type="button" onclick="bai.setGranularity('daily')" id="gran-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
       <button type="button" onclick="bai.setGranularity('weekly')" id="gran-btn-weekly" class="granularity-btn">Weekly</button>
       <button type="button" onclick="bai.setGranularity('monthly')" id="gran-btn-monthly" class="granularity-btn">Monthly</button>
@@ -167,7 +185,7 @@
     <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · quantity recorded</span></p>
       <p class="mt-1 text-[11px] text-slate-500">Click any slice, bar or legend entry for its details — sales, purchases, items and estimated stock.</p>
     </div>
-    <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
+    <div class="an-seg flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
       <button type="button" onclick="bai.setQtyType('PQ', 'pie')" id="qty-btn-PQ-pie" class="granularity-btn granularity-btn--active">Pie</button>
       <button type="button" onclick="bai.setQtyType('PQ', 'bar')" id="qty-btn-PQ-bar" class="granularity-btn">Bar</button>
     </div>
@@ -197,7 +215,7 @@
     <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · quantity recorded</span></p>
       <p class="mt-1 text-[11px] text-slate-500">Click any slice, bar or legend entry for its details — sales, purchases, items and estimated stock.</p>
     </div>
-    <div class="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
+    <div class="an-seg flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
       <button type="button" onclick="bai.setQtyType('PP', 'pie')" id="qty-btn-PP-pie" class="granularity-btn granularity-btn--active">Pie</button>
       <button type="button" onclick="bai.setQtyType('PP', 'bar')" id="qty-btn-PP-bar" class="granularity-btn">Bar</button>
     </div>
@@ -233,6 +251,7 @@
     </div>
     <div id="qty-detail-body" class="mt-5"></div>
   </div>
+</div>
 </div>
 {% endblock %}
 

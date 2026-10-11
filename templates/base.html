@@ -101,7 +101,9 @@
      rather than a wrap->panel descendant selector. */
   .bai-select-panel.sel-wide { max-height: 26rem; }
   .bai-select-panel.sel-wide .bai-select-option { padding: 0.65rem 1rem; font-size: 0.9rem; }
-  .bai-select-panel--searchable { display: flex; flex-direction: column; overflow: hidden; padding: 0.5rem; }
+  /* Searchable pickers show ~5 options before scrolling (the default 14rem
+     only fits ~4 once the search box takes its share). */
+  .bai-select-panel--searchable { display: flex; flex-direction: column; overflow: hidden; padding: 0.5rem; max-height: 16rem; }
   .bai-select-panel--searchable .bai-select-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .bai-select-search {
     display: block; flex: none; width: 100%; box-sizing: border-box;

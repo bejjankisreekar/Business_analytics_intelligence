@@ -5,6 +5,7 @@ from django.contrib.auth import authenticate
 
 from apps.organizations.models import Organization
 
+from .manager_pages import DEFAULT_MANAGER_PAGES, PAGE_CHOICES
 from .models import User
 
 USERNAME_RE = re.compile(r"^[a-z0-9_.-]+$")
@@ -249,7 +250,18 @@ class OrganizationProfileForm(forms.ModelForm):
         ]
 
 
+def _manager_pages_field():
+    return forms.MultipleChoiceField(
+        choices=PAGE_CHOICES,
+        widget=forms.CheckboxSelectMultiple,
+        required=True,
+        label="Pages this manager can open",
+        error_messages={"required": "Select at least one page for the manager."},
+    )
+
+
 class CreateManagerAccountForm(forms.Form):
+    pages = _manager_pages_field()
     email = forms.EmailField(widget=forms.EmailInput(attrs={"placeholder": "manager@company.com"}))
     first_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"placeholder": "First name"}))
     last_name = forms.CharField(
@@ -293,6 +305,11 @@ class CreateManagerAccountForm(forms.Form):
             raise forms.ValidationError("Password contains invalid characters (emojis or special Unicode characters are not allowed).")
         return password
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Unbound form only: start with the Daily Book ticked.
+        self.fields["pages"].initial = list(DEFAULT_MANAGER_PAGES)
+
     def clean(self):
         cleaned = super().clean()
         password = cleaned.get("password")
@@ -300,6 +317,46 @@ class CreateManagerAccountForm(forms.Form):
         if password and confirm and password != confirm:
             raise forms.ValidationError("Passwords do not match.")
         return cleaned
+
+
+class EditManagerForm(forms.Form):
+    """Owner/admin edits an existing manager's details and page access."""
+
+    email = forms.EmailField()
+    first_name = forms.CharField(max_length=150)
+    last_name = forms.CharField(max_length=150, required=False)
+    username = forms.CharField(max_length=150)
+    pages = _manager_pages_field()
+
+    def __init__(self, *args, manager, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.manager = manager
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if User.objects.filter(email=email).exclude(pk=self.manager.pk).exists():
+            raise forms.ValidationError("An account with this email already exists.")
+        return email
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip().lower()
+        if not username:
+            raise forms.ValidationError("Username cannot be empty.")
+        if " " in username:
+            raise forms.ValidationError("Username cannot contain spaces.")
+        if not USERNAME_RE.match(username):
+            raise forms.ValidationError(
+                "Username can only contain lowercase letters, numbers, underscores, dots and hyphens."
+            )
+        if User.objects.filter(username=username).exclude(pk=self.manager.pk).exists():
+            raise forms.ValidationError("This username is already taken.")
+        return username
+
+
+class ManagerPageAccessForm(forms.Form):
+    """Owner/admin changes which finance pages an existing manager can open."""
+
+    pages = _manager_pages_field()
 
 
 class ResetManagerPasswordForm(forms.Form):

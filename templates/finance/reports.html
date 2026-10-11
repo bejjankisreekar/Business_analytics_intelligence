@@ -48,13 +48,36 @@
   .rld-mrow-note { margin-top: 3px; font-size: .76rem; line-height: 1.4; color: rgb(var(--slate-500)); }
   .rld-mrow-total { padding-top: .8rem; margin-top: .2rem; border-top: 2px solid rgb(var(--tint-rgb) / .14); border-bottom: 0; }
   .rld-mrow-total .rld-mrow-title, .rld-mrow-total .rld-mrow-amount { font-weight: 700; }
+
+  /* Phone-only layout: desktop is untouched. !important is needed where a
+     Tailwind utility on the same element (flex, items-center, p-6, ...) would
+     otherwise win on source order. */
+  @media (max-width: 639px) {
+    .rpt-title { font-size: 1.75rem; line-height: 1.15; letter-spacing: -.01em; }
+    .rpt-period { width: 100%; }
+    .rpt-period .bai-select-wrap { display: block; width: 100%; }
+    .rpt-period .bai-select-trigger, #period-select + .bai-select-trigger { width: 100%; min-width: 0; }
+    .rpt-tabs { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem; overflow: hidden !important; background: rgba(255,255,255,0.03); border-radius: .8rem; padding: .25rem; border-bottom: 0 !important; }
+    .rpt-tabs .report-tab { justify-content: center; text-align: center; min-width: 0; border-bottom: 0; border-radius: .6rem; padding: .6rem .4rem; }
+    .rpt-tabs .report-tab--active { background: rgba(91,124,250,0.18); border: 1px solid rgba(91,124,250,0.45); }
+    #tab-pnl > .card, #tab-bs > .card, #tab-cf > .card, #tab-gst > .card { padding: 1rem !important; border-radius: 1rem; }
+    .rpt-head { display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: .75rem; }
+    .rpt-head > a { display: flex !important; justify-content: center; align-items: center; padding: .6rem .8rem; }
+    .rpt-head > div { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .rpt-head > div > a { display: flex !important; justify-content: center; flex: 1 1 auto; padding: .6rem .8rem; }
+    .rpt-head > div > form { flex: 1 1 100%; }
+    .rpt-head > div > form input[type="date"] { width: 100% !important; }
+    #tab-bs .rpt-head > div > form { display: flex; align-items: center; gap: .5rem; }
+    #tab-bs .rpt-head > div > form input[type="date"] { flex: 1 1 auto; width: auto !important; }
+    #tab-pnl h2, #tab-bs h2, #tab-cf h2, #tab-gst h2 { font-size: 1rem; }
+  }
 </style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-white">Financial Reports</h1>
+    <h1 class="rpt-title text-2xl font-bold text-white">Financial Reports</h1>
     <p class="mt-1 text-sm text-slate-400">{{ period.label }}</p>
   </div>
-  <form method="get" class="flex flex-wrap items-end gap-2">
+  <form method="get" class="rpt-period flex flex-wrap items-end gap-2">
     <select id="period-select" name="period" onchange="bai.toggleCustomRange(this.value !== 'custom'); this.form.submit()" class="!mt-0 !w-auto">
       {% for value, label in period_choices %}
       <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
@@ -80,7 +103,7 @@
   };
 </script>
 
-<div class="mt-6 flex gap-2 overflow-x-auto whitespace-nowrap border-b border-white/5">
+<div class="rpt-tabs mt-6 flex gap-2 whitespace-nowrap border-b border-white/5">
   <button onclick="bai.showTab('pnl')" id="tab-btn-pnl" class="report-tab report-tab--active">Profit &amp; Loss</button>
   <button onclick="bai.showTab('bs')" id="tab-btn-bs" class="report-tab">Balance Sheet</button>
   <button onclick="bai.showTab('cf')" id="tab-btn-cf" class="report-tab">Cash Flow</button>
@@ -90,7 +113,7 @@
 <!-- P&L -->
 <section id="tab-pnl" class="mt-6">
   <div class="card p-6">
-    <div class="flex items-center justify-between">
+    <div class="rpt-head flex items-center justify-between">
       <div>
         <h2 class="text-base font-semibold text-white">Profit &amp; Loss Statement</h2>
         <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }} · Amounts in {{ organization.currency }}</p>
@@ -134,7 +157,7 @@
 <!-- Balance Sheet -->
 <section id="tab-bs" class="mt-6 hidden">
   <div class="card p-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="rpt-head flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 class="text-base font-semibold text-white">Balance Sheet</h2>
         <p class="text-xs text-slate-500">As on {{ balance_sheet.as_of|date:"d M Y" }} · simplified, cash-basis · Amounts in {{ organization.currency }}</p>
@@ -192,7 +215,7 @@
 <!-- Cash Flow -->
 <section id="tab-cf" class="mt-6 hidden">
   <div class="card p-6">
-    <div class="flex items-center justify-between">
+    <div class="rpt-head flex items-center justify-between">
       <div>
         <h2 class="text-base font-semibold text-white">Cash Flow Statement</h2>
         <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }} · operating activities · Amounts in {{ organization.currency }}</p>
@@ -232,7 +255,7 @@
 <!-- GST Summary -->
 <section id="tab-gst" class="mt-6 hidden">
   <div class="card p-6">
-    <div class="flex items-center justify-between">
+    <div class="rpt-head flex items-center justify-between">
       <div>
         <h2 class="text-base font-semibold text-white">GST Summary</h2>
         <p class="text-xs text-slate-500">{{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}{% if organization.tax_id %} · GSTIN {{ organization.tax_id }}{% endif %} · Amounts in {{ organization.currency }}</p>

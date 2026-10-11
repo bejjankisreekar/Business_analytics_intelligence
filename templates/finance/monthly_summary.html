@@ -101,16 +101,45 @@
   .ms-subrow td.stat-down { color: #f87171; }
   .ms-subrow:hover td { background: rgba(91,124,250,0.045); }
   .ms-subrow:hover td.ms-name { background: #171c2c; }
+  /* Phone-only layout polish: desktop is untouched. */
+  @media (max-width: 639px) {
+    .ms-title { font-size: 1.75rem; line-height: 1.15; letter-spacing: -.01em; }
+    /* !important where a Tailwind utility on the same element (flex, items-center,
+       p-5, ...) would otherwise win on source order. */
+    .ms-filters { display: grid !important; grid-template-columns: 1fr 1fr; gap: .75rem; width: 100%; }
+    .ms-field { min-width: 0; }
+    .ms-field .bai-select-trigger { width: 100% !important; min-width: 0; }
+    #ms-custom-range { grid-column: 1 / -1; flex-wrap: wrap; }
+    #ms-custom-range > div { flex: 1 1 8rem; }
+    #ms-custom-range > button { width: 100%; }
+    .card.ms-yoy { padding: 1rem !important; border-radius: 1rem; }
+    .ms-yoy-tile { flex: 1 1 100%; min-width: 0; }
+    .ms-yoy-tile .ms-yoy-value { font-size: 1.5rem; line-height: 1.25; }
+    .ms-yoy-change { flex-direction: row !important; align-items: center !important; justify-content: space-between !important; width: 100%; padding-top: .9rem; }
+    .ms-tabs { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .25rem; width: 100%; overflow: hidden !important; background: rgba(255,255,255,0.03); border-radius: .8rem; padding: .25rem; border-bottom: 0; }
+    .ms-tabs .report-tab { justify-content: center; min-width: 0; margin: 0; border-bottom: 0; border-radius: .6rem; padding: .55rem .3rem; font-size: .8rem; white-space: nowrap; }
+    .ms-toolbar { overflow: visible; }
+    .ms-tabs .report-tab--active { border: 1px solid rgba(91,124,250,0.45); }
+    .ms-toolbar { flex-direction: column !important; align-items: stretch !important; gap: .6rem; border-bottom: 0; padding-bottom: 0; }
+    .ms-actions { display: grid !important; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: 0; width: 100%; }
+    .ms-actions > #ms-expand-all-btn,
+    .ms-actions > .ms-toggle { grid-column: 1 / -1; }
+    .ms-actions > .ms-toggle { display: flex !important; width: 100%; }
+    .ms-actions > .ms-toggle > button { flex: 1 1 0; text-align: center; }
+    .ms-exports { display: contents !important; }
+    .ms-export-btn { justify-content: center; padding: .6rem .5rem; font-size: .8rem; }
+    .ms-actions > #ms-expand-all-btn { justify-content: center; }
+  }
 </style>
 
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-white">Monthly Summary</h1>
+    <h1 class="ms-title text-2xl font-bold text-white">Monthly Summary</h1>
     <p class="mt-1 text-sm text-slate-400">{{ kind_label }} by category · {{ period.label }}</p>
   </div>
-  <form method="get" id="ms-filter-form" class="flex flex-wrap items-end gap-2">
+  <form method="get" id="ms-filter-form" class="ms-filters flex flex-wrap items-end gap-2">
     <input type="hidden" name="kind" value="{{ kind }}">
-    <div>
+    <div class="ms-field">
       <label for="granularity-select" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">View by</label>
       <select id="granularity-select" name="granularity" onchange="this.form.submit()" class="!mt-1 !w-auto">
         {% for value, label in granularity_choices %}
@@ -118,7 +147,7 @@
         {% endfor %}
       </select>
     </div>
-    <div>
+    <div class="ms-field">
       <label for="period-select" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Range</label>
       <select id="period-select" name="period" onchange="bai.msTogglePeriod(this.value !== 'custom'); this.form.submit()" class="!mt-1 !w-auto">
         {% for value, label in period_choices %}
@@ -147,19 +176,19 @@
 </script>
 
 <!-- Same-period-last-year comparison -->
-<div class="card mt-4 flex flex-wrap items-stretch gap-4 p-5">
+<div class="ms-yoy card mt-4 flex flex-wrap items-stretch gap-4 p-5">
   <div class="ms-yoy-tile">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">{{ period.label }}</p>
-    <p class="mt-1.5 text-2xl font-bold text-white">{{ organization.currency }} {{ yoy.current_total|floatformat:2|intcomma }}</p>
+    <p class="ms-yoy-value mt-1.5 text-2xl font-bold text-white">{{ organization.currency }} {{ yoy.current_total|floatformat:2|intcomma }}</p>
   </div>
   <div class="ms-yoy-arrow hidden sm:flex">
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
   </div>
   <div class="ms-yoy-tile">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">{{ yoy.prior_start|date:"d M Y" }} – {{ yoy.prior_end|date:"d M Y" }} (last year)</p>
-    <p class="mt-1.5 text-2xl font-bold text-slate-300">{{ organization.currency }} {{ yoy.prior_total|floatformat:2|intcomma }}</p>
+    <p class="ms-yoy-value mt-1.5 text-2xl font-bold text-slate-300">{{ organization.currency }} {{ yoy.prior_total|floatformat:2|intcomma }}</p>
   </div>
-  <div class="flex w-full flex-col items-start justify-center gap-1 border-t border-white/5 pt-4 sm:ml-auto sm:w-auto sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+  <div class="ms-yoy-change flex w-full flex-col items-start justify-center gap-1 border-t border-white/5 pt-4 sm:ml-auto sm:w-auto sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Change</p>
     {% if yoy.change_pct != None %}
     <p class="ms-change-pill {% if yoy.change_pct > 0 %}ms-change-pill--up{% elif yoy.change_pct < 0 %}ms-change-pill--down{% else %}ms-change-pill--flat{% endif %}">{% if yoy.change_pct > 0 %}▲{% elif yoy.change_pct < 0 %}▼{% else %}—{% endif %} {{ yoy.change_pct|floatformat:1 }}%</p>
@@ -169,8 +198,8 @@
   </div>
 </div>
 
-<div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-0">
-  <div class="flex gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+<div class="ms-toolbar mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-0">
+  <div class="ms-tabs flex gap-1 whitespace-nowrap">
     <a href="?kind=sales&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}" class="report-tab {% if kind == 'sales' %}report-tab--active{% endif %}">
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.706 2.602-7.201.116-.48-.230-.949-.724-.949H4.5m0 0L3.106 4.835m0 0L4.5 14.25m0 0L6 17.25m10.5-3a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM8.25 18.75a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
       Revenue
@@ -184,7 +213,7 @@
       Expenses
     </a>
   </div>
-  <div class="mb-2 flex flex-wrap items-center gap-3">
+  <div class="ms-actions mb-2 flex flex-wrap items-center gap-3">
     {% if matrix.has_any_subrows %}
     <button type="button" id="ms-expand-all-btn" data-expanded="{% if expand_all %}true{% else %}false{% endif %}" onclick="bai.msToggleAllExpanded()" class="ms-export-btn">
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 5.25l7.5 7.5 7.5-7.5m-15 6l7.5 7.5 7.5-7.5"/></svg>
@@ -195,7 +224,7 @@
       <button type="button" data-mode="amount" onclick="bai.msSetDisplayMode('amount')" class="granularity-btn granularity-btn--active">Amount</button>
       <button type="button" data-mode="change" onclick="bai.msSetDisplayMode('change')" class="granularity-btn">Amount + % change</button>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="ms-exports flex items-center gap-2">
       <a id="ms-export-excel" href="{% url 'finance:monthly_summary_excel' %}?kind={{ kind }}&granularity={{ granularity }}&period={{ period.key }}&from={{ period.start|date:'Y-m-d' }}&to={{ period.end|date:'Y-m-d' }}{% if expand_all %}&expand=1{% endif %}" class="ms-export-btn">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
         Export Excel
