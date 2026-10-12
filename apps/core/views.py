@@ -1,4 +1,5 @@
 import logging
+import threading
 
 from django.conf import settings
 from django.contrib import messages
@@ -14,6 +15,32 @@ from apps.billing.models import Plan
 from .forms import ContactForm
 
 logger = logging.getLogger(__name__)
+
+
+def _send_contact_notification(pk, name, organization_name, phone, message, created_at):
+    try:
+        text_body = (
+            f"New contact form submission — {organization_name}\n\n"
+            f"Name: {name}\n"
+            f"Organization: {organization_name}\n"
+            f"Phone: {phone}\n\n"
+            f"Message:\n{message}"
+        )
+        html_body = render_to_string("emails/contact_submission.html", {
+            "site_name": settings.SITE_NAME,
+            "contact": {"name": name, "organization_name": organization_name, "phone": phone, "message": message},
+            "received_at": timezone.localtime(created_at).strftime("%d %b %Y, %I:%M %p"),
+        })
+        email_message = EmailMultiAlternatives(
+            subject=f"New contact form submission — {organization_name}",
+            body=text_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[settings.CONTACT_EMAIL],
+        )
+        email_message.attach_alternative(html_body, "text/html")
+        email_message.send()
+    except Exception:
+        logger.exception("Failed to send contact form notification email for submission %s", pk)
 
 
 class LandingPageView(TemplateView):
@@ -40,29 +67,15 @@ class LandingPageView(TemplateView):
 
         contact = form.save()
         if settings.CONTACT_EMAIL:
-            try:
-                text_body = (
-                    f"New contact form submission — {contact.organization_name}\n\n"
-                    f"Name: {contact.name}\n"
-                    f"Organization: {contact.organization_name}\n"
-                    f"Phone: {contact.phone}\n\n"
-                    f"Message:\n{contact.message}"
-                )
-                html_body = render_to_string("emails/contact_submission.html", {
-                    "site_name": settings.SITE_NAME,
-                    "contact": contact,
-                    "received_at": timezone.localtime(contact.created_at).strftime("%d %b %Y, %I:%M %p"),
-                })
-                email_message = EmailMultiAlternatives(
-                    subject=f"New contact form submission — {contact.organization_name}",
-                    body=text_body,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    to=[settings.CONTACT_EMAIL],
-                )
-                email_message.attach_alternative(html_body, "text/html")
-                email_message.send()
-            except Exception:
-                logger.exception("Failed to send contact form notification email for submission %s", contact.pk)
+            # Sent off the request thread: an unreachable/blocked SMTP server
+            # must never stall or fail the visitor's submission (it is
+            # already saved above).
+            threading.Thread(
+                target=_send_contact_notification,
+                args=(contact.pk, contact.name, contact.organization_name, contact.phone,
+                      contact.message, contact.created_at),
+                daemon=True,
+            ).start()
         else:
             logger.warning("CONTACT_EMAIL is not set — skipped notification for submission %s", contact.pk)
 

@@ -260,6 +260,8 @@ EMAIL_BACKEND = (
 EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = config("EMAIL_PORT", cast=int, default=587)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", cast=bool, default=True)
+# Never let an unreachable SMTP server hang a request/worker indefinitely.
+EMAIL_TIMEOUT = config("EMAIL_TIMEOUT", cast=int, default=10)
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "no-reply@example.com")
 
 # Contact details shown on the public landing page, and where contact-form

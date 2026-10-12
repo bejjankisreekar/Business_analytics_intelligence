@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1440" viewBox="0 0 1080 1440">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0A1A2F"/><stop offset="1" stop-color="#071120"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#2DD4BF" stop-opacity="0.28"/><stop offset="1" stop-color="#2DD4BF" stop-opacity="0"/></radialGradient></defs>
+<rect width="1080" height="1440" fill="url(#bg)"/>
+<circle cx="540" cy="120" r="220" fill="url(#glow)"/>
+<text x="540" y="92" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="40" font-weight="800" fill="#F8FAFC">Finday <tspan fill="#2DD4BF">Intelligence</tspan></text>
+<rect x="470" y="110" width="140" height="4" rx="2" fill="#2DD4BF"/>
+<text x="540" y="215" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="800" fill="#F8FAFC">Know exactly how your</text>
+<text x="540" y="282" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="800" fill="#2DD4BF">business is doing, every day</text>
+<text x="540" y="345" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="25" fill="#94A3B8">Log daily sales, purchases and expenses in seconds.</text>
+<text x="540" y="381" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="25" fill="#94A3B8">Get margins, ledgers, reports and insights automatically.</text>
+<g transform="translate(50,440)"><rect width="300" height="130" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+<circle cx="40" cy="40" r="20" fill="#2DD4BF"/><text x="40" y="48" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="800" fill="#06202B">1</text>
+<text x="74" y="48" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#F8FAFC">Enter daily</text>
+<text x="24" y="92" font-family="Segoe UI, Arial, sans-serif" font-size="20" fill="#94A3B8">Sales, purchases</text><text x="24" y="116" font-family="Segoe UI, Arial, sans-serif" font-size="20" fill="#94A3B8">and expenses</text></g>
+<path d="M354 505 H378" stroke="#2DD4BF" stroke-width="4" stroke-linecap="round"/><path d="M369 494 L380 505 L369 516" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(390,440)"><rect width="300" height="130" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+<circle cx="40" cy="40" r="20" fill="#2DD4BF"/><text x="40" y="48" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="800" fill="#06202B">2</text>
+<text x="74" y="48" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#F8FAFC">Finday organizes</text>
+<text x="24" y="92" font-family="Segoe UI, Arial, sans-serif" font-size="20" fill="#94A3B8">Ledgers, balances</text><text x="24" y="116" font-family="Segoe UI, Arial, sans-serif" font-size="20" fill="#94A3B8">and analysis</text></g>
+<path d="M694 505 H718" stroke="#2DD4BF" stroke-width="4" stroke-linecap="round"/><path d="M709 494 L720 505 L709 516" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(730,440)"><rect width="300" height="130" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+<circle cx="40" cy="40" r="20" fill="#2DD4BF"/><text x="40" y="48" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="800" fill="#06202B">3</text>
+<text x="74" y="48" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#F8FAFC">You decide</text>
+<text x="24" y="92" font-family="Segoe UI, Arial, sans-serif" font-size="20" fill="#94A3B8">Clear reports and</text><text x="24" y="116" font-family="Segoe UI, Arial, sans-serif" font-size="20" fill="#94A3B8">insights, any day</text></g>
+<text x="540" y="636" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#F8FAFC">What you get</text>
+<g transform="translate(50,668)"><rect width="480" height="142" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="56" cy="50" r="30" fill="#0B1E33"/><g transform="translate(56,50) scale(0.9)"><circle r="17" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M0 -8 V8 M-8 0 H8" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="102" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">Daily entry &amp; import</text>
+ <text x="28" y="106" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#94A3B8">Log in seconds, or import a spreadsheet.</text></g><g transform="translate(550,668)"><rect width="480" height="142" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="56" cy="50" r="30" fill="#0B1E33"/><g transform="translate(56,50) scale(0.9)"><path d="M-17 -16 H11 a6 6 0 0 1 6 6 V16 H-11 a6 6 0 0 1 -6 -6 Z M-11 16 V-16" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="102" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">Ledgers &amp; aging</text>
+ <text x="28" y="106" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#94A3B8">Customer, vendor and bank balances.</text></g><g transform="translate(50,826)"><rect width="480" height="142" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="56" cy="50" r="30" fill="#0B1E33"/><g transform="translate(56,50) scale(0.9)"><path d="M-15 16 V2 M-5 16 V-8 M5 16 V-2 M15 16 V-16" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="102" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">Revenue &amp; cost insights</text>
+ <text x="28" y="106" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#94A3B8">Spot what drives income and cost.</text></g><g transform="translate(550,826)"><rect width="480" height="142" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="56" cy="50" r="30" fill="#0B1E33"/><g transform="translate(56,50) scale(0.9)"><path d="M-16 -6 H14 M8 -13 L15 -6 L8 1 M16 8 H-14 M-8 1 L-15 8 L-8 15" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="102" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">Receivables &amp; payables</text>
+ <text x="28" y="106" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#94A3B8">What is owed to you and what you owe.</text></g><g transform="translate(50,984)"><rect width="480" height="142" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="56" cy="50" r="30" fill="#0B1E33"/><g transform="translate(56,50) scale(0.9)"><path d="M-13 -18 H5 L15 -8 V18 H-13 Z M-6 4 H8 M-6 10 H8" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="102" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">P&amp;L, Balance Sheet, GST</text>
+ <text x="28" y="106" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#94A3B8">Accountant-ready reports as PDF.</text></g><g transform="translate(550,984)"><rect width="480" height="142" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="56" cy="50" r="30" fill="#0B1E33"/><g transform="translate(56,50) scale(0.9)"><circle cx="-12" cy="0" r="6" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="-10" r="6" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="10" r="6" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M-6 -2 L6 -8 M-6 2 L6 8" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="102" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">Referral commissions</text>
+ <text x="28" y="106" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#94A3B8">Track payouts due and paid per referrer.</text></g><g transform="translate(50,1142)"><rect width="480" height="142" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="56" cy="50" r="30" fill="#0B1E33"/><g transform="translate(56,50) scale(0.9)"><path d="M0 -16 V8 M-9 0 L0 9 L9 0 M-16 16 H16" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="102" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">Monthly reports &amp; export</text>
+ <text x="28" y="106" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#94A3B8">Excel, CSV or PDF whenever you need.</text></g><g transform="translate(550,1142)"><rect width="480" height="142" rx="20" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="56" cy="50" r="30" fill="#0B1E33"/><g transform="translate(56,50) scale(0.9)"><circle cx="-9" cy="-8" r="7" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M-22 18 a13 13 0 0 1 26 0" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="-4" r="5" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 18 a9 9 0 0 1 17 0" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="102" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="25" font-weight="700" fill="#F8FAFC">Team logins</text>
+ <text x="28" y="106" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#94A3B8">Owner and manager accounts, no sharing.</text></g>
+<rect x="50" y="1308" width="980" height="64" rx="32" fill="#0E3B45" stroke="#2DD4BF" stroke-width="2"/>
+<text x="540" y="1348" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="#F8FAFC">Store your data in <tspan fill="#2DD4BF" font-weight="700">your own Google Drive</tspan> or Finday's database. Your choice.</text>
+<rect x="0" y="1390" width="1080" height="50" fill="#0A1626"/>
+<text x="540" y="1422" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#94A3B8">For hospitals, clinics, retail, restaurants, wholesale and more</text>
+</svg>

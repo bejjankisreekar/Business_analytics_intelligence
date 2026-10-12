@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1440" viewBox="0 0 1080 1440">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0A1A2F"/><stop offset="1" stop-color="#071120"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#2DD4BF" stop-opacity="0.3"/><stop offset="1" stop-color="#2DD4BF" stop-opacity="0"/></radialGradient></defs>
+<rect width="1080" height="1440" fill="url(#bg)"/>
+<circle cx="540" cy="130" r="160" fill="url(#glow)"/>
+<g transform="translate(540,125) scale(2.6)"><path d="M-20 -12 H-6 L0 -5 H20 V16 H-20 Z" fill="#0F2A44" stroke="#2DD4BF" stroke-width="3" stroke-linejoin="round"/><g transform="translate(0,5)"><rect x="-5" y="-2" width="10" height="8" rx="1.5" fill="#2DD4BF"/><path d="M-3 -2 V-5 a3 3 0 0 1 6 0 V-2" stroke="#2DD4BF" stroke-width="1.6" fill="none" stroke-linecap="round"/></g></g>
+<text x="540" y="300" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="800" fill="#F8FAFC">Your hospital's finance data</text>
+<text x="540" y="368" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="800" fill="#2DD4BF">stays in your own Google Drive</text>
+<text x="540" y="420" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="26" fill="#94A3B8">Not in our database. You hold the keys.</text>
+<g transform="translate(50,520)"><rect width="270" height="190" rx="22" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+<g transform="translate(135,62) scale(1.5)"><rect x="-10" y="-18" width="20" height="36" rx="4" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M-3 12 H3" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="135" y="132" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="700" fill="#F8FAFC">Your team</text>
+<text x="135" y="164" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="20" fill="#94A3B8">phone or laptop</text></g>
+<path d="M332 615 H366" stroke="#2DD4BF" stroke-width="4" stroke-linecap="round"/><path d="M356 603 L368 615 L356 627" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(405,520)"><rect width="270" height="190" rx="22" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+<g transform="translate(135,62) scale(1.5)"><path d="M-16 14 V0 M-5 14 V-10 M6 14 V-4 M17 14 V-16" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="135" y="132" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="700" fill="#F8FAFC">Finday app</text>
+<text x="135" y="164" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="20" fill="#94A3B8">reports &amp; insights</text></g>
+<path d="M687 615 H721" stroke="#2DD4BF" stroke-width="4" stroke-linecap="round"/><path d="M711 603 L723 615 L711 627" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(760,520)"><rect width="270" height="190" rx="22" fill="#0E3B45" stroke="#2DD4BF" stroke-width="4"/>
+<g transform="translate(135,62) scale(1.5)"><path d="M-20 -12 H-6 L0 -5 H20 V16 H-20 Z" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="135" y="132" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="700" fill="#F8FAFC">Your Google Drive</text>
+<text x="135" y="164" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="20" fill="#94A3B8">your own Sheet</text></g>
+<text x="540" y="760" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="#F8FAFC">Records are saved to <tspan fill="#2DD4BF" font-weight="700">your</tspan> Google account, <tspan fill="#2DD4BF" font-weight="700">not ours</tspan>.</text>
+<g transform="translate(50,800)"><rect width="480" height="220" rx="22" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="62" cy="62" r="34" fill="#0B1E33"/><g transform="translate(62,62)"><circle cx="0" cy="-8" r="8" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M-16 20 a16 16 0 0 1 32 0" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="116" y="72" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#F8FAFC">Owned by you</text>
+ <text x="30" y="135" font-family="Segoe UI, Arial, sans-serif" font-size="23" fill="#94A3B8">The data sits in a Google Sheet</text><text x="30" y="167" font-family="Segoe UI, Arial, sans-serif" font-size="23" fill="#94A3B8">in your own Google account.</text></g><g transform="translate(550,800)"><rect width="480" height="220" rx="22" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="62" cy="62" r="34" fill="#0B1E33"/><g transform="translate(62,62)"><rect x="-16" y="-18" width="32" height="36" rx="4" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M-16 -6 H16 M-16 6 H16 M0 -18 V18" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="116" y="72" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#F8FAFC">Open it anytime</text>
+ <text x="30" y="135" font-family="Segoe UI, Arial, sans-serif" font-size="23" fill="#94A3B8">View, download or export it</text><text x="30" y="167" font-family="Segoe UI, Arial, sans-serif" font-size="23" fill="#94A3B8">yourself, without asking us.</text></g><g transform="translate(50,1050)"><rect width="480" height="220" rx="22" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="62" cy="62" r="34" fill="#0B1E33"/><g transform="translate(62,62)"><path d="M-20 0 C-10 -14 10 -14 20 0 C10 14 -10 14 -20 0 Z" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="0" cy="0" r="5" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="116" y="72" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#F8FAFC">No copy with us</text>
+ <text x="30" y="135" font-family="Segoe UI, Arial, sans-serif" font-size="23" fill="#94A3B8">Your records are not stored in</text><text x="30" y="167" font-family="Segoe UI, Arial, sans-serif" font-size="23" fill="#94A3B8">our database. They stay in your</text><text x="30" y="199" font-family="Segoe UI, Arial, sans-serif" font-size="23" fill="#94A3B8">Sheet.</text></g><g transform="translate(550,1050)"><rect width="480" height="220" rx="22" fill="#0F2A44" stroke="#1E4468" stroke-width="2"/>
+ <circle cx="62" cy="62" r="34" fill="#0B1E33"/><g transform="translate(62,62)"><path d="M-18 0 a18 18 0 1 0 36 0 a18 18 0 1 0 -36 0 M-12 -12 L12 12" stroke="#2DD4BF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+ <text x="116" y="72" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#F8FAFC">Revoke anytime</text>
+ <text x="30" y="135" font-family="Segoe UI, Arial, sans-serif" font-size="23" fill="#94A3B8">Remove Finday's access from your</text><text x="30" y="167" font-family="Segoe UI, Arial, sans-serif" font-size="23" fill="#94A3B8">Google account whenever you wish.</text></g>
+<rect x="0" y="1320" width="1080" height="120" fill="#0A1626"/>
+<text x="540" y="1375" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="800" fill="#F8FAFC">Finday <tspan fill="#2DD4BF">Intelligence</tspan></text>
+<text x="540" y="1410" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="22" fill="#94A3B8">Clear finance. Daily profit visibility. Your data, your control.</text>
+</svg>

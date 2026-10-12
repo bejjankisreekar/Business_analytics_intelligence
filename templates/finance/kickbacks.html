@@ -63,7 +63,7 @@
     <label for="kb-referred">Referred by</label>
     <select id="kb-referred" name="referred">
       <option value="">All referrers</option>
-      {% for name in referred_options %}<option value="{{ name }}" {% if name == filter_referred %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      {% for name, label in referred_options %}<option value="{{ name }}" {% if name == filter_referred %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
   </div>
   <div class="kb-field">
@@ -115,7 +115,7 @@
         <td class="py-2.5 pr-4 text-slate-400">{{ entry.admission_date|date:"d M Y" }}</td>
         <td class="py-2.5 pr-4 text-slate-400">{% if entry.discharge_date %}{{ entry.discharge_date|date:"d M Y" }}{% else %}—{% endif %}</td>
         <td class="py-2.5 pr-4 text-slate-400">{{ entry.consulting_doctor|default:"—" }}</td>
-        <td class="py-2.5 pr-4 text-slate-400">{{ entry.referred_by|default:"—" }}</td>
+        <td class="py-2.5 pr-4 text-slate-400"><div class="kb-ref" title="{{ entry.referred_display }}">{{ entry.referred_display|default:"—" }}</div></td>
         <td class="py-2.5 pr-4 text-slate-400">{% with latest=entry.payment_list|last %}{% if latest %}<div class="whitespace-nowrap">{{ latest.date|date:"d M Y" }}</div>{% else %}—{% endif %}{% endwith %}</td>
         <td class="py-2.5 pr-4 text-right text-slate-300">{{ entry.final_amount|floatformat:0|intcomma }}</td>
         <td class="py-2.5 pr-4 text-right font-medium text-amber-400">{{ entry.kickback_amount|floatformat:0|intcomma }}</td>
@@ -364,6 +364,9 @@
   #modal-kickback input:focus {
     border-color: #5b7cfa; box-shadow: 0 0 0 3px rgba(91,124,250,0.18);
   }
+  /* Referred by: one line, capped width, "…" when long; hover to scroll along it. */
+  .kb-ref { max-width: 14rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kb-ref:hover { overflow-x: auto; text-overflow: clip; scrollbar-width: thin; }
   .kb-row { cursor: pointer; }
   .kb-row:hover td { background: rgba(127,127,127,0.06); }
   .kb-action-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 0.5rem; color: rgb(var(--slate-400)); transition: background .15s, color .15s; }

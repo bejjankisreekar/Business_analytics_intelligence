@@ -26,6 +26,7 @@ from apps.organizations.models import Organization
 from . import imports, services
 from .access import has_kickbacks_access
 from .forms import (
+    _ledger_label,
     BankAccountEditForm,
     BankAccountForm,
     CashTransferForm,
@@ -2770,6 +2771,12 @@ def _kickback_names(field: str) -> list[str]:
     return sorted(names, key=str.lower)
 
 
+def _referrer_labels() -> dict[str, str]:
+    """Ledger name -> "name - profession - village", for showing referrers with their details.
+    Names that match no ledger are left out and shown as typed."""
+    return {ledger.name: _ledger_label(ledger) for ledger in GeneralLedger.objects.all()}
+
+
 class KickbacksView(TenantLoginRequiredMixin, TemplateView):
     """Kickbacks tracking — a Business/Business Drive plan exclusive.
     One bill per row, entered manually, spreadsheet-style."""
@@ -2787,8 +2794,10 @@ class KickbacksView(TenantLoginRequiredMixin, TemplateView):
         entries = data["entries"]
         pager = _paginate(self.request, entries, param="page")
         page_entries = pager["page_obj"].object_list
+        labels = _referrer_labels()
         for entry in page_entries:
             entry.payment_list = data["payments"].get(str(entry.pk), [])
+            entry.referred_display = ", ".join(labels.get(n, n) for n in _referrer_names(entry))
         totals = {
             "final_amount": sum((e.final_amount for e in entries), services.ZERO),
             "kickback_amount": sum((e.kickback_amount for e in entries), services.ZERO),
@@ -2808,7 +2817,7 @@ class KickbacksView(TenantLoginRequiredMixin, TemplateView):
             "filter_doctor": filters["doctor"],
             "filter_referred": filters["referred"],
             "doctor_options": _kickback_names("consulting_doctor"),
-            "referred_options": _kickback_names("referred_by"),
+            "referred_options": [(n, labels.get(n, n)) for n in _kickback_names("referred_by")],
             "totals": totals,
             "kb_labels": services.kickback_column_labels(),
             "kb_label_fields": [

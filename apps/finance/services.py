@@ -875,12 +875,14 @@ def weeks_since(start: datetime.date, end: datetime.date) -> int:
 
 def first_entry_date() -> datetime.date | None:
     """Date of the earliest sales/expense/purchase entry, or None if there are none."""
-    dates = [
-        d for d in (
-            model.objects.order_by("date").values_list("date", flat=True).first()
-            for model in (SalesEntry, ExpenseEntry, PurchaseEntry)
-        ) if d is not None
-    ]
+    # .first() on the model queryset (not values_list(...).first()): the
+    # Sheets-backed queryset's values_list(flat=True) returns a plain list,
+    # which has no .first().
+    dates = []
+    for model in (SalesEntry, ExpenseEntry, PurchaseEntry):
+        entry = model.objects.order_by("date").first()
+        if entry is not None and entry.date is not None:
+            dates.append(entry.date)
     return min(dates) if dates else None
 
 
