@@ -1753,6 +1753,15 @@ def vendor_ledger_entries(vendor_name: str) -> list[dict]:
     return rows
 
 
+def _sort_timestamp(value) -> datetime.datetime:
+    """A created_at that sorts against the aware opening-row epoch: Sheets-
+    backed rows come back naive, DB-backed rows aware, and Python refuses
+    to compare the two."""
+    if value is None:
+        return datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    return timezone.make_aware(value) if timezone.is_naive(value) else value
+
+
 def account_ledger_entries(account: str) -> list[dict]:
     """The running-balance ledger for the Cash-in-hand or Bank account
     (`account` is a PaymentMode value): opening balance, every sale as a
@@ -1817,7 +1826,7 @@ def account_ledger_entries(account: str) -> list[dict]:
         elif t.direction == out_direction:
             rows.append({"source": {"kind": "transfer", "pk": t.pk}, "date": t.date, "created_at": t.created_at, "particular": label, "debit": ZERO, "credit": t.amount})
 
-    rows.sort(key=lambda row: (row["date"], row["created_at"]))
+    rows.sort(key=lambda row: (row["date"], _sort_timestamp(row["created_at"])))
 
     balance = ZERO
     for row in rows:
@@ -1937,7 +1946,7 @@ def bank_account_ledger_entries(account: BankAccount) -> list[dict]:
         else:
             rows.append({"source": {"kind": "transfer", "pk": t.pk}, "date": t.date, "created_at": t.created_at, "particular": label, "debit": ZERO, "credit": t.amount})
 
-    rows.sort(key=lambda row: (row["date"], row["created_at"]))
+    rows.sort(key=lambda row: (row["date"], _sort_timestamp(row["created_at"])))
 
     balance = ZERO
     for row in rows:

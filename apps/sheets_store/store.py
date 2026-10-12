@@ -155,8 +155,12 @@ def _matches(instance, lookups: dict) -> bool:
     for key, raw_expected in lookups.items():
         field_name, _, op = key.partition("__")
         op = op or "exact"
-        actual = getattr(instance, field_name, None)
-        expected = _coerce(_field_for(type(instance), field_name), _resolve(instance, raw_expected))
+        field = _field_for(type(instance), field_name)
+        # A FK's plain name (e.g. "channel") resolves to the related object,
+        # not its id — compare the raw column (attname, "channel_id") instead,
+        # the same way a real QuerySet does for channel=<id>.
+        actual = getattr(instance, field.attname if field is not None else field_name, None)
+        expected = _coerce(field, _resolve(instance, raw_expected))
         if op == "exact" and actual != expected:
             return False
         if op == "gte" and not (actual is not None and actual >= expected):
