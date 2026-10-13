@@ -620,7 +620,7 @@ class KickbackEntryForm(forms.ModelForm):
         # The doctor dropdown lists the items under the category mapped in
         # Finance Settings; with no mapping yet it stays empty.
         self.doctor_category = services.get_finance_settings().kickback_doctor_category
-        doctors = Subcategory.objects.none()
+        doctors = _unfetched(Subcategory)
         if self.doctor_category:
             doctors = Subcategory.objects.filter(category=self.doctor_category, is_active=True).select_related("parent")
         self.fields["consulting_doctor_item"] = DoctorChoiceField(queryset=doctors, required=False, label="Consulting doctor")

@@ -56,7 +56,8 @@ html {
      literal font stack, so swapping the typeface is a one-line change
      here rather than an edit in every template that uses it. */
   --font-identity: 'IBM Plex Sans', 'Inter', sans-serif;   /* org name, user greetings/usernames */
-  --font-logotype: 'Space Grotesk', 'Inter', sans-serif;   /* the "Finday" brand wordmark */
+  --font-logotype: 'Lobster Two', cursive;   /* the "Finday" brand wordmark */
+  --font-tagline: 'DM Serif Display', serif;  /* the "Intelligence" brand tagline */
 
   color-scheme: dark;
 }
@@ -299,3 +300,76 @@ html[data-theme="light"] .theme-toggle-btn .icon-moon { display: none; }
   box-shadow: 0 12px 28px -12px rgb(var(--brand-500) / .35), 0 6px 14px -8px rgb(0 0 0 / .25);
 }
 @media (prefers-reduced-motion: reduce) { .kpi-card, .kpi-card:hover { transition: none; transform: none; } }
+
+/* ---- Brand lockup: the logo mark + "Finday" wordmark + "INTELLIGENCE"
+   tagline. This is the ONLY place the brand look is defined. Every screen
+   renders it through templates/includes/_brand.html, which uses these
+   classes — so changing a token here changes the brand everywhere (nav bars,
+   sidebar, auth pages, error pages, footer). Don't restyle it per page.
+   Logo sizes are rem (they match the old h-11 / h-9 mark sizes); text sizes
+   are px, as the original wordmarks were, so they don't shrink with the
+   root font-size above. */
+:root {
+  --brand-logo-size: 2.75rem;
+  --brand-logo-radius: 0.75rem;
+  --brand-gap: 0.75rem;
+  --brand-wordmark-size: 24px;
+  --brand-wordmark-weight: 400;
+  --brand-wordmark-tracking: -0.01em;
+  --brand-wordmark-color: rgb(var(--fg-strong));
+  --brand-tagline-size: 10px;
+  --brand-tagline-weight: 400;
+  --brand-tagline-tracking: 0.3em;
+  --brand-tagline-gap: 0.3rem;
+  --brand-tagline-color: rgb(var(--brand-400));
+}
+
+/* Compact size for auth panels, error pages and the landing footer. */
+.brand-lockup--sm {
+  --brand-logo-size: 2.25rem;
+  --brand-logo-radius: 0.6rem;
+  --brand-gap: 0.625rem;
+  --brand-wordmark-size: 16px;
+  --brand-tagline-size: 8px;
+  --brand-tagline-tracking: 0.26em;
+  --brand-tagline-gap: 0.2rem;
+}
+
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--brand-gap);
+  min-width: 0;
+  text-decoration: none;
+}
+.brand-lockup__logo {
+  width: var(--brand-logo-size);
+  height: var(--brand-logo-size);
+  flex: none;
+  border-radius: var(--brand-logo-radius);
+  object-fit: contain;
+}
+.brand-lockup__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1;
+}
+.brand-lockup__wordmark {
+  font-family: var(--font-logotype);
+  font-size: var(--brand-wordmark-size);
+  font-weight: var(--brand-wordmark-weight);
+  letter-spacing: var(--brand-wordmark-tracking);
+  color: var(--brand-wordmark-color);
+  white-space: nowrap;
+}
+.brand-lockup__tagline {
+  margin-top: var(--brand-tagline-gap);
+  font-family: var(--font-tagline);
+  font-size: var(--brand-tagline-size);
+  font-weight: var(--brand-tagline-weight);
+  letter-spacing: var(--brand-tagline-tracking);
+  text-transform: uppercase;
+  color: var(--brand-tagline-color);
+  white-space: nowrap;
+}

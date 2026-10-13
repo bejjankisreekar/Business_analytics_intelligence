@@ -9,13 +9,7 @@
 
   <!-- Left: brand panel -->
   <div id="signup-brand-panel" class="hidden flex-col justify-between border-r border-white/5 bg-ink-900 px-14 py-12 lg:flex">
-    <a href="{% url 'core:landing' %}" class="flex items-center gap-2.5" aria-label="Finday Intelligence — home">
-      <img src="{% static 'img/logo.png' %}" alt="" class="h-9 w-9 rounded-xl object-contain">
-      <span class="leading-none">
-        <span class="block text-[15px] font-semibold tracking-tight text-white">Finday</span>
-        <span class="mt-0.5 block text-[8px] font-medium uppercase tracking-[0.24em] text-brand-400">Intelligence</span>
-      </span>
-    </a>
+    {% include "includes/_brand.html" with size="sm" %}
     <div class="max-w-md">
       <span class="auth-eyebrow">Get started</span>
       <h1 class="auth-hero-title mt-4 text-white">Set up your organization in<br><span class="auth-grad">under a minute.</span></h1>
@@ -41,13 +35,7 @@
   <!-- Right: form -->
   <div class="relative flex w-full flex-col justify-center px-6 py-14 sm:px-12 lg:w-[58%] lg:px-32" id="signup-form-panel">
     <div class="mx-auto w-full max-w-3xl ml-0 sm:ml-4 lg:ml-8">
-      <a href="{% url 'core:landing' %}" class="mb-6 flex items-center gap-2.5 lg:hidden" aria-label="Finday Intelligence — home">
-        <img src="{% static 'img/logo.png' %}" alt="" class="h-9 w-9 rounded-xl object-contain">
-        <span class="leading-none">
-          <span class="block text-[15px] font-semibold text-white">Finday</span>
-          <span class="mt-0.5 block text-[8px] font-medium uppercase tracking-[0.24em] text-brand-400">Intelligence</span>
-        </span>
-      </a>
+      {% include "includes/_brand.html" with size="sm" class="mb-6 lg:hidden" %}
 
       <h2 class="auth-title text-white">Create your <span class="auth-grad">organization</span></h2>
       <p class="mt-2 text-sm text-slate-400">Free to start. No credit card required.</p>

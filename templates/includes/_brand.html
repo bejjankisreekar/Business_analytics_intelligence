@@ -1,0 +1,15 @@
+{% load static %}{% comment %}
+  The Finday brand lockup (logo + wordmark + tagline). Its look is defined ONLY in
+  static/css/theme.css under "Brand lockup" — edit it there, not here or in the page.
+
+  Optional params:
+    href   link target (defaults to the landing page)
+    size   "sm" for compact placements (auth panels, error pages, footer)
+    class  extra classes for placement only, e.g. "mb-8 lg:hidden"
+{% endcomment %}{% url 'core:landing' as landing_url %}<a href="{{ href|default:landing_url }}" class="brand-lockup{% if size == 'sm' %} brand-lockup--sm{% endif %} {{ class }}" aria-label="Finday Intelligence — home">
+  <img src="{% static 'img/logo.png' %}" alt="" class="brand-lockup__logo">
+  <span class="brand-lockup__text">
+    <span class="brand-lockup__wordmark">Finday</span>
+    <span class="brand-lockup__tagline">Intelligence</span>
+  </span>
+</a>

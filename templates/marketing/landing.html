@@ -706,13 +706,7 @@
       <div class="grid grid-cols-2 gap-10 md:grid-cols-4 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
         <!-- Brand -->
         <div class="col-span-2 md:col-span-4 lg:col-span-1">
-          <a href="{% url 'core:landing' %}" class="inline-flex items-center gap-3" aria-label="{{ SITE_NAME }} — home">
-            <img src="{% static 'img/logo.png' %}" alt="" class="h-10 w-10 rounded-xl object-contain">
-            <span class="leading-none">
-              <span class="block text-lg font-semibold tracking-tight text-white">Finday</span>
-              <span class="mt-1 block text-[9px] font-medium uppercase tracking-[0.26em] text-brand-400">Intelligence</span>
-            </span>
-          </a>
+          {% include "includes/_brand.html" with size="sm" %}
           <p class="mt-4 max-w-xs text-sm leading-relaxed text-slate-500">
             Daily sales, purchases and expenses turned into margins, ledgers and insights — so you always know how the business is doing.
           </p>

@@ -9,13 +9,7 @@
 
   <!-- Left: brand panel -->
   <div class="relative hidden w-1/2 flex-col justify-between overflow-hidden border-r border-white/5 bg-ink-900 px-14 py-12 lg:flex">
-    <a href="{% url 'core:landing' %}" class="flex items-center gap-2.5" aria-label="Finday Intelligence — home">
-      <img src="{% static 'img/logo.png' %}" alt="" class="h-9 w-9 rounded-xl object-contain">
-      <span class="leading-none">
-        <span class="block text-[15px] font-semibold tracking-tight text-white">Finday</span>
-        <span class="mt-0.5 block text-[8px] font-medium uppercase tracking-[0.24em] text-brand-400">Intelligence</span>
-      </span>
-    </a>
+    {% include "includes/_brand.html" with size="sm" %}
     <div class="max-w-md">
       <span class="auth-eyebrow">Welcome back</span>
       <h1 class="auth-hero-title mt-4 text-white">Your numbers are <span class="auth-grad">waiting.</span></h1>
@@ -37,13 +31,7 @@
   <!-- Right: form -->
   <div class="relative flex w-full flex-col justify-center px-6 py-16 sm:px-12 lg:w-1/2 lg:px-20">
     <div class="mx-auto w-full max-w-sm">
-      <a href="{% url 'core:landing' %}" class="mb-8 flex items-center gap-2.5 lg:hidden" aria-label="Finday Intelligence — home">
-        <img src="{% static 'img/logo.png' %}" alt="" class="h-9 w-9 rounded-xl object-contain">
-        <span class="leading-none">
-          <span class="block text-[15px] font-semibold text-white">Finday</span>
-          <span class="mt-0.5 block text-[8px] font-medium uppercase tracking-[0.24em] text-brand-400">Intelligence</span>
-        </span>
-      </a>
+      {% include "includes/_brand.html" with size="sm" class="mb-8 lg:hidden" %}
 
       <h2 class="auth-title text-white">Sign in to your <span class="auth-grad">workspace</span></h2>
       <p class="mt-2 text-sm text-slate-400">Enter your email (or username) and password to continue.</p>
