@@ -66,16 +66,20 @@ BULK_COLUMN_DEFAULTS = {
 BULK_TAB_TITLES = {"sale": "Revenue", "expense": "Expenses", "purchase": "Purchases"}
 
 KICKBACK_COLUMN_DEFAULTS = {
-    "bill_number": "Bill No.",
+    "bill_number": "Invoice No.",
     "patient_name": "Patient",
+    "mrn": "MRN / UMRN",
     "patient_address": "Address",
     "admission_date": "Admitted On",
     "discharge_date": "Discharged On",
     "consulting_doctor": "Doctor",
     "referred_by": "Referred By",
-    "ref_date": "Paid On",
+    "payer_type": "Bill Type",
+    "insurer_name": "Insurance",
     "final_amount": "Bill Amount",
-    "kickback_amount": "Kickback",
+    "insurer_amount": "Insurer Pays",
+    "patient_amount": "Patient Pays",
+    "kickback_amount": "Commission",
     "net_amount": "Net",
 }
 
@@ -1323,6 +1327,21 @@ def _cash_bank_split(entries, label_fn) -> list[dict]:
     return [groups[key] for key in order]
 
 
+def _patient_label(bill) -> str:
+    """How a bill's patient is named on the Daily Report: the name, else the
+    MRN, else the bill number."""
+    return bill.patient_name or bill.mrn or bill.bill_number
+
+
+def _display_note(e, bill) -> str:
+    """The entry's note, with the bill number it mentions swapped for the
+    patient label. The note itself is not changed."""
+    note = e.note or ""
+    if bill is not None and bill.bill_number and bill.bill_number in note:
+        note = note.replace(bill.bill_number, _patient_label(bill))
+    return note
+
+
 def _merge_identical_lines(entries) -> list:
     """Collapse entries that would print the same line on the Daily Report
     (same item, vendor, note, payment mode and bank) into one line with the
@@ -1331,13 +1350,19 @@ def _merge_identical_lines(entries) -> list:
     lines: dict[tuple, SimpleNamespace] = {}
     for e in entries:
         vendor = getattr(e, "vendor", "") or ""
-        key = (e.subcategory_id, vendor, e.note or "", e.payment_mode, e.bank_account_id)
+        # The ledger a payment went to is part of the line, so two payments to
+        # different referrers stay on separate lines with their own names.
+        paid_to = getattr(e, "paid_to_ledger", None)
+        key = (e.subcategory_id, vendor, e.note or "", e.payment_mode, e.bank_account_id, getattr(e, "paid_to_ledger_id", None))
         line = lines.get(key)
         if line is None:
+            bill = getattr(e, "kickback_bill", None)
             line = lines[key] = SimpleNamespace(
                 subcategory=e.subcategory,
                 vendor=vendor,
-                note=e.note,
+                paid_to=paid_to,
+                admission=_patient_label(bill) if bill is not None else "",
+                note=_display_note(e, bill),
                 payment_mode=e.payment_mode,
                 payment_label=e.get_payment_mode_display(),
                 bank_account=e.bank_account,
@@ -1397,7 +1422,9 @@ def _group_by_category(entries, category_name_fn) -> list[dict]:
         # "— · Cash  <same amount>" line would just repeat the total, so
         # skip the detail list in that case.
         row["has_detail"] = any(
-            getattr(e, "subcategory", None) or getattr(e, "vendor", "") for e in row["entries"]
+            getattr(e, "subcategory", None) or getattr(e, "vendor", "") or getattr(e, "paid_to_ledger_id", None)
+            or getattr(e, "kickback_bill_id", None)
+            for e in row["entries"]
         )
         row["subgroups"] = _group_by_subcategory(row["entries"])
     rows.sort(key=lambda r: r["total"], reverse=True)
@@ -1425,7 +1452,7 @@ def daily_report(day: datetime.date, payment_mode: str | None = None) -> dict:
     )
     expenses = list(
         ExpenseEntry.objects.filter(date=day, **mode_filter)
-        .select_related("category", "subcategory__parent").order_by("created_at")
+        .select_related("category", "subcategory__parent", "paid_to_ledger").order_by("created_at")
     )
     purchases = list(
         PurchaseEntry.objects.filter(date=day, **mode_filter)

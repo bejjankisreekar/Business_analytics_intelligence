@@ -31,7 +31,7 @@
       <div class="se-grid">
         {% for title, fields in groups %}
         {% for field in fields %}
-        <div class="se-field {% if field.name == 'note' %}se-span-full{% endif %}">
+        <div class="se-field {% if field.name == 'note' or field.name == 'kickback_bill' %}se-span-full{% endif %}"{% if field.name == 'kickback_bill' %} id="se-admission"{% endif %}>
           {% if field.field.widget.input_type == "checkbox" %}
           <label class="se-check">
             {{ field }}
@@ -167,6 +167,23 @@
     };
     payEl.addEventListener("change", syncBank);
     syncBank();
+
+    // Admission (IP) only applies to the IP billing revenue category, the same
+    // rule as the bulk rows. Other categories hide it and clear it.
+    const ipCategory = "{{ ip_revenue_category_id|escapejs }}";
+    const admissionWrap = document.getElementById("se-admission");
+    const admissionEl = document.getElementById("id_kickback_bill");
+    const syncAdmission = () => {
+      if (!admissionWrap || !admissionEl) return;
+      const isIp = ipCategory !== "" && mainEl.value === ipCategory;
+      admissionWrap.style.display = isIp ? "" : "none";
+      admissionEl.disabled = !isIp;
+      const trigger = admissionWrap.querySelector(".bai-select-trigger");
+      if (trigger) trigger.disabled = !isIp;
+      if (!isIp) admissionEl.value = "";
+    };
+    mainEl.addEventListener("change", syncAdmission);
+    syncAdmission();
 
     // Live net for revenue: gross minus discount.
     const grossEl = document.getElementById("id_gross_amount");

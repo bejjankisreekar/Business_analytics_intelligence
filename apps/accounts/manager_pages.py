@@ -54,10 +54,14 @@ MANAGER_PAGES = (
         "add_ledger_entry", "delete_ledger_entry", "cash_ledger", "bank_ledger",
         "customer_ledger", "vendor_ledger", "bank_account_ledger",
     )),
-    ("kickbacks", "Kickbacks", (
+    ("kickbacks", "IP Admissions", (
         "kickbacks", "add_kickback_entry", "kickback_column_labels", "kickback_detail",
         "edit_kickback_entry", "delete_kickback_entry", "kickbacks_csv", "kickbacks_excel",
         "kickbacks_pdf", "import_kickback_entries", "kickbacks_import_sample",
+    )),
+    ("insurance_claims", "Insurance Claims", (
+        "claims", "add_claim", "edit_claim", "claim_detail", "delete_claim",
+        "add_claim_payment", "delete_claim_payment", "claims_excel", "claims_pdf", "add_patient_payment",
     )),
     ("setup", "Setup & masters", (
         "settings", "categories", "add_category", "edit_category", "toggle_category", "delete_category",
@@ -88,6 +92,21 @@ URL_NAMES_BY_PAGE = {key: frozenset(names) for key, _, names in MANAGER_PAGES}
 _PAGE_BY_URL_NAME = {name: key for key, names in URL_NAMES_BY_PAGE.items() for name in names}
 
 
+# Insurance / TPA users see only these pages, whatever their stored list says.
+INSURANCE_PAGES = ("kickbacks", "insurance_claims")
+
+# Roles whose finance pages are limited to a list of pages.
+RESTRICTED_ROLES = ("MANAGER", "INSURANCE")
+
+
+def pages_for(user) -> tuple:
+    """The page keys a restricted user may open. Insurance users always get
+    INSURANCE_PAGES; managers get the list their owner ticked."""
+    if getattr(user, "role", None) == "INSURANCE":
+        return INSURANCE_PAGES
+    return tuple(getattr(user, "manager_pages", None) or ())
+
+
 def manager_can_open(manager_pages, url_name: str) -> bool:
     """True if a manager holding `manager_pages` may open the finance URL `url_name`."""
     if url_name in ALWAYS_ALLOWED_URL_NAMES:
@@ -97,9 +116,13 @@ def manager_can_open(manager_pages, url_name: str) -> bool:
 
 
 def first_allowed_url(manager_pages) -> str:
-    """Where to send a manager who asked for a page they don't have."""
+    """Where to send a restricted user who asked for a page they don't have."""
     if "daily_report" in manager_pages:
         return reverse("finance:daily_report")
+    if "kickbacks" in manager_pages:
+        return reverse("finance:kickbacks")
+    if "insurance_claims" in manager_pages:
+        return reverse("finance:claims")
     return reverse("accounts:profile")
 
 
@@ -112,8 +135,8 @@ class PageAccess:
     def __init__(self, user):
         from .models import User
 
-        self._unrestricted = getattr(user, "role", None) != User.Role.MANAGER
-        self._pages = frozenset(getattr(user, "manager_pages", None) or ())
+        self._unrestricted = getattr(user, "role", None) not in RESTRICTED_ROLES
+        self._pages = frozenset(pages_for(user))
 
     def __contains__(self, key) -> bool:
         return self._unrestricted or key in self._pages

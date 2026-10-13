@@ -3,6 +3,7 @@ import csv
 import datetime
 import io
 import json
+import textwrap
 from decimal import Decimal
 
 from django.conf import settings
@@ -15,6 +16,8 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils.html import escape
+from django.utils.safestring import mark_safe
 from django.views.generic import TemplateView, View
 
 from apps.billing import payments as billing_payments
@@ -63,6 +66,7 @@ from .models import (
     Customer,
     ExpenseEntry,
     GeneralLedger,
+    InsuranceClaim,
     KickbackEntry,
     LedgerEntry,
     Partner,
@@ -963,7 +967,8 @@ class PurchaseExpenseIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, Tem
 
 class DailySummaryRangeMixin:
     """Shared by the Daily Performance page and its exports: the ?from/&to range
-    (default: the last 7 days), swapped if reversed and capped at MAX_DAYS."""
+    (default: the 1st of the month through today), swapped if reversed and capped
+    at MAX_DAYS."""
 
     MAX_DAYS = 366
 
@@ -975,7 +980,7 @@ class DailySummaryRangeMixin:
 
     def summary_range(self):
         date_to = self._parse_date("to") or datetime.date.today()
-        date_from = self._parse_date("from") or date_to - datetime.timedelta(days=6)
+        date_from = self._parse_date("from") or date_to.replace(day=1)
         if date_from > date_to:
             date_from, date_to = date_to, date_from
         date_from = max(date_from, date_to - datetime.timedelta(days=self.MAX_DAYS - 1))
@@ -988,12 +993,17 @@ class DailySummaryView(DailySummaryRangeMixin, TenantLoginRequiredMixin, Templat
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         date_from, date_to = self.summary_range()
+        days = services.daily_series(date_from, date_to)
         context.update({
             "active_nav": "daily_summary",
             "organization": self.request.user.organization,
             "date_from": date_from,
             "date_to": date_to,
-            "days": services.daily_series(date_from, date_to),
+            "days": days,
+            "totals": {
+                key: sum(d[key] for d in days)
+                for key in ("sales", "expenses", "purchases", "net")
+            },
         })
         return context
 
@@ -1272,6 +1282,9 @@ def _bulk_entry_context(request, selected_date, *, active_bulk_tab="sale", sale_
             {"prefix": "purchase", "main_field": "category"},
         ]),
         "active_bulk_tab": active_bulk_tab,
+        # The sales category mapped as IP billing revenue (Setup). Only rows in
+        # this category can pick an admission.
+        "ip_revenue_category_id": str(services.get_finance_settings().ip_revenue_category_id or ""),
         "labels": services.bulk_column_labels(),
         "min_date": min_date,
         "sale_formset": sale_formset or SalesEntryFormSet(
@@ -1634,7 +1647,7 @@ def _single_entry_groups(form, main_field: str) -> list[tuple[str, list]]:
     page. Names a given type doesn't have (e.g. Customer on a purchase) are
     skipped, so one layout serves all three forms."""
     layout = [
-        ("Details", ["date", main_field, "subcategory", "customer", "vendor", "quantity"]),
+        ("Details", ["date", main_field, "subcategory", "vendor", "quantity"]),
         ("Amount", ["gross_amount", "discount", "amount"]),
         ("Payment", ["payment_mode", "bank_account", "paid_to_ledger", "kickback_bill"]),
         ("Note", ["note"]),
@@ -1669,6 +1682,8 @@ class SingleEntryView(TenantLoginRequiredMixin, View):
             "selected_date": selected_date,
             "min_date": _historical_min_date(self.request),
             "subcategory_map_json": to_json(services.subcategory_map()),
+            # Admission (IP) only applies to the IP billing revenue category.
+            "ip_revenue_category_id": str(services.get_finance_settings().ip_revenue_category_id or ""),
             "tabs": [
                 {
                     "kind": k,
@@ -2359,7 +2374,11 @@ class FinanceSettingsView(TenantLoginRequiredMixin, TemplateView):
         context["vendors"] = Vendor.objects.all()
         context["bank_accounts"] = BankAccount.objects.all()
         context["kickback_doctor_category"] = fs.kickback_doctor_category
+        context["ip_revenue_category"] = fs.ip_revenue_category
         context["active_categories"] = [c for c in categories if c.is_active]
+        context["active_sales_categories"] = [
+            c for c in categories if c.is_active and c.kind == Category.Kind.SALES
+        ]
         labels = services.bulk_column_labels(fs)
         context["label_groups"] = [
             {
@@ -2391,6 +2410,13 @@ class FinanceSettingsView(TenantLoginRequiredMixin, TemplateView):
             fs.bulk_column_labels = json.dumps(custom) if custom else ""
             fs.save()
             messages.success(request, "Entry column names updated.")
+            return redirect("finance:settings")
+        if "save_ip_revenue_category" in request.POST and has_kickbacks_access(request):
+            fs.ip_revenue_category = Category.objects.filter(
+                pk=request.POST.get("ip_revenue_category") or None, kind=Category.Kind.SALES,
+            ).first()
+            fs.save()
+            messages.success(request, "IP billing revenue category updated.")
             return redirect("finance:settings")
         if "save_kickback_doctor_category" in request.POST and has_kickbacks_access(request):
             fs.kickback_doctor_category = Category.objects.filter(pk=request.POST.get("kickback_doctor_category") or None).first()
@@ -2691,17 +2717,6 @@ def _ledger_filter_context(request, entries, paginate=True):
     return result
 
 
-def _kickback_receipts_by_bill() -> dict:
-    """Daily Book revenue entries linked to each bill, oldest first."""
-    grouped = {}
-    for sale in SalesEntry.objects.all():
-        if sale.kickback_bill_id:
-            grouped.setdefault(str(sale.kickback_bill_id), []).append(sale)
-    for sales in grouped.values():
-        sales.sort(key=lambda s: s.date)
-    return grouped
-
-
 def _parse_iso_date(raw):
     try:
         return datetime.date.fromisoformat(raw or "")
@@ -2710,25 +2725,21 @@ def _parse_iso_date(raw):
 
 
 def _kickback_filtered(request) -> dict:
-    """The bills matching the Kickbacks page's filters, with their payments.
-    A paid-date range keeps only bills with a payment in that range and shows
-    only those payments. Shared by the page and every export, so they agree."""
+    """The bills matching the Kickbacks page's filters. Shared by the page and
+    every export, so they agree."""
     query = (request.GET.get("q") or "").strip()
     date_from = _parse_iso_date(request.GET.get("from"))
     date_to = _parse_iso_date(request.GET.get("to"))
-    paid_from = _parse_iso_date(request.GET.get("paid_from"))
-    paid_to = _parse_iso_date(request.GET.get("paid_to"))
     doctor = (request.GET.get("doctor") or "").strip()
     referred = (request.GET.get("referred") or "").strip()
 
-    payments = _kickback_receipts_by_bill()
     entries = sorted(KickbackEntry.objects.all(), key=lambda e: e.admission_date, reverse=True)
     if query:
         needle = query.lower()
         entries = [
             e for e in entries
             if needle in " ".join([
-                e.bill_number, e.patient_name, e.patient_address, e.consulting_doctor, e.referred_by,
+                e.bill_number, e.patient_name, e.mrn, e.patient_address, e.consulting_doctor, e.referred_by,
             ]).lower()
         ]
     if doctor:
@@ -2739,18 +2750,10 @@ def _kickback_filtered(request) -> dict:
         entries = [e for e in entries if e.admission_date >= date_from]
     if date_to:
         entries = [e for e in entries if e.admission_date <= date_to]
-    if paid_from or paid_to:
-        def in_paid_range(p):
-            return (not paid_from or p.date >= paid_from) and (not paid_to or p.date <= paid_to)
-        entries = [e for e in entries if any(in_paid_range(p) for p in payments.get(str(e.pk), []))]
-        for e in entries:
-            payments[str(e.pk)] = [p for p in payments.get(str(e.pk), []) if in_paid_range(p)]
     return {
         "entries": entries,
-        "payments": payments,
         "filters": {
             "query": query, "from": date_from, "to": date_to,
-            "paid_from": paid_from, "paid_to": paid_to,
             "doctor": doctor, "referred": referred,
         },
     }
@@ -2796,10 +2799,11 @@ class KickbacksView(TenantLoginRequiredMixin, TemplateView):
         page_entries = pager["page_obj"].object_list
         labels = _referrer_labels()
         for entry in page_entries:
-            entry.payment_list = data["payments"].get(str(entry.pk), [])
             entry.referred_display = ", ".join(labels.get(n, n) for n in _referrer_names(entry))
         totals = {
             "final_amount": sum((e.final_amount for e in entries), services.ZERO),
+            "insurer_amount": sum((e.insurer_share for e in entries), services.ZERO),
+            "patient_amount": sum((e.patient_amount for e in entries), services.ZERO),
             "kickback_amount": sum((e.kickback_amount for e in entries), services.ZERO),
             "net_amount": sum((e.net_amount for e in entries), services.ZERO),
         }
@@ -2812,8 +2816,6 @@ class KickbacksView(TenantLoginRequiredMixin, TemplateView):
             "filter_query": filters["query"],
             "filter_from": filters["from"],
             "filter_to": filters["to"],
-            "filter_paid_from": filters["paid_from"],
-            "filter_paid_to": filters["paid_to"],
             "filter_doctor": filters["doctor"],
             "filter_referred": filters["referred"],
             "doctor_options": _kickback_names("consulting_doctor"),
@@ -2886,12 +2888,18 @@ class KickbackDetailView(TenantLoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         bill = get_object_or_404(KickbackEntry, pk=pk)
         payments = sorted(ExpenseEntry.objects.filter(kickback_bill=bill), key=lambda e: e.date)
+        claims = list(InsuranceClaim.objects.filter(bill=bill))
+        revenue = sorted(SalesEntry.objects.filter(kickback_bill=bill), key=lambda s: s.date)
         context.update({
+            "revenue": revenue,
+            "revenue_total": sum((r.amount for r in revenue), services.ZERO),
             "active_nav": "kickbacks",
             "organization": self.request.user.organization,
             "bill": bill,
             "payments": payments,
             "payments_total": sum((p.amount for p in payments), services.ZERO),
+            "claims": claims,
+            "claims_outstanding": sum((c.outstanding_amount for c in claims if c.is_open), services.ZERO),
         })
         return context
 
@@ -2927,27 +2935,28 @@ class DeleteKickbackEntryView(TenantLoginRequiredMixin, View):
 
 
 _KICKBACK_EXPORT_HEADERS = [
-    "Bill Number", "Patient Name", "Address", "Admission Date", "Discharge Date",
-    "Consult Doctor", "Reffered By", "Final Amount", "Kickback Amount", "Net Amount",
-    "Paid On",
+    "Invoice Number", "Patient Name", "MRN / UMRN", "Address", "Admission Date", "Discharge Date",
+    "Consult Doctor", "Reffered By", "Final Amount", "Commission Amount", "Net Amount",
+    "Bill Type", "Insurance Name", "Policy Number", "Pre-auth Number", "Insurer Pays", "Patient Pays",
+    "Discount",
 ]
 
 
 def _kickback_export_rows(request) -> list:
-    """One row per payment (a bill with no payments gets one row, blank payment
-    columns), so a bill paid in several parts shows each part."""
+    """One row per bill."""
     data = _kickback_filtered(request)
     rows = []
     for entry in data["entries"]:
-        bill = [
-            entry.bill_number, entry.patient_name, entry.patient_address,
+        rows.append([
+            entry.bill_number, entry.patient_name, entry.mrn, entry.patient_address,
             entry.admission_date.isoformat() if entry.admission_date else "",
             entry.discharge_date.isoformat() if entry.discharge_date else "",
             entry.consulting_doctor, entry.referred_by,
             entry.final_amount, entry.kickback_amount, entry.net_amount,
-        ]
-        for payment in data["payments"].get(str(entry.pk)) or [None]:
-            rows.append(bill + [payment.date.isoformat() if payment else ""])
+            entry.get_payer_type_display() if entry.payer_type else "",
+            entry.insurer_name, entry.policy_number, entry.preauth_number,
+            entry.insurer_share, entry.patient_amount, entry.discount_amount,
+        ])
     return rows
 
 
@@ -2961,8 +2970,19 @@ class KickbackEntriesCsvView(TenantLoginRequiredMixin, View):
         for row in _kickback_export_rows(request):
             writer.writerow(row)
         response = HttpResponse(buffer.getvalue(), content_type="text/csv")
-        response["Content-Disposition"] = 'attachment; filename="kickbacks.csv"'
+        response["Content-Disposition"] = 'attachment; filename="patient-bills.csv"'
         return response
+
+
+_KICKBACK_EXCEL_HEADERS = [
+    "Invoice Number", "Patient Name", "MRN / UMRN", "Address", "Admission Date", "Discharge Date",
+    "Consult Doctor", "Bill Type", "Insurance Name", "Policy Number", "Pre-auth Number",
+    "Final Amount", "Insurer Pays", "Patient Pays", "Discount", "Reffered By",
+    "Commission Amount", "Commission Date", "Net Amount",
+]
+# Bill-level columns are filled on a bill's first row only. Referred By,
+# Commission Amount and Commission Date are filled on every referrer row.
+_KICKBACK_EXCEL_MONEY = ("Final Amount", "Insurer Pays", "Patient Pays", "Discount", "Commission Amount", "Net Amount")
 
 
 class KickbackEntriesExcelView(TenantLoginRequiredMixin, View):
@@ -2973,21 +2993,37 @@ class KickbackEntriesExcelView(TenantLoginRequiredMixin, View):
         from openpyxl.styles import Font
         from openpyxl.utils import get_column_letter
 
+        data = _kickback_filtered(request)
+        expenses = _commission_expenses(data["entries"])
         wb = Workbook()
         ws = wb.active
-        ws.title = "Kickbacks"
-        ws.append(_KICKBACK_EXPORT_HEADERS)
+        ws.title = "IP Admissions"
+        ws.append(_KICKBACK_EXCEL_HEADERS)
         for cell in ws[1]:
             cell.font = Font(bold=True)
-        money_columns = [
-            i + 1 for i, h in enumerate(_KICKBACK_EXPORT_HEADERS)
-            if h in ("Final Amount", "Kickback Amount", "Net Amount")
-        ]
-        for row in _kickback_export_rows(request):
-            ws.append(row)
-            for col in money_columns:
-                ws.cell(row=ws.max_row, column=col).number_format = "#,##0.00"
-        for col_idx in range(1, len(_KICKBACK_EXPORT_HEADERS) + 1):
+        money_columns = [i + 1 for i, h in enumerate(_KICKBACK_EXCEL_HEADERS) if h in _KICKBACK_EXCEL_MONEY]
+        for entry in data["entries"]:
+            bill = [
+                entry.bill_number, entry.patient_name, entry.mrn, entry.patient_address,
+                entry.admission_date.isoformat() if entry.admission_date else "",
+                entry.discharge_date.isoformat() if entry.discharge_date else "",
+                entry.consulting_doctor,
+                entry.get_payer_type_display() if entry.payer_type else "",
+                entry.insurer_name, entry.policy_number, entry.preauth_number,
+                entry.final_amount, entry.insurer_share, entry.patient_amount, entry.discount_amount,
+            ]
+            for index, (name, paid_on, amount) in enumerate(_commission_lines(entry, expenses.get(str(entry.pk), []))):
+                first = index == 0
+                line = (bill if first else [""] * len(bill)) + [
+                    name or "",
+                    amount if amount is not None else "",
+                    paid_on.isoformat() if paid_on else "",
+                    entry.net_amount if first else "",
+                ]
+                ws.append(line)
+                for col in money_columns:
+                    ws.cell(row=ws.max_row, column=col).number_format = "#,##0.00"
+        for col_idx in range(1, len(_KICKBACK_EXCEL_HEADERS) + 1):
             ws.column_dimensions[get_column_letter(col_idx)].width = 18
         ws.freeze_panes = "A2"
 
@@ -2997,8 +3033,45 @@ class KickbackEntriesExcelView(TenantLoginRequiredMixin, View):
             buffer.getvalue(),
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        response["Content-Disposition"] = 'attachment; filename="kickbacks.xlsx"'
+        response["Content-Disposition"] = 'attachment; filename="patient-bills.xlsx"'
         return response
+
+
+def _commission_expenses(entries) -> dict:
+    """Commission payments on the given bills, oldest first, keyed by bill id."""
+    expenses = {}
+    for expense in (
+        ExpenseEntry.objects.filter(kickback_bill_id__in=[e.pk for e in entries])
+        .select_related("paid_to_ledger").order_by("date")
+    ):
+        expenses.setdefault(str(expense.kickback_bill_id), []).append(expense)
+    return expenses
+
+
+def _pdf_wrap(value: str, width: int = 11) -> str:
+    """Escaped bill number, broken onto as many lines as it needs inside its
+    fixed-width PDF cell, so a long number never runs into the next column."""
+    chunks = textwrap.wrap(value, width, break_long_words=True, break_on_hyphens=False) or [""]
+    return mark_safe("<br>".join(escape(chunk) for chunk in chunks))
+
+
+def _commission_lines(entry, expenses) -> list:
+    """One line per referrer on the bill, with the commission paid to them and
+    when. A referrer with no payment yet gets a blank line. A payment to someone
+    not listed on the bill gets its own line, so the lines add up to the commission."""
+    lines = []
+    used = set()
+    for name in _referrer_names(entry):
+        matched = [e for e in expenses if e.paid_to_ledger and e.paid_to_ledger.name == name]
+        for expense in matched:
+            used.add(expense.pk)
+            lines.append((name, expense.date, expense.amount))
+        if not matched:
+            lines.append((name, None, None))
+    for expense in expenses:
+        if expense.pk not in used:
+            lines.append((expense.paid_to_ledger.name if expense.paid_to_ledger else "(no ledger)", expense.date, expense.amount))
+    return lines or [(None, None, None)]
 
 
 class KickbackEntriesPdfView(TenantLoginRequiredMixin, View):
@@ -3006,16 +3079,43 @@ class KickbackEntriesPdfView(TenantLoginRequiredMixin, View):
         if not has_kickbacks_access(request):
             return redirect("finance:dashboard")
         data = _kickback_filtered(request)
-        bills = [
-            {"entry": entry, "payments": data["payments"].get(str(entry.pk), [])}
-            for entry in data["entries"]
-        ]
+        expenses = {}
+        for expense in (
+            ExpenseEntry.objects.filter(kickback_bill_id__in=[e.pk for e in data["entries"]])
+            .select_related("paid_to_ledger").order_by("date")
+        ):
+            expenses.setdefault(str(expense.kickback_bill_id), []).append(expense)
+        # One printed line per referrer. The bill's own columns sit on its first
+        # line only; the Referred By, Commission and Commission Date columns
+        # change from line to line.
+        rows = []
+        cell = "border:1px solid #9aa3b5; padding:3px 3px; font-size:7px; vertical-align:top;"
+        for entry in data["entries"]:
+            lines = _commission_lines(entry, expenses.get(str(entry.pk), []))
+            for index, (name, paid_on, amount) in enumerate(lines):
+                first, last = index == 0, index == len(lines) - 1
+                # Columns before "Referred By" read as one block per bill: the side
+                # lines run through every referrer line, and the horizontal lines
+                # between a bill's own lines are dropped.
+                left = cell
+                if not first:
+                    left += " border-top:none;"
+                if not last:
+                    left += " border-bottom:none;"
+                rows.append({
+                    "entry": entry, "first": first, "name": name, "paid_on": paid_on,
+                    "amount": amount, "left_style": left, "bill_label": _pdf_wrap(entry.bill_number),
+                })
         context = {
             "organization": request.user.organization,
-            "bills": bills,
-            "cell": "border:1px solid #9aa3b5; padding:3px 4px; font-size:8px; vertical-align:top;",
+            "rows": rows,
+            "bills": data["entries"],
+            "cell": "border:1px solid #9aa3b5; padding:3px 3px; font-size:7px; vertical-align:top;",
             "totals": {
                 "final_amount": sum((e.final_amount for e in data["entries"]), services.ZERO),
+                "insurer_amount": sum((e.insurer_share for e in data["entries"]), services.ZERO),
+                "patient_amount": sum((e.patient_amount for e in data["entries"]), services.ZERO),
+                "discount_amount": sum((e.discount_amount for e in data["entries"]), services.ZERO),
                 "kickback_amount": sum((e.kickback_amount for e in data["entries"]), services.ZERO),
                 "net_amount": sum((e.net_amount for e in data["entries"]), services.ZERO),
             },
@@ -3023,7 +3123,7 @@ class KickbackEntriesPdfView(TenantLoginRequiredMixin, View):
             "generated_on": datetime.date.today(),
         }
         return _render_statement_pdf(
-            request, "finance/pdf/kickbacks_pdf.html", context, "kickbacks.pdf",
+            request, "finance/pdf/kickbacks_pdf.html", context, "patient-bills.pdf",
             fallback_url_name="finance:kickbacks",
         )
 
@@ -3037,7 +3137,7 @@ class KickbackImportSampleView(TenantLoginRequiredMixin, View):
         for row in imports.KICKBACK_SAMPLE_ROWS:
             writer.writerow(row)
         response = HttpResponse(buffer.getvalue(), content_type="text/csv")
-        response["Content-Disposition"] = 'attachment; filename="kickbacks-sample.csv"'
+        response["Content-Disposition"] = 'attachment; filename="patient-bills-sample.csv"'
         return response
 
 
@@ -3151,11 +3251,16 @@ def _general_ledger_movements(ledger) -> list[dict]:
         {"date": e.date, "particular": e.particular, "debit": e.debit, "credit": e.credit, "entry": e}
         for e in LedgerEntry.objects.filter(ledger=ledger)
     ]
-    for expense in ExpenseEntry.objects.filter(paid_to_ledger=ledger):
+    for expense in ExpenseEntry.objects.filter(paid_to_ledger=ledger).select_related("category", "subcategory", "kickback_bill"):
         parts = [expense.category.name if expense.category else "Expense"]
         if expense.subcategory:
             parts.append(expense.subcategory.name)
-        particular = " · ".join(parts) + (f" — {expense.note}" if expense.note else "")
+        note = expense.note or ""
+        bill = expense.kickback_bill
+        # Show the bill number followed by the patient's name, e.g. "BL-3001 (Anjali Devi)".
+        if bill is not None and bill.bill_number and bill.bill_number in note and bill.patient_name:
+            note = note.replace(bill.bill_number, f"{bill.bill_number} ({bill.patient_name})")
+        particular = " · ".join(parts) + (f" — {note}" if note else "")
         movements.append({
             "date": expense.date, "particular": particular, "debit": expense.amount,
             "credit": services.ZERO, "entry": None,

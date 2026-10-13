@@ -45,15 +45,15 @@ class ManagerPageAccessMiddleware:
         return self.get_response(request)
 
     def process_view(self, request, view_func, view_args, view_kwargs):
-        from apps.accounts.manager_pages import first_allowed_url, manager_can_open
-        from apps.accounts.models import User
+        from apps.accounts.manager_pages import RESTRICTED_ROLES, first_allowed_url, manager_can_open, pages_for
 
         user = request.user
         match = request.resolver_match
-        if not (user.is_authenticated and user.role == User.Role.MANAGER) or match is None:
+        if not (user.is_authenticated and user.role in RESTRICTED_ROLES) or match is None:
             return None
         if match.namespace != "finance":
             return None
-        if manager_can_open(user.manager_pages, match.url_name):
+        pages = pages_for(user)
+        if manager_can_open(pages, match.url_name):
             return None
-        return redirect(first_allowed_url(user.manager_pages))
+        return redirect(first_allowed_url(pages))

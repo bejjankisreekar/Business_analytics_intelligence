@@ -1,0 +1,186 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Claim {{ claim.claim_number|default:"" }} · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+  <div>
+    <a href="{% url 'finance:claims' %}" class="text-sm font-medium text-slate-500 hover:text-slate-300">← Back to Insurance Claims</a>
+    <h1 class="mt-2 text-2xl font-bold text-white">{{ claim.claim_number|default:"Claim without a reference no." }}</h1>
+    <p class="mt-1 text-sm text-slate-400">
+      {{ claim.get_claim_type_display }} · {{ claim.insurer_display }}{% if claim.patient_name %} · {{ claim.patient_name }}{% endif %}
+    </p>
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      <span class="inline-flex rounded-full border border-white/10 px-2.5 py-0.5 text-xs font-medium text-slate-200">{{ claim.get_status_display }}</span>
+      {% if overdue %}<span class="inline-flex rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-300">Follow up — {{ days_open }} days since submitted</span>{% endif %}
+    </div>
+  </div>
+  <div class="flex shrink-0 items-center gap-2">
+    <a href="{% url 'finance:edit_claim' claim.pk %}" class="btn-primary !px-5 !py-2.5 !text-sm">Edit claim</a>
+    <form method="post" action="{% url 'finance:delete_claim' claim.pk %}" onsubmit="return confirm('Delete this claim and all its payments? This cannot be undone.');">
+      {% csrf_token %}
+      <button type="submit" class="rounded-lg border border-red-500/30 px-4 py-2.5 text-sm font-medium text-red-300 hover:bg-red-500/10">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Claimed</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ claim.claimed_amount|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Approved</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ claim.approved_amount|floatformat:0|intcomma }}</p>
+    {% if claim.claimed_amount and claim.approved_amount < claim.claimed_amount %}
+    <p class="mt-1 text-xs text-slate-500">Partly approved: {{ organization.currency }} {{ claim.claimed_amount|floatformat:0|intcomma }} was claimed</p>
+    {% endif %}
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Received</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ claim.received_amount|floatformat:0|intcomma }}</p>
+    {% if claim.deduction_amount %}<p class="mt-1 text-xs text-slate-500">Deducted {{ organization.currency }} {{ claim.deduction_amount|floatformat:0|intcomma }}</p>{% endif %}
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Patient share</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ claim.patient_share|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Outstanding</p>
+    <p class="mt-1.5 text-xl font-bold {% if claim.is_open %}text-amber-400{% else %}text-slate-400{% endif %}">{{ organization.currency }} {{ claim.outstanding_amount|floatformat:0|intcomma }}</p>
+    {% if claim.is_open %}<p class="mt-1 text-xs text-slate-500">Still to collect</p>{% endif %}
+  </div>
+</div>
+
+<div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
+  <div class="card p-6 lg:col-span-2">
+    <h2 class="text-sm font-semibold text-white">Claim details</h2>
+    <dl class="mt-4 divide-y divide-white/5 text-sm">
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Claim / reference no.</dt><dd class="text-right text-slate-200">{{ claim.claim_number|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Insurer</dt><dd class="text-right text-slate-200">{{ claim.insurer_name|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">TPA</dt><dd class="text-right text-slate-200">{{ claim.tpa_name|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Policy / member ID</dt><dd class="text-right text-slate-200">{{ claim.policy_number|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Patient</dt><dd class="text-right text-slate-200">{{ claim.patient_name|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Patient bill</dt><dd class="text-right">{% if claim.bill %}<a href="{% url 'finance:kickback_detail' claim.bill.pk %}" class="font-medium text-brand-400 hover:text-brand-300">{{ claim.bill.bill_number }}</a>{% else %}<span class="text-slate-200">Not linked</span>{% endif %}</dd></div>
+      {% if claim.bill %}
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Bill: insurer share</dt><dd class="text-right text-slate-200">{{ organization.currency }} {{ claim.bill.insurer_share|floatformat:0|intcomma }}</dd></div>
+      {% endif %}
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Submitted on</dt><dd class="text-right text-slate-200">{% if claim.submitted_date %}{{ claim.submitted_date|date:"d M Y" }}{% if days_open is not None %} <span class="text-xs text-slate-500">({{ days_open }} days)</span>{% endif %}{% else %}—{% endif %}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Decision date</dt><dd class="text-right text-slate-200">{{ claim.decision_date|date:"d M Y"|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Last payment</dt><dd class="text-right text-slate-200">{{ claim.last_payment_date|date:"d M Y"|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Remarks / query</dt><dd class="text-right text-slate-200">{{ claim.remarks|default:"—" }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="space-y-6 lg:col-span-3">
+    <div class="card p-6">
+      <h2 class="text-sm font-semibold text-white">Payments received</h2>
+      <p class="mt-0.5 text-xs text-slate-500">Each transfer from the insurer or TPA, with anything they deducted from it.</p>
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead>
+            <tr class="text-sm font-medium text-slate-400">
+              <th class="pb-2 pr-3 font-medium">Date</th>
+              <th class="pb-2 pr-3 text-right font-medium">Received</th>
+              <th class="pb-2 pr-3 text-right font-medium">Deducted</th>
+              <th class="pb-2 pr-3 font-medium">UTR / cheque</th>
+              <th class="pb-2 pr-3 font-medium">Daily Book</th>
+              <th class="pb-2 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            {% for p in payments %}
+            <tr>
+              <td class="py-2.5 pr-3 text-slate-300">{{ p.date|date:"d M Y" }}{% if p.note %}<p class="text-xs text-slate-500">{{ p.note }}</p>{% endif %}</td>
+              <td class="py-2.5 pr-3 text-right font-medium text-mint-400">{{ p.amount|floatformat:0|intcomma }}</td>
+              <td class="py-2.5 pr-3 text-right text-slate-400">{{ p.deduction|floatformat:0|intcomma }}</td>
+              <td class="py-2.5 pr-3 text-slate-400">{{ p.reference|default:"—" }}</td>
+              <td class="py-2.5 pr-3">{% if p.sales_entry_id %}<a href="{% url 'finance:daily_report' %}?date={{ p.date|date:'Y-m-d' }}" class="text-sm font-medium text-brand-400 hover:text-brand-300">Open in Daily Book →</a>{% else %}<span class="text-xs text-slate-500">Not in Daily Book</span>{% endif %}</td>
+              <td class="py-2.5 text-right">
+                <form method="post" action="{% url 'finance:delete_claim_payment' p.pk %}" onsubmit="return confirm('Remove this payment?');">
+                  {% csrf_token %}
+                  <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Remove</button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="py-8 text-center text-slate-500">No payments yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'finance:add_claim_payment' claim.pk %}" class="card space-y-4 p-6">
+      {% csrf_token %}
+      <h2 class="text-sm font-semibold text-white">Record a payment</h2>
+      {% if payment_form.non_field_errors %}
+      <div class="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        {% for error in payment_form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label class="block text-xs font-medium text-slate-400">{{ payment_form.date.label }}</label>
+          {{ payment_form.date }}
+          {% for error in payment_form.date.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400">{{ payment_form.amount.label }}</label>
+          {{ payment_form.amount }}
+          {% for error in payment_form.amount.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400">{{ payment_form.deduction.label }}</label>
+          {{ payment_form.deduction }}
+          {% for error in payment_form.deduction.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400">{{ payment_form.reference.label }}</label>
+          {{ payment_form.reference }}
+          {% for error in payment_form.reference.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-medium text-slate-400">{{ payment_form.note.label }}</label>
+          {{ payment_form.note }}
+          {% for error in payment_form.note.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <button type="submit" class="btn-primary !px-5 !py-2.5 !text-sm">Record payment</button>
+      </div>
+    </form>
+    {% if claim.bill %}
+    <form method="post" action="{% url 'finance:add_patient_payment' claim.pk %}" class="card space-y-4 p-6">
+      {% csrf_token %}
+      <h2 class="text-sm font-semibold text-white">Record a patient payment</h2>
+      <p class="text-xs text-slate-500">The patient's share of the bill ({{ organization.currency }} {{ claim.bill.patient_amount|floatformat:0|intcomma }}). Goes to the Daily Book as revenue on this admission, and is not counted against the claim.</p>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label class="block text-xs font-medium text-slate-400">Received on</label>
+          <input type="date" name="date" required class="w-full">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400">Amount received</label>
+          <input type="number" name="amount" step="0.01" min="0.01" required placeholder="0.00" class="w-full">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400">Paid via</label>
+          <select name="payment_mode" class="w-full">
+            <option value="CASH">Cash</option>
+            <option value="BANK">Online</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400">Note</label>
+          <input type="text" name="note" maxlength="255" placeholder="Optional note" class="w-full">
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <button type="submit" class="btn-primary !px-5 !py-2.5 !text-sm">Record patient payment</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

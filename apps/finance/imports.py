@@ -11,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 
 from openpyxl import load_workbook
 
-from .models import BankAccount, Category, Customer, PaymentMode, Subcategory
+from .models import BankAccount, Category, Customer, KickbackEntry, PaymentMode, Subcategory
 
 MAX_IMPORT_ROWS = 500
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
@@ -181,11 +181,11 @@ def _match_payment_mode(value) -> str:
 
 
 KICKBACK_SAMPLE_ROWS = [
-    ["Bill Number", "Patient Name", "Address", "Admission Date", "Discharge Date", "Consult Doctor", "Reffered By",
-     "Final Amount"],
-    ["BL-1001", "Ramesh Kumar", "Kothapalli, Narasapur, West Godavari", "2026-10-01", "2026-10-05",
+    ["Invoice Number", "Patient Name", "MRN", "Address", "Admission Date", "Discharge Date", "Consult Doctor",
+     "Reffered By", "Final Amount"],
+    ["BL-1001", "Ramesh Kumar", "MRN-20481", "Kothapalli, Narasapur, West Godavari", "01-10-2026", "05-10-2026",
      "Dr. Akash Bansal", "Dr. Aisha Khan", "60000"],
-    ["BL-1002", "Sita Devi", "Madhapur, Hyderabad", "2026-10-03", "", "Dr. Neha Verma", "", "35000"],
+    ["BL-1002", "Sita Devi", "MRN-20517", "Madhapur, Hyderabad", "03-10-2026", "", "Dr. Neha Verma", "", "35000"],
 ]
 
 # Every uploaded column is matched against these aliases by normalized name
@@ -196,15 +196,38 @@ KICKBACK_SAMPLE_ROWS = [
 KICKBACK_FIELD_ALIASES = {
     "bill_number": ["bill number", "bill no", "billno", "invoice number", "invoice no"],
     "patient_name": ["patient name", "patient", "name of patient", "pt name", "patient full name"],
+    "mrn": ["mrn", "umrn", "uhid", "mr no", "mr number", "patient id", "patient number", "hospital number"],
     "patient_address": ["address", "patient address", "addr", "residence"],
     "admission_date": ["admission date", "admit date", "date of admission"],
     "discharge_date": ["discharge date", "date of discharge"],
     "consulting_doctor": ["consult doctor", "consulting doctor", "doctor", "consultant"],
     "referred_by": ["reffered by", "referred by", "reference", "referral", "referred"],
     "final_amount": ["final amount", "bill amount", "total amount", "total bill amount"],
+    "payer_type": ["payer", "payer type", "patient type", "bill type"],
+    "insurer_name": ["insurer", "insurer name", "insurance company", "tpa", "tpa name"],
+    "policy_number": ["policy number", "policy no", "member id", "policy id"],
+    "preauth_number": ["pre auth no", "preauth no", "preauth number", "pre authorization no", "pre authorisation no"],
+    "insurer_amount": ["insurer amount", "insurer pays", "insurance amount", "approved amount", "insurance paid"],
+    "patient_amount": ["patient amount", "patient pays", "patient share", "co pay", "copay"],
 }
 
-KICKBACK_REQUIRED_FIELDS = ("bill_number", "admission_date")
+KICKBACK_REQUIRED_FIELDS = ("patient_name", "mrn", "admission_date")
+
+
+def _parse_payer_type(value) -> str:
+    """Turns a free-text payer ("Insurance", "TPA-Corporate", "Self") into a
+    KickbackEntry.PayerType value; anything unrecognised is left blank rather
+    than guessed at."""
+    text = _normalize(str(value or ""))
+    if not text:
+        return ""
+    if "cash" in text or "self" in text:
+        return KickbackEntry.PayerType.CASH
+    # Insurance, TPA, corporate and government schemes are all "insurance"
+    # here; the insurer's own name goes in the insurance-name column.
+    if any(word in text for word in ("insur", "tpa", "corporate", "govt", "government", "scheme")):
+        return KickbackEntry.PayerType.INSURANCE
+    return ""
 
 
 def map_kickback_columns(headers: list[str]) -> dict[str, str | None]:
@@ -240,9 +263,10 @@ def build_kickback_rows(
 ) -> tuple[list[dict], list[tuple[int, str]]]:
     """Applies `mapping` to every parsed row, producing one
     KickbackEntry-ready dict per valid row, plus (row_number, reason) for
-    every row skipped outright (missing bill number or an unrecognized
-    admission date) — row_number counts the uploaded file's own rows,
-    header included, so it matches what the user sees in a spreadsheet."""
+    every row skipped outright (missing patient name or MRN, or an
+    unrecognized admission date) — row_number counts the uploaded file's
+    own rows, header included, so it matches what the user sees in a
+    spreadsheet. Bill number is optional."""
     index = {h: i for i, h in enumerate(headers)}
 
     def cell(row, field):
@@ -258,8 +282,12 @@ def build_kickback_rows(
         bill_number = str(cell(row, "bill_number") or "").strip()
         admission_date = _parse_date_cell(cell(row, "admission_date"))
         row_errors = []
-        if not bill_number:
-            row_errors.append("bill number is missing")
+        patient_name = str(cell(row, "patient_name") or "").strip()
+        mrn = str(cell(row, "mrn") or "").strip()
+        if not patient_name:
+            row_errors.append("patient name is missing")
+        if not mrn:
+            row_errors.append("MRN is missing")
         if not admission_date:
             row_errors.append("admission date is missing or not recognized")
         if row_errors:
@@ -267,13 +295,20 @@ def build_kickback_rows(
             continue
         rows.append({
             "bill_number": bill_number,
-            "patient_name": str(cell(row, "patient_name") or "").strip(),
+            "patient_name": patient_name,
+            "mrn": mrn,
             "patient_address": str(cell(row, "patient_address") or "").strip(),
             "admission_date": admission_date,
             "discharge_date": _parse_date_cell(cell(row, "discharge_date")),
             "consulting_doctor": str(cell(row, "consulting_doctor") or "").strip(),
             "referred_by": str(cell(row, "referred_by") or "").strip(),
             "final_amount": _parse_decimal_cell(cell(row, "final_amount")),
+            "payer_type": _parse_payer_type(cell(row, "payer_type")),
+            "insurer_name": str(cell(row, "insurer_name") or "").strip(),
+            "policy_number": str(cell(row, "policy_number") or "").strip(),
+            "preauth_number": str(cell(row, "preauth_number") or "").strip(),
+            "insurer_amount": _parse_decimal_cell(cell(row, "insurer_amount")),
+            "patient_amount": _parse_decimal_cell(cell(row, "patient_amount")),
         })
     return rows, errors
 

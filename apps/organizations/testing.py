@@ -32,8 +32,13 @@ from .services import create_organization_with_tenant_schema_and_admin
 class SheetsBackedMixin:
     def setUp(self):
         super().setUp()
+        from django.core.cache import cache
         from apps.sheets_store.testing import FakeSheetsBackend
 
+        # Every test's fake backend numbers its spreadsheets from
+        # fake-sheet-1, so a tab row cached by an earlier test would be
+        # served for this test's identically-named sheet. Start clean.
+        cache.clear()
         self._sheets_backend = FakeSheetsBackend()
         patchers = [
             mock.patch("apps.organizations.google_drive_client.is_configured", return_value=True),

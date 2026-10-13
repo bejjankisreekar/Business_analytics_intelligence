@@ -32,7 +32,8 @@ from apps.sheets_store.queryset import SheetAwareManager
 
 class PaymentMode(models.TextChoices):
     CASH = "CASH", "Cash"
-    BANK = "BANK", "Bank"
+    # Stored as BANK; shown as Online. The bank account is still picked for it.
+    BANK = "BANK", "Online"
 
 
 class Category(SheetAwareModelMixin, models.Model):
@@ -282,11 +283,22 @@ class SalesEntry(SheetAwareModelMixin, models.Model):
         super().save(*args, **kwargs)
         for bill_id in {previous_bill_id, self.kickback_bill_id}:
             sync_kickback_received(bill_id)
+        # A claim payment booked from this entry follows its amount and date, so
+        # a change made in the Daily Book shows on the claim.
+        for payment in ClaimPayment.objects.filter(sales_entry_id=self.pk):
+            if payment.amount != self.amount or payment.date != self.date:
+                payment.amount = self.amount
+                payment.date = self.date
+                payment.save()
+                sync_claim_totals(payment.claim_id)
 
     def delete(self, *args, **kwargs):
         bill_id = self.kickback_bill_id
+        claim_ids = list(ClaimPayment.objects.filter(sales_entry_id=self.pk).values_list("claim_id", flat=True))
         super().delete(*args, **kwargs)
         sync_kickback_received(bill_id)
+        for claim_id in claim_ids:
+            sync_claim_totals(claim_id)
 
 
 class ExpenseEntry(SheetAwareModelMixin, models.Model):
@@ -616,6 +628,13 @@ class FinanceSettings(SheetAwareModelMixin, models.Model):
         Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
         help_text="Category whose sub-categories and items are the consulting doctors",
     )
+    # The sales category that IP billing revenue is booked under when no other
+    # category is picked (IP admission receipts and insurance claim payments).
+    # Appended last on purpose (Sheets column order).
+    ip_revenue_category = models.ForeignKey(
+        Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        help_text="Sales category for IP billing revenue",
+    )
 
     class Meta:
         base_manager_name = "objects"
@@ -658,6 +677,39 @@ class KickbackEntry(SheetAwareModelMixin, models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     patient_name = models.CharField(max_length=150, blank=True)
     patient_address = models.CharField(max_length=255, blank=True)
+    # Insurance details. New fields go at the end of the model on purpose:
+    # Sheets-backed tabs are laid out in model field order, so appending
+    # keeps every existing column where it already is.
+    class PayerType(models.TextChoices):
+        CASH = "CASH", "Cash"
+        INSURANCE = "INSURANCE", "Insurance"
+
+    payer_type = models.CharField(max_length=12, choices=PayerType.choices, blank=True, default="")
+    insurer_name = models.CharField("Insurance name", max_length=150, blank=True)
+    policy_number = models.CharField(max_length=60, blank=True)
+    preauth_number = models.CharField("Pre-authorisation no.", max_length=60, blank=True)
+    # Split of the bill between the insurer and the patient. Both are 0 when
+    # not recorded; when both are set they must add up to final_amount (see
+    # KickbackEntryForm.clean).
+    insurer_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    patient_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    # The hospital's own patient number (MRN / UMRN / UHID), so all of one
+    # patient's bills can be found together. Also appended last on purpose.
+    mrn = models.CharField("MRN / UMRN", max_length=40, blank=True)
+    # Written off from the bill: final_amount = insurer_amount + patient_amount
+    # + discount_amount when the split is recorded. Appended last on purpose.
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    # Admission details. Appended last on purpose (Sheets column order).
+    class Gender(models.TextChoices):
+        MALE = "M", "Male"
+        FEMALE = "F", "Female"
+        OTHER = "O", "Other"
+
+    patient_phone = models.CharField("Phone", max_length=20, blank=True)
+    patient_age = models.PositiveSmallIntegerField("Age", null=True, blank=True)
+    patient_gender = models.CharField("Gender", max_length=1, choices=Gender.choices, blank=True, default="")
+    ward = models.CharField("Ward / bed", max_length=60, blank=True)
+    diagnosis = models.CharField("Diagnosis", max_length=255, blank=True)
 
     class Meta:
         base_manager_name = "objects"
@@ -668,14 +720,21 @@ class KickbackEntry(SheetAwareModelMixin, models.Model):
     def __str__(self) -> str:
         return f"Bill {self.bill_number} — {self.final_amount}"
 
+    @property
+    def insurer_share(self) -> Decimal:
+        """What the insurer pays: the bill amount, less the patient's share
+        and any discount. Worked out, so it always matches the bill amount."""
+        return max(self.final_amount - self.patient_amount - self.discount_amount, Decimal("0"))
+
     def save(self, *args, **kwargs):
         self.net_amount = self.final_amount - self.kickback_amount
         super().save(*args, **kwargs)
 
 
 def sync_kickback_received(bill_id) -> None:
-    """A bill's received total and last paid date come only from the Daily Book
-    revenue entries linked to it. The Final bill is entered by hand."""
+    """A bill's received total, last paid date and final amount all come from
+    the Daily Book revenue entries linked to it. The final amount is the total
+    of those entries; it is not typed in on the bill."""
     if not bill_id:
         return
     bill = KickbackEntry.objects.filter(pk=bill_id).first()
@@ -686,8 +745,156 @@ def sync_kickback_received(bill_id) -> None:
     latest = max((s.date for s in sales), default=None)
     if bill.amount_received != received or bill.ref_date != latest:
         bill.amount_received = received
+        bill.insurer_amount = bill.insurer_share
         bill.ref_date = latest
         bill.save()
+
+
+class InsuranceClaim(SheetAwareModelMixin, models.Model):
+    """One pre-authorisation or claim sent to an insurer or TPA, tracked
+    through to the money received. Optionally linked to the patient bill it
+    belongs to (a pre-auth can be raised before the bill is final).
+
+    `received_amount`, `deduction_amount` and `last_payment_date` are kept in
+    step with the ClaimPayment rows by sync_claim_totals(); never edit them by
+    hand.
+    """
+
+    objects = SheetAwareManager()
+
+    class ClaimType(models.TextChoices):
+        PREAUTH = "PREAUTH", "Pre-authorisation"
+        CLAIM = "CLAIM", "Claim"
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Not submitted"
+        SUBMITTED = "SUBMITTED", "Submitted"
+        QUERY = "QUERY", "Query raised"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        SETTLED = "SETTLED", "Settled"
+
+    # Statuses that still have money to chase. A rejected claim is closed
+    # unless someone moves it back to an open status.
+    OPEN_STATUSES = (Status.SUBMITTED, Status.QUERY, Status.APPROVED)
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    bill = models.ForeignKey(
+        KickbackEntry, on_delete=models.SET_NULL, null=True, blank=True, related_name="insurance_claims",
+    )
+    claim_type = models.CharField(max_length=10, choices=ClaimType.choices, default=ClaimType.CLAIM)
+    claim_number = models.CharField("Claim / reference no.", max_length=60, blank=True)
+    patient_name = models.CharField(max_length=150, blank=True)
+    insurer_name = models.CharField("Insurer", max_length=150, blank=True)
+    tpa_name = models.CharField("TPA", max_length=150, blank=True)
+    policy_number = models.CharField(max_length=60, blank=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
+    claimed_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    approved_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    received_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    deduction_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    submitted_date = models.DateField(null=True, blank=True)
+    decision_date = models.DateField(null=True, blank=True)
+    last_payment_date = models.DateField(null=True, blank=True)
+    remarks = models.CharField("Remarks / query", max_length=500, blank=True)
+    created_by_email = models.CharField(max_length=254, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        base_manager_name = "objects"
+        ordering = ["-submitted_date", "-created_at"]
+        verbose_name = "Insurance claim"
+
+    def __str__(self) -> str:
+        label = self.claim_number or self.get_claim_type_display()
+        return f"{label} — {self.insurer_display}"
+
+    @property
+    def insurer_display(self) -> str:
+        return self.tpa_name or self.insurer_name or "—"
+
+    @property
+    def outstanding_amount(self) -> Decimal:
+        """Approved money not yet received or written off as a deduction."""
+        return self.approved_amount - self.received_amount - self.deduction_amount
+
+    @property
+    def patient_share(self) -> Decimal:
+        """The patient's share of the admission's bill. Zero when the claim has
+        no admission."""
+        return self.bill.patient_amount if self.bill_id else Decimal("0")
+
+    @property
+    def discount_amount(self) -> Decimal:
+        """The admission's discount: what is left of its final bill after the
+        insurer and patient shares. Zero when the claim has no admission."""
+        return self.bill.discount_amount if self.bill_id else Decimal("0")
+
+    @property
+    def is_open(self) -> bool:
+        return self.status in self.OPEN_STATUSES and self.outstanding_amount > 0
+
+    def days_since_submitted(self, today=None) -> int | None:
+        if not self.submitted_date:
+            return None
+        today = today or datetime.date.today()
+        return (today - self.submitted_date).days
+
+
+class ClaimPayment(SheetAwareModelMixin, models.Model):
+    """Money received against a claim. An insurer often pays one claim in
+    several transfers, and deducts some of it (TDS or disallowed items)."""
+
+    objects = SheetAwareManager()
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    claim = models.ForeignKey(InsuranceClaim, on_delete=models.CASCADE, related_name="payments")
+    date = models.DateField()
+    amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    deduction = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    reference = models.CharField("UTR / cheque no.", max_length=60, blank=True)
+    note = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # The Daily Book revenue entry this money was booked as. Created with the
+    # payment and removed with it. Appended last on purpose (Sheets column order).
+    sales_entry = models.ForeignKey(
+        SalesEntry, on_delete=models.SET_NULL, null=True, blank=True, related_name="claim_payments",
+    )
+
+    class Meta:
+        base_manager_name = "objects"
+        ordering = ["date", "created_at"]
+        verbose_name = "Claim payment"
+
+    def __str__(self) -> str:
+        return f"{self.date} — received {self.amount}, deducted {self.deduction}"
+
+
+def sync_claim_totals(claim_id) -> None:
+    """Brings a claim's received/deduction totals and last payment date up to
+    date with its payments. An open claim with an approved amount that is now
+    fully paid becomes Settled; a settled claim that is owed money again (a
+    payment was removed) goes back to Approved."""
+    if not claim_id:
+        return
+    claim = InsuranceClaim.objects.filter(pk=claim_id).first()
+    if claim is None:
+        return
+    payments = list(ClaimPayment.objects.filter(claim_id=claim_id))
+    received = sum((p.amount for p in payments), Decimal("0"))
+    deducted = sum((p.deduction for p in payments), Decimal("0"))
+    latest = max((p.date for p in payments), default=None)
+    claim.received_amount = received
+    claim.deduction_amount = deducted
+    claim.last_payment_date = latest
+    settled = claim.approved_amount > 0 and claim.outstanding_amount <= 0
+    if claim.status in InsuranceClaim.OPEN_STATUSES and settled:
+        claim.status = InsuranceClaim.Status.SETTLED
+    elif claim.status == InsuranceClaim.Status.SETTLED and claim.outstanding_amount > 0:
+        claim.status = InsuranceClaim.Status.APPROVED
+    claim.save()
 
 
 class GeneralLedger(SheetAwareModelMixin, models.Model):

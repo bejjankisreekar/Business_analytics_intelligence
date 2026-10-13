@@ -29,7 +29,8 @@ the Qty column, from Settings -> Entry Column Names.
   {% for e in sub.lines %}
   <div class="flex items-center justify-between gap-3 py-1.5 text-sm">
     <div class="min-w-0 text-slate-400">
-      <span class="text-slate-300">{% if e.subcategory %}{{ e.subcategory.name }}{% else %}—{% endif %}</span>
+      <span class="text-slate-300">{% if e.subcategory %}{{ e.subcategory.name }}{% elif e.paid_to %}Paid to {{ e.paid_to.name }}{% elif e.admission %}{{ e.admission }}{% else %}—{% endif %}</span>
+      {% if e.subcategory and e.paid_to %}<span class="text-slate-600"> · paid to</span> <span class="text-slate-300">{{ e.paid_to.name }}</span>{% endif %}
       {% if e.quantity %}<span class="text-slate-600"> -</span> <span class="text-[11px] text-slate-500">{{ e.quantity }} {{ qty_label }}</span>{% endif %}
       {% if e.vendor %}<span class="text-slate-600"> · {{ e.vendor }}</span>{% endif %}
       {% if e.note %}<span class="text-slate-600"> · {{ e.note }}</span>{% endif %}

@@ -1,0 +1,163 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}{{ title }} · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="mx-auto max-w-6xl">
+  {% if claim %}
+  <a href="{% url 'finance:claim_detail' claim.pk %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to claim</a>
+  {% else %}
+  <a href="{% url 'finance:claims' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Insurance Claims</a>
+  {% endif %}
+  <h1 class="mt-2 text-2xl font-bold text-white">{{ title }}</h1>
+  <p class="mt-1 text-sm text-slate-400">Record the pre-authorisation or claim as it went to the insurer or TPA. Payments are added on the claim page once money comes in.</p>
+
+  {% if form.non_field_errors %}
+  <div class="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="post" class="card mt-6 space-y-4 p-6">
+    {% csrf_token %}
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="sm:col-span-2 lg:col-span-3">
+        <label class="block text-xs font-medium text-slate-400">{{ form.bill.label }}</label>
+        {{ form.bill }}
+        <p class="mt-1 text-xs text-slate-500">Every claim belongs to an IP admission.</p>
+        <div id="bill-summary" class="mt-3 hidden rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 text-sm">
+          <div class="flex justify-between gap-4 py-1"><span class="text-slate-500">Bill amount</span><span class="font-semibold text-slate-200" data-bill-final></span></div>
+          <div class="flex justify-between gap-4 py-1"><span class="text-slate-500">Insurer share</span><span class="text-slate-200" data-bill-insurer></span></div>
+          <div class="flex justify-between gap-4 py-1"><span class="text-slate-500">Patient share</span><span class="text-slate-200" data-bill-patient></span></div>
+        </div>
+        {{ bill_amounts|json_script:"bill-amounts" }}
+        <script>
+          // Runs once the whole form is on the page, so every field below exists.
+          document.addEventListener("DOMContentLoaded", function () {
+            var select = document.getElementById("{{ form.bill.id_for_label }}");
+            var box = document.getElementById("bill-summary");
+            var amounts = JSON.parse(document.getElementById("bill-amounts").textContent);
+            var currency = "{{ organization.currency|escapejs }}";
+            function show() {
+              var info = select && amounts[select.value];
+              box.classList.toggle("hidden", !info);
+              if (!info) return;
+              box.querySelector("[data-bill-final]").textContent = currency + " " + info.final;
+              box.querySelector("[data-bill-insurer]").textContent = currency + " " + info.insurer;
+              box.querySelector("[data-bill-patient]").textContent = currency + " " + info.patient;
+            }
+            // Amount claimed follows the bill; the discount is the balance of the
+            // final bill after the insurer (approved) and patient shares.
+            const claimedEl = document.getElementById("id_claimed_amount");
+            const approvedEl = document.getElementById("id_approved_amount");
+            const patientEl = document.getElementById("id_patient_share");
+            const discountEl = document.getElementById("claim-discount");
+            const num = (el) => parseFloat(el && el.value) || 0;
+            const refreshDiscount = () => {
+              const info = select && amounts[select.value];
+              const final = info ? parseFloat(info.final_raw) || 0 : num(claimedEl);
+              if (claimedEl && info) claimedEl.value = final.toFixed(2);
+              const discount = Math.max(final - num(approvedEl) - num(patientEl), 0);
+              discountEl.textContent = discount.toFixed(2);
+            };
+            if (select) select.addEventListener("change", () => { show(); refreshDiscount(); });
+            [approvedEl, patientEl].forEach((el) => el && el.addEventListener("input", refreshDiscount));
+            show();
+            refreshDiscount();
+          });
+        </script>
+        {% for error in form.bill.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.claim_type.label }}</label>
+        {{ form.claim_type }}
+        {% for error in form.claim_type.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.status.label }}</label>
+        {{ form.status }}
+        {% for error in form.status.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.claim_number.label }}</label>
+        {{ form.claim_number }}
+        {% for error in form.claim_number.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.policy_number.label }}</label>
+        {{ form.policy_number }}
+        {% for error in form.policy_number.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.insurer_name.label }}</label>
+        {{ form.insurer_name }}
+        {% for error in form.insurer_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.tpa_name.label }}</label>
+        {{ form.tpa_name }}
+        <p class="mt-1 text-xs text-slate-500">Fill in when a TPA handles the claim for the insurer.</p>
+        {% for error in form.tpa_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div></div>
+
+      <div class="sm:col-span-2 lg:col-span-3 grid grid-cols-1 gap-4 sm:grid-cols-4">
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.claimed_amount.label }}</label>
+        {{ form.claimed_amount }}
+        <p class="mt-1 text-xs text-slate-500">The admission's final bill. Saving changes the bill.</p>
+        {% for error in form.claimed_amount.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.approved_amount.label }}</label>
+        {{ form.approved_amount }}
+        <p class="mt-1 text-xs text-slate-500">Leave at 0 until the insurer approves. A partial approval is fine.</p>
+        {% for error in form.approved_amount.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.patient_share.label }}</label>
+        {{ form.patient_share }}
+        <p class="mt-1 text-xs text-slate-500">Saved to the admission. The insurer share is the rest of the bill.</p>
+        {% for error in form.patient_share.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <span class="block text-xs font-medium text-slate-400">Discount</span>
+        <p id="claim-discount" class="mt-2 text-sm font-semibold text-slate-200">0.00</p>
+        <p class="mt-1 text-xs text-slate-500">Whatever is left of the final bill after the insurer and patient shares.</p>
+      </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.submitted_date.label }}</label>
+        {{ form.submitted_date }}
+        {% for error in form.submitted_date.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400">{{ form.decision_date.label }}</label>
+        {{ form.decision_date }}
+        {% for error in form.decision_date.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div></div>
+
+      <div class="sm:col-span-2 lg:col-span-3">
+        <label class="block text-xs font-medium text-slate-400">{{ form.remarks.label }}</label>
+        {{ form.remarks }}
+        {% for error in form.remarks.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+    </div>
+
+    <div class="flex items-center justify-end gap-3 border-t border-white/5 pt-4">
+      {% if claim %}
+      <a href="{% url 'finance:claim_detail' claim.pk %}" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Cancel</a>
+      {% else %}
+      <a href="{% url 'finance:claims' %}" class="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Cancel</a>
+      {% endif %}
+      <button type="submit" class="btn-primary !px-5 !py-2.5 !text-sm">Save claim</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

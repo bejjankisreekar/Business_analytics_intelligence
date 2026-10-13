@@ -101,14 +101,24 @@
   <button type="button" onclick="bai.openModal('modal-general-ledger')" class="btn-primary shrink-0 !px-4 !py-2 !text-sm">+ Add Ledger</button>
 </div>
 {% if general_ledgers %}
-<div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+<div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
   {% for g in general_ledgers %}
-  <a href="{% url 'finance:general_ledger' g.pk %}" class="card card-link p-5">
-    <p class="text-sm font-semibold text-slate-200">{{ g.name }}</p>
-    {% if g.profession %}<p class="mt-0.5 text-xs text-slate-400">{{ g.profession }}</p>{% endif %}
-    <p class="mt-1 text-xs text-slate-500">{{ g.entry_count }} entr{{ g.entry_count|pluralize:"y,ies" }}</p>
-    <p class="mt-2 text-xl font-bold {% if g.balance < 0 %}text-red-400{% else %}text-mint-400{% endif %}">{{ organization.currency }} {{ g.balance|floatformat:0|intcomma }}</p>
-    <span class="ld-action mt-3">View ledger →</span>
+  <a href="{% url 'finance:general_ledger' g.pk %}" class="card card-link p-4">
+    <div class="flex items-start justify-between gap-2">
+      <div class="min-w-0">
+        <p class="truncate text-[15px] font-semibold text-slate-200">{{ g.name }}</p>
+        {% if g.profession %}<p class="truncate text-xs text-slate-400">{{ g.profession }}</p>{% endif %}
+      </div>
+      <p class="flex-none text-[11px] text-slate-500">{{ g.entry_count }} entr{{ g.entry_count|pluralize:"y,ies" }}</p>
+    </div>
+    <p class="mt-2 flex items-start gap-1.5 text-xs {% if g.address %}text-slate-400{% else %}text-slate-600{% endif %}">
+      <svg class="mt-px h-3.5 w-3.5 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+      <span class="min-w-0 break-words">{{ g.address|default:"No address added" }}</span>
+    </p>
+    <div class="mt-3 flex items-end justify-between gap-2 border-t border-white/5 pt-3">
+      <p class="text-base font-bold {% if g.balance < 0 %}text-red-400{% else %}text-mint-400{% endif %}">{{ organization.currency }} {{ g.balance|floatformat:0|intcomma }}</p>
+      <span class="text-xs font-medium text-brand-400">View ledger →</span>
+    </div>
   </a>
   {% endfor %}
 </div>

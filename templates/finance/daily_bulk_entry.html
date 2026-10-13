@@ -39,9 +39,9 @@
     <button type="button" role="tab" onclick="bai.showBulkTab('purchase')" id="bulk-tab-btn-purchase" class="bulk-tab {% if active_bulk_tab == 'purchase' %}bulk-tab--active{% endif %}">Purchases <span class="bulk-tab-count" id="tab-total-purchase"></span></button>
   </div>
     <label id="kb-col-toggle-expense" class="flex shrink-0 items-center gap-2 pb-3 text-sm font-medium text-slate-300 whitespace-nowrap {% if not kickback_in_use_expense %}cursor-pointer{% endif %}"
-      {% if kickback_in_use_expense %}title="Kickback bill is used in Expenses on this date, so its column stays shown"{% endif %}>
+      {% if kickback_in_use_expense %}title="Commission bill is used in Expenses on this date, so its column stays shown"{% endif %}>
       <input id="kb-col-check-expense" type="checkbox" class="h-4 w-4 rounded" {% if kickback_in_use_expense %}checked disabled{% endif %}>
-      Kickback bill
+      Commission bill
     </label>
   </div>
 
@@ -64,7 +64,7 @@
               <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.sale.category|default:'Category' }}<a href="{% url 'finance:categories' %}?kind=SALES" class="bulk-plus" target="_blank" rel="noopener" title="Add a new revenue category">+</a></th>
               <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.sale.subcategory|default:'Sub-category' }}<a href="{% url 'finance:categories' %}?kind=SALES" class="bulk-plus" target="_blank" rel="noopener" title="Add a new sub-category">+</a></th>
               <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.sale.item|default:'Item' }}<a href="{% url 'finance:categories' %}?kind=SALES" class="bulk-plus" target="_blank" rel="noopener" title="Add a new item under a sub-category">+</a></th>
-              <th data-col="Customer" class="px-1 pb-1.5 font-medium">{{ labels.sale.customer|default:'Customer' }}</th>
+              <th data-col="Admission" style="display: none; width: 10rem; min-width: 10rem; max-width: 10rem" class="px-1 pb-1.5 font-medium">Admission (IP)</th>
               <th data-col="Qty" class="px-1 pb-1.5 font-medium">{{ labels.sale.qty|default:'Qty' }}</th>
               <th data-col="Gross" class="px-1 pb-1.5 font-medium">{{ labels.sale.gross|default:'Gross' }}</th>
               <th data-col="Discount" class="px-1 pb-1.5 font-medium">{{ labels.sale.discount|default:'Discount' }}</th>
@@ -112,7 +112,7 @@
               <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.expense.subcategory|default:'Sub-category' }}<a href="{% url 'finance:categories' %}?kind=EXPENSE" class="bulk-plus" target="_blank" rel="noopener" title="Add a new sub-category">+</a></th>
               <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.expense.item|default:'Item' }}<a href="{% url 'finance:categories' %}?kind=EXPENSE" class="bulk-plus" target="_blank" rel="noopener" title="Add a new item under a sub-category">+</a></th>
               <th data-col="Paid to" class="px-1 pb-1.5 font-medium">Paid to</th>
-              <th data-col="Kickback bill" class="px-1 pb-1.5 font-medium">Kickback bill<span class="bulk-info" tabindex="0" role="img" aria-label="Each option shows: Bill No, patient name, consulting doctor, admission date" title="Each option shows, in this order: Bill No · Patient name · Consulting doctor · Admission date">i</span></th>
+              <th data-col="Commission bill" class="px-1 pb-1.5 font-medium">Commission bill<span class="bulk-info" tabindex="0" role="img" aria-label="Each option shows: MRN, patient name, consulting doctor, admission date" title="Each option shows, in this order: MRN · Patient name · Consulting doctor · Admission date">i</span></th>
               <th data-col="Amount" class="px-1 pb-1.5 font-medium">{{ labels.expense.amount|default:'Amount' }}</th>
               <th data-col="Via" class="px-1 pb-1.5 font-medium">{{ labels.expense.via|default:'Via' }}</th>
               <th data-col="Bank" class="px-1 pb-1.5 font-medium">{{ labels.expense.bank|default:'Bank' }}</th>
@@ -211,6 +211,78 @@
 
 {% block extra_js %}
 <script>
+  // The Admission (IP) picker only shows on a row whose category is the one
+  // mapped as IP billing revenue in Setup. Other categories clear it.
+  (function () {
+    var IP_CATEGORY = "{{ ip_revenue_category_id|escapejs }}";
+    function syncAdmissionCell(channel) {
+      var row = channel.closest('tr');
+      var cell = row && row.querySelector('[data-col="Admission"]');
+      if (!cell) return;
+      var isIp = IP_CATEGORY !== "" && channel.value === IP_CATEGORY;
+      // Hidden, not removed: the cell keeps its column so the row lines up.
+      cell.style.visibility = isIp ? '' : 'hidden';
+      var pick = cell.querySelector('select');
+      if (pick) {
+        pick.disabled = !isIp;
+        if (!isIp) pick.value = '';
+      }
+      // The searchable picker draws its own button, which has to be enabled too.
+      var trigger = cell.querySelector('.bai-select-trigger');
+      if (trigger) trigger.disabled = !isIp;
+      syncAdmissionColumn();
+    }
+    // The Admission column (heading and every row) is shown only while some
+    // row is an IP row. It is hidden as a whole, so the other columns still line up.
+    function syncAdmissionColumn() {
+      var channels = document.querySelectorAll('select[name$="-channel"]');
+      var anyIp = IP_CATEGORY !== '' && Array.prototype.some.call(channels, function (s) {
+        return s.value === IP_CATEGORY;
+      });
+      var table = channels.length ? channels[0].closest('table') : null;
+      if (!table) return;
+      table.querySelectorAll('[data-col="Admission"]').forEach(function (cell) {
+        cell.style.display = anyIp ? '' : 'none';
+      });
+    }
+    document.addEventListener('change', function (event) {
+      if (event.target && /-channel$/.test(event.target.name || '')) syncAdmissionCell(event.target);
+    });
+    // Admission (IP), Paid to and Commission bill keep a small box, but the open
+    // list is wider so long names fit. The picker sets the list back to its box
+    // width whenever the page scrolls or resizes, so this watches the list's
+    // style and applies the wide width again.
+    var wideTrigger = null;
+    var widePanel = null;
+    var wideObserver = null;
+    function sizeWidePanel() {
+      if (!wideTrigger || !widePanel || widePanel.classList.contains('hidden')) return;
+      var r = wideTrigger.getBoundingClientRect();
+      var width = Math.min(26 * 16, window.innerWidth - 16);
+      var left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+      if (widePanel.style.width !== width + 'px') widePanel.style.width = width + 'px';
+      if (widePanel.style.left !== left + 'px') widePanel.style.left = left + 'px';
+    }
+    document.addEventListener('click', function (event) {
+      var trigger = event.target.closest && event.target.closest(
+        'td[data-col="Admission"] .bai-select-trigger, td[data-label="Paid to"] .bai-select-trigger, td[data-label="Commission bill"] .bai-select-trigger'
+      );
+      if (!trigger) return;
+      wideTrigger = trigger;
+      setTimeout(function () {
+        widePanel = document.querySelector('.bai-select-panel:not(.hidden)');
+        if (!widePanel) return;
+        if (wideObserver) wideObserver.disconnect();
+        wideObserver = new MutationObserver(sizeWidePanel);
+        wideObserver.observe(widePanel, { attributes: true, attributeFilter: ['style', 'class'] });
+        sizeWidePanel();
+      }, 60);
+    }, true);
+    document.querySelectorAll('select[name$="-channel"]').forEach(syncAdmissionCell);
+    syncAdmissionColumn();
+  })();
+</script>
+<script>
   window.bai = window.bai || {};
   bai.SUBCATEGORY_MAP = {{ subcategory_map_json|default:"{}"|safe }};
 
@@ -255,6 +327,13 @@
 {% include "finance/_bulk_entry_js.html" with bulk_prefixes_json=bulk_prefixes_json %}
 <style>
   /* Section switch: one rounded track, equal segments, the active one raised. */
+  /* Admission (IP) picker: same column width as the others; the name is cut
+     short in the box, and the open list matches the box like Paid to / Commission bill. */
+  td[data-col="Admission"] .bai-select-wrap { width: 100%; min-width: 10rem; }
+  td[data-col="Admission"] .bai-select-trigger-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Paid to and Commission bill: the same small box as Admission (IP). */
+  td[data-label="Paid to"] .bai-select-wrap, td[data-label="Commission bill"] .bai-select-wrap { width: 10rem; min-width: 10rem; max-width: 10rem; }
+  td[data-label="Paid to"] .bai-select-trigger-label, td[data-label="Commission bill"] .bai-select-trigger-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .bulk-seg { display: flex; width: 100%; gap: 4px; padding: 4px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); }
   @media (min-width: 640px) { .bulk-seg { width: auto; } }
   .bulk-tab { flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; border: 0; border-radius: 10px; padding: 0.5rem 0.4rem; font-size: 0.8rem; font-weight: 600; color: #94a3b8; white-space: nowrap; background: transparent; transition: background-color .15s, color .15s, box-shadow .15s; }
@@ -271,7 +350,7 @@
   html[data-theme="light"] .bulk-tab--active, html[data-theme="light"] .bulk-tab--active:hover { color: #1e3a8a; background: #ffffff; box-shadow: 0 1px 2px rgba(15,23,42,0.08), 0 4px 12px -4px rgba(67,97,238,0.35); }
   html[data-theme="light"] .bulk-tab-count { background: rgba(15,23,42,0.06); color: #475569; }
   html[data-theme="light"] .bulk-tab--active .bulk-tab-count { background: rgba(67,97,238,0.12); color: #1e3a8a; }
-  .kb-cols-hidden [data-col="Kickback bill"], .kb-cols-hidden [data-label="Kickback bill"] { display: none !important; }
+  .kb-cols-hidden [data-col="Commission bill"], .kb-cols-hidden [data-label="Commission bill"] { display: none !important; }
   #kb-col-toggle input { accent-color: #5b7cfa; }
   .bulk-info { display: inline-flex; align-items: center; justify-content: center; width: 1.2rem; height: 1.2rem;
     margin-left: 0.35rem; border-radius: 999px; border: 1px solid rgba(127,127,127,0.5); color: rgb(var(--slate-400));

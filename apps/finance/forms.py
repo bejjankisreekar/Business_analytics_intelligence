@@ -2,7 +2,7 @@ import datetime
 from decimal import Decimal
 
 from django import forms
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 
 from apps.core.widgets import SearchableChoiceWidget, SearchableModelChoiceWidget
 
@@ -12,9 +12,11 @@ from .models import (
     BankChoices,
     CashTransfer,
     Category,
+    ClaimPayment,
     Customer,
     ExpenseEntry,
     FinanceSettings,
+    InsuranceClaim,
     GeneralLedger,
     KickbackEntry,
     LedgerEntry,
@@ -141,7 +143,7 @@ class RequireCategoryMixin:
 
 class KickbackBillChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, bill):
-        parts = [bill.bill_number, bill.patient_name, bill.consulting_doctor, bill.admission_date.strftime("%d %b %Y")]
+        parts = [bill.mrn or bill.bill_number, bill.patient_name, bill.consulting_doctor, bill.admission_date.strftime("%d %b %Y")]
         return " · ".join(part for part in parts if part)
 
 
@@ -172,6 +174,12 @@ class ReferrerChoiceField(forms.ModelMultipleChoiceField):
         return _ledger_label(ledger)
 
 
+def _admission_label(bill) -> str:
+    """MRN - name - admission date, for the Admission (IP) picker."""
+    parts = [bill.mrn or bill.bill_number, bill.patient_name, bill.admission_date.strftime("%d %b %Y")]
+    return " - ".join(part for part in parts if part)
+
+
 class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     category_field = "channel"
     amount_field = "gross_amount"
@@ -180,12 +188,15 @@ class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hist
     subcategory = forms.ModelChoiceField(queryset=_unfetched(Subcategory), required=False, label="Sub-category (optional)")
     customer = forms.ModelChoiceField(queryset=_unfetched(Customer), required=False)
     bank_account = forms.ModelChoiceField(queryset=_unfetched(BankAccount), required=False, label="Bank")
+    # A receipt with an admission picked is an IP receipt and shows on that
+    # patient's IP Admissions page; with none picked it is OPD.
+    kickback_bill = KickbackBillChoiceField(queryset=_unfetched(KickbackEntry), required=False, label="Admission (IP)")
 
     class Meta:
         model = SalesEntry
         fields = [
             "date", "channel", "subcategory", "customer", "quantity", "gross_amount", "discount",
-            "payment_mode", "bank_account", "note",
+            "payment_mode", "bank_account", "note", "kickback_bill",
         ]
         labels = {
             "subcategory": "Sub-category (optional)",
@@ -211,6 +222,10 @@ class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hist
         self.fields["subcategory"].widget.attrs["data-subcategory-for"] = "channel"
         self.fields["customer"].queryset = Customer.objects.filter(is_active=True)
         self.fields["customer"].required = False
+        # Most recent admission first, so the patient just admitted is at the top.
+        self.fields["kickback_bill"].queryset = KickbackEntry.objects.order_by("-admission_date", "-created_at")
+        self.fields["kickback_bill"].label_from_instance = _admission_label
+        self.fields["kickback_bill"].empty_label = "— Select admission —"
         self.fields["quantity"].required = False
         # Both fields carry a model-level default=0 (so a fresh SalesEntry
         # created without discount info still gets a sane gross/discount) —
@@ -229,11 +244,22 @@ class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hist
         self.fields["bank_account"].empty_label = "— Bank —"
 
     def clean(self):
+        # An IP receipt with no category picked takes the IP billing revenue
+        # category from Setup. This runs before the category check below.
+        if not self.cleaned_data.get("channel") and self.cleaned_data.get("kickback_bill"):
+            fallback = services.get_finance_settings().ip_revenue_category
+            if fallback is not None:
+                self.cleaned_data["channel"] = fallback
         cleaned_data = super().clean()
         gross = cleaned_data.get("gross_amount")
         discount = cleaned_data.get("discount") or Decimal("0")
         if gross is not None and discount > gross:
             self.add_error("discount", "Can't exceed the gross amount.")
+        # Only a receipt in the IP billing revenue category can be tied to an
+        # admission; any other category clears the admission.
+        ip_category = services.get_finance_settings().ip_revenue_category
+        if cleaned_data.get("channel") is None or ip_category is None or cleaned_data["channel"].pk != ip_category.pk:
+            cleaned_data["kickback_bill"] = None
         return cleaned_data
 
 
@@ -247,7 +273,7 @@ class ExpenseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hi
     )
     bank_account = forms.ModelChoiceField(queryset=_unfetched(BankAccount), required=False, label="Bank")
     paid_to_ledger = GeneralLedgerChoiceField(queryset=_unfetched(GeneralLedger), required=False, label="Paid to")
-    kickback_bill = KickbackBillChoiceField(queryset=_unfetched(KickbackEntry), required=False, label="Kickback bill")
+    kickback_bill = KickbackBillChoiceField(queryset=_unfetched(KickbackEntry), required=False, label="Commission bill")
 
     class Meta:
         model = ExpenseEntry
@@ -277,7 +303,7 @@ class ExpenseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hi
         self.fields["paid_to_ledger"].queryset = GeneralLedger.objects.all()
         self.fields["paid_to_ledger"].empty_label = "— Paid to —"
         self.fields["kickback_bill"].queryset = KickbackEntry.objects.all()
-        self.fields["kickback_bill"].empty_label = "— Kickback bill —"
+        self.fields["kickback_bill"].empty_label = "— Commission bill —"
 
 
 class PurchaseEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
@@ -516,20 +542,72 @@ class VendorEditForm(forms.ModelForm):
         self.fields["opening_balance"].required = False
 
 
+# Insurers and government schemes offered in every organization's Insurance
+# name dropdown. Names already used on the organization's own bills are added
+# to this list, so a name typed once via "+ Add new insurance" comes back.
+DEFAULT_INSURERS = [
+    "Aarogyasri",
+    "Aditya Birla Health Insurance",
+    "Ayushman Bharat (PM-JAY)",
+    "Bajaj Allianz",
+    "Care Health Insurance",
+    "CGHS",
+    "ECHS",
+    "ESI",
+    "HDFC ERGO",
+    "ICICI Lombard",
+    "ManipalCigna",
+    "National Insurance",
+    "New India Assurance",
+    "Niva Bupa",
+    "Oriental Insurance",
+    "SBI General",
+    "Star Health",
+    "Tata AIG",
+    "United India Insurance",
+]
+
+
+def _used_insurer_names() -> list[str]:
+    """Insurance names already saved on this organization's bills."""
+    return [e.insurer_name for e in KickbackEntry.objects.all() if e.insurer_name]
+
+
+def insurer_choices(*extra: str) -> list[str]:
+    """Defaults plus names already in use plus `extra` (the bill's current
+    name, or one just posted), de-duplicated ignoring case, A-Z."""
+    seen: dict[str, str] = {}
+    for name in [*DEFAULT_INSURERS, *_used_insurer_names(), *extra]:
+        name = (name or "").strip()
+        if name:
+            seen.setdefault(name.lower(), name)
+    return sorted(seen.values(), key=str.lower)
+
+
 class KickbackEntryForm(forms.ModelForm):
+    # The bill only records whether it is Cash or Insurance. The insurer, policy,
+    # pre-auth and amount details are kept on the insurance claims instead.
     class Meta:
         model = KickbackEntry
         fields = [
-            "bill_number", "patient_name", "patient_address", "admission_date", "discharge_date",
-            "consulting_doctor_item", "final_amount",
+            "bill_number", "patient_name", "mrn", "patient_address", "patient_phone", "patient_age",
+            "patient_gender", "admission_date", "discharge_date", "ward", "diagnosis",
+            "consulting_doctor_item", "final_amount", "payer_type",
         ]
         labels = {
-            "bill_number": "Bill number",
+            "bill_number": "Invoice number (optional)",
             "patient_name": "Patient name",
+            "mrn": "MRN / UMRN",
             "patient_address": "Address",
+            "patient_phone": "Phone",
+            "patient_age": "Age",
+            "patient_gender": "Gender",
+            "ward": "Ward / bed",
+            "diagnosis": "Diagnosis",
             "admission_date": "Admission date",
             "discharge_date": "Discharge date (optional)",
             "consulting_doctor_item": "Consulting doctor",
+            "payer_type": "Bill type",
             "final_amount": "Final amount",
         }
         widgets = {
@@ -559,11 +637,33 @@ class KickbackEntryForm(forms.ModelForm):
         # A bill saved before the dropdown existed keeps its typed doctor name
         # until someone picks a doctor or clears a linked one.
         self._was_linked = self.instance.consulting_doctor_item_id is not None
+        # At admission the bill number, discharge date and final amount are
+        # usually not known yet, so they can be filled in later.
+        self.fields["bill_number"].required = False
         self.fields["discharge_date"].required = False
         self.fields["patient_name"].required = False
-        self.fields["patient_address"].required = False
         self.fields["final_amount"].required = False
         self.fields["final_amount"].widget.attrs["placeholder"] = "0.00"
+        self.fields["mrn"].required = False
+        self.fields["patient_address"].required = False
+        for name in ("patient_phone", "patient_age", "patient_gender", "ward", "diagnosis"):
+            self.fields[name].required = False
+        # No blank option: every bill is Cash or Insurance. A bill saved
+        # before this existed shows Cash until someone picks otherwise.
+        self.fields["payer_type"].choices = KickbackEntry.PayerType.choices
+        # Doctor and bill-type pickers open as larger dropdowns, so long doctor
+        # names fit in both the Add and Edit forms.
+        for name in ("consulting_doctor_item", "payer_type"):
+            attrs = self.fields[name].widget.attrs
+            attrs["class"] = (attrs.get("class", "") + " sel-wide").strip()
+        self.fields["payer_type"].required = True
+
+    def clean(self):
+        cleaned = super().clean()
+        cleaned["bill_number"] = (cleaned.get("bill_number") or "").strip()
+        # A blank final amount is 0, never NULL: the column is not nullable.
+        cleaned["final_amount"] = cleaned.get("final_amount") or Decimal("0")
+        return cleaned
 
     def save(self, commit=True):
         entry = super().save(commit=False)
@@ -574,9 +674,194 @@ class KickbackEntryForm(forms.ModelForm):
             entry.consulting_doctor = ""
         referrers = [ledger.name for ledger in self.cleaned_data.get("referred_by_names") or []]
         entry.referred_by = ", ".join(referrers + self._typed_referrers)
+        if entry.payer_type == KickbackEntry.PayerType.CASH:
+            # A cash bill carries no insurance details, even ones left from
+            # when it was an insurance bill.
+            entry.insurer_name = ""
+            entry.policy_number = ""
+            entry.preauth_number = ""
+            entry.insurer_amount = 0
+            entry.patient_amount = 0
+            entry.discount_amount = 0
         if commit:
             entry.save()
         return entry
+
+
+def _bill_label(bill) -> str:
+    parts = [bill.mrn or bill.bill_number, bill.patient_name, bill.patient_address]
+    return " - ".join(part for part in parts if part) or f"Bill {bill.pk}"
+
+
+class InsuranceClaimForm(forms.ModelForm):
+    # The patient's share of the bill. Not a claim field: saving it sets the
+    # linked admission's patient share, and its insurer share is what is left.
+    patient_share = forms.DecimalField(
+        max_digits=14, decimal_places=2, min_value=Decimal("0"), required=False,
+        label="Patient share", widget=forms.NumberInput(attrs={"placeholder": "0.00", "step": "0.01"}),
+    )
+
+    class Meta:
+        model = InsuranceClaim
+        fields = [
+            "bill", "claim_type", "claim_number", "insurer_name", "tpa_name",
+            "policy_number", "status", "claimed_amount", "approved_amount",
+            "submitted_date", "decision_date", "remarks",
+        ]
+        labels = {
+            "claim_type": "Type",
+            "claim_number": "Claim / reference no.",
+            "insurer_name": "Insurer",
+            "tpa_name": "TPA (if any)",
+            "policy_number": "Policy / member ID",
+            "claimed_amount": "Amount claimed",
+            "approved_amount": "Amount approved",
+            "submitted_date": "Submitted on",
+            "decision_date": "Decision date",
+            "remarks": "Remarks / query",
+        }
+        widgets = {
+            "submitted_date": DateInput(),
+            "decision_date": DateInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only insurance bills can have a claim. A claim already linked to a
+        # bill that has since been switched to cash stays selectable, so it
+        # can still be edited.
+        self.fields["bill"].queryset = KickbackEntry.objects.filter(
+            Q(payer_type=KickbackEntry.PayerType.INSURANCE) | Q(pk=self.instance.bill_id),
+        ).order_by("-admission_date", "-created_at")
+        # MRN, then name, then address (where the village is written). A bill
+        # with no MRN shows its bill number in that first slot instead.
+        self.fields["bill"].label_from_instance = _bill_label
+        self.fields["bill"].label = "Patient bill"
+        self.fields["bill"].required = True
+        for name in ("claim_number", "tpa_name", "policy_number", "remarks"):
+            self.fields[name].required = False
+        for name in ("claimed_amount", "approved_amount"):
+            self.fields[name].required = False
+            self.fields[name].widget.attrs["placeholder"] = "0.00"
+        # Claimed is the admission's final bill and is read-only here; approved
+        # is the insurer's share.
+        self.fields["claimed_amount"].label = "Amount claimed (final bill)"
+        self.fields["approved_amount"].label = "Amount approved (insurer share)"
+        if self.instance.bill_id:
+            self.initial["claimed_amount"] = self.instance.bill.final_amount
+        for name in ("submitted_date", "decision_date"):
+            self.fields[name].required = False
+        self.fields["claim_type"].required = True
+        self.fields["status"].required = True
+        if self.instance.bill_id and "patient_share" not in self.initial:
+            self.initial["patient_share"] = self.instance.bill.patient_amount
+        # Wider, taller pickers, as on the patient bill form.
+        for name in ("bill", "claim_type", "status"):
+            attrs = self.fields[name].widget.attrs
+            attrs["class"] = (attrs.get("class", "") + " sel-wide").strip()
+        # Same insurer picker as a patient bill: names used before (and the
+        # defaults) are offered, and a name typed in is kept on save.
+        posted = self.data.get(self.add_prefix("insurer_name")) if self.is_bound else ""
+        names = insurer_choices(self.instance.insurer_name, posted or "")
+        self.fields["insurer_name"].required = False
+        self.fields["insurer_name"].widget = SearchableChoiceWidget(
+            choices=[("", "Select insurer")] + [(n, n) for n in names],
+            search_placeholder="Search insurer...",
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        # Amount claimed is the admission's final bill; saving it sets that bill.
+        bill = cleaned.get("bill")
+        claimed = cleaned["claimed_amount"] = cleaned.get("claimed_amount") or Decimal("0")
+        # A blank amount is 0, never NULL: the column is not nullable.
+        approved = cleaned["approved_amount"] = cleaned.get("approved_amount") or Decimal("0")
+        share = cleaned.get("patient_share") or Decimal("0")
+        if bill and approved + share > claimed:
+            self.add_error("approved_amount", "Insurer share plus patient share can't be more than the bill amount.")
+        if not (cleaned.get("insurer_name") or "").strip() and not (cleaned.get("tpa_name") or "").strip():
+            self.add_error("insurer_name", "Enter the insurer or the TPA this claim went to.")
+        submitted = cleaned.get("submitted_date")
+        decided = cleaned.get("decision_date")
+        if submitted and decided and decided < submitted:
+            self.add_error("decision_date", "The decision date can't be before the submitted date.")
+        return cleaned
+
+    def save(self, commit=True):
+        # The patient is the bill's patient; it is kept on the claim too so
+        # the claims list can search by name.
+        claim = super().save(commit=False)
+        if claim.bill_id:
+            claim.patient_name = claim.bill.patient_name
+        if commit:
+            claim.save()
+            self.apply_patient_share(claim)
+        return claim
+
+    def apply_patient_share(self, claim) -> None:
+        """Writes the bill's shares from this form. The insurer share is the
+        amount approved; the discount is whatever of the final bill is left over
+        after the insurer and the patient. The IP billing screens show these."""
+        if not claim.bill_id:
+            return
+        bill = claim.bill
+        share = self.cleaned_data.get("patient_share") or Decimal("0")
+        approved = self.cleaned_data.get("approved_amount") or Decimal("0")
+        bill.final_amount = self.cleaned_data.get("claimed_amount") or Decimal("0")
+        bill.patient_amount = share
+        bill.insurer_amount = approved
+        bill.discount_amount = max(bill.final_amount - approved - share, Decimal("0"))
+        bill.save()
+
+
+class PatientPaymentForm(forms.Form):
+    """Money the patient pays their share of the bill. It is revenue on the
+    admission, not a payment on the claim."""
+
+    date = forms.DateField(widget=DateInput(), label="Received on")
+    amount = forms.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"), label="Amount received")
+    payment_mode = forms.ChoiceField(choices=PaymentMode.choices, label="Paid via")
+    note = forms.CharField(max_length=255, required=False, label="Note")
+
+
+class ClaimPaymentForm(forms.ModelForm):
+    class Meta:
+        model = ClaimPayment
+        fields = ["date", "amount", "deduction", "reference", "note"]
+        labels = {
+            "date": "Received on",
+            "amount": "Amount received",
+            "deduction": "Deducted (TDS / disallowed)",
+            "reference": "UTR / cheque no.",
+            "note": "Note",
+        }
+        widgets = {"date": DateInput()}
+
+    def __init__(self, *args, claim, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.claim = claim
+        self.fields["amount"].required = False
+        self.fields["deduction"].required = False
+        self.fields["reference"].required = False
+        self.fields["note"].required = False
+        for name in ("amount", "deduction"):
+            self.fields[name].widget.attrs["placeholder"] = "0.00"
+
+    def clean(self):
+        cleaned = super().clean()
+        amount = cleaned.get("amount") or Decimal("0")
+        deduction = cleaned.get("deduction") or Decimal("0")
+        cleaned["amount"], cleaned["deduction"] = amount, deduction
+        if amount <= 0 and deduction <= 0:
+            raise forms.ValidationError("Enter the amount received, or the amount deducted.")
+        approved = self.claim.approved_amount
+        already = self.claim.received_amount + self.claim.deduction_amount
+        if approved > 0 and already + amount + deduction > approved:
+            left = approved - already
+            raise forms.ValidationError(
+                f"That is more than is left to settle on this claim ({left:,.2f} of {approved:,.2f} approved)."
+            )
+        return cleaned
 
 
 class GeneralLedgerForm(forms.ModelForm):

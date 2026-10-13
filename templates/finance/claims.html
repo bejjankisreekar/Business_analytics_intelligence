@@ -1,0 +1,143 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Insurance Claims · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Insurance &amp; TPA Claims</h1>
+    <p class="mt-1 text-sm text-slate-400">Pre-authorisations and claims sent to insurers and TPAs, tracked until the money is in</p>
+  </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <a href="{% url 'finance:claims_excel' %}?{{ export_query }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ Excel</a>
+    <a href="{% url 'finance:claims_pdf' %}?{{ export_query }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ PDF</a>
+    <a href="{% url 'finance:add_claim' %}" class="btn-primary">+ New claim</a>
+  </div>
+</div>
+
+<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-6">
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Claimed</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ summary.claimed|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Approved</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ summary.approved|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Discount</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ summary.discount|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Patient share</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ summary.patient|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Received</p>
+    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ organization.currency }} {{ summary.received|floatformat:0|intcomma }}</p>
+    {% if summary.deducted %}<p class="mt-1 text-xs text-slate-500">Deducted {{ organization.currency }} {{ summary.deducted|floatformat:0|intcomma }}</p>{% endif %}
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Outstanding</p>
+    <p class="mt-1.5 text-xl font-bold text-amber-400">{{ organization.currency }} {{ summary.outstanding|floatformat:0|intcomma }}</p>
+    <p class="mt-1 text-xs {% if summary.overdue_count %}text-red-400{% else %}text-slate-500{% endif %}">
+      {{ summary.open_count }} open{% if summary.overdue_count %} · {{ summary.overdue_count }} over {{ follow_up_days }} days{% endif %}
+    </p>
+  </div>
+</div>
+
+<style>
+  .claim-filters { display: grid; gap: 0.9rem 1rem; grid-template-columns: minmax(0, 1fr); align-items: end; }
+  .claim-filters .claim-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+  @media (min-width: 640px) {
+    .claim-filters { grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr) auto; }
+    .claim-filters .claim-actions { justify-content: flex-start; }
+  }
+  .claim-filters label { display: block; margin: 0 0 0.35rem 0; font-size: 0.75rem; font-weight: 500; color: rgb(var(--slate-400)); }
+  .claim-filters input, .claim-filters select {
+    box-sizing: border-box; width: 100%; height: 2.625rem; margin: 0; padding: 0 0.75rem; font-size: 0.875rem; border-radius: 0.6rem;
+  }
+  .claim-filters .claim-clear { display: inline-flex; align-items: center; height: 2.625rem; padding: 0 0.9rem; border-radius: 0.6rem; border: 1px solid rgba(255,255,255,0.1); font-size: 0.875rem; font-weight: 500; color: #cbd5e1; white-space: nowrap; }
+  .claim-filters .claim-clear:hover { background: rgba(255,255,255,0.05); }
+  .claim-filters .claim-apply { height: 2.625rem; padding: 0 1.5rem; white-space: nowrap; }
+</style>
+<form method="get" class="claim-filters card mt-6 p-4">
+  <div>
+    <label for="claim-q">Search</label>
+    <input id="claim-q" type="text" name="q" value="{{ filter_query }}" placeholder="Claim no., patient, insurer, TPA, policy, invoice no.">
+  </div>
+  <div>
+    <label for="claim-status">Status</label>
+    <select id="claim-status" name="status" class="sel-wide">
+      <option value="">All claims</option>
+      <option value="{{ open_filter }}" {% if filter_status == open_filter %}selected{% endif %}>Open (still to collect)</option>
+      <option value="{{ overdue_filter }}" {% if filter_status == overdue_filter %}selected{% endif %}>Overdue (over {{ follow_up_days }} days)</option>
+      {% for value, label in status_choices %}<option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="claim-actions">
+    {% if filter_query or filter_status %}<a href="{% url 'finance:claims' %}" class="claim-clear">Clear</a>{% endif %}
+    <button type="submit" class="btn-primary claim-apply">Apply</button>
+  </div>
+</form>
+
+<div class="card mt-6 overflow-hidden p-0">
+  <div class="flex items-center justify-between border-b border-white/5 px-5 py-3">
+    <p class="text-sm text-slate-400">{{ claims_count }} claim{{ claims_count|pluralize }}</p>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-sm font-medium text-slate-400">
+          <th class="px-4 py-3 font-medium">Claim</th>
+          <th class="px-4 py-3 font-medium">Patient / bill</th>
+          <th class="px-4 py-3 font-medium">Insurer / TPA</th>
+          <th class="px-4 py-3 text-right font-medium">Claimed</th>
+          <th class="px-4 py-3 text-right font-medium">Approved</th>
+          <th class="px-4 py-3 text-right font-medium">Discount</th>
+          <th class="px-4 py-3 text-right font-medium">Patient share</th>
+          <th class="px-4 py-3 text-right font-medium">Received</th>
+          <th class="px-4 py-3 text-right font-medium">Outstanding</th>
+          <th class="px-4 py-3 font-medium">Status</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for claim in page.object_list %}
+        <tr class="cursor-pointer hover:bg-white/[0.02]" data-href="{% url 'finance:claim_detail' claim.pk %}" onclick="window.location.href = this.dataset.href">
+          <td class="px-4 py-3">
+            <a href="{% url 'finance:claim_detail' claim.pk %}" class="font-medium text-brand-400 hover:text-brand-300">{{ claim.claim_number|default:"No reference" }}</a>
+            <p class="text-xs text-slate-500">{{ claim.get_claim_type_display }}{% if claim.submitted_date %} · submitted {{ claim.submitted_date|date:"d M Y" }}{% endif %}</p>
+            {% if claim.overdue %}<p class="mt-0.5 text-xs font-medium text-red-400">Follow up — {{ claim.days_open }} days since submitted</p>{% endif %}
+          </td>
+          <td class="px-4 py-3">
+            <p class="text-slate-200">{{ claim.patient_name|default:"—" }}</p>
+            {% if claim.bill %}<p class="text-xs text-slate-500">Bill {{ claim.bill.bill_number }}</p>{% endif %}
+          </td>
+          <td class="px-4 py-3">
+            <p class="text-slate-200">{{ claim.insurer_display }}</p>
+            {% if claim.tpa_name and claim.insurer_name %}<p class="text-xs text-slate-500">via {{ claim.insurer_name }}</p>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-slate-300">{{ claim.claimed_amount|floatformat:0|intcomma }}</td>
+          <td class="px-4 py-3 text-right text-slate-300">{{ claim.approved_amount|floatformat:0|intcomma }}</td>
+          <td class="px-4 py-3 text-right text-slate-300">{{ claim.discount_amount|floatformat:0|intcomma }}</td>
+          <td class="px-4 py-3 text-right text-slate-300">{{ claim.patient_share|floatformat:0|intcomma }}</td>
+          <td class="px-4 py-3 text-right text-mint-400">{{ claim.received_amount|floatformat:0|intcomma }}</td>
+          <td class="px-4 py-3 text-right font-medium {% if claim.is_open %}text-amber-400{% else %}text-slate-500{% endif %}">{{ claim.outstanding_amount|floatformat:0|intcomma }}</td>
+          <td class="px-4 py-3"><span class="inline-flex rounded-full border border-white/10 px-2.5 py-0.5 text-xs font-medium text-slate-300">{{ claim.get_status_display }}</span></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10" class="px-4 py-10 text-center text-slate-500">No claims yet. Use <span class="text-slate-300">+ New claim</span>, or “Add insurance claim” on an IP admission.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<div class="mt-4 flex items-center justify-between text-sm text-slate-400">
+  {% if page.has_previous %}<a href="{% if page_query %}{{ page_query }}&{% else %}?{% endif %}page={{ page.previous_page_number }}" class="hover:text-slate-200">← Previous</a>{% else %}<span></span>{% endif %}
+  <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a href="{% if page_query %}{{ page_query }}&{% else %}?{% endif %}page={{ page.next_page_number }}" class="hover:text-slate-200">Next →</a>{% else %}<span></span>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

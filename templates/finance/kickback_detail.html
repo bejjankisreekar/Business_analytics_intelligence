@@ -5,7 +5,7 @@
 {% block app_content %}
 <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
   <div>
-    <a href="{% url 'finance:kickbacks' %}" class="text-sm font-medium text-slate-500 hover:text-slate-300">← Back to Kickbacks</a>
+    <a href="{% url 'finance:kickbacks' %}" class="text-sm font-medium text-slate-500 hover:text-slate-300">← Back to IP Admissions</a>
     <h1 class="mt-2 text-2xl font-bold text-white">Bill {{ bill.bill_number }}</h1>
     <p class="mt-1 text-sm text-slate-400">
       {% if bill.patient_name %}{{ bill.patient_name }} · {% endif %}{% if bill.consulting_doctor %}{{ bill.consulting_doctor }} · {% endif %}Admitted {{ bill.admission_date|date:"d M Y" }}
@@ -20,7 +20,7 @@
     <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ bill.final_amount|floatformat:0|intcomma }}</p>
   </div>
   <div class="card p-5">
-    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Kickback paid</p>
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Commission paid</p>
     <p class="mt-1.5 text-xl font-bold text-amber-400">{{ organization.currency }} {{ bill.kickback_amount|floatformat:0|intcomma }}</p>
   </div>
   <div class="card p-5">
@@ -33,9 +33,19 @@
   <div class="card p-6 lg:col-span-2">
     <h2 class="text-sm font-semibold text-white">Bill details</h2>
     <dl class="mt-4 divide-y divide-white/5 text-sm">
-      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Bill number</dt><dd class="text-right text-slate-200">{{ bill.bill_number }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Invoice number</dt><dd class="text-right text-slate-200">{{ bill.bill_number }}</dd></div>
       <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Patient name</dt><dd class="text-right text-slate-200">{{ bill.patient_name|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">MRN / UMRN</dt><dd class="text-right text-slate-200">{{ bill.mrn|default:"—" }}</dd></div>
       <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Address</dt><dd class="text-right text-slate-200">{{ bill.patient_address|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Bill type</dt><dd class="text-right text-slate-200">{{ bill.get_payer_type_display|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Phone</dt><dd class="text-right text-slate-200">{{ bill.patient_phone|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Age</dt><dd class="text-right text-slate-200">{{ bill.patient_age|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Gender</dt><dd class="text-right text-slate-200">{{ bill.get_patient_gender_display|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Ward / bed</dt><dd class="text-right text-slate-200">{{ bill.ward|default:"—" }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Diagnosis</dt><dd class="text-right text-slate-200">{{ bill.diagnosis|default:"—" }}</dd></div>
+      {% if bill.payer_type == "INSURANCE" %}<div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Insurer share</dt><dd class="text-right text-slate-200">{{ organization.currency }} {{ bill.insurer_share|floatformat:0|intcomma }}</dd></div>
+      <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Patient share</dt><dd class="text-right text-slate-200">{{ organization.currency }} {{ bill.patient_amount|floatformat:0|intcomma }}</dd></div>
+      {% endif %}
       <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Admitted on</dt><dd class="text-right text-slate-200">{{ bill.admission_date|date:"d M Y" }}</dd></div>
       <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Discharged on</dt><dd class="text-right text-slate-200">{% if bill.discharge_date %}{{ bill.discharge_date|date:"d M Y" }}{% else %}—{% endif %}</dd></div>
       <div class="flex justify-between gap-4 py-2.5"><dt class="text-slate-500">Consulting doctor</dt><dd class="text-right text-slate-200">{{ bill.consulting_doctor|default:"—" }}</dd></div>
@@ -76,12 +86,91 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="6" class="py-8 text-center text-slate-500">No payments are linked to this bill yet. Pick it in the Kickback bill column of a Daily Book expense.</td></tr>
+          <tr><td colspan="6" class="py-8 text-center text-slate-500">No payments are linked to this bill yet. Pick it in the Commission bill column of a Daily Book expense.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
+
+<div class="card mt-6 p-6">
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <h2 class="text-sm font-semibold text-white">Revenue collected</h2>
+      <p class="mt-0.5 text-xs text-slate-500">Money received for this admission, from Bulk Entry (IP) and insurance claim payments.</p>
+    </div>
+    <p class="text-sm font-semibold text-mint-400">{{ organization.currency }} {{ revenue_total|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-sm font-medium text-slate-400">
+          <th class="pb-2 pr-3 font-medium">Date</th>
+          <th class="pb-2 pr-3 font-medium">Note</th>
+          <th class="pb-2 pr-3 font-medium">Via</th>
+          <th class="pb-2 pr-3 text-right font-medium">Amount</th>
+          <th class="pb-2 font-medium"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for r in revenue %}
+        <tr>
+          <td class="py-2.5 pr-3 text-slate-300">{{ r.date|date:"d M Y" }}</td>
+          <td class="py-2.5 pr-3 text-slate-400">{{ r.note|default:"—" }}</td>
+          <td class="py-2.5 pr-3 text-slate-400">{{ r.get_payment_mode_display }}{% if r.bank_account %} · {{ r.bank_account.name }}{% endif %}</td>
+          <td class="py-2.5 pr-3 text-right font-medium text-mint-400">{{ r.amount|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 text-right">
+            <a href="{% url 'finance:daily_report' %}?date={{ r.date|date:'Y-m-d' }}" class="text-sm font-medium text-brand-400 hover:text-brand-300">Open in Daily Book →</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="py-6 text-center text-slate-500">No money received for this admission yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if bill.payer_type == "INSURANCE" %}
+<div class="card mt-6 p-6">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h2 class="text-sm font-semibold text-white">Insurance &amp; TPA claims</h2>
+      <p class="mt-0.5 text-xs text-slate-500">Pre-authorisations and claims for this bill, and what is still to be collected.</p>
+    </div>
+    <div class="flex items-center gap-3">
+      {% if claims %}<p class="text-sm font-semibold text-amber-400">{{ organization.currency }} {{ claims_outstanding|floatformat:0|intcomma }} to collect</p>{% endif %}
+      <a href="{% url 'finance:add_claim' %}?bill={{ bill.pk }}" class="btn-primary shrink-0 !px-4 !py-2 !text-xs">+ Add claim</a>
+    </div>
+  </div>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-sm font-medium text-slate-400">
+          <th class="pb-2 pr-3 font-medium">Claim</th>
+          <th class="pb-2 pr-3 font-medium">Insurer / TPA</th>
+          <th class="pb-2 pr-3 text-right font-medium">Approved</th>
+          <th class="pb-2 pr-3 text-right font-medium">Received</th>
+          <th class="pb-2 font-medium">Status</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for c in claims %}
+        <tr>
+          <td class="py-2.5 pr-3"><a href="{% url 'finance:claim_detail' c.pk %}" class="font-medium text-brand-400 hover:text-brand-300">{{ c.claim_number|default:"No reference" }}</a> <span class="text-xs text-slate-500">{{ c.get_claim_type_display }}</span></td>
+          <td class="py-2.5 pr-3 text-slate-300">{{ c.insurer_display }}</td>
+          <td class="py-2.5 pr-3 text-right text-slate-300">{{ c.approved_amount|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 pr-3 text-right text-mint-400">{{ c.received_amount|floatformat:0|intcomma }}</td>
+          <td class="py-2.5 text-slate-300">{{ c.get_status_display }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="py-6 text-center text-slate-500">No claims for this bill yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
 {% endblock %}

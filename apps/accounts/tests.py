@@ -83,14 +83,14 @@ class ManagerPageAccessMiddlewareTests(SimpleTestCase):
         self.assertEqual(response["Location"], "/app/daily/")
 
     def test_manager_without_daily_book_goes_to_profile(self):
-        response = self._run(_user(User.Role.MANAGER, ["daily_summary"]), "/app/kickbacks/")
+        response = self._run(_user(User.Role.MANAGER, ["daily_summary"]), "/app/patient-bills/")
         self.assertEqual(response["Location"], "/accounts/profile/")
 
     def test_manager_can_open_ticked_page(self):
         self.assertIsNone(self._run(_user(User.Role.MANAGER, ["daily_summary"]), "/app/daily-performance/"))
 
     def test_owner_is_never_redirected(self):
-        self.assertIsNone(self._run(_user(User.Role.OWNER), "/app/kickbacks/"))
+        self.assertIsNone(self._run(_user(User.Role.OWNER), "/app/patient-bills/"))
 
     def test_non_finance_pages_are_not_affected(self):
         self.assertIsNone(self._run(_user(User.Role.MANAGER, []), "/accounts/profile/"))

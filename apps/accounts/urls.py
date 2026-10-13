@@ -5,6 +5,8 @@ from .views import (
     ConnectDatabaseGateView,
     ConnectGoogleDriveView,
     CreateManagerAccountView,
+    DeleteInsuranceAccountView,
+    InsuranceAccountsView,
     ManagerPageAccessView,
     DisconnectGoogleDriveView,
     EditManagerView,
@@ -42,4 +44,6 @@ urlpatterns = [
     path("manager/create/", CreateManagerAccountView.as_view(), name="create_manager"),
     path("manager/edit/", EditManagerView.as_view(), name="edit_manager"),
     path("manager/pages/", ManagerPageAccessView.as_view(), name="manager_pages"),
+    path("insurance/", InsuranceAccountsView.as_view(), name="insurance_accounts"),
+    path("insurance/<uuid:pk>/delete/", DeleteInsuranceAccountView.as_view(), name="delete_insurance_account"),
 ]

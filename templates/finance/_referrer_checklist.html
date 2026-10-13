@@ -1,17 +1,30 @@
 <style>
   /* A bill can have several referrers, so they're ticked from a list. */
-  .referrer-checklist { display: grid; gap: 0.4rem; max-height: 9.5rem; overflow-y: auto; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.6rem; padding: 0.6rem 0.75rem; background: rgba(255,255,255,0.04); }
+  /* The list floats over the page like a dropdown, so opening it never pushes the form down. */
+  .referrer-checklist { position: absolute; top: calc(100% + 0.375rem); left: 0; right: 0; z-index: 60; display: grid; gap: 0.4rem; max-height: 14rem; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; padding: 0.6rem 0.75rem; background: #111627; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+  .referrer-picker { position: relative; }
+  .referrer-selected { display: grid; gap: 0.2rem; font-size: 0.8rem; color: #cbd5e1; }
+  .referrer-selected:empty { display: none; }
+  .referrer-selected div { overflow-wrap: anywhere; }
   .referrer-checklist label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #e2e8f0; cursor: pointer; }
   .referrer-checklist input[type=checkbox] { width: 1rem; height: 1rem; margin: 0; flex: none; }
   .referrer-checklist[hidden], .referrer-checklist label[hidden] { display: none; }
   .referrer-picker { display: grid; gap: 0.45rem; }
-  .referrer-search { width: 100%; box-sizing: border-box; height: 2.25rem; padding: 0 0.75rem; font-size: 0.85rem; border-radius: 0.6rem; }
+  .referrer-search {
+    width: 100%; box-sizing: border-box; height: 2.625rem; padding: 0 2.25rem 0 0.75rem; font-size: 0.875rem; border-radius: 0.6rem; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.14); background-color: rgba(255,255,255,0.04); color: #e2e8f0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa4bd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 0.8rem center; background-size: 1rem;
+  }
+  .referrer-search:focus { cursor: text; }
   .referrer-count { font-size: 0.75rem; color: #94a3b8; min-height: 1rem; }
-  html[data-theme="light"] .referrer-checklist { border-color: rgba(15,23,42,0.16); background: #ffffff; }
+  html[data-theme="light"] .referrer-checklist { border-color: rgba(15,23,42,0.1); background: #ffffff; box-shadow: 0 10px 30px rgba(15,23,42,0.14); }
+  html[data-theme="light"] .referrer-selected { color: #334155; }
+  html[data-theme="light"] .referrer-search { border-color: rgba(15,23,42,0.16); background-color: #ffffff; color: #0f172a; }
   html[data-theme="light"] .referrer-checklist label { color: #0f172a; }
 </style>
 <div class="referrer-picker">
-  <input type="search" class="referrer-search" placeholder="Search ledgers…" aria-label="Search ledgers">
+  <input type="search" class="referrer-search" placeholder="Select referrers — click to choose" aria-label="Referred by: select ledgers" autocomplete="off">
   <div class="referrer-checklist" hidden>
     {% for option in field %}
     <label data-name="{{ option.choice_label|lower }}" data-label="{{ option.choice_label }}">{{ option.tag }}<span>{{ option.choice_label }}</span></label>
@@ -19,7 +32,7 @@
     <p class="text-xs text-slate-500">No ledgers yet — add one below.</p>
     {% endfor %}
   </div>
-  <p class="referrer-count"></p>
+  <div class="referrer-selected"></div>
 </div>
 <script>
   // Clicking into the search box opens the full ledger list; typing narrows
@@ -30,14 +43,19 @@
     const search = root.querySelector(".referrer-search");
     const list = root.querySelector(".referrer-checklist");
     const labels = [...list.querySelectorAll("label")];
-    const count = root.querySelector(".referrer-count");
+    const selected = root.querySelector(".referrer-selected");
     const filter = () => {
       const q = search.value.trim().toLowerCase();
       labels.forEach((l) => { l.hidden = Boolean(q) && !l.dataset.name.includes(q); });
     };
+    // One line per ticked ledger, so long names never run together.
     const summary = () => {
       const ticked = labels.filter((l) => l.querySelector("input").checked).map((l) => l.dataset.label);
-      count.textContent = ticked.length ? `Selected: ${ticked.join(", ")}` : "";
+      selected.replaceChildren(...ticked.map((name) => {
+        const line = document.createElement("div");
+        line.textContent = name;
+        return line;
+      }));
     };
     search.addEventListener("focus", () => { list.hidden = false; filter(); });
     search.addEventListener("input", filter);

@@ -34,14 +34,41 @@
   .ds-neg { --ds-accent: #f87171; --ds-glow: rgba(248,113,113,.14); }
   html[data-theme="light"] .ds-pos { --ds-accent: #059669; --ds-glow: rgba(5,150,105,.09); }
   html[data-theme="light"] .ds-neg { --ds-accent: #dc2626; --ds-glow: rgba(220,38,38,.08); }
+  /* Days with nothing recorded: neutral grey instead of a misleading green 0 */
+  .ds-zero { --ds-accent: rgb(var(--slate-500)); --ds-glow: transparent; }
+  .ds-zero::before { opacity: .45; }
+  .ds-zero .ds-date, .ds-zero .ds-row dd { color: rgb(var(--slate-500)); }
+  .ds-card.ds-zero:hover { transform: none; box-shadow: none; border-color: var(--ds-border); }
   .ds-day { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--ds-accent); }
   .ds-date { font-size: 13px; font-weight: 600; color: rgb(var(--fg-strong)); }
   .ds-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; line-height: 1.55; }
-  .ds-row dt { color: rgb(var(--slate-500)); }
+  .ds-row dt { display: flex; align-items: center; gap: 6px; color: rgb(var(--slate-500)); }
+  .ds-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .ds-dot-rev { background: #34d399; }
+  .ds-dot-exp { background: #f87171; }
+  .ds-dot-pur { background: #fbbf24; }
+  html[data-theme="light"] .ds-dot-rev { background: #059669; }
+  html[data-theme="light"] .ds-dot-exp { background: #dc2626; }
+  html[data-theme="light"] .ds-dot-pur { background: #d97706; }
+  html .ds-card.ds-zero .ds-dot { background: rgb(var(--slate-500)); opacity: .5; }
   .ds-row dd { color: rgb(var(--slate-300)); font-variant-numeric: tabular-nums; }
   .ds-net { display: flex; justify-content: space-between; align-items: baseline; margin-top: 7px; padding-top: 7px; border-top: 1px dashed rgb(var(--tint-rgb) / .15); }
   .ds-net span { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: rgb(var(--slate-500)); }
   .ds-net strong { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ds-accent); }
+  /* Range totals strip */
+  .ds-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  @media (min-width: 640px) { .ds-totals { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .ds-total {
+    border-radius: 14px; padding: 12px 16px;
+    background: rgb(var(--tint-rgb) / .035); border: 1px solid rgb(var(--tint-rgb) / .09);
+  }
+  html[data-theme="light"] .ds-total { background: #fff; border-color: rgb(15 23 42 / .1); box-shadow: 0 1px 2px rgb(15 23 42 / .05); }
+  .ds-total p { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: rgb(var(--slate-500)); }
+  .ds-total strong { display: block; margin-top: 4px; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; color: rgb(var(--fg-strong)); }
+  .ds-total .ds-t-pos { color: #34d399; }
+  .ds-total .ds-t-neg { color: #f87171; }
+  html[data-theme="light"] .ds-total .ds-t-pos { color: #059669; }
+  html[data-theme="light"] .ds-total .ds-t-neg { color: #dc2626; }
   .ds-export-group { display: inline-flex; gap: .5rem; margin-left: .25rem; }
   .ds-export-btn {
     display: inline-flex; align-items: center; gap: .4rem; border-radius: .55rem;
@@ -160,15 +187,22 @@
   </form>
 </div>
 
-<div class="ds-grid mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+<div class="ds-totals mt-6">
+  <div class="ds-total"><p><i class="ds-dot ds-dot-rev"></i>Total revenue</p><strong>{{ totals.sales|floatformat:0|intcomma }}</strong></div>
+  <div class="ds-total"><p><i class="ds-dot ds-dot-exp"></i>Total expenses</p><strong>{{ totals.expenses|floatformat:0|intcomma }}</strong></div>
+  <div class="ds-total"><p><i class="ds-dot ds-dot-pur"></i>Total purchases</p><strong>{{ totals.purchases|floatformat:0|intcomma }}</strong></div>
+  <div class="ds-total"><p>Net</p><strong class="{% if totals.net > 0 %}ds-t-pos{% elif totals.net < 0 %}ds-t-neg{% endif %}">{{ totals.net|floatformat:0|intcomma }}</strong></div>
+</div>
+
+<div class="ds-grid mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
   {% for d in days %}
-  <div class="ds-card {% if d.net >= 0 %}ds-pos{% else %}ds-neg{% endif %}" role="button" tabindex="0" aria-label="View details for {{ d.date|date:'d M Y' }}" onclick="bai.openDayDetail('{{ d.date|date:'Y-m-d' }}')" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); bai.openDayDetail('{{ d.date|date:'Y-m-d' }}'); }">
+  <div class="ds-card {% if not d.sales and not d.expenses and not d.purchases %}ds-zero{% elif d.net >= 0 %}ds-pos{% else %}ds-neg{% endif %}" role="button" tabindex="0" aria-label="View details for {{ d.date|date:'d M Y' }}" onclick="bai.openDayDetail('{{ d.date|date:'Y-m-d' }}')" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); bai.openDayDetail('{{ d.date|date:'Y-m-d' }}'); }">
     <p class="ds-day">{{ d.date|date:"D" }}</p>
     <p class="ds-date">{{ d.date|date:"d M Y" }}</p>
     <dl class="mt-2">
-      <div class="ds-row"><dt>Revenue</dt><dd>{{ d.sales|floatformat:0|intcomma }}</dd></div>
-      <div class="ds-row"><dt>Expenses</dt><dd>{{ d.expenses|floatformat:0|intcomma }}</dd></div>
-      <div class="ds-row"><dt>Purchases</dt><dd>{{ d.purchases|floatformat:0|intcomma }}</dd></div>
+      <div class="ds-row"><dt><i class="ds-dot ds-dot-rev"></i>Revenue</dt><dd>{{ d.sales|floatformat:0|intcomma }}</dd></div>
+      <div class="ds-row"><dt><i class="ds-dot ds-dot-exp"></i>Expenses</dt><dd>{{ d.expenses|floatformat:0|intcomma }}</dd></div>
+      <div class="ds-row"><dt><i class="ds-dot ds-dot-pur"></i>Purchases</dt><dd>{{ d.purchases|floatformat:0|intcomma }}</dd></div>
     </dl>
     <div class="ds-net"><span>Net</span><strong>{{ d.net|floatformat:0|intcomma }}</strong></div>
   </div>

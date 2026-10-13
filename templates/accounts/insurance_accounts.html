@@ -1,0 +1,93 @@
+{% extends "finance/_app_base.html" %}
+{% block title %}Insurance Logins · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="mb-8">
+  <a href="{% url 'accounts:profile' %}" class="text-sm text-brand-400 hover:text-brand-300">← Back to profile</a>
+</div>
+
+<div class="w-full">
+  <h1 class="text-2xl font-bold text-white">Insurance &amp; TPA logins</h1>
+  <p class="mt-1 text-sm text-slate-400">Insurance and TPA staff can sign in to see only the IP Admissions and Insurance Claims pages.</p>
+
+  <div class="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
+    <div class="card p-6 lg:col-span-3">
+      <h2 class="text-sm font-semibold text-white">Current logins</h2>
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead>
+            <tr class="text-sm font-medium text-slate-400">
+              <th class="pb-2 pr-3 font-medium">Name</th>
+              <th class="pb-2 pr-3 font-medium">Email</th>
+              <th class="pb-2 pr-3 font-medium">Username</th>
+              <th class="pb-2 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            {% for account in accounts %}
+            <tr>
+              <td class="py-2.5 pr-3 text-slate-200">{{ account.first_name }} {{ account.last_name }}</td>
+              <td class="py-2.5 pr-3 text-slate-300">{{ account.email }}</td>
+              <td class="py-2.5 pr-3 text-slate-400">{{ account.username|default:"—" }}</td>
+              <td class="py-2.5 text-right">
+                <form method="post" action="{% url 'accounts:delete_insurance_account' account.pk %}" onsubmit="return confirm('Remove this login? They will no longer be able to sign in.');">
+                  {% csrf_token %}
+                  <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Remove</button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="py-8 text-center text-slate-500">No insurance logins yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'accounts:insurance_accounts' %}" class="card flex flex-col gap-5 p-6 lg:col-span-2">
+      {% csrf_token %}
+      <h2 class="text-sm font-semibold text-white">Add an insurance login</h2>
+
+      {% for error in form.non_field_errors %}<p class="text-sm text-red-400">{{ error }}</p>{% endfor %}
+
+      <div>
+        <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.email.label }}</label>
+        {{ form.email }}
+        {% for error in form.email.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label for="{{ form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.first_name.label }}</label>
+          {{ form.first_name }}
+          {% for error in form.first_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label for="{{ form.last_name.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.last_name.label }}</label>
+          {{ form.last_name }}
+          {% for error in form.last_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+      <div>
+        <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.username.label }}</label>
+        {{ form.username }}
+        {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+      </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.password.label }}</label>
+          {{ form.password }}
+          {% for error in form.password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label for="{{ form.confirm_password.id_for_label }}" class="block text-xs font-medium text-slate-400">{{ form.confirm_password.label }}</label>
+          {{ form.confirm_password }}
+          {% for error in form.confirm_password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <button type="submit" class="btn-primary">Create insurance login</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

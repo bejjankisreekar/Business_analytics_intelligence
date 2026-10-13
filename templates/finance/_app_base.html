@@ -5,10 +5,10 @@
 <style>
   /* Pushes the site-wide toast (#bai-messages, base.html) down below this
      app shell's fixed top bar instead of overlapping the profile name/
-     avatar in its corner — matches <main>'s own pt-20/lg:pt-24 clearance
+     avatar in its corner — matches <main>'s own pt-24/lg:pt-28 clearance
      below that same bar. */
-  :root { --bai-toast-top: 5rem; }
-  @media (min-width: 1024px) { :root { --bai-toast-top: 6rem; } }
+  :root { --bai-toast-top: 6rem; }
+  @media (min-width: 1024px) { :root { --bai-toast-top: 7rem; } }
 </style>
 <div class="flex min-h-screen bg-grid">
   <!-- Sidebar -->
@@ -83,7 +83,11 @@
         {% if kickbacks_enabled %}
         {% if 'kickbacks' in page_access %}<a href="{% url 'finance:kickbacks' %}" class="app-nav-link {% if active_nav == 'kickbacks' %}app-nav-link--active{% endif %}">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1014.625 7.5H12V4.875zM12 4.875A2.625 2.625 0 109.375 7.5H12V4.875zM12 7.5H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H12zM12 7.5v12"/></svg>
-          Kickbacks
+          IP Admissions
+        </a>{% endif %}
+        {% if 'insurance_claims' in page_access %}<a href="{% url 'finance:claims' %}" class="app-nav-link {% if active_nav == 'claims' %}app-nav-link--active{% endif %}">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
+          Insurance Claims
         </a>{% endif %}
         {% endif %}
       </div>
@@ -138,43 +142,55 @@
     {% include "includes/_theme_toggle.html" %}
   </div>
 
-  <!-- Desktop top bar: organization profile (fixed) -->
-  <div class="fixed inset-x-0 top-0 z-20 hidden items-center justify-between border-b border-white/5 bg-ink-900/95 px-5 py-3 backdrop-blur lg:left-64 lg:flex">
-    <div class="flex items-center gap-3">
-      <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-mint-500 text-base font-bold text-white keep-white">
-        {{ request.user.organization.name|initials }}
-      </span>
-      <div>
-        <style>
-          .topnav-org { font-family: var(--font-identity); font-size: 1.45rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; background: linear-gradient(90deg, #ffffff 0%, #a5b8ff 55%, #6ee7b7 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; filter: drop-shadow(0 0 14px rgba(91,124,250,0.35)); }
-          html[data-theme="light"] .topnav-org { background: linear-gradient(90deg, #0f172a 0%, #3a56d4 60%, #059669 100%); -webkit-background-clip: text; background-clip: text; filter: none; }
-          .topnav-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
-          .topnav-chip { display: inline-flex; align-items: center; padding: 0.12rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #cbd5e1; }
-          .topnav-chip--type { border-color: rgba(91,124,250,0.35); background: rgba(91,124,250,0.12); color: #a5b8ff; }
-          .topnav-chip--code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.06em; }
-          .topnav-chip--cur { border-color: rgba(52,211,153,0.35); background: rgba(52,211,153,0.1); color: #6ee7b7; }
-          html[data-theme="light"] .topnav-chip { border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.03); color: #475569; }
-          html[data-theme="light"] .topnav-chip--type { border-color: rgba(67,97,238,0.3); background: rgba(67,97,238,0.08); color: #3a56d4; }
-          html[data-theme="light"] .topnav-chip--cur { border-color: rgba(5,150,105,0.3); background: rgba(5,150,105,0.08); color: #047857; }
-        </style>
-        <p class="topnav-org text-white">{{ request.user.organization.name }}</p>
+  <!-- Desktop top bar: organization profile (fixed floating panel) -->
+  <style>
+    .topnav-bar { position: fixed; top: 0.75rem; left: 1rem; right: 1rem; z-index: 20; display: none; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.7rem 1rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); background: rgba(12,15,26,0.78); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: 0 18px 40px -22px rgba(0,0,0,0.8); }
+    @media (min-width: 1024px) { .topnav-bar { display: flex; left: 16.75rem; right: 1.5rem; } }
+    .topnav-badge { position: relative; width: 3rem; height: 3rem; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: linear-gradient(135deg, #5b7cfa, #10b981); color: #fff; font-size: 0.95rem; font-weight: 600; box-shadow: 0 8px 20px -10px rgba(91,124,250,0.8); }
+    .topnav-badge::after { content: ""; position: absolute; right: -3px; bottom: -3px; width: 0.75rem; height: 0.75rem; border-radius: 999px; background: #34d399; border: 2px solid #0c0f1a; }
+    .topnav-org { font-family: var(--font-identity); font-size: 1.35rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; background: linear-gradient(90deg, #ffffff 0%, #a5b8ff 55%, #6ee7b7 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+    .topnav-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
+    .topnav-chip { display: inline-flex; align-items: center; padding: 0.15rem 0.65rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #cbd5e1; }
+    .topnav-chip--type { border-color: rgba(91,124,250,0.35); background: rgba(91,124,250,0.12); color: #a5b8ff; }
+    .topnav-chip--code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.06em; }
+    .topnav-profile { display: flex; align-items: center; gap: 0.7rem; padding: 0.3rem 0.7rem 0.3rem 0.3rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); transition: background .15s, border-color .15s; }
+    .topnav-profile:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
+    .topnav-avatar { width: 2.4rem; height: 2.4rem; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: linear-gradient(135deg, #5b7cfa, #10b981); color: #fff; font-size: 0.9rem; font-weight: 600; }
+    .topnav-name { display: block; font-size: 0.92rem; font-weight: 500; color: #f1f5f9; line-height: 1.2; }
+    .topnav-role { display: inline-flex; align-items: center; margin-top: 0.2rem; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid rgba(91,124,250,0.35); background: rgba(91,124,250,0.12); color: #a5b8ff; }
+    html[data-theme="light"] .topnav-bar { background: rgba(255,255,255,0.82); border-color: rgba(15,23,42,0.08); box-shadow: 0 18px 40px -22px rgba(15,23,42,0.3); }
+    html[data-theme="light"] .topnav-badge::after { border-color: #fff; }
+    html[data-theme="light"] .topnav-org { background: linear-gradient(90deg, #0f172a 0%, #3a56d4 60%, #059669 100%); -webkit-background-clip: text; background-clip: text; }
+    html[data-theme="light"] .topnav-chip { border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.03); color: #475569; }
+    html[data-theme="light"] .topnav-chip--type { border-color: rgba(67,97,238,0.3); background: rgba(67,97,238,0.08); color: #3a56d4; }
+    html[data-theme="light"] .topnav-profile { border-color: rgba(15,23,42,0.08); background: rgba(15,23,42,0.02); }
+    html[data-theme="light"] .topnav-profile:hover { background: rgba(15,23,42,0.05); border-color: rgba(15,23,42,0.14); }
+    html[data-theme="light"] .topnav-name { color: #0f172a; }
+    html[data-theme="light"] .topnav-role { border-color: rgba(67,97,238,0.3); background: rgba(67,97,238,0.08); color: #3a56d4; }
+  </style>
+  <div class="topnav-bar">
+    <div class="flex min-w-0 items-center gap-3.5">
+      <span class="topnav-badge keep-white">{{ request.user.organization.name|initials }}</span>
+      <div class="min-w-0">
+        <p class="topnav-org truncate">{{ request.user.organization.name }}</p>
         <p class="topnav-meta">
           <span class="topnav-chip topnav-chip--type">{{ request.user.organization.get_business_type_display }}</span>
-          <span class="topnav-chip topnav-chip--code">{{ request.user.organization.organization_code }}</span>        </p>
+          <span class="topnav-chip topnav-chip--code">{{ request.user.organization.organization_code }}</span>
+        </p>
       </div>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="flex flex-none items-center gap-3">
     {# Hidden for now — re-enable by uncommenting. See includes/_refresh_sheet_button.html #}
     {% comment %}{% include "includes/_refresh_sheet_button.html" %}{% endcomment %}
     {% include "includes/_theme_toggle.html" %}
     <div class="relative">
-      <button type="button" onclick="baiNav.toggleProfileMenu(event)" id="profile-menu-btn" class="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition hover:bg-white/5">
-        <span class="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-white/10 text-base font-semibold text-white">
+      <button type="button" onclick="baiNav.toggleProfileMenu(event)" id="profile-menu-btn" class="topnav-profile">
+        <span class="topnav-avatar">
           {{ request.user.email|slice:":1"|upper }}
         </span>
         <span class="text-left leading-tight">
-          <p class="text-base font-medium text-slate-100">{{ request.user.get_full_name }}</p>
-          <p class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ request.user.get_role_display }}</p>
+          <span class="topnav-name">{{ request.user.get_full_name }}</span>
+          <span class="topnav-role">{{ request.user.get_role_display }}</span>
         </span>
         <svg class="h-4 w-4 flex-none text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
       </button>
@@ -199,7 +215,7 @@
     </div>
   </div>
 
-  <main class="w-full flex-1 px-4 pb-16 pt-20 sm:px-8 lg:pl-72 lg:pr-10 lg:pt-24">
+  <main class="w-full flex-1 px-4 pb-16 pt-24 sm:px-8 lg:pl-72 lg:pr-10 lg:pt-28">
     <style>
       /* Page titles across the app: gradient text with a short accent bar. */
       main h1:not(.dash-hello) {

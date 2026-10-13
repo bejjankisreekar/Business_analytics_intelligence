@@ -10,23 +10,38 @@ function initializeSearchableDropdowns() {
 
     if (!select || !searchInput || !optionsList) return;
 
-    const options = Array.from(select.options).map((o) => ({ value: o.value, label: o.text }));
+    // Read from the <select> each time, so an option added later by page
+    // script (e.g. "+ Add new insurance") shows up in the list.
+    function getOptions() {
+      return Array.from(select.options).map((o) => ({ value: o.value, label: o.text }));
+    }
+
+    // Labels can be user-typed text, so never put them into HTML raw.
+    function esc(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
 
     function currentLabel() {
-      const opt = options.find((o) => o.value === select.value);
+      const opt = getOptions().find((o) => o.value === select.value);
       return opt ? opt.label : '';
     }
 
     function renderOptions(filter) {
+      const options = getOptions();
       const q = (filter || '').trim().toLowerCase();
       const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
       optionsList.innerHTML = filtered.length
         ? filtered
             .map(
               (o) =>
-                `<button type="button" data-value="${o.value}" class="combobox-option${
+                `<button type="button" data-value="${esc(o.value)}" class="combobox-option${
                   o.value === select.value ? ' combobox-option--active' : ''
-                }">${o.label}</button>`
+                }">${esc(o.label)}</button>`
             )
             .join('')
         : '<p class="combobox-empty">No matches</p>';
@@ -42,6 +57,12 @@ function initializeSearchableDropdowns() {
     }
 
     searchInput.value = currentLabel();
+
+    // Page script that sets the select directly and fires "change" keeps the
+    // visible text in step.
+    select.addEventListener('change', () => {
+      searchInput.value = currentLabel();
+    });
 
     searchInput.addEventListener('focus', () => {
       searchInput.select();
