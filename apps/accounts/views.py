@@ -21,7 +21,6 @@ from apps.organizations.services import (
 
 from .emails import send_password_reset_email, send_welcome_email
 from .forms import (
-    CreateInsuranceAccountForm,
     ChangePasswordForm,
     CreateManagerAccountForm,
     EditManagerForm,
@@ -299,7 +298,6 @@ class ProfileView(LoginRequiredMixin, View):
             ] if manager_account else [],
             "can_create_manager": can_create_manager,
             "show_manager_button": show_manager_button,
-            "can_manage_insurance": _can_manage_insurance(request),
             "disable_manager_button": disable_manager_button,
         }
 
@@ -702,67 +700,6 @@ class LogoutView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         logout(request)
         return redirect("core:landing")
-
-
-def _can_manage_insurance(request) -> bool:
-    """Owners and admins, on a plan with the Patient Bills & claims pages."""
-    from apps.finance.access import has_kickbacks_access
-
-    return request.user.role in (User.Role.OWNER, User.Role.ADMIN) and has_kickbacks_access(request)
-
-
-class InsuranceAccountsView(LoginRequiredMixin, View):
-    """List and create insurance / TPA logins for this organization."""
-    template_name = "accounts/insurance_accounts.html"
-
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return super().dispatch(request, *args, **kwargs)
-        if not _can_manage_insurance(request):
-            raise Http404
-        return super().dispatch(request, *args, **kwargs)
-
-    def _render(self, request, form):
-        accounts = User.objects.filter(organization=request.user.organization, role=User.Role.INSURANCE).order_by("email")
-        return render(request, self.template_name, {
-            "form": form,
-            "accounts": accounts,
-            "organization": request.user.organization,
-        })
-
-    def get(self, request, *args, **kwargs):
-        return self._render(request, CreateInsuranceAccountForm())
-
-    def post(self, request, *args, **kwargs):
-        form = CreateInsuranceAccountForm(request.POST)
-        if not form.is_valid():
-            return self._render(request, form)
-        data = form.cleaned_data
-        User.objects.create_user(
-            email=data["email"],
-            password=data["password"],
-            username=data["username"],
-            first_name=data["first_name"],
-            last_name=data["last_name"],
-            organization=request.user.organization,
-            role=User.Role.INSURANCE,
-        )
-        messages.success(request, f"Insurance login '{data['email']}' created.")
-        return redirect("accounts:insurance_accounts")
-
-
-class DeleteInsuranceAccountView(LoginRequiredMixin, View):
-    def post(self, request, pk, *args, **kwargs):
-        if not _can_manage_insurance(request):
-            raise Http404
-        account = User.objects.filter(
-            pk=pk, organization=request.user.organization, role=User.Role.INSURANCE,
-        ).first()
-        if account is None:
-            raise Http404
-        account.delete()
-        messages.success(request, "Insurance login removed.")
-        return redirect("accounts:insurance_accounts")
 
 
 class CreateManagerAccountView(LoginRequiredMixin, FormView):

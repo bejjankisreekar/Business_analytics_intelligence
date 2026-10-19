@@ -42,7 +42,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         OWNER = "OWNER", "Organization Owner"
         ADMIN = "ADMIN", "Admin"
         MANAGER = "MANAGER", "Manager"
-        INSURANCE = "INSURANCE", "Insurance / TPA"
         MEMBER = "MEMBER", "Member"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

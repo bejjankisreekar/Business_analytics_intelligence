@@ -164,6 +164,7 @@
       const isBank = payEl.value === "BANK";
       bankEl.disabled = !isBank;
       if (!isBank) bankEl.value = "";
+      else bankEl.value = bankEl.value; // re-run the trigger's disabled sync (see base.html's enhanceSelect)
     };
     payEl.addEventListener("change", syncBank);
     syncBank();

@@ -92,18 +92,12 @@ URL_NAMES_BY_PAGE = {key: frozenset(names) for key, _, names in MANAGER_PAGES}
 _PAGE_BY_URL_NAME = {name: key for key, names in URL_NAMES_BY_PAGE.items() for name in names}
 
 
-# Insurance / TPA users see only these pages, whatever their stored list says.
-INSURANCE_PAGES = ("kickbacks", "insurance_claims")
-
 # Roles whose finance pages are limited to a list of pages.
-RESTRICTED_ROLES = ("MANAGER", "INSURANCE")
+RESTRICTED_ROLES = ("MANAGER",)
 
 
 def pages_for(user) -> tuple:
-    """The page keys a restricted user may open. Insurance users always get
-    INSURANCE_PAGES; managers get the list their owner ticked."""
-    if getattr(user, "role", None) == "INSURANCE":
-        return INSURANCE_PAGES
+    """The page keys a restricted user may open: the list their owner ticked."""
     return tuple(getattr(user, "manager_pages", None) or ())
 
 

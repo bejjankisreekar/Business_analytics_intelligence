@@ -560,6 +560,45 @@ class CostTreeTests(SheetsBackedTestCase):
         self.assertContains(resp, "Salaries \\u003c/script\\u003e")
 
 
+class CompareCategoriesSheetsTests(SheetsBackedTestCase):
+    """compare_categories() filters by category/sub-category *object*
+    (`channel=cat`, `subcategory__in=[sub, ...]`), which a real QuerySet
+    resolves against the related object's pk — the Sheets-backed
+    in-memory queryset must do the same instead of comparing the stored
+    id against the object itself (store._matches/_coerce), or a
+    Sheets-mode org never finds any rows to compare, however much data
+    actually exists for the picked category."""
+
+    def setUp(self):
+        super().setUp()
+        self.org, self.owner = self.create_connected_organization(
+            org_data={"name": "Compare Org", "business_type": Organization.BusinessType.RETAIL_ECOMMERCE},
+            admin_data={"email": "owner@compare.example", "password": "ownerpass123"},
+        )
+        billing_services.start_trial(self.org, Plan.objects.get(slug="free"))
+        self.day = datetime.date.today()
+        with sheet_session(self.org):
+            self.channel = Category.objects.create(kind="SALES", name="Walk-in")
+            self.sub = Subcategory.objects.create(category=self.channel, name="Regulars")
+            SalesEntry.objects.create(date=self.day, channel=self.channel, amount=Decimal("500"))
+            SalesEntry.objects.create(
+                date=self.day, channel=self.channel, subcategory=self.sub, amount=Decimal("300"),
+            )
+
+    def tearDown(self):
+        delete_organization_and_tenant(self.org)
+
+    def test_compare_by_category_finds_its_entries(self):
+        with sheet_session(self.org):
+            result = finance_services.compare_categories([f"c:{self.channel.pk}"], self.day, self.day)
+        self.assertEqual(result["items"][0]["total"], Decimal("800"))
+
+    def test_compare_by_subcategory_finds_its_entries(self):
+        with sheet_session(self.org):
+            result = finance_services.compare_categories([f"s:{self.sub.pk}"], self.day, self.day)
+        self.assertEqual(result["items"][0]["total"], Decimal("300"))
+
+
 class BankAccountTests(SheetsBackedTestCase):
     """Multiple named bank accounts (ICICI, HDFC, ...), each with its own
     opening balance and a closing balance computed from whichever

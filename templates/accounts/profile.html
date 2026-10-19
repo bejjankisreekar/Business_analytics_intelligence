@@ -14,9 +14,6 @@
     <h1 class="text-2xl font-bold text-white">Profile</h1>
     <p class="mt-1 text-sm text-slate-400">Update your personal details{% if org_form %} and your organization's information{% endif %}. Each section is locked by default — click its lock icon to edit it.</p>
   </div>
-  {% if can_manage_insurance %}
-  <a href="{% url 'accounts:insurance_accounts' %}" class="btn-primary whitespace-nowrap">Insurance logins</a>
-  {% endif %}
   {% if show_manager_button %}
     {% if disable_manager_button %}
     <div class="flex flex-col items-end gap-1">

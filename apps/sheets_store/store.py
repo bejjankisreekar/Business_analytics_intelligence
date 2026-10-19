@@ -14,7 +14,7 @@ from __future__ import annotations
 import functools
 import uuid
 
-from django.db.models import F
+from django.db.models import F, Model
 from django.http import Http404
 from django.utils import timezone
 
@@ -139,6 +139,10 @@ def _coerce(field, value):
     no-op for a field whose value is already the right type (e.g.
     CharField) or already a string.
     """
+    if isinstance(value, Model):
+        # A real QuerySet lookup compares a related object's pk, not the
+        # object itself (`filter(channel=category_obj)` == `filter(channel_id=category_obj.pk)`).
+        return value.pk
     if field is None:
         return value
     if isinstance(value, str):

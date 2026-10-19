@@ -12,6 +12,7 @@ from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch, Q, Sum
+from django.forms.utils import pretty_name
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -1693,6 +1694,44 @@ SINGLE_ENTRY_TYPES = {
     "purchase": {"form": PurchaseEntryForm, "model": PurchaseEntry, "label": "Purchase", "main_field": "category", "tab": "purchase"},
 }
 
+# Field name -> bulk_column_labels() key, for each single-entry form. Lets
+# Single Entry show the same organization-renamed column names Bulk Entry
+# does (Settings -> column names), which this page otherwise never looked at.
+SINGLE_ENTRY_LABEL_FIELDS = {
+    "sale": {
+        "channel": "category", "subcategory": "subcategory", "quantity": "qty",
+        "gross_amount": "gross", "discount": "discount", "payment_mode": "via",
+        "bank_account": "bank", "note": "note",
+    },
+    "expense": {
+        "category": "category", "subcategory": "subcategory", "amount": "amount",
+        "payment_mode": "via", "bank_account": "bank", "note": "note",
+    },
+    "purchase": {
+        "category": "category", "subcategory": "subcategory", "vendor": "vendor",
+        "quantity": "qty", "amount": "amount", "payment_mode": "via",
+        "bank_account": "bank", "note": "note",
+    },
+}
+
+
+def _apply_custom_labels(form, kind: str) -> None:
+    """Swap in the organization's renamed column name for each field that
+    has one, same source Bulk Entry reads from. A field's own wording (e.g.
+    "Qty (optional)") is kept around the renamed word when the default is a
+    substring of it; otherwise the custom name replaces the label outright,
+    since the two use unrelated wording (e.g. "Payment mode" vs. "Via")."""
+    labels = services.bulk_column_labels()[kind]
+    defaults = services.BULK_COLUMN_DEFAULTS[kind]
+    for field_name, key in SINGLE_ENTRY_LABEL_FIELDS.get(kind, {}).items():
+        field = form.fields.get(field_name)
+        custom = labels.get(key)
+        default = defaults.get(key)
+        if not field or not custom or not default or custom == default:
+            continue
+        current = field.label if field.label is not None else pretty_name(field_name)
+        field.label = current.replace(default, custom) if default in current else custom
+
 
 def _single_entry_groups(form, main_field: str) -> list[tuple[str, list]]:
     """Group the single-entry form's fields into labelled sections for the
@@ -1721,6 +1760,7 @@ class SingleEntryView(TenantLoginRequiredMixin, View):
 
     def _context(self, kind, form, selected_date):
         config = SINGLE_ENTRY_TYPES[kind]
+        _apply_custom_labels(form, kind)
         day_entries = config["model"].objects.filter(date=selected_date).order_by("created_at")
         date_param = selected_date.strftime("%Y-%m-%d")
         return {

@@ -393,12 +393,3 @@ class ResetManagerPasswordForm(forms.Form):
         if new_password and confirm and new_password != confirm:
             self.add_error("confirm_password", "Passwords do not match.")
         return cleaned
-
-
-class CreateInsuranceAccountForm(CreateManagerAccountForm):
-    """An insurance / TPA login. Same details as a manager, but no page
-    choice: insurance users always see the same pages (see manager_pages)."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields.pop("pages")

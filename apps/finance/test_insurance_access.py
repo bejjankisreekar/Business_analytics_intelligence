@@ -23,9 +23,6 @@ class _ClaimsTenantTestCase(TestCase):
         self.owner = User.objects.create_user(
             email="owner@access.example", password="testpass-123", organization=self.org, role=User.Role.OWNER,
         )
-        self.insurer = User.objects.create_user(
-            email="tpa@access.example", password="testpass-123", organization=self.org, role=User.Role.INSURANCE,
-        )
         for target in (
             "apps.finance.claim_views.has_kickbacks_access",
             "apps.finance.views.has_kickbacks_access",
@@ -83,47 +80,6 @@ class RevenueFromClaimPaymentTests(_ClaimsTenantTestCase):
         })
         self.client_.post(f"/app/insurance-claims/{self.claim.pk}/delete/")
         self.assertFalse(SalesEntry.objects.filter(kickback_bill=self.bill).exists())
-
-
-class InsuranceLoginAccessTests(_ClaimsTenantTestCase):
-    def setUp(self):
-        super().setUp()
-        self.client_ = Client()
-        self.client_.force_login(self.insurer)
-
-    def test_insurance_login_can_open_admissions_and_claims(self):
-        self.assertEqual(self.client_.get("/app/patient-bills/").status_code, 200)
-        self.assertEqual(self.client_.get("/app/insurance-claims/").status_code, 200)
-
-    def test_insurance_login_is_kept_off_other_finance_pages(self):
-        resp = self.client_.get(reverse("finance:daily_report"))
-        self.assertRedirects(resp, reverse("finance:kickbacks"), fetch_redirect_response=False)
-
-    def test_dashboard_sends_insurance_login_to_admissions(self):
-        resp = self.client_.get(reverse("finance:dashboard"))
-        self.assertRedirects(resp, reverse("finance:kickbacks"), fetch_redirect_response=False)
-
-    def test_owner_creates_an_insurance_login(self):
-        owner_client = Client()
-        owner_client.force_login(self.owner)
-        resp = owner_client.post(reverse("accounts:insurance_accounts"), {
-            "email": "newtpa@access.example", "first_name": "Asha", "last_name": "",
-            "username": "asha_tpa", "password": "longpass-123", "confirm_password": "longpass-123",
-        })
-        self.assertEqual(resp.status_code, 302)
-        created = User.objects.get(email="newtpa@access.example")
-        self.assertEqual(created.role, User.Role.INSURANCE)
-        self.assertEqual(created.organization_id, self.org.pk)
-
-    def test_insurance_login_cannot_create_logins(self):
-        resp = self.client_.get(reverse("accounts:insurance_accounts"))
-        self.assertEqual(resp.status_code, 404)
-
-    def test_owner_removes_an_insurance_login(self):
-        owner_client = Client()
-        owner_client.force_login(self.owner)
-        owner_client.post(reverse("accounts:delete_insurance_account", args=[self.insurer.pk]))
-        self.assertFalse(User.objects.filter(pk=self.insurer.pk).exists())
 
 
 class OpdIpRevenueTests(_ClaimsTenantTestCase):
