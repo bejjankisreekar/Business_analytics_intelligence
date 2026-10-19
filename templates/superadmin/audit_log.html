@@ -1,0 +1,76 @@
+{% extends "superadmin/_base.html" %}
+{% load superadmin_tags %}
+{% block title %}Audit log · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">Audit log</h1>
+    <p class="sa-subtitle">Every change made in this console — who, what, which client, when and from where. Entries are permanent; secrets are never recorded.</p>
+  </div>
+</div>
+
+{% if not console_tables_ready %}
+<div class="sa-card mt-6 flex items-start gap-3 p-4 text-sm">
+  <span class="sa-alert-icon" style="background: var(--sa-warn-soft); color: var(--sa-warn)">{% sa_icon "alert" %}</span>
+  <div><p class="font-semibold text-slate-100">The audit log isn't set up in {{ env_label|lower }} yet</p>
+  <p class="mt-0.5 text-slate-400">Run <code class="sa-mono">python manage.py migrate --database {{ env_key }}</code>. Until then, changes here aren't recorded.</p></div>
+</div>
+{% endif %}
+
+<form method="get" class="sa-card sa-toolbar mt-6">
+  <div class="min-w-[200px] flex-[2]">
+    <label class="sa-field-label" for="f-q">Search</label>
+    <input id="f-q" class="sa-input" type="search" name="q" value="{{ q }}" placeholder="Summary, client, record ID">
+  </div>
+  <div class="min-w-[160px] flex-1">
+    <label class="sa-field-label" for="f-actor">Who</label>
+    <select id="f-actor" class="sa-input" name="actor"><option value="">Anyone</option>{% for a in actors %}<option value="{{ a }}" {% if a == actor %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+  </div>
+  <div class="min-w-[160px] flex-1">
+    <label class="sa-field-label" for="f-action">Action</label>
+    <select id="f-action" class="sa-input" name="action"><option value="">Any</option>{% for value, label in action_choices %}<option value="{{ value }}" {% if value == action %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  </div>
+  <div><label class="sa-field-label" for="f-from">From</label><input id="f-from" class="sa-input" type="date" name="from" value="{{ date_from }}"></div>
+  <div><label class="sa-field-label" for="f-to">To</label><input id="f-to" class="sa-input" type="date" name="to" value="{{ date_to }}"></div>
+  {% if org %}<input type="hidden" name="org" value="{{ org }}">{% endif %}
+  <div class="flex gap-2">
+    <button class="sa-btn-primary px-4 py-2 text-xs">{% sa_icon "filter" "h-3.5 w-3.5" %} Apply</button>
+    {% if filtered %}<a href="{% url 'superadmin:audit_log' env_key %}" class="sa-btn-ghost px-3 py-2 text-xs">Clear</a>{% endif %}
+  </div>
+</form>
+
+<div class="sa-card mt-4 overflow-hidden">
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr>
+        <th>{% sa_sort "when" "When" %}</th><th>{% sa_sort "actor" "Who" %}</th><th>{% sa_sort "action" "Action" %}</th>
+        <th>What happened</th><th>{% sa_sort "client" "Client" %}</th><th>IP</th>
+      </tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td data-label="When" class="whitespace-nowrap"><span class="block text-slate-200">{{ e.created_at|date:"d M Y, H:i" }}</span><span class="text-[11px] text-slate-500">{{ e.created_at|sa_ago }}</span></td>
+          <td data-label="Who"><span class="flex items-center gap-2"><span class="sa-avatar sa-avatar--sm">{{ e.actor_email|sa_initials }}</span><span class="truncate">{{ e.actor_email }}</span></span></td>
+          <td data-label="Action"><span class="sa-chip {% if 'delete' in e.action or 'suspend' in e.action or 'stop' in e.action %}sa-chip--red{% elif 'impersonate' in e.action %}sa-chip--violet{% elif 'create' in e.action or 'add' in e.action %}sa-chip--mint{% else %}sa-chip--slate{% endif %}">{{ e.action|sa_action }}</span></td>
+          <td data-label="What">
+            <span class="block max-w-md text-slate-200">{{ e.summary|default:"—" }}</span>
+            {% if e.details %}
+            <details class="mt-1 text-[11px] text-slate-500"><summary class="cursor-pointer select-none hover:text-slate-300">Submitted fields</summary>
+              <dl class="sa-dl mt-1 !text-[11px]">{% for k, v in e.details.items %}<dt class="sa-mono">{{ k }}</dt><dd class="sa-mono">{{ v }}</dd>{% endfor %}</dl>
+            </details>
+            {% endif %}
+          </td>
+          <td data-label="Client">{% if e.organization_id %}<a class="sa-link" href="{% url 'superadmin:org_detail' env_key e.organization_id %}">{{ e.organization_name }}</a>{% else %}{{ e.organization_name|default:"—" }}{% endif %}</td>
+          <td data-label="IP" class="sa-mono text-[11px] text-slate-500">{{ e.ip_address|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="sa-empty">{% sa_icon "clipboard" %}<p class="font-semibold text-slate-200">No entries{% if filtered %} match these filters{% endif %}</p><p>Changes made in the console will appear here.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "superadmin/_pager.html" %}
+</div>
+{% endblock %}

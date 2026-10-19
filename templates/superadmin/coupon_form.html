@@ -2,7 +2,7 @@
 {% block title %}{% if mode == "create" %}New coupon{% else %}Edit {{ coupon.code }}{% endif %}{% endblock %}
 
 {% block sa_content %}
-<a href="{% url 'superadmin:coupon_list' env_key %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ env_label }} coupons</a>
+<a href="{% url 'superadmin:coupon_list' env_key %}" class="sa-crumb">← {{ env_label }} coupons</a>
 <h1 class="mt-4 text-xl font-bold text-slate-100">{% if mode == "create" %}New coupon{% else %}Edit {{ coupon.code }}{% endif %}</h1>
 
 {% if form.non_field_errors %}

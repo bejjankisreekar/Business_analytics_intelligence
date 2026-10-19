@@ -1,7 +1,9 @@
 import re
+import secrets
 
 from django import forms
 from django.contrib.auth import authenticate
+from django.db.models import F
 
 from apps.organizations.models import Organization
 
@@ -152,14 +154,22 @@ class ResetPasswordForm(forms.Form):
         super().__init__(*args, **kwargs)
 
     def clean_otp(self):
-        from .models import PasswordResetOTP
+        from .models import OTP_MAX_ATTEMPTS, PasswordResetOTP
 
         otp = self.cleaned_data["otp"].strip()
-        record = (
-            PasswordResetOTP.objects.filter(user=self.user, code=otp).order_by("-created_at").first()
-        )
+        # Only the newest unused code counts; every wrong guess is charged
+        # against it, and it's burned after OTP_MAX_ATTEMPTS misses.
+        record = PasswordResetOTP.objects.filter(user=self.user, is_used=False).order_by("-created_at").first()
         if record is None or not record.is_valid():
-            raise forms.ValidationError("This code is invalid or has expired.")
+            raise forms.ValidationError("This code is invalid or has expired. Please request a new one.")
+        if not secrets.compare_digest(record.code, otp):
+            PasswordResetOTP.objects.filter(pk=record.pk).update(failed_attempts=F("failed_attempts") + 1)
+            remaining = OTP_MAX_ATTEMPTS - record.failed_attempts - 1
+            if remaining <= 0:
+                raise forms.ValidationError("Too many incorrect attempts. Please request a new code.")
+            raise forms.ValidationError(
+                f"That code is incorrect. {remaining} attempt{'s' if remaining != 1 else ''} left."
+            )
         self.otp_record = record
         return otp
 
@@ -172,10 +182,11 @@ class ResetPasswordForm(forms.Form):
         return cleaned
 
     def save(self):
+        from .models import PasswordResetOTP
+
         self.user.set_password(self.cleaned_data["new_password"])
         self.user.save(update_fields=["password"])
-        self.otp_record.is_used = True
-        self.otp_record.save(update_fields=["is_used"])
+        PasswordResetOTP.objects.filter(user=self.user, is_used=False).update(is_used=True)
         return self.user
 
 

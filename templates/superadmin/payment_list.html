@@ -1,84 +1,71 @@
 {% extends "superadmin/_base.html" %}
-{% block title %}{{ env_label }} payments{% endblock %}
+{% load humanize superadmin_tags %}
+{% block title %}Payments · {{ env_label }}{% endblock %}
 
 {% block sa_content %}
-<h1 class="text-xl font-bold text-slate-100">{{ env_label }} payments</h1>
+{% url 'superadmin:payment_list' env_key as base %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">Payments</h1>
+    <p class="sa-subtitle">Every payment received or attempted, from the gateway or recorded by hand.</p>
+  </div>
+  <div class="sa-tabs">
+    <a href="{{ base }}" class="{% if not status and not refunded %}is-active{% endif %}">All</a>
+    <a href="{{ base }}?status=SUCCESS" class="{% if status == 'SUCCESS' %}is-active{% endif %}">Successful</a>
+    <a href="{{ base }}?status=FAILED" class="{% if status == 'FAILED' %}is-active{% endif %}">Failed</a>
+    <a href="{{ base }}?status=PENDING" class="{% if status == 'PENDING' %}is-active{% endif %}">Pending</a>
+    <a href="{{ base }}?refunded=1" class="{% if refunded %}is-active{% endif %}">Refunded</a>
+  </div>
+</div>
 
-<form method="get" class="sa-card mt-6 flex flex-wrap items-end gap-3 p-4">
-  <div class="min-w-[220px] flex-1">
-    <label class="sa-field-label">Search</label>
-    <input class="sa-input" type="text" name="q" value="{{ q }}" placeholder="Payment ID, transaction ID, client">
-  </div>
-  <div>
-    <label class="sa-field-label">Status</label>
-    <select class="sa-input" name="status">
-      <option value="">All</option>
-      {% for value, display in status_choices %}
-      <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ display }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div>
-    <label class="sa-field-label">Gateway</label>
-    <select class="sa-input" name="gateway">
-      <option value="">All</option>
-      {% for value, display in gateway_choices %}
-      <option value="{{ value }}" {% if gateway == value %}selected{% endif %}>{{ display }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div>
-    <label class="sa-field-label">Method</label>
-    <select class="sa-input" name="method">
-      <option value="">All</option>
-      {% for value, display in method_choices %}
-      <option value="{{ value }}" {% if method == value %}selected{% endif %}>{{ display }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div>
-    <label class="sa-field-label">From</label>
-    <input class="sa-input" type="date" name="from" value="{{ date_from }}">
-  </div>
-  <div>
-    <label class="sa-field-label">To</label>
-    <input class="sa-input" type="date" name="to" value="{{ date_to }}">
-  </div>
-  <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Apply</button>
-  {% if q or status or gateway or method or date_from or date_to %}
-  <a href="{% url 'superadmin:payment_list' env_key %}" class="sa-btn-ghost rounded px-4 py-2 text-xs font-semibold">Clear</a>
-  {% endif %}
+<div class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+  <div class="sa-card sa-stat"><p class="sa-stat-label">Payments shown</p><p class="sa-stat-value">{{ summary.n|intcomma }}</p></div>
+  <div class="sa-card sa-stat"><p class="sa-stat-label">Total amount</p><p class="sa-stat-value">₹{{ summary.total|default:0|floatformat:0|intcomma }}</p></div>
+  <div class="sa-card sa-stat"><p class="sa-stat-label">Refunded</p><p class="sa-stat-value">₹{{ summary.refunded|default:0|floatformat:0|intcomma }}</p></div>
+  <a href="{{ base }}?status=FAILED" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">Failed</p><p class="sa-stat-value {% if summary.failed %}sa-bad{% endif %}">{{ summary.failed }}</p></a>
+</div>
+
+<form method="get" class="sa-card sa-toolbar mt-4">
+  <div class="min-w-[200px] flex-[2]"><label class="sa-field-label" for="f-q">Search</label>
+    <input id="f-q" class="sa-input" type="search" name="q" value="{{ q }}" placeholder="Payment ID, transaction ID, client"></div>
+  <div class="min-w-[130px] flex-1"><label class="sa-field-label" for="f-s">Status</label>
+    <select id="f-s" class="sa-input" name="status"><option value="">All</option>{% for value, display in status_choices %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ display }}</option>{% endfor %}</select></div>
+  <div class="min-w-[120px] flex-1"><label class="sa-field-label" for="f-g">Gateway</label>
+    <select id="f-g" class="sa-input" name="gateway"><option value="">All</option>{% for value, display in gateway_choices %}<option value="{{ value }}" {% if gateway == value %}selected{% endif %}>{{ display }}</option>{% endfor %}</select></div>
+  <div class="min-w-[120px] flex-1"><label class="sa-field-label" for="f-m">Method</label>
+    <select id="f-m" class="sa-input" name="method"><option value="">All</option>{% for value, display in method_choices %}<option value="{{ value }}" {% if method == value %}selected{% endif %}>{{ display }}</option>{% endfor %}</select></div>
+  <div><label class="sa-field-label" for="f-from">From</label><input id="f-from" class="sa-input" type="date" name="from" value="{{ date_from }}"></div>
+  <div><label class="sa-field-label" for="f-to">To</label><input id="f-to" class="sa-input" type="date" name="to" value="{{ date_to }}"></div>
+  {% if refunded %}<input type="hidden" name="refunded" value="1">{% endif %}
+  <div class="flex gap-2"><button class="sa-btn-primary px-4 py-2 text-xs">{% sa_icon "filter" "h-3.5 w-3.5" %} Apply</button>
+    {% if q or status or gateway or method or date_from or date_to or refunded %}<a href="{{ base }}" class="sa-btn-ghost px-3 py-2 text-xs">Clear</a>{% endif %}</div>
 </form>
 
-<div class="sa-card mt-6 overflow-x-auto">
-  <table class="sa-table w-full">
-    <thead>
-      <tr>
-        <th>Payment ID</th><th>Client</th><th>Amount</th><th>Method</th><th>Gateway</th>
-        <th>Transaction ID</th><th>Date</th><th>Status</th><th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in payments %}
-      <tr>
-        <td class="sa-mono">{{ p.payment_id }}</td>
-        <td><a href="{% url 'superadmin:org_detail' env_key p.organization_id %}" class="text-amber-400 hover:text-amber-300">{{ p.organization.name }}</a></td>
-        <td class="sa-mono">{{ p.currency }} {{ p.amount }}</td>
-        <td>{{ p.get_payment_method_display }}</td>
-        <td>{{ p.get_gateway_display }}</td>
-        <td class="sa-mono text-[11px]">{{ p.transaction_id|default:"—" }}</td>
-        <td>{{ p.payment_date|date:"d M Y, H:i" }}</td>
-        <td>
-          {% with s=p.status %}
-          <span class="sa-badge {% if s == "SUCCESS" %}sa-badge--active{% elif s == "PENDING" %}sa-badge--warn{% elif s == "FAILED" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">{{ p.get_status_display }}</span>
-          {% endwith %}
-        </td>
-        <td><a href="{% url 'superadmin:payment_edit' env_key p.pk %}?next={{ request.get_full_path|urlencode }}" class="text-xs font-semibold text-brand-400 hover:text-brand-300">Edit</a></td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="9" class="text-center text-slate-600">No payments match these filters.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="sa-card mt-4 overflow-hidden">
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr>
+        <th>{% sa_sort "id" "Payment" %}</th><th>{% sa_sort "client" "Client" %}</th><th class="!text-right">{% sa_sort "amount" "Amount" "right" %}</th>
+        <th>Method</th><th>{% sa_sort "date" "Date" %}</th><th>{% sa_sort "status" "Status" %}</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td data-label="Payment"><span class="block sa-mono text-slate-200">{{ p.payment_id }}</span>{% if p.transaction_id %}<span class="block max-w-[12rem] truncate sa-mono text-[11px] text-slate-500" title="{{ p.transaction_id }}">{{ p.transaction_id }}</span>{% endif %}</td>
+          <td data-label="Client"><a href="{% url 'superadmin:org_detail' env_key p.organization_id %}" class="font-semibold text-slate-100 hover:underline">{{ p.organization.name }}</a>{% if p.invoice %}<a class="block sa-mono text-[11px] text-slate-500 hover:underline" href="{% url 'superadmin:invoice_detail' env_key p.invoice_id %}">{{ p.invoice.invoice_number }}</a>{% endif %}</td>
+          <td data-label="Amount" class="num"><span class="font-semibold text-slate-100">{% if p.currency == "INR" %}₹{% else %}{{ p.currency }} {% endif %}{{ p.amount|floatformat:2|intcomma }}</span>{% if p.refunded_amount %}<span class="block text-[11px] sa-bad">−₹{{ p.refunded_amount|floatformat:2|intcomma }} refunded</span>{% endif %}</td>
+          <td data-label="Method"><span class="text-slate-200">{{ p.get_payment_method_display }}</span><span class="block text-[11px] text-slate-500">{{ p.get_gateway_display }}</span></td>
+          <td data-label="Date" class="whitespace-nowrap">{{ p.payment_date|date:"d M Y" }}<span class="block text-[11px] text-slate-500">{{ p.payment_date|date:"H:i" }}</span></td>
+          <td data-label="Status">{% sa_status "payment" p.status p.get_status_display %}{% if p.failure_reason %}<span class="mt-1 block max-w-[14rem] truncate text-[11px] sa-bad" title="{{ p.failure_reason }}">{{ p.failure_reason }}</span>{% endif %}</td>
+          <td data-label="" class="text-right"><a href="{% url 'superadmin:payment_edit' env_key p.pk %}?next={{ request.get_full_path|urlencode }}" class="sa-btn-ghost px-2.5 py-1 text-xs">Edit</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="sa-empty">{% sa_icon "card" %}<p class="font-semibold text-slate-200">No payments match</p><p>Try clearing a filter.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "superadmin/_pager.html" %}
 </div>
 {% endblock %}

@@ -1,278 +1,252 @@
 {% extends "superadmin/_base.html" %}
-{% load humanize static %}
-{% block title %}Platform analytics · {{ env_label }}{% endblock %}
+{% load humanize static superadmin_tags %}
+{% block title %}Analytics · {{ env_label }}{% endblock %}
 
 {% block sa_content %}
-<div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+<div class="sa-page-head">
   <div>
-    <h1 class="text-xl font-bold text-slate-100">Platform analytics</h1>
-    <p class="mt-1 text-sm text-slate-500">{{ env_label }} · sales, money given back, subscriptions and clients across the platform.</p>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">Analytics</h1>
+    <p class="sa-subtitle">Revenue, growth and retention for the platform itself. MRR is counted at net price (after discount, before tax).</p>
   </div>
-  <div class="flex gap-1 rounded-lg border border-white/10 p-1">
-    {% for m in month_choices %}
-    <a href="?months={{ m }}" class="rounded-md px-3 py-1 text-xs font-medium {% if a.months == m %}bg-amber-500/15 text-amber-400{% else %}text-slate-400 hover:text-slate-200{% endif %}">{{ m }} months</a>
-    {% endfor %}
+  <div class="sa-tabs">
+    {% for m in month_choices %}<a href="?months={{ m }}" class="{% if a.months == m %}is-active{% endif %}">{{ m }} months</a>{% endfor %}
   </div>
 </div>
 
-{% if db_error %}
-<div class="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-  The {{ env_label|lower }} database couldn't be read (it may be unreachable or not fully set up), so every figure below is shown as zero.
-</div>
-{% endif %}
+{% if db_error %}{% include "superadmin/_db_warning.html" with label=env_label env=env_key %}{% endif %}
 
-{# ---------------------------------------------------------------- Sales #}
-<h2 class="mt-8 text-xs font-semibold uppercase tracking-widest text-slate-500">Sales</h2>
-<div class="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-5">
-  <a href="{% url 'superadmin:payment_list' env_key %}?from={{ month_start }}" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Collected this month</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold text-slate-100">₹{{ a.kpis.gross_this|floatformat:0|intcomma }}</p>
-    {% if a.kpis.gross_change != None %}<p class="mt-1 text-[11px] {% if a.kpis.gross_change >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{% if a.kpis.gross_change >= 0 %}▲{% else %}▼{% endif %} {{ a.kpis.gross_change|floatformat:1 }}% vs last month</p>{% else %}<p class="mt-1 text-[11px] text-slate-600">No prior month to compare</p>{% endif %}
+{# ------------------------------------------------------------ Headline #}
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  <a href="{% url 'superadmin:subscription_list' env_key %}?paying=1" class="sa-card sa-card-link sa-stat sa-stat--hero">
+    <p class="sa-stat-label">{% sa_icon "refresh" "h-3.5 w-3.5" %} MRR</p>
+    <p class="sa-stat-value">₹{{ a.kpis.mrr|floatformat:0|intcomma }}</p>
+    <p class="sa-stat-foot">
+      <span class="sa-delta {% if g.this_month.net_new > 0 %}sa-delta--up{% elif g.this_month.net_new < 0 %}sa-delta--down{% else %}sa-delta--flat{% endif %}">{% if g.this_month.net_new >= 0 %}+{% else %}−{% endif %}₹{{ g.this_month.net_new|floatformat:0|intcomma|cut:"-" }}</span> net new this month · ARR ₹{{ a.kpis.arr|floatformat:0|intcomma }}
+    </p>
   </a>
-  <a href="{% url 'superadmin:payment_list' env_key %}?from={{ month_start }}" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Net this month</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold text-slate-100">₹{{ a.kpis.net_this|floatformat:0|intcomma }}</p>
-    {% if a.kpis.net_change != None %}<p class="mt-1 text-[11px] {% if a.kpis.net_change >= 0 %}text-mint-400{% else %}text-red-400{% endif %}">{% if a.kpis.net_change >= 0 %}▲{% else %}▼{% endif %} {{ a.kpis.net_change|floatformat:1 }}% vs last month</p>{% else %}<p class="mt-1 text-[11px] text-slate-600">After refunds</p>{% endif %}
+  <a href="{% url 'superadmin:payment_list' env_key %}?from={{ month_start }}" class="sa-card sa-card-link sa-stat sa-stat--hero">
+    <p class="sa-stat-label">{% sa_icon "card" "h-3.5 w-3.5" %} Net revenue this month</p>
+    <p class="sa-stat-value">₹{{ a.kpis.net_this|floatformat:0|intcomma }}</p>
+    <p class="sa-stat-foot">{% if a.kpis.net_change != None %}<span class="sa-delta {% if a.kpis.net_change >= 0 %}sa-delta--up{% else %}sa-delta--down{% endif %}">{% if a.kpis.net_change >= 0 %}▲{% else %}▼{% endif %} {{ a.kpis.net_change|floatformat:1 }}%</span> vs last month{% else %}No prior month to compare{% endif %}</p>
   </a>
-  <a href="{% url 'superadmin:payment_list' env_key %}" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total revenue</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold text-slate-100">₹{{ a.kpis.total_revenue|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">All time, after refunds</p>
+  <a href="{% url 'superadmin:subscription_list' env_key %}?status=CANCELLED&cancelled_from={{ month_start }}" class="sa-card sa-card-link sa-stat sa-stat--hero">
+    <p class="sa-stat-label">{% sa_icon "arrow-down" "h-3.5 w-3.5" %} Churn this month</p>
+    <p class="sa-stat-value">{% if g.this_month.logo_churn != None %}{{ g.this_month.logo_churn|floatformat:1 }}%{% else %}—{% endif %}</p>
+    <p class="sa-stat-foot">{{ g.this_month.churned_count }} paying client{{ g.this_month.churned_count|pluralize }} cancelled{% if g.this_month.revenue_churn != None %} · {{ g.this_month.revenue_churn|floatformat:1 }}% of MRR{% endif %}{% if g.avg_logo_churn != None %} · avg {{ g.avg_logo_churn|floatformat:1 }}%/mo{% endif %}</p>
   </a>
-  <a href="{% url 'superadmin:subscription_list' env_key %}?paying=1" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">MRR</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold text-amber-400">₹{{ a.kpis.mrr|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">At net price (after discount, before tax)</p>
-  </a>
-  <a href="{% url 'superadmin:subscription_list' env_key %}?paying=1" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">ARR</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold text-slate-100">₹{{ a.kpis.arr|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">MRR × 12</p>
+  <a href="{% url 'superadmin:subscription_list' env_key %}?status=TRIAL" class="sa-card sa-card-link sa-stat sa-stat--hero">
+    <p class="sa-stat-label">{% sa_icon "sparkles" "h-3.5 w-3.5" %} Trial → paid</p>
+    <p class="sa-stat-value">{% if g.funnel.rate != None %}{{ g.funnel.rate|floatformat:0 }}%{% else %}—{% endif %}</p>
+    <p class="sa-stat-foot">{{ g.funnel.converted }} of {{ g.funnel.trials_ended }} finished trial{{ g.funnel.trials_ended|pluralize }} converted · {{ a.kpis.trials }} on trial now</p>
   </a>
 </div>
 
-{# ------------------------------------------------------------- Expenses #}
-<h2 class="mt-8 text-xs font-semibold uppercase tracking-widest text-slate-500">Expenses <span class="font-normal normal-case tracking-normal text-slate-600">· refunds &amp; coupon discounts (running costs aren't tracked)</span></h2>
-<div class="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-5">
-  <a href="{% url 'superadmin:payment_list' env_key %}?refunded=1&from={{ month_start }}" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Refunds this month</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold text-slate-100">₹{{ a.kpis.refunds_this|floatformat:0|intcomma }}</p>
-  </a>
-  <a href="{% url 'superadmin:invoice_list' env_key %}?coupon=1&from={{ month_start }}" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Coupon discounts this month</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold text-slate-100">₹{{ a.kpis.discounts_this|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">Beyond the plan's own price</p>
-  </a>
-  <a href="{% url 'superadmin:payment_list' env_key %}?refunded=1&from={{ month_start }}" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Given back this month</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold text-red-400">₹{{ a.kpis.given_back_this|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">Refunds + coupon discounts</p>
-  </a>
-  <a href="{% url 'superadmin:invoice_list' env_key %}?open=1" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Outstanding</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold text-slate-100">₹{{ a.kpis.outstanding|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">Billed, not yet paid</p>
-  </a>
-  <a href="{% url 'superadmin:invoice_list' env_key %}?overdue=1" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Overdue</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold {% if a.kpis.overdue > 0 %}text-red-400{% else %}text-slate-100{% endif %}">₹{{ a.kpis.overdue|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">{{ a.kpis.overdue_count }} invoice{{ a.kpis.overdue_count|pluralize }} past due date</p>
-  </a>
+{# ------------------------------------------------------------- Revenue #}
+<h2 class="mt-10 sa-eyebrow">Revenue</h2>
+<div class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-6">
+  <a href="{% url 'superadmin:payment_list' env_key %}?from={{ month_start }}" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">Collected (month)</p><p class="sa-stat-value !text-lg">₹{{ a.kpis.gross_this|floatformat:0|intcomma }}</p>{% if a.kpis.gross_change != None %}<p class="sa-stat-foot {% if a.kpis.gross_change >= 0 %}sa-ok{% else %}sa-bad{% endif %}">{% if a.kpis.gross_change >= 0 %}▲{% else %}▼{% endif %} {{ a.kpis.gross_change|floatformat:1 }}%</p>{% endif %}</a>
+  <a href="{% url 'superadmin:payment_list' env_key %}" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">All-time revenue</p><p class="sa-stat-value !text-lg">₹{{ a.kpis.total_revenue|floatformat:0|intcomma }}</p><p class="sa-stat-foot">After refunds</p></a>
+  <a href="{% url 'superadmin:payment_list' env_key %}?refunded=1&from={{ month_start }}" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">Refunds (month)</p><p class="sa-stat-value !text-lg">₹{{ a.kpis.refunds_this|floatformat:0|intcomma }}</p></a>
+  <a href="{% url 'superadmin:invoice_list' env_key %}?coupon=1&from={{ month_start }}" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">Coupon discounts</p><p class="sa-stat-value !text-lg">₹{{ a.kpis.discounts_this|floatformat:0|intcomma }}</p><p class="sa-stat-foot">This month</p></a>
+  <a href="{% url 'superadmin:invoice_list' env_key %}?open=1" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">Outstanding</p><p class="sa-stat-value !text-lg">₹{{ a.kpis.outstanding|floatformat:0|intcomma }}</p><p class="sa-stat-foot">Billed, unpaid</p></a>
+  <a href="{% url 'superadmin:invoice_list' env_key %}?overdue=1" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">Overdue</p><p class="sa-stat-value !text-lg {% if a.kpis.overdue > 0 %}sa-bad{% endif %}">₹{{ a.kpis.overdue|floatformat:0|intcomma }}</p><p class="sa-stat-foot">{{ a.kpis.overdue_count }} invoice{{ a.kpis.overdue_count|pluralize }}</p></a>
 </div>
+<section class="sa-card mt-4 p-5">
+  <h3 class="sa-section-title">Collected vs. money given back</h3>
+  <p class="sa-section-sub">Collected payments, refunds and coupon discounts per month; the line is net (collected − refunds)</p>
+  <div class="mt-4 h-72"><canvas id="chartMoney"></canvas></div>
+</section>
+
+{# ------------------------------------------------- Growth & retention #}
+<h2 class="mt-10 sa-eyebrow">Growth &amp; retention</h2>
+<div class="mt-3 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <section class="sa-card p-5 xl:col-span-2">
+    <h3 class="sa-section-title">MRR movements</h3>
+    <p class="sa-section-sub">New and expansion MRR above the line, contraction and churn below; the line is net new MRR</p>
+    <div class="mt-4 h-72"><canvas id="chartMoves"></canvas></div>
+  </section>
+  <section class="sa-card p-5">
+    <h3 class="sa-section-title">Trial funnel</h3>
+    <p class="sa-section-sub">Last {{ a.months }} months</p>
+    {% with f=g.funnel %}
+    <ol class="mt-5 space-y-4">
+      <li><div class="flex justify-between text-xs"><span class="text-slate-300">Signed up</span><span class="font-semibold text-slate-100">{{ f.signups }}</span></div><div class="sa-meter mt-1.5 !h-2.5"><span style="width: 100%"></span></div></li>
+      <li><div class="flex justify-between text-xs"><span class="text-slate-300">Started a trial</span><span class="font-semibold text-slate-100">{{ f.trials }}</span></div><div class="sa-meter mt-1.5 !h-2.5"><span style="width: {% if f.signups %}{% widthratio f.trials f.signups 100 %}{% else %}0{% endif %}%"></span></div></li>
+      <li><div class="flex justify-between text-xs"><span class="text-slate-300">Trial finished</span><span class="font-semibold text-slate-100">{{ f.trials_ended }}</span></div><div class="sa-meter mt-1.5 !h-2.5"><span style="width: {% if f.signups %}{% widthratio f.trials_ended f.signups 100 %}{% else %}0{% endif %}%"></span></div></li>
+      <li><div class="flex justify-between text-xs"><span class="text-slate-300">Became paying</span><span class="font-semibold sa-ok">{{ f.converted }}</span></div><div class="sa-meter mt-1.5 !h-2.5"><span style="width: {% if f.signups %}{% widthratio f.converted f.signups 100 %}{% else %}0{% endif %}%; background: var(--sa-ok)"></span></div></li>
+    </ol>
+    <p class="mt-5 rounded-lg p-3 text-xs text-slate-400" style="background: var(--sa-surface-2)">
+      {% if f.rate != None %}<strong class="text-slate-100">{{ f.rate|floatformat:0 }}%</strong> of finished trials converted to paid.{% else %}No trials have finished in this period yet.{% endif %}
+    </p>
+    {% endwith %}
+  </section>
+</div>
+
+<section class="sa-card mt-5 overflow-hidden">
+  <div class="sa-card-head"><div><h3 class="sa-section-title">Signup cohorts</h3><p class="sa-section-sub">Share of each month's new clients that still had a live subscription (trial, paid or complimentary) N months later</p></div></div>
+  <div class="overflow-x-auto p-4">
+    {% if g.cohorts.rows %}
+    <table class="w-full border-separate text-xs" style="border-spacing: 3px">
+      <thead><tr>
+        <th class="px-2 py-1 text-left font-semibold sa-muted">Signed up</th><th class="px-2 py-1 text-right font-semibold sa-muted">Clients</th>
+        {% for o in g.cohorts.offsets %}<th class="px-2 py-1 text-center font-semibold sa-muted">M{{ o }}</th>{% endfor %}
+      </tr></thead>
+      <tbody>
+        {% for row in g.cohorts.rows %}
+        <tr>
+          <td class="whitespace-nowrap px-2 py-1.5 font-medium text-slate-200">{{ row.label }}</td>
+          <td class="px-2 py-1.5 text-right tabular-nums text-slate-400">{{ row.size }}</td>
+          {% for c in row.cells %}
+          {% if c == None %}<td class="rounded px-2 py-1.5 text-center" style="background: var(--sa-surface-2); opacity: .4"></td>
+          {% else %}<td class="rounded px-2 py-1.5 text-center font-semibold tabular-nums" style="background: color-mix(in srgb, var(--sa-accent) {% widthratio c 100 70 %}%, var(--sa-surface-2)); color: var(--sa-text)" title="{{ c }}% of {{ row.size }}">{% if row.size %}{{ c }}%{% else %}–{% endif %}</td>{% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="sa-empty">No signups in the last six months.</div>{% endif %}
+  </div>
+</section>
 
 {# ----------------------------------------------------------- Customers #}
-<h2 class="mt-8 text-xs font-semibold uppercase tracking-widest text-slate-500">Customers &amp; subscriptions</h2>
-<div class="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-6">
-  <a href="{% url 'superadmin:org_list' env_key %}" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Clients</p>
-    <p class="mt-1.5 text-xl font-bold text-slate-100">{{ a.kpis.clients }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">{{ a.kpis.active_services }} active</p>
-  </a>
-  <a href="{% url 'superadmin:org_list' env_key %}?created_from={{ month_start }}" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">New this month</p>
-    <p class="mt-1.5 text-xl font-bold text-mint-400">{{ a.kpis.new_clients_this }}</p>
-  </a>
-  <a href="{% url 'superadmin:subscription_list' env_key %}?paying=1" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Paying</p>
-    <p class="mt-1.5 text-xl font-bold text-slate-100">{{ a.kpis.paying }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">Subscriptions</p>
-  </a>
-  <a href="{% url 'superadmin:subscription_list' env_key %}?status=TRIAL" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">On trial</p>
-    <p class="mt-1.5 text-xl font-bold text-slate-100">{{ a.kpis.trials }}</p>
-  </a>
-  <a href="{% url 'superadmin:subscription_list' env_key %}?status=CANCELLED&cancelled_from={{ month_start }}" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Cancelled</p>
-    <p class="mt-1.5 text-xl font-bold {% if a.kpis.cancelled_this_month %}text-red-400{% else %}text-slate-100{% endif %}">{{ a.kpis.cancelled_this_month }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">This month</p>
-  </a>
-  <a href="{% url 'superadmin:subscription_list' env_key %}?paying=1" class="sa-card sa-card-link block p-4">
-    <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Avg per paying client</p>
-    <p class="mt-1.5 sa-mono text-xl font-bold text-slate-100">₹{{ a.kpis.avg_revenue_per_client|floatformat:0|intcomma }}</p>
-    <p class="mt-1 text-[11px] text-slate-600">Per month</p>
-  </a>
+<h2 class="mt-10 sa-eyebrow">Customers</h2>
+<div class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-6">
+  <a href="{% url 'superadmin:org_list' env_key %}" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">Clients</p><p class="sa-stat-value !text-lg">{{ a.kpis.clients }}</p><p class="sa-stat-foot">{{ a.kpis.active_services }} active</p></a>
+  <a href="{% url 'superadmin:org_list' env_key %}?created_from={{ month_start }}" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">New this month</p><p class="sa-stat-value !text-lg sa-ok">{{ a.kpis.new_clients_this }}</p></a>
+  <a href="{% url 'superadmin:subscription_list' env_key %}?paying=1" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">Paying</p><p class="sa-stat-value !text-lg">{{ a.kpis.paying }}</p><p class="sa-stat-foot">{{ g.this_month.new_paying }} new this month</p></a>
+  <a href="{% url 'superadmin:subscription_list' env_key %}?status=TRIAL" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">On trial</p><p class="sa-stat-value !text-lg">{{ a.kpis.trials }}</p></a>
+  <a href="{% url 'superadmin:subscription_list' env_key %}?status=CANCELLED&cancelled_from={{ month_start }}" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">Cancelled</p><p class="sa-stat-value !text-lg {% if a.kpis.cancelled_this_month %}sa-bad{% endif %}">{{ a.kpis.cancelled_this_month }}</p><p class="sa-stat-foot">This month</p></a>
+  <a href="{% url 'superadmin:subscription_list' env_key %}?paying=1" class="sa-card sa-card-link sa-stat"><p class="sa-stat-label">ARPA</p><p class="sa-stat-value !text-lg">₹{{ a.kpis.avg_revenue_per_client|floatformat:0|intcomma }}</p><p class="sa-stat-foot">Per paying client / mo</p></a>
+</div>
+<div class="mt-4 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <section class="sa-card p-5 xl:col-span-2">
+    <h3 class="sa-section-title">New clients per month</h3>
+    <p class="sa-section-sub">{{ a.kpis.clients }} clients in total today</p>
+    <div class="mt-4 h-64"><canvas id="chartClients"></canvas></div>
+  </section>
+  <section class="sa-card p-5">
+    <h3 class="sa-section-title">MRR by plan</h3>
+    <p class="sa-section-sub">Paying subscriptions only</p>
+    <div class="mt-4 h-64"><canvas id="chartPlans"></canvas></div>
+  </section>
 </div>
 
-{# -------------------------------------------------------------- Charts #}
-<div class="mt-8 grid grid-cols-1 gap-5 xl:grid-cols-3">
-  <div class="sa-card p-5 xl:col-span-2">
-    <h3 class="text-sm font-semibold text-slate-100">Sales vs. money given back</h3>
-    <p class="text-xs text-slate-500">Collected payments, refunds and coupon discounts per month, with the net line</p>
-    <div class="mt-4 h-72"><canvas id="chartMoney"></canvas></div>
-  </div>
-  <div class="sa-card p-5">
-    <h3 class="text-sm font-semibold text-slate-100">Subscription status</h3>
-    <p class="text-xs text-slate-500">Current subscription of every client</p>
-    <div class="mt-4 h-72"><canvas id="chartSubStatus"></canvas></div>
-  </div>
-  <div class="sa-card p-5 xl:col-span-2">
-    <h3 class="text-sm font-semibold text-slate-100">Client growth</h3>
-    <p class="text-xs text-slate-500">New clients per month and total clients</p>
-    <div class="mt-4 h-64"><canvas id="chartClients"></canvas></div>
-  </div>
-  <div class="sa-card p-5">
-    <h3 class="text-sm font-semibold text-slate-100">MRR by plan</h3>
-    <p class="text-xs text-slate-500">Paying subscriptions only</p>
-    <div class="mt-4 h-64"><canvas id="chartPlans"></canvas></div>
-  </div>
-  <div class="sa-card p-5">
-    <h3 class="text-sm font-semibold text-slate-100">How clients pay</h3>
-    <p class="text-xs text-slate-500">Collected payments by method</p>
-    <div class="mt-4 h-56"><canvas id="chartMethods"></canvas></div>
-  </div>
-  <div class="sa-card p-5">
-    <h3 class="text-sm font-semibold text-slate-100">Invoice status</h3>
-    <p class="text-xs text-slate-500">All issued invoices</p>
-    <div class="mt-4 h-56"><canvas id="chartInvoices"></canvas></div>
-  </div>
-  <div class="sa-card p-5">
-    <h3 class="text-sm font-semibold text-slate-100">Where data is stored</h3>
-    <p class="text-xs text-slate-500">Clients by storage type</p>
-    <div class="mt-4 h-56"><canvas id="chartStorage"></canvas></div>
-  </div>
-  <div class="sa-card p-5 xl:col-span-2">
-    <h3 class="text-sm font-semibold text-slate-100">Clients by business type</h3>
-    <p class="text-xs text-slate-500">What kinds of businesses use the platform</p>
-    <div class="mt-4 h-64"><canvas id="chartBusiness"></canvas></div>
-  </div>
-  <div class="sa-card p-5">
-    <h3 class="text-sm font-semibold text-slate-100">Client size</h3>
-    <p class="text-xs text-slate-500">Team size of each client</p>
-    <div class="mt-4 h-64"><canvas id="chartSize"></canvas></div>
-  </div>
+{# ----------------------------------------------------------------- Mix #}
+<h2 class="mt-10 sa-eyebrow">Mix</h2>
+<div class="mt-3 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+  <section class="sa-card p-5"><h3 class="sa-section-title">Subscription status</h3><p class="sa-section-sub">Every client's current subscription</p><div class="mt-4 h-60"><canvas id="chartSubStatus"></canvas></div></section>
+  <section class="sa-card p-5"><h3 class="sa-section-title">How clients pay</h3><p class="sa-section-sub">Collected payments by method</p><div class="mt-4 h-60"><canvas id="chartMethods"></canvas></div></section>
+  <section class="sa-card p-5"><h3 class="sa-section-title">Invoice status</h3><p class="sa-section-sub">All issued invoices</p><div class="mt-4 h-60"><canvas id="chartInvoices"></canvas></div></section>
+  <section class="sa-card p-5"><h3 class="sa-section-title">Where data is stored</h3><p class="sa-section-sub">Clients by storage type</p><div class="mt-4 h-60"><canvas id="chartStorage"></canvas></div></section>
+  <section class="sa-card p-5"><h3 class="sa-section-title">Business type</h3><p class="sa-section-sub">What kinds of businesses use Finday</p><div class="mt-4 h-60"><canvas id="chartBusiness"></canvas></div></section>
+  <section class="sa-card p-5"><h3 class="sa-section-title">Client size</h3><p class="sa-section-sub">Team size of each client</p><div class="mt-4 h-60"><canvas id="chartSize"></canvas></div></section>
 </div>
 
 {# -------------------------------------------------------------- Tables #}
-<div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
-  <div class="sa-card overflow-hidden">
-    <div class="px-5 pt-5"><h3 class="text-sm font-semibold text-slate-100">Top clients by revenue</h3><p class="text-xs text-slate-500">All time</p></div>
-    <table class="sa-table mt-3 w-full">
-      <thead><tr><th>Client</th><th class="text-right">Payments</th><th class="text-right">Revenue</th></tr></thead>
+<div class="mt-8 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <section class="sa-card overflow-hidden">
+    <div class="sa-card-head"><div><h3 class="sa-section-title">Top clients by revenue</h3><p class="sa-section-sub">All time</p></div></div>
+    <table class="sa-table">
+      <thead><tr><th>Client</th><th class="!text-right">Payments</th><th class="!text-right">Revenue</th></tr></thead>
       <tbody>
         {% for c in a.top_clients %}
-        <tr><td>{{ c.name }}</td><td class="text-right">{{ c.n }}</td><td class="sa-mono text-right">₹{{ c.total|floatformat:0|intcomma }}</td></tr>
+        <tr><td><a class="hover:underline" href="{% url 'superadmin:org_list' env_key %}?q={{ c.code }}">{{ c.name }}</a></td><td class="num">{{ c.n }}</td><td class="num font-semibold text-slate-100">₹{{ c.total|floatformat:0|intcomma }}</td></tr>
         {% empty %}<tr><td colspan="3" class="text-slate-500">No payments yet.</td></tr>{% endfor %}
       </tbody>
     </table>
-  </div>
-  <div class="sa-card overflow-hidden">
-    <div class="px-5 pt-5"><h3 class="text-sm font-semibold text-slate-100">Trials ending soon</h3><p class="text-xs text-slate-500">Next 14 days — follow up before they lapse</p></div>
-    <table class="sa-table mt-3 w-full">
-      <thead><tr><th>Client</th><th>Plan</th><th class="text-right">Ends</th></tr></thead>
+  </section>
+  <section class="sa-card overflow-hidden">
+    <div class="sa-card-head"><div><h3 class="sa-section-title">Trials ending soon</h3><p class="sa-section-sub">Next 14 days — follow up before they lapse</p></div></div>
+    <table class="sa-table">
+      <thead><tr><th>Client</th><th>Plan</th><th class="!text-right">Ends</th></tr></thead>
       <tbody>
         {% for s in a.trials_ending %}
-        <tr><td><a href="{% url 'superadmin:org_detail' env_key s.organization.pk %}" class="hover:text-amber-400">{{ s.organization.name }}</a></td><td>{{ s.plan.name }}</td><td class="text-right">{{ s.trial_end_date|date:"d M" }}</td></tr>
+        <tr><td><a href="{% url 'superadmin:org_detail' env_key s.organization.pk %}" class="hover:underline">{{ s.organization.name }}</a></td><td>{{ s.plan.name }}</td><td class="num">{{ s.trial_end_date|date:"d M" }}</td></tr>
         {% empty %}<tr><td colspan="3" class="text-slate-500">No trials ending in the next 14 days.</td></tr>{% endfor %}
       </tbody>
     </table>
-  </div>
-  <div class="sa-card overflow-hidden">
-    <div class="px-5 pt-5"><h3 class="text-sm font-semibold text-slate-100">Largest overdue invoices</h3><p class="text-xs text-slate-500">Past their due date</p></div>
-    <table class="sa-table mt-3 w-full">
-      <thead><tr><th>Client</th><th>Due</th><th class="text-right">Amount due</th></tr></thead>
+  </section>
+  <section class="sa-card overflow-hidden">
+    <div class="sa-card-head"><div><h3 class="sa-section-title">Largest overdue invoices</h3><p class="sa-section-sub">Past their due date</p></div></div>
+    <table class="sa-table">
+      <thead><tr><th>Client</th><th>Due</th><th class="!text-right">Amount due</th></tr></thead>
       <tbody>
         {% for i in a.overdue_list %}
-        <tr><td><a href="{% url 'superadmin:invoice_detail' env_key i.pk %}" class="hover:text-amber-400">{{ i.organization.name }}</a></td><td>{{ i.due_date|date:"d M Y" }}</td><td class="sa-mono text-right text-red-400">₹{{ i.amount_due|floatformat:0|intcomma }}</td></tr>
+        <tr><td><a href="{% url 'superadmin:invoice_detail' env_key i.pk %}" class="hover:underline">{{ i.organization.name }}</a></td><td>{{ i.due_date|date:"d M Y" }}</td><td class="num font-semibold sa-bad">₹{{ i.amount_due|floatformat:0|intcomma }}</td></tr>
         {% empty %}<tr><td colspan="3" class="text-slate-500">Nothing overdue.</td></tr>{% endfor %}
       </tbody>
     </table>
-  </div>
+  </section>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="{% static 'js/chart-theme.js' %}"></script>
+<script src="{% static 'js/sa-charts.js' %}"></script>
 <script>
   const D = {{ charts_json|safe }};
-  const rupee = (v) => "₹" + Number(v).toLocaleString("en-IN");
-
-  baiChartTheme.onThemeChange((c) => {
+  baiChartTheme.onThemeChange(() => {
+    const p = saCharts.palette();
     const charts = [];
-    const donut = (id, rows, fmt) => {
-      const el = document.getElementById(id);
-      if (!rows.length) { el.parentElement.innerHTML = '<p class="pt-20 text-center text-xs text-slate-500">No data yet</p>'; return; }
-      charts.push(new Chart(el, {
-        type: "doughnut",
-        data: { labels: rows.map((r) => r[0]), datasets: [{ data: rows.map((r) => r[1]), backgroundColor: c.donut, borderWidth: 0 }] },
-        options: { responsive: true, maintainAspectRatio: false, cutout: "62%",
-          plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } } },
-      }));
-    };
-    const scales = (money) => ({
-      x: { grid: { display: false } },
-      y: { grid: { color: c.grid }, beginAtZero: true, ticks: money ? { callback: rupee } : { precision: 0 } },
-    });
-    const legend = { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } };
+    const empty = (el, text) => { el.parentElement.innerHTML = `<p class="pt-20 text-center text-xs text-slate-500">${text}</p>`; };
+    const money = saCharts.tooltip({ callbacks: { label: (c) => ` ${c.dataset.label}: ${saCharts.money(c.raw)}` } });
+    const bar = (label, data, color, extra) => Object.assign({ type: "bar", label, data, backgroundColor: color, borderRadius: 4, maxBarThickness: 18, borderSkipped: false }, extra || {});
+    const line = (label, data, color) => ({ type: "line", label, data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, tension: 0.3 });
 
     charts.push(new Chart(document.getElementById("chartMoney"), {
       data: { labels: D.labels, datasets: [
-        { type: "bar", label: "Collected", data: D.gross, backgroundColor: c.amber, borderRadius: 4 },
-        { type: "bar", label: "Refunds", data: D.refunds, backgroundColor: c.red, borderRadius: 4 },
-        { type: "bar", label: "Coupon discounts", data: D.discounts, backgroundColor: c.brand, borderRadius: 4 },
-        { type: "line", label: "Net", data: D.net, borderColor: c.mint, backgroundColor: c.mintFill, tension: 0.3, pointRadius: 3 },
+        bar("Collected", D.gross, p.cat[0]), bar("Refunds", D.refunds, p.cat[1]), bar("Coupon discounts", D.discounts, p.cat[3]),
+        line("Net", D.net, p.cat[2]),
       ] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend,
-        tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ": " + rupee(ctx.parsed.y) } } }, scales: scales(true) },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: saCharts.legend(), tooltip: money }, scales: saCharts.axes({ money: true }) },
+    }));
+
+    charts.push(new Chart(document.getElementById("chartMoves"), {
+      data: { labels: D.labels, datasets: [
+        bar("New", D.moves.new, p.cat[0], { stack: "m" }), bar("Expansion", D.moves.expansion, p.cat[2], { stack: "m" }),
+        bar("Contraction", D.moves.contraction, p.cat[3], { stack: "m" }), bar("Churned", D.moves.churned, p.cat[1], { stack: "m" }),
+        Object.assign(line("Net new", D.moves.net, p.text), { borderDash: [4, 3] }),
+      ] },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: saCharts.legend(), tooltip: money }, scales: saCharts.axes({ money: true, stacked: true }) },
     }));
 
     charts.push(new Chart(document.getElementById("chartClients"), {
-      data: { labels: D.labels, datasets: [
-        { type: "bar", label: "New clients", data: D.new_clients, backgroundColor: c.mint, borderRadius: 4, yAxisID: "y" },
-        { type: "line", label: "Total clients", data: D.total_clients, borderColor: c.amber, tension: 0.3, pointRadius: 3, yAxisID: "y1" },
-      ] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend },
-        scales: { x: { grid: { display: false } },
-          y: { grid: { color: c.grid }, beginAtZero: true, ticks: { precision: 0 } },
-          y1: { position: "right", grid: { display: false }, beginAtZero: true, ticks: { precision: 0 } } } },
+      type: "bar",
+      data: { labels: D.labels, datasets: [bar("New clients", D.new_clients, p.cat[0])] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: saCharts.legend(false), tooltip: saCharts.tooltip({ callbacks: { afterLabel: (c) => `Total clients: ${D.total_clients[c.dataIndex]}` } }) },
+        scales: Object.assign(saCharts.axes(), { y: Object.assign(saCharts.axes().y, { ticks: { precision: 0, maxTicksLimit: 5 } }) }) },
     }));
 
     const planEl = document.getElementById("chartPlans");
-    if (!D.plans.length) planEl.parentElement.innerHTML = '<p class="pt-20 text-center text-xs text-slate-500">No paying subscriptions yet</p>';
+    if (!D.plans.length) empty(planEl, "No paying subscriptions yet");
     else charts.push(new Chart(planEl, {
       type: "bar",
-      data: { labels: D.plans.map((p) => p.name + " (" + p.subs + ")"), datasets: [{ label: "MRR", data: D.plans.map((p) => p.mrr), backgroundColor: c.amber, borderRadius: 4 }] },
-      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => rupee(ctx.parsed.x) } } },
-        scales: { x: { grid: { color: c.grid }, beginAtZero: true, ticks: { callback: rupee } }, y: { grid: { display: false } } } },
+      data: { labels: D.plans.map((r) => `${r.name} (${r.subs})`), datasets: [{ label: "MRR", data: D.plans.map((r) => r.mrr), backgroundColor: p.cat[0], borderRadius: 4, maxBarThickness: 18 }] },
+      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false,
+        plugins: { legend: saCharts.legend(false), tooltip: saCharts.tooltip({ callbacks: { label: (c) => ` ${saCharts.money(c.raw)} / month` } }) },
+        scales: { x: { grid: { color: p.grid }, border: { display: false }, beginAtZero: true, ticks: { callback: (v) => saCharts.money(v), maxTicksLimit: 4 } }, y: { grid: { display: false } } } },
     }));
 
     const bizEl = document.getElementById("chartBusiness");
-    if (!D.business_type.length) bizEl.parentElement.innerHTML = '<p class="pt-20 text-center text-xs text-slate-500">No clients yet</p>';
+    if (!D.business_type.length) empty(bizEl, "No clients yet");
     else charts.push(new Chart(bizEl, {
       type: "bar",
-      data: { labels: D.business_type.map((r) => r[0]), datasets: [{ label: "Clients", data: D.business_type.map((r) => r[1]), backgroundColor: c.brand, borderRadius: 4 }] },
-      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-        scales: { x: { grid: { color: c.grid }, beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } },
+      data: { labels: D.business_type.map((r) => r[0]), datasets: [{ label: "Clients", data: D.business_type.map((r) => r[1]), backgroundColor: p.cat[0], borderRadius: 4, maxBarThickness: 16 }] },
+      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: saCharts.legend(false), tooltip: saCharts.tooltip() },
+        scales: { x: { grid: { color: p.grid }, border: { display: false }, beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } },
     }));
 
-    donut("chartSubStatus", D.sub_status);
-    donut("chartMethods", D.pay_methods);
-    donut("chartInvoices", D.invoice_status);
-    donut("chartStorage", D.storage);
-    donut("chartSize", D.org_size);
+    [["chartSubStatus", D.sub_status], ["chartMethods", D.pay_methods], ["chartInvoices", D.invoice_status],
+     ["chartStorage", D.storage], ["chartSize", D.org_size]].forEach(([id, rows]) => {
+      const el = document.getElementById(id);
+      if (!rows.length) empty(el, "No data yet"); else charts.push(saCharts.doughnut(el, rows));
+    });
     return charts;
   });
 </script>
-
 {% endblock %}

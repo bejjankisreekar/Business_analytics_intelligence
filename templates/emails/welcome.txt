@@ -1,0 +1,28 @@
+{% load humanize %}{% autoescape off %}Hi {{ first_name }},
+
+Welcome to {{ site_name }}! Your workspace for {{ organization.name }} is ready.
+{% if trial_days %}
+Enjoy your {{ trial_days }}-day free trial of {{ plan.name }}{% if trial_end_date %} — it runs until {{ trial_end_date|date:"j F Y" }}{% endif %}. No payment is needed to get started.
+{% endif %}
+YOUR SETUP
+{% if plan %}- Plan: {{ plan.name }}
+{% endif %}- Free trial: {% if trial_days %}{{ trial_days }} days{% if trial_end_date %} (ends {{ trial_end_date|date:"j M Y" }}){% endif %}{% else %}Not included{% endif %}
+{% if monthly_price %}- After the trial: Rs. {{ monthly_price|floatformat:0|intcomma }} / month
+{% endif %}- Data storage: {{ storage_label }}
+{% if logins_label %}- Login accounts: {{ logins_label }}
+{% endif %}- Organization ID: {{ organization.organization_code }}
+- Your username: {{ user.username }}
+{% if plan_features %}
+INCLUDED IN YOUR PLAN
+{% for label in plan_features %}- {{ label }}
+{% endfor %}{% endif %}
+GET STARTED
+1. {% if is_sheets %}Connect your Google Drive — we'll create your own Google Sheet for your data.{% else %}Your secure managed database is ready — nothing else to set up.{% endif %}
+2. Record your first sales, purchases and expenses.
+3. Explore your dashboard: {{ dashboard_url }}
+
+Questions? Just reply to this email{% if support_email %} or write to {{ support_email }}{% endif %}.
+
+Warm regards,
+The {{ site_name }} team
+{% endautoescape %}

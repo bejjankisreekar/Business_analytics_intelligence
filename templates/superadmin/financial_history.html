@@ -2,7 +2,7 @@
 {% block title %}{{ org.name }} financial history{% endblock %}
 
 {% block sa_content %}
-<a href="{% url 'superadmin:org_detail' env_key org.pk %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ org.name }}</a>
+<a href="{% url 'superadmin:org_detail' env_key org.pk %}" class="sa-crumb">← {{ org.name }}</a>
 <h1 class="mt-4 text-xl font-bold text-slate-100">{{ org.name }} — financial history</h1>
 
 <div class="mt-6 sa-card overflow-x-auto p-5">

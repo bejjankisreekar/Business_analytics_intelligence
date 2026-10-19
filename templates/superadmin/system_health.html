@@ -1,0 +1,101 @@
+{% extends "superadmin/_base.html" %}
+{% load superadmin_tags %}
+{% block title %}System health · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">System health</h1>
+    <p class="sa-subtitle">Databases, pending migrations, integrations, Google Drive connections and payment webhooks — checked live when this page loads.</p>
+  </div>
+  <form method="post" action="{% url 'superadmin:send_digest' env_key %}" class="flex gap-2">
+    {% csrf_token %}
+    <button name="me" value="1" class="sa-btn-ghost px-3 py-2 text-xs" title="Email the alert digest to just you">{% sa_icon "mail" "h-3.5 w-3.5" %} Send digest to me</button>
+    <button class="sa-btn-primary px-3 py-2 text-xs" data-confirm="Send the {{ env_label|lower }} alert digest to all recipients (and Slack, if set up)?" data-confirm-label="Send">{% sa_icon "bolt" "h-3.5 w-3.5" %} Send digest</button>
+  </form>
+</div>
+
+{% if debug_on_prod %}
+<div class="sa-card mt-6 flex items-center gap-3 p-4 text-sm" style="border-color: var(--sa-bad)">
+  <span class="sa-alert-icon" style="background: var(--sa-bad-soft); color: var(--sa-bad)">{% sa_icon "alert" %}</span>
+  <p class="font-semibold sa-bad">DEBUG is on in production — set DJANGO_DEBUG=False.</p>
+</div>
+{% endif %}
+
+<h2 class="mt-8 sa-eyebrow">Databases</h2>
+<div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+  {% for db in databases %}
+  <section class="sa-card p-5 {% if db.alias == env_key %}ring-1 ring-amber-500/30{% endif %}">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="text-sm font-semibold text-slate-100">{% if db.alias == "prod" %}Production{% else %}Development{% endif %} <span class="sa-mono text-xs font-normal text-slate-500">({{ db.alias }})</span></p>
+        <p class="mt-0.5 sa-mono text-[11px] text-slate-500">{{ db.name }}{% if db.host %} @ {{ db.host }}{% endif %}</p>
+      </div>
+      {% if db.ok and not db.pending %}<span class="sa-badge sa-badge--active"><span class="sa-dot"></span>Healthy</span>
+      {% elif db.ok %}<span class="sa-badge sa-badge--warn"><span class="sa-dot"></span>Needs migrating</span>
+      {% else %}<span class="sa-badge sa-badge--inactive"><span class="sa-dot"></span>Unreachable</span>{% endif %}
+    </div>
+    {% if db.ok %}
+    <dl class="sa-dl mt-4">
+      <dt>Latency</dt><dd>{{ db.latency_ms }} ms</dd>
+      <dt>Server</dt><dd class="truncate">{{ db.vendor }}</dd>
+      <dt>Migrations</dt><dd>{% if db.pending %}<span class="sa-warn font-semibold">{{ db.pending|length }} pending</span>{% else %}Up to date{% endif %}</dd>
+    </dl>
+    {% if db.pending %}
+    <details class="mt-3 text-xs text-slate-400"><summary class="cursor-pointer hover:text-slate-200">Show pending</summary>
+      <ul class="mt-2 space-y-0.5 sa-mono text-[11px]">{% for m in db.pending %}<li>{{ m }}</li>{% endfor %}</ul>
+      <p class="mt-2">Apply with <code class="sa-mono">python manage.py migrate --database {{ db.alias }}</code></p>
+    </details>
+    {% endif %}
+    {% else %}
+    <p class="mt-4 sa-mono text-xs sa-bad break-words">{{ db.error }}</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+
+<div class="mt-8 grid grid-cols-1 gap-5 xl:grid-cols-2">
+  <section class="sa-card overflow-hidden">
+    <div class="sa-card-head"><h2 class="sa-section-title">Integrations</h2></div>
+    <ul>
+      {% for name, ok, detail in integrations %}
+      <li class="sa-alert">
+        <span class="sa-alert-icon" style="background: {% if ok %}var(--sa-ok-soft){% else %}var(--sa-warn-soft){% endif %}; color: {% if ok %}var(--sa-ok){% else %}var(--sa-warn){% endif %}">{% if ok %}{% sa_icon "check" %}{% else %}{% sa_icon "alert" %}{% endif %}</span>
+        <span class="min-w-0 flex-1"><span class="block text-sm font-semibold text-slate-100">{{ name }}</span><span class="block truncate text-[11px] text-slate-500">{{ detail }}</span></span>
+        <span class="text-xs font-semibold {% if ok %}sa-ok{% else %}sa-warn{% endif %}">{% if ok %}Configured{% else %}Not set{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="sa-card overflow-hidden">
+    <div class="sa-card-head"><h2 class="sa-section-title">Runtime & payments</h2></div>
+    <div class="p-5">
+      <dl class="sa-dl">
+        {% for k, v in runtime %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}
+        <dt>Last payment</dt><dd>{% if last_payment %}{{ last_payment.payment_date|sa_ago }} · {{ last_payment.get_status_display }}{% else %}None yet{% endif %}</dd>
+        <dt>Last webhook</dt><dd>{% if last_webhook %}{{ last_webhook.received_at|sa_ago }} · {{ last_webhook.get_status_display }}{% else %}None yet{% endif %}</dd>
+        <dt>Webhooks (24h)</dt><dd>{{ webhooks.total_24h|default:0 }} received{% if webhooks.failed_24h %}, <a class="sa-bad font-semibold hover:underline" href="{% url 'superadmin:webhook_list' env_key %}?status=FAILED">{{ webhooks.failed_24h }} failed</a>{% endif %}</dd>
+      </dl>
+    </div>
+  </section>
+</div>
+
+<section id="drive" class="sa-card mt-5 overflow-hidden">
+  <div class="sa-card-head">
+    <div><h2 class="sa-section-title">Google Drive connections</h2><p class="sa-section-sub">Clients whose data lives in their own Google Sheet</p></div>
+    <span class="flex gap-2"><span class="sa-badge sa-badge--active">{{ drive_ok|length }} OK</span>{% if drive_errors %}<span class="sa-badge sa-badge--inactive">{{ drive_errors|length }} failing</span>{% endif %}{% if drive_stale %}<span class="sa-badge sa-badge--warn">{{ drive_stale|length }} stale</span>{% endif %}</span>
+  </div>
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr><th>Client</th><th>Google account</th><th>Last synced</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for c in drive_errors %}{% include "superadmin/_drive_row.html" with c=c bad=True %}{% endfor %}
+        {% for c in drive_ok %}{% include "superadmin/_drive_row.html" with c=c bad=False %}{% endfor %}
+        {% if not drive_errors and not drive_ok %}<tr><td colspan="4"><div class="sa-empty">No Google Drive connections in {{ env_label|lower }}.</div></td></tr>{% endif %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

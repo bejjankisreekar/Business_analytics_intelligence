@@ -1,128 +1,88 @@
 {% extends "base.html" %}
+{% load static static_cache_bust superadmin_tags %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static_v 'css/superadmin.css' %}">
+{% endblock %}
 
 {% block body %}
-{# Work out where each environment's toggle should land: same section, other env. #}
-{% if request.resolver_match.url_name == "platform_analytics" %}
-  {% url 'superadmin:platform_analytics' 'dev' as dev_href %}
-  {% url 'superadmin:platform_analytics' 'prod' as prod_href %}
-{% elif request.resolver_match.url_name in "plan_list,plan_create,plan_edit,plan_toggle" %}
-  {% url 'superadmin:plan_list' 'dev' as dev_href %}
-  {% url 'superadmin:plan_list' 'prod' as prod_href %}
-{% elif request.resolver_match.url_name in "coupon_list,coupon_create,coupon_edit,coupon_toggle" %}
-  {% url 'superadmin:coupon_list' 'dev' as dev_href %}
-  {% url 'superadmin:coupon_list' 'prod' as prod_href %}
-{% elif request.resolver_match.url_name in "invoice_list,invoice_detail,invoice_download" %}
-  {% url 'superadmin:invoice_list' 'dev' as dev_href %}
-  {% url 'superadmin:invoice_list' 'prod' as prod_href %}
-{% elif request.resolver_match.url_name == "payment_list" %}
-  {% url 'superadmin:payment_list' 'dev' as dev_href %}
-  {% url 'superadmin:payment_list' 'prod' as prod_href %}
-{% elif request.resolver_match.url_name in "subscription_list,subscription_edit" %}
-  {% url 'superadmin:subscription_list' 'dev' as dev_href %}
-  {% url 'superadmin:subscription_list' 'prod' as prod_href %}
-{% elif request.resolver_match.url_name in "storage_change_requests,storage_change_detail" %}
-  {% url 'superadmin:storage_change_requests' 'dev' as dev_href %}
-  {% url 'superadmin:storage_change_requests' 'prod' as prod_href %}
-{% elif request.resolver_match.url_name in "org_list,org_detail,org_create,org_edit,financial_history" %}
-  {% url 'superadmin:org_list' 'dev' as dev_href %}
-  {% url 'superadmin:org_list' 'prod' as prod_href %}
-{% else %}
-  {% url 'superadmin:org_list' 'dev' as dev_href %}
-  {% url 'superadmin:org_list' 'prod' as prod_href %}
-{% endif %}
-
-<div class="min-h-screen sa-shell">
-  <div class="border-b border-amber-500/20 bg-amber-500/[0.06] px-6 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-amber-400">
-    Internal — Operations Console — Not a client account
-  </div>
-
-  <!-- Top nav: environment switch + account -->
-  <header class="sa-header sticky top-0 z-20 flex items-center justify-between border-b border-white/5 px-4 py-2.5 sm:px-6">
-    <div class="flex items-center gap-2">
-      <button type="button" onclick="saNav.open()" aria-label="Open menu" aria-controls="sa-sidebar" class="-ml-1 mr-1 flex h-8 w-8 flex-none items-center justify-center rounded text-slate-300 hover:bg-white/5 lg:hidden">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/></svg>
-      </button>
-      <a href="{{ dev_href }}" class="sa-env-pill {% if env_key == "dev" %}sa-env-pill--active{% endif %}">
-        <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span> Development
-      </a>
-      <a href="{{ prod_href }}" class="sa-env-pill {% if env_key == "prod" %}sa-env-pill--active{% endif %}">
-        <span class="h-1.5 w-1.5 rounded-full bg-red-400"></span> Production
-      </a>
-    </div>
-    <div class="flex items-center gap-3">
-      <span class="hidden font-mono text-xs text-slate-500 sm:inline">{{ request.user.email }}</span>
-      {% include "includes/_theme_toggle.html" %}
-      <form method="post" action="{% url 'accounts:logout' %}">
-        {% csrf_token %}
-        <button type="submit" class="rounded border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-400 transition hover:border-white/20 hover:text-slate-200">Sign out</button>
-      </form>
-    </div>
-  </header>
-
+<div class="sa-shell min-h-screen" data-env="{{ sa_env }}">
+  <div class="sa-env-bar sticky top-0 z-30"></div>
   <div class="flex">
-    <!-- Sidebar: fixed on desktop, slide-in drawer on phones and tablets -->
+    <!-- Sidebar: sticky on desktop, slide-in drawer on phones and tablets -->
     <div id="sa-backdrop" onclick="saNav.close()" class="fixed inset-0 z-30 hidden bg-black/60 lg:hidden"></div>
-    <aside id="sa-sidebar" class="sa-sidebar fixed inset-y-0 left-0 z-40 flex w-56 flex-none -translate-x-full flex-col overflow-y-auto border-r border-white/5 transition-transform duration-200 lg:sticky lg:top-[49px] lg:z-auto lg:h-[calc(100vh-49px)] lg:translate-x-0">
-      <a href="{% url 'superadmin:overview' %}" class="flex items-center gap-2.5 border-b border-white/5 px-5 py-5">
-        <span class="flex h-8 w-8 items-center justify-center rounded border border-amber-500/30 bg-black text-[11px] font-bold tracking-wide text-amber-400">OPS</span>
-        <span class="font-mono text-sm font-semibold text-slate-200">superadmin</span>
-      </a>
+    <aside id="sa-sidebar" class="sa-sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-none -translate-x-full flex-col overflow-y-auto transition-transform duration-200 lg:sticky lg:top-[3px] lg:z-auto lg:h-[calc(100vh-3px)] lg:translate-x-0">
+      <div class="flex items-center justify-between gap-2 px-5 pb-4 pt-5">
+        <a href="{% url 'superadmin:overview' %}" class="flex items-center gap-3">
+          <span class="sa-brand-mark">OPS</span>
+          <span class="leading-tight">
+            <span class="block text-sm font-bold text-slate-100">Finday Ops</span>
+            <span class="block text-[11px] text-slate-500">Operations console</span>
+          </span>
+        </a>
+        <button type="button" onclick="saNav.close()" class="sa-btn-icon lg:hidden" aria-label="Close menu">{% sa_icon "x" %}</button>
+      </div>
 
-      <nav class="flex-1 space-y-0.5 px-3 py-5" onclick="if (event.target.closest('a')) saNav.close()">
-        <a href="{% url 'superadmin:overview' %}" class="sa-nav-link {% if request.resolver_match.url_name == 'overview' %}sa-nav-link--active{% endif %}">
-          Overview
+      <div class="px-4">
+        <div class="sa-envswitch" role="tablist" aria-label="Environment">
+          <a href="{{ sa_env_switch.dev }}" class="{% if sa_env == 'dev' %}is-active{% endif %}"><span class="dot bg-amber-400"></span>Development</a>
+          <a href="{{ sa_env_switch.prod }}" class="{% if sa_env == 'prod' %}is-active{% endif %}"><span class="dot bg-red-400"></span>Production</a>
+        </div>
+      </div>
+
+      <nav class="flex-1 px-3 pb-6 pt-2" onclick="if (event.target.closest('a')) saNav.close()">
+        <a href="{% url 'superadmin:overview' %}" class="sa-nav-link mt-2 {% if request.resolver_match.url_name == 'overview' %}sa-nav-link--active{% endif %}">
+          {% sa_icon "home" %}<span>Overview</span>
         </a>
-        <a href="{% url 'superadmin:platform_analytics' env_key|default:'prod' %}" class="sa-nav-link {% if request.resolver_match.url_name == 'platform_analytics' %}sa-nav-link--active{% endif %}">
-          Analytics
+        {% for section, items in sa_nav %}
+        <p class="sa-nav-section">{{ section }}</p>
+        {% for item in items %}
+        <a href="{{ item.href }}" class="sa-nav-link {% if item.active %}sa-nav-link--active{% endif %}">
+          {% sa_icon item.icon %}<span>{{ item.label }}</span>
+          {% if item.count %}<span class="sa-nav-count sa-nav-count--{{ item.tone }}">{{ item.count }}</span>{% endif %}
         </a>
-        <a href="{% url 'superadmin:org_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "org_list,org_detail,org_create,org_edit,financial_history" %}sa-nav-link--active{% endif %}">
-          Clients
-        </a>
-        <a href="{% url 'superadmin:plan_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "plan_list,plan_create,plan_edit" %}sa-nav-link--active{% endif %}">
-          Plans
-        </a>
-        <a href="{% url 'superadmin:subscription_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "subscription_list,subscription_edit" %}sa-nav-link--active{% endif %}">
-          Subscriptions
-        </a>
-        <a href="{% url 'superadmin:coupon_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "coupon_list,coupon_create,coupon_edit" %}sa-nav-link--active{% endif %}">
-          Coupons
-        </a>
-        <a href="{% url 'superadmin:invoice_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "invoice_list,invoice_detail" %}sa-nav-link--active{% endif %}">
-          Invoices
-        </a>
-        <a href="{% url 'superadmin:payment_list' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name == "payment_list" %}sa-nav-link--active{% endif %}">
-          Payments
-        </a>
-        <a href="{% url 'superadmin:storage_change_requests' env_key|default:'dev' %}" class="sa-nav-link {% if request.resolver_match.url_name in "storage_change_requests,storage_change_detail" %}sa-nav-link--active{% endif %}">
-          Storage requests
-        </a>
+        {% endfor %}
+        {% endfor %}
       </nav>
+
+      <div class="sa-bt p-4">
+        <div class="flex items-center gap-3">
+          <span class="sa-avatar">{{ request.user.email|sa_initials }}</span>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-xs font-semibold text-slate-200">{{ request.user.get_full_name }}</p>
+            <p class="truncate text-[11px] text-slate-500">Super admin</p>
+          </div>
+          <form method="post" action="{% url 'accounts:logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="sa-btn-icon" title="Sign out" aria-label="Sign out">{% sa_icon "logout" %}</button>
+          </form>
+        </div>
+      </div>
     </aside>
 
-    <main class="w-full min-w-0 flex-1 px-4 pb-16 pt-6 sm:px-8 lg:px-10">
-      <style>
-        /* Page titles: gradient text with a short accent bar. */
-        main h1 {
-          letter-spacing: -0.025em;
-          background: linear-gradient(90deg, #ffffff 0%, #a5b8ff 60%, #6ee7b7 100%);
-          -webkit-background-clip: text; background-clip: text;
-          -webkit-text-fill-color: transparent; color: transparent;
-          width: fit-content; max-width: 100%;
-          padding-bottom: 0.1em;
-        }
-        main h1::after {
-          content: ""; display: block; width: 2.5rem; height: 3px; margin-top: 0.45rem;
-          border-radius: 999px; background: linear-gradient(90deg, #5b7cfa, #34d399);
-        }
-        html[data-theme="light"] main h1 {
-          background: linear-gradient(90deg, #0f172a 0%, #3a56d4 65%, #059669 100%);
-          -webkit-background-clip: text; background-clip: text;
-        }
-      </style>
-      {% block sa_content %}{% endblock %}
-    </main>
+    <div class="flex min-w-0 flex-1 flex-col">
+      <header class="sa-topbar sticky top-[3px] z-20 flex items-center gap-3 px-4 py-2.5 sm:px-6 lg:px-8">
+        <button type="button" onclick="saNav.open()" aria-label="Open menu" aria-controls="sa-sidebar" class="sa-btn-icon -ml-1 lg:hidden">{% sa_icon "menu" "h-5 w-5" %}</button>
+        <form method="get" action="{% url 'superadmin:global_search' sa_env %}" class="sa-search" role="search">
+          {% sa_icon "search" %}
+          <input id="sa-search-input" type="search" name="q" value="{{ search_q|default:'' }}" placeholder="Search clients, users, invoices, payments…" autocomplete="off" aria-label="Search the console">
+          <span class="sa-kbd hidden sm:inline-flex">Ctrl K</span>
+        </form>
+        <div class="ml-auto flex items-center gap-2 sm:gap-3">
+          <span class="sa-env-chip hidden sm:inline-flex">{% if sa_env == "prod" %}Production{% else %}Development{% endif %}</span>
+          <a href="{% url 'superadmin:org_create' sa_env %}" class="sa-btn-solid hidden px-3 py-1.5 text-xs md:inline-flex">{% sa_icon "plus" "h-3.5 w-3.5" %} New client</a>
+          {% include "includes/_theme_toggle.html" %}
+        </div>
+      </header>
+
+      <main class="w-full min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-6 lg:px-8">
+        {% block sa_content %}{% endblock %}
+      </main>
+    </div>
   </div>
+
 </div>
+
 <script>
   window.saNav = {
     open() {
@@ -134,142 +94,16 @@
       document.getElementById("sa-backdrop").classList.add("hidden");
     },
   };
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") saNav.close(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") saNav.close();
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      const input = document.getElementById("sa-search-input");
+      input.focus(); input.select();
+    }
+  });
   window.addEventListener("pageshow", () => saNav.close());
+
 </script>
-{% endblock %}
-
-{% block extra_head %}
-<style>
-  /* base.html force-pins OverlayScrollbars hosts to position:fixed (!important),
-     which beat this sidebar's lg:sticky and pulled it out of the flex flow, so
-     page content slid underneath it on desktop. Re-assert sticky from lg up. */
-  @media (min-width: 1024px) { #sa-sidebar.lg\:sticky { position: sticky !important; } }
-  .sa-shell { background: #0a0c10; }
-  .sa-header, .sa-sidebar { background: #0f1115; }
-  .sa-nav-link {
-    display: block; border-radius: 0.5rem; padding: 0.5rem 0.75rem;
-    font-size: 0.8rem; font-weight: 500; color: #94a3b8; transition: background .15s, color .15s;
-  }
-  .sa-nav-link:hover { background: rgba(255,255,255,0.04); color: #e2e8f0; }
-  .sa-nav-link--active { background: rgba(245,158,11,0.12); color: #f59e0b; }
-  .sa-env-pill {
-    display: inline-flex; align-items: center; gap: 0.4rem; border-radius: 9999px;
-    border: 1px solid rgba(255,255,255,0.1); padding: 0.35rem 0.85rem;
-    font-size: 0.75rem; font-weight: 600; color: #94a3b8; transition: border-color .15s, background .15s, color .15s;
-  }
-  .sa-env-pill:hover { border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
-  .sa-env-pill--active { border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12); color: #f59e0b; }
-  .sa-card { border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); }
-  .sa-card-link { transition: border-color .15s, background .15s; cursor: pointer; }
-  .sa-card-link:hover { border-color: rgba(245,158,11,0.4); background: rgba(255,255,255,0.035); }
-  .sa-table th { text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; font-weight: 600; padding: 0.6rem 1rem; }
-  .sa-table td { padding: 0.7rem 1rem; font-size: 0.82rem; color: #cbd5e1; border-top: 1px solid rgba(255,255,255,0.06); }
-  .sa-table tr:hover td { background: rgba(255,255,255,0.015); }
-  .sa-badge { display: inline-flex; align-items: center; border-radius: 0.25rem; padding: 0.15rem 0.55rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
-  .sa-badge--active { background: rgba(52,217,184,0.1); color: #34d9b8; border: 1px solid rgba(52,217,184,0.25); }
-  .sa-badge--inactive { background: rgba(248,113,113,0.1); color: #f87171; border: 1px solid rgba(248,113,113,0.25); }
-  .sa-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .sa-btn-danger { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3); color: #f87171; }
-  .sa-btn-danger:hover { background: rgba(248,113,113,0.2); }
-  .sa-btn-mint { background: rgba(52,217,184,0.12); border: 1px solid rgba(52,217,184,0.3); color: #34d9b8; }
-  .sa-btn-mint:hover { background: rgba(52,217,184,0.2); }
-  .sa-btn-primary { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.35); color: #f59e0b; }
-  .sa-btn-primary:hover { background: rgba(245,158,11,0.25); }
-  .sa-btn-ghost { border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; }
-  .sa-btn-ghost:hover { border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
-  .sa-badge--warn { background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
-  .sa-badge--neutral { background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(148,163,184,0.25); }
-  .sa-input, .sa-select, select.sa-input, textarea.sa-input {
-    width: 100%; margin-top: 0.25rem; border-radius: 0.4rem;
-    border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
-    padding: 0.5rem 0.75rem; font-size: 0.83rem; color: #e2e8f0; outline: none;
-  }
-  select.sa-input, .sa-select {
-    appearance: none; -webkit-appearance: none; -moz-appearance: none;
-    padding: 0.65rem 2.25rem 0.65rem 0.85rem;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.8rem center;
-    background-size: 1rem;
-    cursor: pointer;
-    transition: border-color .15s, background-color .15s, box-shadow .15s;
-  }
-  select.sa-input:hover, .sa-select:hover { border-color: rgba(245,158,11,0.35); background-color: rgba(255,255,255,0.05); }
-  .sa-input:focus { border-color: rgba(245,158,11,0.5); box-shadow: 0 0 0 3px rgba(245,158,11,0.12); }
-  /* Without this, the open dropdown list falls back to the browser's
-     native (light) popup styling — white text on white until hovered. */
-  select.sa-input option, .sa-input option { background: #111318; color: #e2e8f0; padding: 0.5rem; }
-  /* Searchable dropdowns (SearchableChoiceWidget): the visible search box
-     fills the whole field like any other .sa-input; the real <select> (and
-     the generic bai-select wrapper around it) stays in the DOM, hidden. */
-  .searchable-dropdown { position: relative; width: 100%; display: block; }
-  .searchable-dropdown > select, .searchable-dropdown > .bai-select-wrap { display: none !important; }
-  .searchable-dropdown-search {
-    display: block; width: 100%; box-sizing: border-box; margin-top: 0.25rem; border-radius: 0.4rem;
-    border: 1px solid rgba(255,255,255,0.1); background-color: rgba(255,255,255,0.03);
-    padding: 0.65rem 2.25rem 0.65rem 0.85rem; font-size: 0.83rem; color: #e2e8f0; outline: none; cursor: pointer;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 0.8rem center; background-size: 1rem;
-  }
-  .searchable-dropdown-search:hover { border-color: rgba(245,158,11,0.35); background-color: rgba(255,255,255,0.05); }
-  .searchable-dropdown-search:focus { border-color: rgba(245,158,11,0.5); box-shadow: 0 0 0 3px rgba(245,158,11,0.12); }
-  .combobox-options {
-    position: absolute; z-index: 40; top: 100%; left: 0; right: 0; margin-top: 0.375rem;
-    max-height: 14rem; overflow-y: auto; border-radius: 0.5rem;
-    border: 1px solid rgba(255,255,255,0.1); background: #111318; box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-  }
-  .combobox-options.hidden { display: none; }
-  .combobox-option { display: block; width: 100%; text-align: left; padding: 0.55rem 0.9rem; font-size: 0.83rem; color: #e2e8f0; background: transparent; border: none; cursor: pointer; }
-  .combobox-option:hover, .combobox-option--active { background: rgba(245,158,11,0.15); color: #fff; }
-  .combobox-empty { padding: 0.6rem 0.9rem; font-size: 0.8rem; color: #64748b; }
-  html[data-theme="light"] .searchable-dropdown-search {
-    border-color: rgba(15,23,42,0.12); background-color: rgba(15,23,42,0.015); color: #0f172a;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  }
-  html[data-theme="light"] .combobox-options { border-color: rgba(15,23,42,0.1); background: #ffffff; box-shadow: 0 10px 30px rgba(15,23,42,0.14); }
-  html[data-theme="light"] .combobox-option { color: #334155; }
-  html[data-theme="light"] .combobox-option:hover, html[data-theme="light"] .combobox-option--active { background: rgba(217,119,6,0.12); color: #92400e; }
-  .sa-field-label { display: block; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #6b7280; margin-bottom: 0.15rem; }
-  .sa-errorlist { color: #f87171; font-size: 0.75rem; margin-top: 0.2rem; list-style: none; padding: 0; }
-
-  /* ---- Light theme ---- */
-  html[data-theme="light"] .sa-shell { background: #f4f6fa; }
-  html[data-theme="light"] .sa-header, html[data-theme="light"] .sa-sidebar { background: #ffffff; }
-  html[data-theme="light"] .sa-nav-link { color: #475569; }
-  html[data-theme="light"] .sa-nav-link:hover { background: rgba(15,23,42,0.04); color: #0f172a; }
-  html[data-theme="light"] .sa-nav-link--active { background: rgba(217,119,6,0.12); color: #b45309; }
-  html[data-theme="light"] .sa-env-pill { color: #64748b; border-color: rgba(15,23,42,0.1); }
-  html[data-theme="light"] .sa-env-pill:hover { border-color: rgba(15,23,42,0.2); color: #0f172a; }
-  html[data-theme="light"] .sa-env-pill--active { border-color: rgba(217,119,6,0.4); background: rgba(217,119,6,0.12); color: #b45309; }
-  html[data-theme="light"] .sa-card { border-color: rgba(15,23,42,0.08); background: #ffffff; }
-  html[data-theme="light"] .sa-card-link:hover { border-color: rgba(217,119,6,0.4); background: rgba(15,23,42,0.015); }
-  html[data-theme="light"] .sa-table th { color: #94a3b8; }
-  html[data-theme="light"] .sa-table td { color: #334155; border-top-color: rgba(15,23,42,0.08); }
-  html[data-theme="light"] .sa-table tr:hover td { background: rgba(15,23,42,0.015); }
-  html[data-theme="light"] .sa-badge--active { background: rgba(13,138,107,0.1); color: #0d8a6b; border-color: rgba(13,138,107,0.3); }
-  html[data-theme="light"] .sa-badge--inactive { background: rgba(220,38,38,0.08); color: #dc2626; border-color: rgba(220,38,38,0.25); }
-  html[data-theme="light"] .sa-btn-danger { background: rgba(220,38,38,0.1); border-color: rgba(220,38,38,0.3); color: #dc2626; }
-  html[data-theme="light"] .sa-btn-danger:hover { background: rgba(220,38,38,0.18); }
-  html[data-theme="light"] .sa-btn-mint { background: rgba(13,138,107,0.1); border-color: rgba(13,138,107,0.3); color: #0d8a6b; }
-  html[data-theme="light"] .sa-btn-mint:hover { background: rgba(13,138,107,0.18); }
-  html[data-theme="light"] .sa-btn-primary { background: rgba(217,119,6,0.12); border-color: rgba(217,119,6,0.35); color: #b45309; }
-  html[data-theme="light"] .sa-btn-primary:hover { background: rgba(217,119,6,0.2); }
-  html[data-theme="light"] .sa-btn-ghost { border-color: rgba(15,23,42,0.1); color: #64748b; }
-  html[data-theme="light"] .sa-btn-ghost:hover { border-color: rgba(15,23,42,0.2); color: #0f172a; }
-  html[data-theme="light"] .sa-badge--warn { background: rgba(217,119,6,0.1); color: #b45309; border-color: rgba(217,119,6,0.25); }
-  .sa-ok { color: #34d9b8; } .sa-bad { color: #f87171; }
-  html[data-theme="light"] .sa-ok { color: #0d8a6b; } html[data-theme="light"] .sa-bad { color: #dc2626; }
-  html[data-theme="light"] .sa-badge--neutral { background: rgba(100,116,139,0.1); color: #64748b; border-color: rgba(100,116,139,0.25); }
-  html[data-theme="light"] .sa-input, html[data-theme="light"] .sa-select, html[data-theme="light"] select.sa-input, html[data-theme="light"] textarea.sa-input {
-    border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.015); color: #0f172a;
-  }
-  html[data-theme="light"] select.sa-input, html[data-theme="light"] .sa-select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  }
-  html[data-theme="light"] select.sa-input:hover, html[data-theme="light"] .sa-select:hover { border-color: rgba(217,119,6,0.35); background-color: rgba(15,23,42,0.03); }
-  html[data-theme="light"] .sa-input:focus { border-color: rgba(217,119,6,0.5); box-shadow: 0 0 0 3px rgba(217,119,6,0.12); }
-  html[data-theme="light"] select.sa-input option, html[data-theme="light"] .sa-input option { background: #ffffff; color: #0f172a; }
-  html[data-theme="light"] .sa-field-label { color: #94a3b8; }
-</style>
+{% block sa_scripts %}{% endblock %}
 {% endblock %}

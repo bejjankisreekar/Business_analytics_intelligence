@@ -1,0 +1,7 @@
+{% load superadmin_tags %}
+<tr>
+  <td data-label="Client"><a class="font-semibold text-slate-100 hover:underline" href="{% url 'superadmin:org_detail' env_key c.organization_id %}">{{ c.organization.name }}</a></td>
+  <td data-label="Google account">{{ c.connected_email|default:"—" }}</td>
+  <td data-label="Last synced">{% if c.last_synced_at %}<span title="{{ c.last_synced_at|date:'d M Y, H:i' }}">{{ c.last_synced_at|sa_ago }}</span>{% else %}Never{% endif %}</td>
+  <td data-label="Status">{% if bad %}<span class="sa-badge sa-badge--inactive" title="{{ c.last_sync_error }}">Failing</span><span class="mt-1 block max-w-sm truncate text-[11px] sa-bad" title="{{ c.last_sync_error }}">{{ c.last_sync_error }}</span>{% elif not c.external_file_id %}<span class="sa-badge sa-badge--warn">No sheet yet</span>{% else %}<span class="sa-badge sa-badge--active">OK</span>{% endif %}</td>
+</tr>

@@ -151,6 +151,11 @@ class Organization(models.Model):
         max_length=10, choices=ServiceStatus.choices, default=ServiceStatus.ACTIVE
     )
 
+    # When the one-time onboarding (welcome) email went out — see
+    # apps.accounts.emails.send_welcome_email, which claims this field
+    # atomically so a client is never welcomed twice. Null = not sent yet.
+    welcome_email_sent_at = models.DateTimeField(null=True, blank=True, editable=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

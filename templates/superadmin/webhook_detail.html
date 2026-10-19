@@ -1,0 +1,36 @@
+{% extends "superadmin/_base.html" %}
+{% load superadmin_tags %}
+{% block title %}Webhook {{ event.event_id }} · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<a href="{% url 'superadmin:webhook_list' env_key %}" class="sa-crumb">← Webhooks</a>
+<div class="sa-page-head mt-3">
+  <div>
+    <p class="sa-eyebrow">{{ event.get_gateway_display }} · {{ env_label }}</p>
+    <h1 class="mt-1">{{ event.event_type|default:"Webhook event" }}</h1>
+    <p class="sa-subtitle sa-mono">{{ event.event_id }}</p>
+  </div>
+  {% sa_status "payment" event.status event.get_status_display %}
+</div>
+
+<div class="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
+  <section class="sa-card p-5">
+    <h2 class="sa-section-title">Details</h2>
+    <dl class="sa-dl mt-4">
+      <dt>Received</dt><dd>{{ event.received_at|date:"d M Y, H:i:s" }}</dd>
+      <dt>Processed</dt><dd>{{ event.processed_at|date:"d M Y, H:i:s"|default:"Not yet" }}</dd>
+      <dt>Payment</dt><dd>{% if event.payment %}<a class="sa-link sa-mono" href="{% url 'superadmin:payment_edit' env_key event.payment.pk %}">{{ event.payment.payment_id }}</a> · {{ event.payment.organization.name }}{% else %}None linked{% endif %}</dd>
+    </dl>
+    {% if event.error_message %}
+    <div class="mt-5 rounded-lg p-3 text-sm" style="background: var(--sa-bad-soft); color: var(--sa-bad)">
+      <p class="font-semibold">Error</p><p class="mt-1 whitespace-pre-wrap break-words sa-mono text-xs">{{ event.error_message }}</p>
+    </div>
+    {% endif %}
+  </section>
+  <section class="sa-card overflow-hidden lg:col-span-2">
+    <div class="sa-card-head"><h2 class="sa-section-title">Payload</h2>
+      <button type="button" class="sa-btn-ghost px-2.5 py-1 text-xs" onclick="navigator.clipboard.writeText(document.getElementById('payload').innerText); this.textContent='Copied'">Copy JSON</button></div>
+    <pre id="payload" class="max-h-[60vh] overflow-auto p-5 text-xs leading-relaxed text-slate-300 sa-mono">{{ payload_json }}</pre>
+  </section>
+</div>
+{% endblock %}

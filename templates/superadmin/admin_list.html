@@ -1,0 +1,59 @@
+{% extends "superadmin/_base.html" %}
+{% load superadmin_tags %}
+{% block title %}Admins · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">Platform admins</h1>
+    <p class="sa-subtitle">People who can sign in to this console in {{ env_label|lower }}. Each environment has its own accounts.</p>
+  </div>
+</div>
+
+<div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <section class="sa-card overflow-hidden xl:col-span-2">
+    <div class="sa-table-wrap">
+      <table class="sa-table sa-table--stack">
+        <thead><tr><th>Admin</th><th>Status</th><th>Last sign-in</th><th>Console actions</th><th>Added</th><th></th></tr></thead>
+        <tbody>
+          {% for a in admins %}
+          <tr>
+            <td data-label="Admin"><span class="flex items-center gap-3"><span class="sa-avatar sa-avatar--sm">{{ a.email|sa_initials }}</span>
+              <span><span class="block font-semibold text-slate-100">{{ a.get_full_name }}{% if a.email == request.user.email %} <span class="sa-chip sa-chip--amber !py-0 !text-[10px]">You</span>{% endif %}</span><span class="block text-[11px] text-slate-500">{{ a.email }}</span></span></span></td>
+            <td data-label="Status">{% if a.is_active %}<span class="sa-badge sa-badge--active"><span class="sa-dot"></span>Active</span>{% else %}<span class="sa-badge sa-badge--neutral">Deactivated</span>{% endif %}</td>
+            <td data-label="Last sign-in">{% if a.last_login %}<span title="{{ a.last_login|date:'d M Y, H:i' }}">{{ a.last_login|sa_ago }}</span>{% else %}Never{% endif %}</td>
+            <td data-label="Actions"><a class="sa-link" href="{% url 'superadmin:audit_log' env_key %}?actor={{ a.email|urlencode }}">{{ a.action_count }}</a></td>
+            <td data-label="Added">{{ a.date_joined|date:"d M Y" }}</td>
+            <td data-label="" class="text-right">
+              {% if a.email != request.user.email %}
+              <form method="post" action="{% url 'superadmin:admin_toggle' env_key a.pk %}" data-confirm="{% if a.is_active %}Deactivate {{ a.email }}? They'll be signed out of the console.{% else %}Reactivate {{ a.email }}?{% endif %}" data-confirm-label="{% if a.is_active %}Deactivate{% else %}Reactivate{% endif %}">
+                {% csrf_token %}
+                <button class="{% if a.is_active %}sa-btn-danger{% else %}sa-btn-mint{% endif %} px-2.5 py-1 text-xs">{% if a.is_active %}Deactivate{% else %}Reactivate{% endif %}</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sa-card p-5">
+    <h2 class="sa-section-title">Add an admin</h2>
+    <p class="sa-section-sub">They get full access to {{ env_label|lower }} — clients, billing and this page.</p>
+    <form method="post" action="{% url 'superadmin:admin_create' env_key %}" class="mt-4 space-y-3" autocomplete="off">
+      {% csrf_token %}
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="sa-field-label" for="a-first">First name</label><input id="a-first" class="sa-input" name="first_name" maxlength="150"></div>
+        <div><label class="sa-field-label" for="a-last">Last name</label><input id="a-last" class="sa-input" name="last_name" maxlength="150"></div>
+      </div>
+      <div><label class="sa-field-label" for="a-email">Email</label><input id="a-email" class="sa-input" type="email" name="email" required></div>
+      <div><label class="sa-field-label" for="a-pass">Temporary password</label><input id="a-pass" class="sa-input" type="password" name="password" required minlength="8" autocomplete="new-password">
+        <p class="mt-1 text-[11px] text-slate-500">Share it privately; ask them to change it after first sign-in.</p></div>
+      <button class="sa-btn-solid w-full px-4 py-2 text-xs" data-confirm="Give this person full superadmin access to {{ env_label|lower }}?" data-confirm-label="Add admin">{% sa_icon "plus" "h-3.5 w-3.5" %} Add admin</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

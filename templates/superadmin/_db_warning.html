@@ -1,0 +1,8 @@
+{% load superadmin_tags %}
+<div class="sa-card mt-6 flex items-start gap-3 border-amber-500/30 p-4 text-sm">
+  <span class="sa-alert-icon" style="background: var(--sa-warn-soft); color: var(--sa-warn)">{% sa_icon "alert" %}</span>
+  <div>
+    <p class="font-semibold text-slate-100">{{ label|default:"This environment" }}'s database couldn't be read</p>
+    <p class="mt-0.5 text-slate-400">It may be unreachable or not fully migrated, so its figures show as zero. Check <a class="sa-link" href="{% url 'superadmin:system_health' env|default:'prod' %}">System health</a>.</p>
+  </div>
+</div>

@@ -89,6 +89,7 @@ from .periods import PERIOD_CHOICES, resolve_period
 # bar count — stays bounded no matter how long the org has been running.
 MAX_TREND_WEEKS = 104
 MAX_TREND_MONTHS = 36
+MAX_COMPARE_DAYS = 731
 
 
 def _decimal_default(obj):
@@ -609,9 +610,16 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
         padded_daily = _pad_daily_series_for_period(series, period)
         organization = self.request.user.organization
         quantity_word = "count" if organization.business_type == Organization.BusinessType.HEALTHCARE else "units"
+        comparison = self._comparison(period)
 
         context.update({
             "active_nav": "analytics",
+            "comparison": comparison,
+            "comparison_options": services.comparison_options(),
+            "chart_comparison": to_json({
+                "labels": comparison["labels"],
+                "items": [{"label": i["label"], "series": i["series"]} for i in comparison["items"]],
+            }),
             "organization": organization,
             "quantity_word": quantity_word,
             "sale_labels": services.bulk_column_labels()["sale"],
@@ -664,6 +672,50 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
             "purchase_quantity_groups": _product_quantity_groups(purchase_quantity),
         })
         return context
+
+    def _comparison(self, period):
+        """The "Compare categories" card: up to 3 picked categories /
+        sub-categories (?cmp=c:<id>&cmp=s:<id>…) over ?cmp_from=&cmp_to=,
+        defaulting to the page's period and its top 3 revenue channels."""
+        def parse(value, default):
+            try:
+                return datetime.date.fromisoformat(value) if value else default
+            except ValueError:
+                return default
+
+        start = parse(self.request.GET.get("cmp_from"), period.start)
+        end = parse(self.request.GET.get("cmp_to"), period.end)
+        if start > end:
+            start, end = end, start
+        start = max(start, end - datetime.timedelta(days=MAX_COMPARE_DAYS - 1))
+
+        keys = [k for k in self.request.GET.getlist("cmp") if k][: services.COMPARE_MAX_ITEMS]
+        if not keys:
+            top = (
+                SalesEntry.objects.filter(date__gte=start, date__lte=end, channel__isnull=False)
+                .values("channel_id").annotate(total=Sum("amount")).order_by("-total")
+            )
+            keys = [f"c:{row['channel_id']}" for row in list(top)[: services.COMPARE_MAX_ITEMS]]
+
+        view_by = self.request.GET.get("cmp_by")
+        if view_by not in services.COMPARE_GRANULARITIES:
+            view_by = "auto"
+        comparison = services.compare_categories(keys, start, end, view_by)
+        selected = [i["key"] for i in comparison["items"]]
+        # The List view: one row per trend bucket, one column per item.
+        rows = []
+        for n, label in enumerate(comparison["labels"]):
+            values = [i["series"][n] for i in comparison["items"]]
+            rows.append({"label": label, "values": values, "total": sum(values)})
+        comparison.update({
+            "rows": rows,
+            "grand_total": sum(i["total"] for i in comparison["items"]),
+            "start": start,
+            "end": end,
+            "view_by": view_by,
+            "slots": selected + [""] * (services.COMPARE_MAX_ITEMS - len(selected)),
+        })
+        return comparison
 
 
 class SalesIntelligenceView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):

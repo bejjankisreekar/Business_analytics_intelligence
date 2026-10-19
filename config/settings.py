@@ -48,6 +48,8 @@ if _RENDER_HOST:
         CSRF_TRUSTED_ORIGINS.append(f"https://{_RENDER_HOST}")
 
 SITE_NAME = "Finday Intelligence"
+# Public site address used for links in outgoing emails.
+SITE_URL = config("SITE_URL", default="https://findayintelligence.com")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -79,6 +81,7 @@ MIDDLEWARE = [
     "apps.organizations.middleware.TenantSchemaMiddleware",
     "apps.accounts.middleware.ManagerPageAccessMiddleware",
     "apps.superadmin.middleware.EnvironmentDatabaseErrorMiddleware",
+    "apps.superadmin.audit.AuditLogMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -97,6 +100,7 @@ TEMPLATES = [
                 "config.context_processors.site_meta",
                 "config.context_processors.kickbacks_access",
                 "config.context_processors.page_access",
+                "apps.superadmin.context_processors.console",
             ],
         },
     },
@@ -263,11 +267,21 @@ EMAIL_USE_TLS = config("EMAIL_USE_TLS", cast=bool, default=True)
 # Never let an unreachable SMTP server hang a request/worker indefinitely.
 EMAIL_TIMEOUT = config("EMAIL_TIMEOUT", cast=int, default=10)
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "no-reply@example.com")
+# Show a sender name ("Finday Intelligence <no-reply@...>") instead of a bare
+# address, unless the env value already carries its own display name.
+if "<" not in DEFAULT_FROM_EMAIL:
+    DEFAULT_FROM_EMAIL = f"{SITE_NAME} <{DEFAULT_FROM_EMAIL}>"
 
 # Contact details shown on the public landing page, and where contact-form
 # submissions are delivered. Defaults to the SMTP sender when unset.
 CONTACT_EMAIL = config("CONTACT_EMAIL", default=EMAIL_HOST_USER)
 CONTACT_PHONE = config("CONTACT_PHONE", default="")
+
+# Superadmin alert digest (`manage.py superadmin_digest`): who gets the
+# email (blank = every active superadmin) and an optional Slack incoming
+# webhook to post the same summary to.
+SUPERADMIN_DIGEST_EMAILS = config("SUPERADMIN_DIGEST_EMAILS", cast=Csv(), default="")
+SUPERADMIN_SLACK_WEBHOOK_URL = config("SUPERADMIN_SLACK_WEBHOOK_URL", default="")
 
 LOGGING = {
     "version": 1,

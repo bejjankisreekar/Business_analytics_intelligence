@@ -1,20 +1,32 @@
 from django.urls import path
 
-from . import views
+from . import ops_views, views
 
 app_name = "superadmin"
 
 urlpatterns = [
     path("", views.EnvironmentOverviewView.as_view(), name="overview"),
+    path("impersonate/stop/", ops_views.ImpersonateStopView.as_view(), name="impersonate_stop"),
     path("<str:env>/", views.OrganizationListView.as_view(), name="org_list"),
     path("<str:env>/create/", views.OrganizationCreateView.as_view(), name="org_create"),
     path("<str:env>/analytics/", views.PlatformAnalyticsView.as_view(), name="platform_analytics"),
+    path("<str:env>/search/", ops_views.GlobalSearchView.as_view(), name="global_search"),
+    path("<str:env>/audit/", ops_views.AuditLogView.as_view(), name="audit_log"),
+    path("<str:env>/webhooks/", ops_views.WebhookListView.as_view(), name="webhook_list"),
+    path("<str:env>/webhooks/<int:pk>/", ops_views.WebhookDetailView.as_view(), name="webhook_detail"),
+    path("<str:env>/system/", ops_views.SystemHealthView.as_view(), name="system_health"),
+    path("<str:env>/system/digest/", ops_views.SendDigestView.as_view(), name="send_digest"),
+    path("<str:env>/admins/", ops_views.AdminListView.as_view(), name="admin_list"),
+    path("<str:env>/admins/create/", ops_views.AdminCreateView.as_view(), name="admin_create"),
+    path("<str:env>/admins/<uuid:user_id>/toggle/", ops_views.AdminToggleView.as_view(), name="admin_toggle"),
+    path("<str:env>/clients/bulk/", ops_views.OrgBulkActionView.as_view(), name="org_bulk_action"),
     path("<str:env>/plans/", views.PlanListView.as_view(), name="plan_list"),
     path("<str:env>/plans/create/", views.PlanCreateView.as_view(), name="plan_create"),
     path("<str:env>/plans/<int:pk>/edit/", views.PlanEditView.as_view(), name="plan_edit"),
     path("<str:env>/plans/<int:pk>/toggle/", views.PlanToggleActiveView.as_view(), name="plan_toggle"),
     path("<str:env>/coupons/", views.CouponListView.as_view(), name="coupon_list"),
     path("<str:env>/coupons/create/", views.CouponCreateView.as_view(), name="coupon_create"),
+    path("<str:env>/coupons/<int:pk>/", ops_views.CouponDetailView.as_view(), name="coupon_detail"),
     path("<str:env>/coupons/<int:pk>/edit/", views.CouponEditView.as_view(), name="coupon_edit"),
     path("<str:env>/coupons/<int:pk>/toggle/", views.CouponToggleActiveView.as_view(), name="coupon_toggle"),
     path("<str:env>/payments/", views.PaymentListView.as_view(), name="payment_list"),
@@ -43,6 +55,24 @@ urlpatterns = [
         "<str:env>/<uuid:pk>/team/<uuid:user_id>/reset-password/",
         views.ClientPasswordResetView.as_view(),
         name="reset_client_password",
+    ),
+    path(
+        "<str:env>/<uuid:pk>/team/<uuid:user_id>/impersonate/",
+        ops_views.ImpersonateStartView.as_view(),
+        name="impersonate_start",
+    ),
+    path("<str:env>/<uuid:pk>/notes/add/", ops_views.ClientNoteAddView.as_view(), name="client_note_add"),
+    path("<str:env>/<uuid:pk>/notes/<int:note_id>/pin/", ops_views.ClientNotePinView.as_view(), name="client_note_pin"),
+    path(
+        "<str:env>/<uuid:pk>/notes/<int:note_id>/delete/",
+        ops_views.ClientNoteDeleteView.as_view(),
+        name="client_note_delete",
+    ),
+    path("<str:env>/<uuid:pk>/tags/add/", ops_views.ClientTagAddView.as_view(), name="client_tag_add"),
+    path(
+        "<str:env>/<uuid:pk>/tags/<int:tag_id>/remove/",
+        ops_views.ClientTagRemoveView.as_view(),
+        name="client_tag_remove",
     ),
     path("<str:env>/<uuid:pk>/invoices/new/", views.InvoiceGenerateView.as_view(), name="client_invoice_new"),
     path("<str:env>/<uuid:pk>/subscription/", views.SubscriptionCreateView.as_view(), name="subscription_create"),

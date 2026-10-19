@@ -1,0 +1,48 @@
+{% extends "superadmin/_base.html" %}
+{% load humanize superadmin_tags %}
+{% block title %}{{ coupon.code }} · Coupons{% endblock %}
+
+{% block sa_content %}
+<a href="{% url 'superadmin:coupon_list' env_key %}" class="sa-crumb">← Coupons</a>
+<div class="sa-page-head mt-3">
+  <div>
+    <p class="sa-eyebrow">Coupon · {{ env_label }}</p>
+    <h1 class="mt-1 sa-mono">{{ coupon.code }}</h1>
+    <p class="sa-subtitle">{{ coupon.description|default:"No description" }}</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="sa-badge {% if state.1 == 'ok' %}sa-badge--active{% elif state.1 == 'bad' %}sa-badge--inactive{% elif state.1 == 'warn' %}sa-badge--warn{% elif state.1 == 'info' %}sa-badge--info{% else %}sa-badge--neutral{% endif %}"><span class="sa-dot"></span>{{ state.0 }}</span>
+    <a href="{% url 'superadmin:coupon_edit' env_key coupon.pk %}" class="sa-btn-ghost px-3 py-2 text-xs">Edit</a>
+  </div>
+</div>
+
+<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+  <div class="sa-card sa-stat"><p class="sa-stat-label">Discount</p><p class="sa-stat-value">{% if coupon.discount_type == "PERCENT" %}{{ coupon.discount_value|floatformat:0 }}%{% else %}₹{{ coupon.discount_value|floatformat:0|intcomma }}{% endif %}</p><p class="sa-stat-foot">{{ coupon.get_discount_type_display }}</p></div>
+  <div class="sa-card sa-stat"><p class="sa-stat-label">Redemptions</p><p class="sa-stat-value">{{ coupon.redemption_count }}{% if coupon.max_redemptions %}<span class="text-base font-medium sa-muted"> / {{ coupon.max_redemptions }}</span>{% endif %}</p>
+    {% if coupon.max_redemptions %}<div class="sa-meter mt-2"><span style="width: {% widthratio coupon.redemption_count coupon.max_redemptions 100 %}%"></span></div>{% else %}<p class="sa-stat-foot">No limit</p>{% endif %}</div>
+  <div class="sa-card sa-stat"><p class="sa-stat-label">Total discounted</p><p class="sa-stat-value">₹{{ totals.discount|default:0|floatformat:0|intcomma }}</p><p class="sa-stat-foot">{{ totals.clients }} client{{ totals.clients|pluralize }}</p></div>
+  <div class="sa-card sa-stat"><p class="sa-stat-label">Valid</p><p class="mt-1.5 text-sm font-semibold text-slate-100">{{ coupon.valid_from|date:"d M Y"|default:"Now" }} → {{ coupon.valid_until|date:"d M Y"|default:"No expiry" }}</p><p class="sa-stat-foot">{% if coupon.max_redemptions_per_org %}Max {{ coupon.max_redemptions_per_org }} per client{% else %}Unlimited per client{% endif %}</p></div>
+</div>
+
+<section class="sa-card mt-5 overflow-hidden">
+  <div class="sa-card-head"><h2 class="sa-section-title">Who used it</h2></div>
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr><th>Client</th><th>Invoice</th><th>Redeemed</th><th class="!text-right">Discount</th></tr></thead>
+      <tbody>
+        {% for r in redemptions %}
+        <tr>
+          <td data-label="Client"><a class="font-semibold text-slate-100 hover:underline" href="{% url 'superadmin:org_detail' env_key r.organization_id %}">{{ r.organization.name }}</a></td>
+          <td data-label="Invoice"><a class="sa-link sa-mono" href="{% url 'superadmin:invoice_detail' env_key r.invoice_id %}">{{ r.invoice.invoice_number }}</a></td>
+          <td data-label="Redeemed">{{ r.redeemed_at|date:"d M Y, H:i" }}</td>
+          <td data-label="Discount" class="num font-semibold text-slate-100">₹{{ r.discount_amount|floatformat:2|intcomma }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4"><div class="sa-empty">{% sa_icon "ticket" %}<p>Nobody has used this coupon yet.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "superadmin/_pager.html" with no_export=True %}
+</section>
+{% endblock %}

@@ -460,7 +460,10 @@
 
 
   {% if vendor_breakdown|length > 1 %}
-  staticCharts.push(new Chart(document.getElementById("chartVendors"), {
+  // Grow with the vendor count so wrapped names get room instead of overlapping.
+  const vendorCanvas = document.getElementById("chartVendors");
+  vendorCanvas.parentElement.style.height = chartHeight({{ chart_vendor_labels|safe }});
+  staticCharts.push(new Chart(vendorCanvas, {
     type: "bar",
     data: { labels: {{ chart_vendor_labels|safe }}, datasets: [{ data: {{ chart_vendor_values|safe }}, backgroundColor: palette.brand, borderRadius: 4 }] },
     options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },

@@ -1,0 +1,57 @@
+{% extends "superadmin/_base.html" %}
+{% load superadmin_tags %}
+{% block title %}Webhooks · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">Payment webhooks</h1>
+    <p class="sa-subtitle">Every event the payment gateway sent us and what we did with it. A failed event usually means a payment that didn't get recorded — open it to see the error and payload.</p>
+  </div>
+</div>
+
+<div class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+  {% url 'superadmin:webhook_list' env_key as base %}
+  {% for value, label in status_choices %}
+  <a href="{{ base }}?status={{ value }}" class="sa-card sa-card-link sa-stat {% if status == value %}!border-amber-500/40{% endif %}">
+    <p class="sa-stat-label">{{ label }}</p>
+    <p class="sa-stat-value {% if value == 'FAILED' and counts|get_item:value %}sa-bad{% endif %}">{{ counts|get_item:value|default:0 }}</p>
+  </a>
+  {% endfor %}
+</div>
+
+<form method="get" class="sa-card sa-toolbar mt-4">
+  <div class="min-w-[220px] flex-[2]"><label class="sa-field-label" for="f-q">Search</label><input id="f-q" class="sa-input" type="search" name="q" value="{{ q }}" placeholder="Event ID, type or error"></div>
+  <div class="min-w-[140px] flex-1"><label class="sa-field-label" for="f-s">Status</label>
+    <select id="f-s" class="sa-input" name="status"><option value="">All</option>{% for v, l in status_choices %}<option value="{{ v }}" {% if v == status %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="min-w-[140px] flex-1"><label class="sa-field-label" for="f-g">Gateway</label>
+    <select id="f-g" class="sa-input" name="gateway"><option value="">All</option>{% for v, l in gateway_choices %}<option value="{{ v }}" {% if v == gateway %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="flex gap-2"><button class="sa-btn-primary px-4 py-2 text-xs">{% sa_icon "filter" "h-3.5 w-3.5" %} Apply</button>
+    {% if filtered %}<a href="{{ base }}" class="sa-btn-ghost px-3 py-2 text-xs">Clear</a>{% endif %}</div>
+</form>
+
+<div class="sa-card mt-4 overflow-hidden">
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr><th>{% sa_sort "received" "Received" %}</th><th>{% sa_sort "type" "Event" %}</th><th>Gateway</th><th>{% sa_sort "status" "Status" %}</th><th>Payment</th><th>Error</th><th></th></tr></thead>
+      <tbody>
+        {% for e in events %}
+        <tr>
+          <td data-label="Received" class="whitespace-nowrap"><span class="block text-slate-200">{{ e.received_at|date:"d M Y, H:i" }}</span><span class="text-[11px] text-slate-500">{{ e.received_at|sa_ago }}</span></td>
+          <td data-label="Event"><span class="block font-medium text-slate-100">{{ e.event_type|default:"—" }}</span><span class="sa-mono text-[11px] text-slate-500">{{ e.event_id|truncatechars:28 }}</span></td>
+          <td data-label="Gateway">{{ e.get_gateway_display }}</td>
+          <td data-label="Status">{% sa_status "payment" e.status e.get_status_display %}</td>
+          <td data-label="Payment">{% if e.payment %}<a class="sa-link sa-mono" href="{% url 'superadmin:payment_edit' env_key e.payment.pk %}">{{ e.payment.payment_id }}</a><span class="block text-[11px] text-slate-500">{{ e.payment.organization.name }}</span>{% else %}<span class="sa-muted">—</span>{% endif %}</td>
+          <td data-label="Error" class="max-w-xs"><span class="block truncate {% if e.error_message %}sa-bad{% else %}sa-muted{% endif %}" title="{{ e.error_message }}">{{ e.error_message|default:"—" }}</span></td>
+          <td data-label="" class="text-right"><a href="{% url 'superadmin:webhook_detail' env_key e.pk %}" class="sa-btn-ghost px-2.5 py-1 text-xs">Inspect</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="sa-empty">{% sa_icon "webhook" %}<p class="font-semibold text-slate-200">No webhook events{% if filtered %} match{% endif %}</p><p>Events appear here when the payment gateway calls /billing/webhooks/.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "superadmin/_pager.html" with no_export=True %}
+</div>
+{% endblock %}

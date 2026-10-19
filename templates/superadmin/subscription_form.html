@@ -2,7 +2,7 @@
 {% block title %}Edit {{ subscription.organization.name }}'s subscription{% endblock %}
 
 {% block sa_content %}
-<a href="{% url 'superadmin:subscription_list' env_key %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ env_label }} subscriptions</a>
+<a href="{% url 'superadmin:subscription_list' env_key %}" class="sa-crumb">← {{ env_label }} subscriptions</a>
 <h1 class="mt-4 text-xl font-bold text-slate-100">{{ subscription.organization.name }}</h1>
 <p class="mt-1 text-[11px] text-slate-600">Subscription {{ subscription.subscription_id }} — direct correction in place. For a plan change/renewal that should keep history, use "Change plan" on the org's own page instead.</p>
 

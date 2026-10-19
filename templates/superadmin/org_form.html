@@ -3,11 +3,11 @@
 
 {% block sa_content %}
 {% if mode == "create" %}
-<a href="{% url 'superadmin:org_list' env_key %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ env_label }} organizations</a>
+<a href="{% url 'superadmin:org_list' env_key %}" class="sa-crumb">← {{ env_label }} organizations</a>
 <h1 class="mt-4 text-xl font-bold text-slate-100">New client — {{ env_label }}</h1>
 <p class="mt-1 text-sm text-slate-500">Creates the organization record, its isolated database schema, and the owner's login in one step.</p>
 {% else %}
-<a href="{% url 'superadmin:org_detail' env_key org.pk %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ org.name }}</a>
+<a href="{% url 'superadmin:org_detail' env_key org.pk %}" class="sa-crumb">← {{ org.name }}</a>
 <h1 class="mt-4 text-xl font-bold text-slate-100">Edit {{ org.name }}</h1>
 {% endif %}
 

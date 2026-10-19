@@ -1,0 +1,40 @@
+{% comment %}
+Footer for a paginated console list: count, page size, export links and
+page controls. Expects page, page_numbers, page_query, page_size,
+page_sizes, export_query (see apps.superadmin.listing.paginate). Pass
+no_export=True to hide the export links.
+{% endcomment %}
+{% load superadmin_tags %}
+<div class="sa-bt flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs text-slate-400">
+  <div class="flex flex-wrap items-center gap-3">
+    {% if page.paginator.count %}
+    <span>Showing <strong class="text-slate-200">{{ page.start_index }}–{{ page.end_index }}</strong> of <strong class="text-slate-200">{{ page.paginator.count }}</strong></span>
+    {% else %}<span>No results</span>{% endif %}
+    <form method="get" class="flex items-center gap-1.5">
+      {% for key, values in request.GET.lists %}{% if key != "per_page" and key != "page" %}{% for v in values %}<input type="hidden" name="{{ key }}" value="{{ v }}">{% endfor %}{% endif %}{% endfor %}
+      <label for="per-page" class="sa-muted">Per page</label>
+      <select id="per-page" name="per_page" class="sa-input !mt-0 !w-auto !py-1 !pl-2 !text-xs" onchange="this.form.submit()">
+        {% for n in page_sizes %}<option value="{{ n }}" {% if n == page_size %}selected{% endif %}>{{ n }}</option>{% endfor %}
+      </select>
+    </form>
+    {% if not no_export and page.paginator.count %}
+    <span class="flex items-center gap-1.5">
+      {% sa_icon "download" "h-3.5 w-3.5" %}
+      <a href="?{{ export_query }}{% if export_query %}&{% endif %}export=csv" class="sa-link">CSV</a>
+      <span class="sa-muted">·</span>
+      <a href="?{{ export_query }}{% if export_query %}&{% endif %}export=xlsx" class="sa-link">Excel</a>
+    </span>
+    {% endif %}
+  </div>
+  {% if page.paginator.num_pages > 1 %}
+  <nav class="flex items-center gap-1" aria-label="Pages">
+    {% if page.has_previous %}<a href="?{{ page_query }}{% if page_query %}&{% endif %}page={{ page.previous_page_number }}" class="sa-btn-ghost px-2.5 py-1">‹ Prev</a>{% endif %}
+    {% for n in page_numbers %}
+      {% if n == "…" %}<span class="px-1.5 sa-muted">…</span>
+      {% elif n == page.number %}<span class="sa-btn-primary px-2.5 py-1">{{ n }}</span>
+      {% else %}<a href="?{{ page_query }}{% if page_query %}&{% endif %}page={{ n }}" class="sa-btn-ghost px-2.5 py-1">{{ n }}</a>{% endif %}
+    {% endfor %}
+    {% if page.has_next %}<a href="?{{ page_query }}{% if page_query %}&{% endif %}page={{ page.next_page_number }}" class="sa-btn-ghost px-2.5 py-1">Next ›</a>{% endif %}
+  </nav>
+  {% endif %}
+</div>

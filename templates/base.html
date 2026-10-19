@@ -464,6 +464,16 @@
   }, 5000);
 </script>
 {% endif %}
+{% if request.session.impersonator_email %}
+{# A superadmin is signed in as this client user (superadmin "Log in as"). #}
+<div class="sticky top-0 z-[70] flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-500 px-4 py-2 text-center text-xs font-semibold text-black">
+  <span>Viewing as {{ request.user.email }} — signed in by {{ request.session.impersonator_email }}. Everything you do is logged.</span>
+  <form method="post" action="{% url 'superadmin:impersonate_stop' %}">
+    {% csrf_token %}
+    <button type="submit" class="rounded bg-black/85 px-2.5 py-1 text-[11px] font-bold text-amber-300 hover:bg-black">Return to superadmin</button>
+  </form>
+</div>
+{% endif %}
 {% block body %}{% endblock %}
 <script>
   (function () {

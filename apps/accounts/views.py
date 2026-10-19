@@ -1,14 +1,14 @@
 import logging
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.mail import EmailMultiAlternatives
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
-from django.template.loader import render_to_string
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import FormView, View
 
 from apps.billing import services as billing_services
@@ -19,6 +19,7 @@ from apps.organizations.services import (
     create_organization_with_tenant_schema_and_admin,
 )
 
+from .emails import send_password_reset_email, send_welcome_email
 from .forms import (
     CreateInsuranceAccountForm,
     ChangePasswordForm,
@@ -35,7 +36,7 @@ from .forms import (
 )
 from .manager_pages import PAGE_CHOICES
 from .manager_service import ManagerAccountError, validate_manager_account_creation
-from .models import PasswordResetOTP, User
+from .models import OTP_MAX_PER_HOUR, OTP_RESEND_COOLDOWN, PasswordResetOTP, User
 
 logger = logging.getLogger(__name__)
 
@@ -73,28 +74,26 @@ class ForgotPasswordView(FormView):
     def form_valid(self, form):
         email = form.cleaned_data["email"]
         user = User.objects.get(email=email)
+        now = timezone.now()
+        recent = PasswordResetOTP.objects.filter(user=user, created_at__gte=now - timedelta(hours=1))
+        last = recent.order_by("-created_at").first()
+        if last is not None and now - last.created_at < OTP_RESEND_COOLDOWN:
+            # A code went out moments ago — point them at it instead of sending another.
+            self.request.session[RESET_SESSION_KEY] = email
+            messages.info(self.request, f"We just sent a code to {email}. Please check your inbox (and spam folder).")
+            return super().form_valid(form)
+        if recent.count() >= OTP_MAX_PER_HOUR:
+            form.add_error(None, "Too many reset requests for this account. Please try again in an hour.")
+            return self.form_invalid(form)
+
+        # Only the newest code is ever valid.
+        PasswordResetOTP.objects.filter(user=user, is_used=False).update(is_used=True)
         otp = PasswordResetOTP.objects.create(user=user, code=PasswordResetOTP.generate_code())
         try:
-            text_body = (
-                f"Your {settings.SITE_NAME} password reset code is {otp.code}.\n\n"
-                "It expires in 10 minutes. If you didn't request this, you can ignore this email."
-            )
-            html_body = render_to_string("emails/otp_code.html", {
-                "site_name": settings.SITE_NAME,
-                "code": otp.code,
-                "heading": "Reset your password",
-                "intro": "Use this code to finish resetting your password.",
-            })
-            email_message = EmailMultiAlternatives(
-                subject=f"Your {settings.SITE_NAME} password reset code",
-                body=text_body,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[email],
-            )
-            email_message.attach_alternative(html_body, "text/html")
-            email_message.send()
+            send_password_reset_email(user, otp.code)
         except Exception:
             logger.exception("Failed to send password reset OTP email to %s", email)
+            otp.delete()
             form.add_error(None, "We couldn't send the reset code right now. Please try again in a few minutes.")
             return self.form_invalid(form)
         self.request.session[RESET_SESSION_KEY] = email
@@ -166,8 +165,15 @@ class SignupView(FormView):
         bootstrap_plan = Plan.objects.filter(name=plan_name, is_active=True).first() or (
             Plan.objects.filter(is_active=True, show_on_landing_page=True).order_by("monthly_price").first()
         )
+        subscription = None
         if bootstrap_plan is not None:
-            billing_services.start_trial(org, bootstrap_plan)
+            subscription = billing_services.start_trial(org, bootstrap_plan)
+
+        send_welcome_email(
+            org, admin, subscription,
+            dashboard_url=settings.SITE_URL,
+            manager_logins=data["manager_logins"],
+        )
 
         login(self.request, admin)
         messages.success(

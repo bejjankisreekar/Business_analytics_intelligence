@@ -1,76 +1,75 @@
 {% extends "superadmin/_base.html" %}
-{% block title %}{{ env_label }} invoices{% endblock %}
+{% load humanize superadmin_tags %}
+{% block title %}Invoices · {{ env_label }}{% endblock %}
 
 {% block sa_content %}
-<div class="flex flex-wrap items-center justify-between gap-3">
-  <h1 class="text-xl font-bold text-slate-100">{{ env_label }} invoices</h1>
-  <a href="{% url 'superadmin:invoice_new' env_key %}" class="sa-btn-primary rounded px-3 py-1.5 text-xs font-semibold">+ Generate invoice</a>
+{% url 'superadmin:invoice_list' env_key as base %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">Invoices</h1>
+    <p class="sa-subtitle">Everything billed to clients. Record a payment straight from a row, or open an invoice to edit, apply a coupon or download the PDF.</p>
+  </div>
+  <a href="{% url 'superadmin:invoice_new' env_key %}" class="sa-btn-solid px-3.5 py-2 text-xs">{% sa_icon "plus" "h-3.5 w-3.5" %} Generate invoice</a>
 </div>
 
-<form method="get" class="sa-card mt-6 flex flex-wrap items-end gap-3 p-4">
-  <div class="min-w-[220px] flex-1">
-    <label class="sa-field-label">Search</label>
-    <input class="sa-input" type="text" name="q" value="{{ q }}" placeholder="Invoice number, client">
+<div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+  <div class="sa-tabs">
+    <a href="{{ base }}" class="{% if not status and not open and not overdue %}is-active{% endif %}">All</a>
+    <a href="{{ base }}?open=1" class="{% if open %}is-active{% endif %}">Unpaid</a>
+    <a href="{{ base }}?overdue=1" class="{% if overdue %}is-active{% endif %}">Overdue</a>
+    <a href="{{ base }}?status=PAID" class="{% if status == 'PAID' %}is-active{% endif %}">Paid</a>
+    <a href="{{ base }}?status=DRAFT" class="{% if status == 'DRAFT' %}is-active{% endif %}">Drafts</a>
   </div>
-  <div>
-    <label class="sa-field-label">Status</label>
-    <select class="sa-input" name="status">
-      <option value="">All</option>
-      {% for value, display in status_choices %}
-      <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ display }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div>
-    <label class="sa-field-label">From</label>
-    <input class="sa-input" type="date" name="from" value="{{ date_from }}">
-  </div>
-  <div>
-    <label class="sa-field-label">To</label>
-    <input class="sa-input" type="date" name="to" value="{{ date_to }}">
-  </div>
-  <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Apply</button>
-  {% if q or status or date_from or date_to %}
-  <a href="{% url 'superadmin:invoice_list' env_key %}" class="sa-btn-ghost rounded px-4 py-2 text-xs font-semibold">Clear</a>
-  {% endif %}
+  <p class="text-xs text-slate-400">{{ summary.n|intcomma }} invoice{{ summary.n|pluralize }} · billed <strong class="text-slate-100">₹{{ summary.total|default:0|floatformat:0|intcomma }}</strong> · due <strong class="{% if summary.due %}sa-bad{% else %}text-slate-100{% endif %}">₹{{ summary.due|default:0|floatformat:0|intcomma }}</strong></p>
+</div>
+
+<form method="get" class="sa-card sa-toolbar mt-4">
+  <div class="min-w-[220px] flex-[2]"><label class="sa-field-label" for="f-q">Search</label>
+    <input id="f-q" class="sa-input" type="search" name="q" value="{{ q }}" placeholder="Invoice number or client"></div>
+  <div class="min-w-[140px] flex-1"><label class="sa-field-label" for="f-s">Status</label>
+    <select id="f-s" class="sa-input" name="status"><option value="">All</option>{% for value, display in status_choices %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ display }}</option>{% endfor %}</select></div>
+  <div><label class="sa-field-label" for="f-from">From</label><input id="f-from" class="sa-input" type="date" name="from" value="{{ date_from }}"></div>
+  <div><label class="sa-field-label" for="f-to">To</label><input id="f-to" class="sa-input" type="date" name="to" value="{{ date_to }}"></div>
+  {% if open %}<input type="hidden" name="open" value="1">{% endif %}{% if overdue %}<input type="hidden" name="overdue" value="1">{% endif %}
+  <div class="flex gap-2"><button class="sa-btn-primary px-4 py-2 text-xs">{% sa_icon "filter" "h-3.5 w-3.5" %} Apply</button>
+    {% if q or status or date_from or date_to or open or overdue %}<a href="{{ base }}" class="sa-btn-ghost px-3 py-2 text-xs">Clear</a>{% endif %}</div>
 </form>
 
-<div class="sa-card mt-6 overflow-x-auto">
-  <table class="sa-table w-full">
-    <thead>
-      <tr>
-        <th>Invoice #</th><th>Client</th><th>Invoice date</th><th>Due date</th>
-        <th>Total</th><th>Paid</th><th>Due</th><th>Status</th><th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for inv in invoices %}
-      <tr>
-        <td class="sa-mono">{{ inv.invoice_number }}</td>
-        <td><a href="{% url 'superadmin:org_detail' env_key inv.organization_id %}" class="text-amber-400 hover:text-amber-300">{{ inv.organization.name }}</a></td>
-        <td>{{ inv.invoice_date|date:"d M Y" }}</td>
-        <td>{{ inv.due_date|date:"d M Y" }}</td>
-        <td class="sa-mono">{{ inv.currency }} {{ inv.total }}</td>
-        <td class="sa-mono">{{ inv.currency }} {{ inv.amount_paid }}</td>
-        <td class="sa-mono">{{ inv.currency }} {{ inv.amount_due }}</td>
-        <td>
-          {% with s=inv.status %}
-          <span class="sa-badge {% if s == "PAID" %}sa-badge--active{% elif s == "PARTIALLY_PAID" or s == "ISSUED" %}sa-badge--warn{% elif s == "OVERDUE" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">{{ inv.get_status_display }}</span>
-          {% endwith %}
-        </td>
-        <td class="whitespace-nowrap text-right">
-          {% if inv.amount_due > 0 and inv.status != "CANCELLED" and inv.status != "DRAFT" %}<a href="{% url 'superadmin:invoice_detail' env_key inv.pk %}#record-payment" class="mr-3 text-xs font-semibold text-emerald-400 hover:text-emerald-300">Record payment</a>{% endif %}
-          <a href="{% url 'superadmin:invoice_detail' env_key inv.pk %}" class="mr-3 text-xs font-semibold text-amber-400 hover:text-amber-300">View →</a>
-          <form method="post" action="{% url 'superadmin:invoice_delete' env_key inv.pk %}" class="inline" data-confirm="Delete invoice {{ inv.invoice_number }}?">
-            {% csrf_token %}
-            <button type="submit" class="text-xs font-semibold text-red-400 hover:text-red-300">Delete</button>
-          </form>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="9" class="text-center text-slate-600">No invoices match these filters.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="sa-card mt-4 overflow-hidden">
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr>
+        <th>{% sa_sort "number" "Invoice" %}</th><th>{% sa_sort "client" "Client" %}</th><th>{% sa_sort "date" "Issued" %}</th><th>{% sa_sort "due" "Due" %}</th>
+        <th class="!text-right">{% sa_sort "total" "Total" "right" %}</th><th class="!text-right">{% sa_sort "amount_due" "Balance" "right" %}</th><th>{% sa_sort "status" "Status" %}</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr>
+          <td data-label="Invoice"><a href="{% url 'superadmin:invoice_detail' env_key inv.pk %}" class="sa-mono font-semibold text-slate-100 hover:underline">{{ inv.invoice_number }}</a></td>
+          <td data-label="Client"><a href="{% url 'superadmin:org_detail' env_key inv.organization_id %}" class="text-slate-200 hover:underline">{{ inv.organization.name }}</a></td>
+          <td data-label="Issued" class="whitespace-nowrap">{{ inv.invoice_date|date:"d M Y" }}</td>
+          <td data-label="Due" class="whitespace-nowrap {% if inv.amount_due > 0 and inv.due_date < today and inv.status != 'CANCELLED' and inv.status != 'DRAFT' %}sa-bad font-semibold{% endif %}">{{ inv.due_date|date:"d M Y" }}</td>
+          <td data-label="Total" class="num">₹{{ inv.total|floatformat:2|intcomma }}</td>
+          <td data-label="Balance" class="num">{% if inv.amount_due > 0 %}<span class="font-semibold text-slate-100">₹{{ inv.amount_due|floatformat:2|intcomma }}</span>{% else %}<span class="sa-ok">Paid</span>{% endif %}</td>
+          <td data-label="Status">{% sa_status "invoice" inv.status inv.get_status_display %}</td>
+          <td data-label="" class="whitespace-nowrap text-right">
+            <span class="inline-flex items-center gap-1.5">
+              {% if inv.amount_due > 0 and inv.status != "CANCELLED" and inv.status != "DRAFT" %}<a href="{% url 'superadmin:invoice_detail' env_key inv.pk %}#record-payment" class="sa-btn-mint px-2.5 py-1 text-xs">Record payment</a>{% endif %}
+              <a href="{% url 'superadmin:invoice_download' env_key inv.pk %}" class="sa-btn-icon" title="Download PDF" aria-label="Download PDF">{% sa_icon "download" %}</a>
+              <form method="post" action="{% url 'superadmin:invoice_delete' env_key inv.pk %}" class="inline" data-confirm="Delete invoice {{ inv.invoice_number }}? This cannot be undone.">
+                {% csrf_token %}
+                <button type="submit" class="sa-btn-icon hover:!text-red-400" title="Delete" aria-label="Delete invoice {{ inv.invoice_number }}">{% sa_icon "trash" %}</button>
+              </form>
+            </span>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8"><div class="sa-empty">{% sa_icon "document" %}<p class="font-semibold text-slate-200">No invoices match</p><p>Try clearing a filter, or <a class="sa-link" href="{% url 'superadmin:invoice_new' env_key %}">generate one</a>.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "superadmin/_pager.html" %}
 </div>
 {% endblock %}

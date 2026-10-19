@@ -5,6 +5,7 @@
 {% block app_content %}
 <style>
   #period-select + .bai-select-trigger { min-width: 12rem; }
+  #compare .bai-select-wrap, #compare .bai-select-trigger { width: 100%; }
   /* Phone-only polish: desktop layout is untouched. */
   @media (max-width: 639px) {
     .an-title { font-size: 1.75rem; line-height: 1.15; letter-spacing: -.01em; }
@@ -243,6 +244,132 @@
   </div>
   {% else %}
   <p class="mt-4 py-6 text-center text-sm text-slate-500">No purchases with a quantity recorded yet.</p>
+  {% endif %}
+</div>
+
+<!-- Compare up to 3 categories / sub-categories over a date range -->
+<div id="compare" class="mt-5 card scroll-mt-6 p-5">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Compare categories</h3>
+      <p class="text-xs text-slate-500">Pick up to 3 categories or sub-categories, from revenue, expenses or purchases, and compare them over any date range.</p>
+    </div>
+    <div class="an-seg flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
+      <button type="button" onclick="bai.setCompareType('line')" id="cmp-btn-line" class="granularity-btn granularity-btn--active">Line</button>
+      <button type="button" onclick="bai.setCompareType('bar')" id="cmp-btn-bar" class="granularity-btn">Bar</button>
+      <button type="button" onclick="bai.setCompareType('list')" id="cmp-btn-list" class="granularity-btn">List</button>
+    </div>
+  </div>
+
+  <form method="get" action="#compare" class="mt-4 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+    {% for key, value in request.GET.items %}{% if key != "cmp" and key != "cmp_from" and key != "cmp_to" and key != "cmp_by" %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+    {% for slot in comparison.slots %}
+    <div class="min-w-0">
+      <label class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        <span class="cmp-dot inline-block h-2 w-2 rounded-full" data-cmp-index="{{ forloop.counter0 }}"></span>Item {{ forloop.counter }}
+      </label>
+      <select name="cmp" data-searchable class="!mt-1" aria-label="Item {{ forloop.counter }}">
+        <option value="">— None —</option>
+        {% for group in comparison_options %}
+        <optgroup label="{{ group.label }}">
+          {% for opt in group.options %}
+          <option value="{{ opt.value }}" {% if opt.value == slot %}selected{% endif %}>{{ group.label }} · {{ opt.label }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+    {% endfor %}
+    </div>
+    <div class="mt-3 flex flex-wrap items-end justify-end gap-3">
+    <div>
+      <label for="cmp-by" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">View by</label>
+      <select id="cmp-by" name="cmp_by" class="!mt-1 !w-auto">
+        <option value="auto" {% if comparison.view_by == "auto" %}selected{% endif %}>Auto</option>
+        <option value="daily" {% if comparison.view_by == "daily" %}selected{% endif %}>Daily</option>
+        <option value="weekly" {% if comparison.view_by == "weekly" %}selected{% endif %}>Weekly</option>
+        <option value="monthly" {% if comparison.view_by == "monthly" %}selected{% endif %}>Monthly</option>
+      </select>
+    </div>
+    <div>
+      <label for="cmp-from" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
+      <input id="cmp-from" type="date" name="cmp_from" value="{{ comparison.start|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+    </div>
+    <div>
+      <label for="cmp-to" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">To</label>
+      <input id="cmp-to" type="date" name="cmp_to" value="{{ comparison.end|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+    </div>
+    <button type="submit" class="btn-primary">Compare</button>
+    </div>
+  </form>
+
+  {% if comparison.items %}
+  <p class="mt-4 text-xs text-slate-500">
+    {{ comparison.start|date:"d M Y" }} – {{ comparison.end|date:"d M Y" }} · {{ comparison.granularity }} totals ·
+    change is vs {{ comparison.prev_start|date:"d M" }} – {{ comparison.prev_end|date:"d M Y" }}
+  </p>
+  <div class="mt-3 grid grid-cols-1 gap-4 {% if comparison.items|length == 3 %}md:grid-cols-3{% elif comparison.items|length == 2 %}md:grid-cols-2{% endif %}">
+    {% for item in comparison.items %}
+    <div class="cmp-card min-w-0 rounded-xl border border-white/5 bg-white/[0.02] p-4" data-cmp-index="{{ forloop.counter0 }}" style="border-top-width: 3px">
+      <div class="flex items-start justify-between gap-2">
+        <p class="min-w-0 text-sm font-semibold leading-snug text-white">{{ item.label }}</p>
+        <span class="flex-none rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400">{{ item.kind }}</span>
+      </div>
+      <p class="mt-2 truncate text-xl font-bold text-white">{{ organization.currency }} {{ item.total|floatformat:0|intcomma }}</p>
+      {% if item.change_pct is not None %}
+      <p class="mt-0.5 text-xs {% if item.change_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if item.change_pct >= 0 %}▲{% else %}▼{% endif %} {{ item.change_pct|floatformat:1 }}% vs previous {{ organization.currency }} {{ item.previous|floatformat:0|intcomma }}</p>
+      {% else %}
+      <p class="mt-0.5 text-xs text-slate-500">Nothing recorded in the previous range</p>
+      {% endif %}
+      <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/5">
+        <div class="cmp-bar h-full rounded-full" data-cmp-index="{{ forloop.counter0 }}" style="width: {{ item.share_pct|floatformat:1 }}%"></div>
+      </div>
+      <dl class="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+        <div><dt class="text-slate-500">Share of compared</dt><dd class="font-semibold text-slate-200">{{ item.share_pct|floatformat:1 }}%</dd></div>
+        <div><dt class="text-slate-500">Daily average</dt><dd class="font-semibold text-slate-200">{{ organization.currency }} {{ item.daily_avg|floatformat:0|intcomma }}</dd></div>
+        <div><dt class="text-slate-500">Entries</dt><dd class="font-semibold text-slate-200">{{ item.count|intcomma }}</dd></div>
+        {% if item.quantity %}<div><dt class="text-slate-500">Quantity</dt><dd class="font-semibold text-slate-200">{{ item.quantity|intcomma }} {{ quantity_word }}</dd></div>{% endif %}
+      </dl>
+    </div>
+    {% endfor %}
+  </div>
+  <div id="cmp-chart" class="mt-5 h-80 chart-box"><canvas id="chartCompare"></canvas></div>
+  <div id="cmp-list" class="mt-5 hidden overflow-auto">
+    <table class="w-full text-left text-sm">
+      <thead class="sticky top-0 bg-ink-900">
+        <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+          <th class="pb-2 pr-4 font-medium">{% if comparison.granularity == "daily" %}Day{% elif comparison.granularity == "weekly" %}Week{% else %}Month{% endif %}</th>
+          {% for item in comparison.items %}
+          <th class="pb-2 pr-4 text-right font-medium"><span class="cmp-dot mr-1.5 inline-block h-2 w-2 rounded-full" data-cmp-index="{{ forloop.counter0 }}"></span>{{ item.label }}</th>
+          {% endfor %}
+          {% if comparison.items|length > 1 %}<th class="pb-2 text-right font-medium">Total</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for row in comparison.rows %}
+        <tr>
+          <td class="py-2 pr-4 text-slate-400">{{ row.label }}</td>
+          {% for value in row.values %}
+          <td class="py-2 pr-4 text-right text-slate-200">{{ value|floatformat:0|intcomma }}</td>
+          {% endfor %}
+          {% if comparison.items|length > 1 %}<td class="py-2 text-right font-semibold text-white">{{ row.total|floatformat:0|intcomma }}</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="sticky bottom-0 bg-ink-900">
+        <tr class="border-t border-white/10">
+          <td class="py-2 pr-4 font-semibold text-white">Total ({{ organization.currency }})</td>
+          {% for item in comparison.items %}
+          <td class="py-2 pr-4 text-right font-semibold text-white">{{ item.total|floatformat:0|intcomma }}</td>
+          {% endfor %}
+          {% if comparison.items|length > 1 %}<td class="py-2 text-right font-semibold text-white">{{ comparison.grand_total|floatformat:0|intcomma }}</td>{% endif %}
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+  <p class="mt-4 py-6 text-center text-sm text-slate-500">Pick at least one category or sub-category above and press Compare.</p>
   {% endif %}
 </div>
 
@@ -488,6 +615,80 @@
     });
   };
 
+  const compareData = {{ chart_comparison|safe }};
+  // compareType is the view picked (line/bar/list); chartType is the chart
+  // drawn under it, which stays the last line/bar choice while List is open.
+  const COMPARE_VIEWS = ["line", "bar", "list"];
+  let compareType = "line";
+  let chartType = "line";
+  let compareChart;
+  try { const v = localStorage.getItem("bai.compareType"); if (COMPARE_VIEWS.includes(v)) compareType = v; } catch (e) { /* default to line */ }
+  try { const v = localStorage.getItem("bai.compareChartType"); if (v === "line" || v === "bar") chartType = v; } catch (e) { /* default to line */ }
+  if (compareType !== "list") chartType = compareType;
+
+  function showCompareView() {
+    COMPARE_VIEWS.forEach((t) => document.getElementById("cmp-btn-" + t).classList.toggle("granularity-btn--active", t === compareType));
+    const chartBox = document.getElementById("cmp-chart");
+    if (!chartBox) return;
+    chartBox.classList.toggle("hidden", compareType === "list");
+    document.getElementById("cmp-list").classList.toggle("hidden", compareType !== "list");
+    if (compareType === "list") fitCompareList();
+  }
+
+  // Show up to COMPARE_LIST_ROWS rows (plus the header and total row);
+  // anything longer scrolls with the header and totals pinned.
+  const COMPARE_LIST_ROWS = 20;
+  function fitCompareList() {
+    const box = document.getElementById("cmp-list");
+    const rows = box.querySelectorAll("tbody tr");
+    box.style.maxHeight = "";
+    if (rows.length <= COMPARE_LIST_ROWS) return;
+    const top = box.querySelector("table").getBoundingClientRect().top;
+    const lastShown = rows[COMPARE_LIST_ROWS - 1].getBoundingClientRect().bottom;
+    box.style.maxHeight = Math.ceil(lastShown - top + box.querySelector("tfoot").offsetHeight) + "px";
+  }
+  window.addEventListener("resize", () => { if (compareType === "list" && document.getElementById("cmp-list")) fitCompareList(); });
+
+  function buildCompareChart(c) {
+    return new Chart(document.getElementById("chartCompare"), buildCompareConfig(c));
+  }
+
+  function buildCompareConfig(c) {
+    const line = chartType === "line";
+    return {
+      type: chartType,
+      data: {
+        labels: compareData.labels,
+        datasets: compareData.items.map((item, i) => {
+          const color = c.donut[i % c.donut.length];
+          return { label: item.label, data: item.series, borderColor: color, backgroundColor: line ? color + "26" : color,
+            borderWidth: line ? 2.5 : 0, borderRadius: 4, tension: .35, fill: line && compareData.items.length === 1,
+            pointRadius: compareData.labels.length > 31 ? 0 : 3, pointHoverRadius: 5 };
+        }),
+      },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.parsed.y).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` } } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: c.grid } } } },
+    };
+  }
+
+  bai.setCompareType = function (type) {
+    compareType = type;
+    try { localStorage.setItem("bai.compareType", type); } catch (e) { /* not persisted */ }
+    showCompareView();
+    if (type === "list") return;
+    chartType = type;
+    try { localStorage.setItem("bai.compareChartType", type); } catch (e) { /* not persisted */ }
+    if (!compareChart) return;
+    // Swap the type in place: the theme handler owns destroying/rebuilding charts.
+    const fresh = buildCompareConfig(baiChartTheme.colors());
+    compareChart.config.type = fresh.type;
+    compareChart.data.datasets = fresh.data.datasets;
+    compareChart.update();
+  };
+  showCompareView();
+
   baiChartTheme.onThemeChange((c) => {
     const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } },
       transitions: { active: { animation: { duration: 250, easing: "easeOutQuart" } } } };
@@ -589,6 +790,17 @@
       });
     });
     charts.push(...Object.values(bai.qtyCharts).map((e) => e.chart));
+
+    // Compare categories: tint the cards/dots with each item's series colour.
+    document.querySelectorAll("[data-cmp-index]").forEach((el) => {
+      const color = c.donut[Number(el.dataset.cmpIndex) % c.donut.length];
+      if (el.classList.contains("cmp-card")) el.style.borderTopColor = color;
+      else el.style.backgroundColor = color;
+    });
+    {% if comparison.items %}
+    compareChart = buildCompareChart(c);
+    charts.push(compareChart);
+    {% endif %}
 
     return charts;
   });

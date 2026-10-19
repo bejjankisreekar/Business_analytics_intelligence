@@ -1,0 +1,75 @@
+{% extends "superadmin/_base.html" %}
+{% load humanize superadmin_tags %}
+{% block title %}Search · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">{% if search_q %}Results for “{{ search_q }}”{% else %}Search{% endif %}</h1>
+    <p class="sa-subtitle">{% if search_q|length >= 2 %}{{ result_count }} match{{ result_count|pluralize:"es" }} across clients, people, invoices, payments, subscriptions and coupons.{% else %}Type at least two characters in the search box above (or press Ctrl K).{% endif %}</p>
+  </div>
+</div>
+
+{% if search_q|length >= 2 and not groups %}
+<div class="sa-card mt-6"><div class="sa-empty">{% sa_icon "search" %}<p class="font-semibold text-slate-200">Nothing found in {{ env_label|lower }}</p><p>Check the spelling, or try the other environment from the sidebar.</p></div></div>
+{% endif %}
+
+<div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
+  {% for g in groups %}
+  <section class="sa-card overflow-hidden">
+    <div class="sa-card-head"><h2 class="sa-section-title">{{ g.label }} <span class="sa-muted font-normal">· {{ g.items|length }}{% if g.more %}+{% endif %}</span></h2>
+      {% if g.more %}
+        {% if g.key == "clients" %}<a class="sa-link text-xs" href="{% url 'superadmin:org_list' env_key %}?q={{ search_q|urlencode }}">See all →</a>
+        {% elif g.key == "invoices" %}<a class="sa-link text-xs" href="{% url 'superadmin:invoice_list' env_key %}?q={{ search_q|urlencode }}">See all →</a>
+        {% elif g.key == "payments" %}<a class="sa-link text-xs" href="{% url 'superadmin:payment_list' env_key %}?q={{ search_q|urlencode }}">See all →</a>
+        {% elif g.key == "subscriptions" %}<a class="sa-link text-xs" href="{% url 'superadmin:subscription_list' env_key %}?q={{ search_q|urlencode }}">See all →</a>{% endif %}
+      {% endif %}
+    </div>
+    <ul>
+      {% for it in g.items %}
+      <li>
+        {% if g.key == "clients" %}
+        <a href="{% url 'superadmin:org_detail' env_key it.pk %}" class="sa-alert">
+          <span class="sa-avatar sa-avatar--sm">{{ it.name|sa_initials }}</span>
+          <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold text-slate-100">{{ it.name }}</span><span class="block truncate text-[11px] text-slate-500"><span class="sa-mono">{{ it.organization_code }}</span> · {{ it.contact_email|default:it.contact_person }}</span></span>
+          {% if it.is_service_active %}<span class="sa-badge sa-badge--active">Active</span>{% else %}<span class="sa-badge sa-badge--inactive">Suspended</span>{% endif %}
+        </a>
+        {% elif g.key == "users" %}
+        <a href="{% if it.organization_id %}{% url 'superadmin:org_detail' env_key it.organization_id %}#team{% else %}{% url 'superadmin:admin_list' env_key %}{% endif %}" class="sa-alert">
+          <span class="sa-avatar sa-avatar--sm">{{ it.email|sa_initials }}</span>
+          <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold text-slate-100">{{ it.get_full_name }}</span><span class="block truncate text-[11px] text-slate-500">{{ it.email }} · {{ it.get_role_display }}{% if it.organization %} at {{ it.organization.name }}{% endif %}</span></span>
+          <span class="text-[11px] text-slate-500">{% if it.last_login %}Seen {{ it.last_login|sa_ago }}{% else %}Never signed in{% endif %}</span>
+        </a>
+        {% elif g.key == "invoices" %}
+        <a href="{% url 'superadmin:invoice_detail' env_key it.pk %}" class="sa-alert">
+          <span class="sa-alert-icon" style="background: var(--sa-info-soft); color: var(--sa-info)">{% sa_icon "document" %}</span>
+          <span class="min-w-0 flex-1"><span class="block text-sm font-semibold text-slate-100 sa-mono">{{ it.invoice_number }}</span><span class="block truncate text-[11px] text-slate-500">{{ it.organization.name }} · {{ it.invoice_date|date:"d M Y" }}</span></span>
+          <span class="text-right"><span class="block text-sm font-semibold text-slate-100">₹{{ it.total|floatformat:2|intcomma }}</span>{% sa_status "invoice" it.status it.get_status_display %}</span>
+        </a>
+        {% elif g.key == "payments" %}
+        <a href="{% url 'superadmin:payment_edit' env_key it.pk %}" class="sa-alert">
+          <span class="sa-alert-icon" style="background: var(--sa-ok-soft); color: var(--sa-ok)">{% sa_icon "card" %}</span>
+          <span class="min-w-0 flex-1"><span class="block text-sm font-semibold text-slate-100 sa-mono">{{ it.payment_id }}</span><span class="block truncate text-[11px] text-slate-500">{{ it.organization.name }} · {{ it.payment_date|date:"d M Y" }}{% if it.transaction_id %} · {{ it.transaction_id }}{% endif %}</span></span>
+          <span class="text-right"><span class="block text-sm font-semibold text-slate-100">₹{{ it.amount|floatformat:2|intcomma }}</span>{% sa_status "payment" it.status it.get_status_display %}</span>
+        </a>
+        {% elif g.key == "subscriptions" %}
+        <a href="{% url 'superadmin:subscription_edit' env_key it.pk %}" class="sa-alert">
+          <span class="sa-alert-icon" style="background: var(--sa-violet-soft); color: var(--sa-violet)">{% sa_icon "refresh" %}</span>
+          <span class="min-w-0 flex-1"><span class="block text-sm font-semibold text-slate-100 sa-mono">{{ it.subscription_id }}</span><span class="block truncate text-[11px] text-slate-500">{{ it.organization.name }} · {{ it.plan.name }}</span></span>
+          {% sa_status "sub" it.status it.get_status_display %}
+        </a>
+        {% elif g.key == "coupons" %}
+        <a href="{% url 'superadmin:coupon_detail' env_key it.pk %}" class="sa-alert">
+          <span class="sa-alert-icon" style="background: var(--sa-warn-soft); color: var(--sa-warn)">{% sa_icon "ticket" %}</span>
+          <span class="min-w-0 flex-1"><span class="block text-sm font-semibold text-slate-100 sa-mono">{{ it.code }}</span><span class="block truncate text-[11px] text-slate-500">{{ it.description|default:"—" }}</span></span>
+          {% if it.is_active %}<span class="sa-badge sa-badge--active">Active</span>{% else %}<span class="sa-badge sa-badge--neutral">Inactive</span>{% endif %}
+        </a>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

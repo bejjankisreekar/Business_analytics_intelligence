@@ -2,7 +2,7 @@
 {% block title %}Edit {{ payment.payment_id }} · Superadmin{% endblock %}
 
 {% block sa_content %}
-<a href="{{ next|default:'' }}{% if not next %}{% url 'superadmin:payment_list' env_key %}{% endif %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back</a>
+<a href="{{ next|default:'' }}{% if not next %}{% url 'superadmin:payment_list' env_key %}{% endif %}" class="sa-crumb">← Back</a>
 
 <div class="mt-4 flex flex-wrap items-start justify-between gap-3">
   <div>

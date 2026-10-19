@@ -1,70 +1,71 @@
 {% extends "superadmin/_base.html" %}
-{% block title %}{{ env_label }} subscriptions{% endblock %}
+{% load humanize superadmin_tags %}
+{% block title %}Subscriptions · {{ env_label }}{% endblock %}
 
 {% block sa_content %}
-<h1 class="text-xl font-bold text-slate-100">{{ env_label }} subscriptions</h1>
-<p class="mt-1 text-[11px] text-slate-600">Every org's current subscription — plan, price, discount, and autopay. Edit a row to correct its price or set the autopay amount Razorpay actually bills.</p>
+{% url 'superadmin:subscription_list' env_key as base %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">Subscriptions</h1>
+    <p class="sa-subtitle">Every client's current subscription — plan, price, discount and autopay. Edit a row to correct its price or set the autopay amount Razorpay actually bills.</p>
+  </div>
+  <div class="sa-tabs">
+    <a href="{{ base }}" class="{% if not status and not paying and not trial_ending %}is-active{% endif %}">All</a>
+    <a href="{{ base }}?paying=1" class="{% if paying %}is-active{% endif %}">Paying</a>
+    <a href="{{ base }}?status=TRIAL" class="{% if status == 'TRIAL' and not trial_ending %}is-active{% endif %}">Trials</a>
+    <a href="{{ base }}?status=TRIAL&trial_ending=1" class="{% if trial_ending %}is-active{% endif %}">Ending ≤7d</a>
+    <a href="{{ base }}?status=PAST_DUE" class="{% if status == 'PAST_DUE' %}is-active{% endif %}">Past due</a>
+  </div>
+</div>
 
-<form method="get" class="sa-card mt-6 flex flex-wrap items-end gap-3 p-4">
-  <div class="min-w-[220px] flex-1">
-    <label class="sa-field-label">Search</label>
-    <input class="sa-input" type="text" name="q" value="{{ q }}" placeholder="Org name, org code, subscription ID">
-  </div>
-  <div>
-    <label class="sa-field-label">Status</label>
-    <select class="sa-input" name="status">
-      <option value="">All</option>
-      {% for value, display in status_choices %}
-      <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ display }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div>
-    <label class="sa-field-label">Autopay</label>
-    <select class="sa-input" name="autopay">
-      <option value="">All</option>
-      <option value="on" {% if autopay == "on" %}selected{% endif %}>On</option>
-      <option value="off" {% if autopay == "off" %}selected{% endif %}>Off</option>
-    </select>
-  </div>
-  <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Apply</button>
-  {% if q or status or autopay %}
-  <a href="{% url 'superadmin:subscription_list' env_key %}" class="sa-btn-ghost rounded px-4 py-2 text-xs font-semibold">Clear</a>
-  {% endif %}
+<form method="get" class="sa-card sa-toolbar mt-6">
+  <div class="min-w-[220px] flex-[2]"><label class="sa-field-label" for="f-q">Search</label>
+    <input id="f-q" class="sa-input" type="search" name="q" value="{{ q }}" placeholder="Client name, code, subscription ID"></div>
+  <div class="min-w-[140px] flex-1"><label class="sa-field-label" for="f-s">Status</label>
+    <select id="f-s" class="sa-input" name="status"><option value="">All</option>{% for value, display in status_choices %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ display }}</option>{% endfor %}</select></div>
+  <div class="min-w-[140px] flex-1"><label class="sa-field-label" for="f-p">Plan</label>
+    <select id="f-p" class="sa-input" name="plan"><option value="">All</option>{% for p in plan_choices %}<option value="{{ p.pk }}" {% if plan == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select></div>
+  <div class="min-w-[120px] flex-1"><label class="sa-field-label" for="f-a">Autopay</label>
+    <select id="f-a" class="sa-input" name="autopay"><option value="">All</option><option value="on" {% if autopay == "on" %}selected{% endif %}>On</option><option value="off" {% if autopay == "off" %}selected{% endif %}>Off</option></select></div>
+  {% if paying %}<input type="hidden" name="paying" value="1">{% endif %}
+  {% if trial_ending %}<input type="hidden" name="trial_ending" value="1">{% endif %}
+  {% if cancelled_from %}<input type="hidden" name="cancelled_from" value="{{ cancelled_from }}">{% endif %}
+  <div class="flex gap-2"><button class="sa-btn-primary px-4 py-2 text-xs">{% sa_icon "filter" "h-3.5 w-3.5" %} Apply</button>
+    {% if q or status or autopay or plan or paying or trial_ending or cancelled_from %}<a href="{{ base }}" class="sa-btn-ghost px-3 py-2 text-xs">Clear</a>{% endif %}</div>
 </form>
 
-<div class="sa-card mt-6 overflow-x-auto">
-  <table class="sa-table w-full">
-    <thead>
-      <tr>
-        <th>Organization</th><th>Plan</th><th>Cycle</th><th>Status</th>
-        <th>Price</th><th>Discount</th><th>Final amount</th><th>Autopay</th><th>Autopay amount</th><th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for sub in subscriptions %}
-      <tr>
-        <td><a href="{% url 'superadmin:org_detail' env_key sub.organization_id %}" class="text-amber-400 hover:text-amber-300">{{ sub.organization.name }}</a></td>
-        <td>{{ sub.plan.name }}</td>
-        <td>{{ sub.get_billing_cycle_display }}</td>
-        <td>
-          {% with s=sub.status %}
-          <span class="sa-badge {% if s == "ACTIVE" %}sa-badge--active{% elif s == "TRIAL" %}sa-badge--warn{% elif s == "PAYMENT_DUE" or s == "PAST_DUE" or s == "SUSPENDED" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">{{ sub.get_status_display }}</span>
-          {% endwith %}
-        </td>
-        <td class="sa-mono">₹{{ sub.price }}</td>
-        <td class="sa-mono">₹{{ sub.discount }}</td>
-        <td class="sa-mono font-semibold text-slate-100">₹{{ sub.final_amount }}</td>
-        <td>
-          {% if sub.autopay_enabled %}<span class="sa-badge sa-badge--active">On</span>{% else %}<span class="sa-badge sa-badge--neutral">Off</span>{% endif %}
-        </td>
-        <td class="sa-mono">{% if sub.autopay_amount is not None %}₹{{ sub.autopay_amount }}{% else %}—{% endif %}</td>
-        <td><a href="{% url 'superadmin:subscription_edit' env_key sub.pk %}" class="text-xs font-semibold text-brand-400 hover:text-brand-300">Edit</a></td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="10" class="text-center text-slate-600">No subscriptions match these filters.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="sa-card mt-4 overflow-hidden">
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr>
+        <th>{% sa_sort "client" "Client" %}</th><th>{% sa_sort "plan" "Plan" %}</th><th>{% sa_sort "status" "Status" %}</th>
+        <th class="!text-right">Price</th><th class="!text-right">Discount</th><th class="!text-right">{% sa_sort "amount" "Final" "right" %}</th>
+        <th>{% sa_sort "renewal" "Renews" %}</th><th>{% sa_sort "trial_end" "Trial ends" %}</th><th>Autopay</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for sub in subscriptions %}
+        <tr>
+          <td data-label="Client"><a href="{% url 'superadmin:org_detail' env_key sub.organization_id %}" class="font-semibold text-slate-100 hover:underline">{{ sub.organization.name }}</a><span class="block sa-mono text-[11px] text-slate-500">{{ sub.subscription_id }}</span></td>
+          <td data-label="Plan"><span class="text-slate-200">{{ sub.plan.name }}</span>{% if sub.is_complimentary %} <span class="sa-chip sa-chip--violet !py-0 !text-[10px]">Comp</span>{% endif %}<span class="block text-[11px] text-slate-500">{{ sub.get_billing_cycle_display }}</span></td>
+          <td data-label="Status">{% sa_status "sub" sub.status sub.get_status_display %}<span class="mt-1 block">{% sa_status "payment" sub.payment_status sub.get_payment_status_display %}</span></td>
+          <td data-label="Price" class="num">₹{{ sub.price|floatformat:2|intcomma }}</td>
+          <td data-label="Discount" class="num">{% if sub.discount %}−₹{{ sub.discount|floatformat:2|intcomma }}{% else %}<span class="sa-muted">—</span>{% endif %}</td>
+          <td data-label="Final" class="num font-semibold text-slate-100">₹{{ sub.final_amount|floatformat:2|intcomma }}</td>
+          <td data-label="Renews" class="whitespace-nowrap">{{ sub.end_date|date:"d M Y"|default:"—" }}</td>
+          <td data-label="Trial ends" class="whitespace-nowrap">{% if sub.trial_end_date %}{{ sub.trial_end_date|date:"d M Y" }}{% else %}<span class="sa-muted">—</span>{% endif %}</td>
+          <td data-label="Autopay">{% if sub.autopay_enabled %}<span class="sa-badge sa-badge--active">On{% if sub.autopay_amount is not None %} · ₹{{ sub.autopay_amount|floatformat:0|intcomma }}{% endif %}</span>{% else %}<span class="sa-badge sa-badge--neutral">Off</span>{% endif %}</td>
+          <td data-label="" class="text-right"><a href="{% url 'superadmin:subscription_edit' env_key sub.pk %}" class="sa-btn-ghost px-2.5 py-1 text-xs">Edit</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10"><div class="sa-empty">{% sa_icon "refresh" %}<p class="font-semibold text-slate-200">No subscriptions match</p><p>Try clearing a filter.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+      {% if summary.n %}
+      <tfoot><tr><td colspan="5" class="!border-t sa-muted text-xs">{{ summary.n }} subscription{{ summary.n|pluralize }}</td><td class="num font-bold text-slate-100">₹{{ summary.total|floatformat:2|intcomma }}</td><td colspan="4"></td></tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+  {% include "superadmin/_pager.html" %}
 </div>
 {% endblock %}

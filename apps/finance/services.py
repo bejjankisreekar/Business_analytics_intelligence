@@ -11,6 +11,7 @@ import datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
+from django.core.exceptions import ValidationError
 from django.db.models import Count, F, Q, Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
@@ -993,6 +994,124 @@ def categories_with_subcategories() -> list[Category]:
         Category.objects.filter(kind=Category.Kind.SALES, subcategories__is_active=True)
         .distinct().order_by("name")
     )
+
+
+COMPARE_MAX_ITEMS = 3
+_COMPARE_KINDS = [
+    (Category.Kind.SALES, "Revenue", SalesEntry, "channel"),
+    (Category.Kind.EXPENSE, "Expenses", ExpenseEntry, "category"),
+    (Category.Kind.PURCHASE, "Purchases", PurchaseEntry, "category"),
+]
+
+
+def comparison_options() -> list[dict]:
+    """The Analytics comparison picker: one group per kind (revenue,
+    expenses, purchases), each Category followed by its sub-categories.
+    Values are "c:<id>" for a category and "s:<id>" for a sub-category."""
+    subs_by_category: dict = {}
+    for sub in Subcategory.objects.filter(is_active=True).order_by("name"):
+        subs_by_category.setdefault(sub.category_id, []).append(sub)
+
+    groups = []
+    for kind, label, _, _ in _COMPARE_KINDS:
+        options = []
+        for cat in Category.objects.filter(kind=kind, is_active=True).order_by("name"):
+            options.append({"value": f"c:{cat.id}", "label": cat.name})
+            subs = subs_by_category.get(cat.id, [])
+            names = {s.id: s.name for s in subs}
+            for sub in sorted(subs, key=lambda s: (names.get(s.parent_id, s.name), s.parent_id is not None, s.name)):
+                path = f"{names[sub.parent_id]} → {sub.name}" if sub.parent_id in names else sub.name
+                options.append({"value": f"s:{sub.id}", "label": f"{cat.name} → {path}"})
+        if options:
+            groups.append({"label": label, "options": options})
+    return groups
+
+
+def _resolve_comparison_key(key: str):
+    """(label, kind label, model, filter kwargs) for one picker value, or
+    None when it doesn't match an existing category/sub-category."""
+    prefix, _, pk = (key or "").partition(":")
+    kinds = {k: (label, model, field) for k, label, model, field in _COMPARE_KINDS}
+    try:
+        if prefix == "c":
+            cat = Category.objects.filter(pk=pk).first()
+            if cat is None or cat.kind not in kinds:
+                return None
+            kind_label, model, field = kinds[cat.kind]
+            return cat.name, kind_label, model, {field: cat}
+        if prefix == "s":
+            sub = Subcategory.objects.filter(pk=pk).first()
+            if sub is None or sub.category.kind not in kinds:
+                return None
+            kind_label, model, _ = kinds[sub.category.kind]
+            # A parent sub-category rolls up its children, like the quantity charts do.
+            subs = [sub, *Subcategory.objects.filter(parent=sub)]
+            name = f"{sub.parent.name} → {sub.name}" if sub.parent_id else sub.name
+            return f"{sub.category.name} → {name}", kind_label, model, {"subcategory__in": subs}
+    except (ValueError, ValidationError):
+        return None
+    return None
+
+
+COMPARE_GRANULARITIES = ("daily", "weekly", "monthly")
+
+
+def compare_categories(keys: list[str], start: datetime.date, end: datetime.date, granularity: str | None = None) -> dict:
+    """Side-by-side totals and a bucketed trend for up to COMPARE_MAX_ITEMS
+    categories / sub-categories over one date range, each also measured
+    against the equally long range just before it. `granularity` picks the
+    trend's buckets; left out (or unknown) it follows the range's length."""
+    span = (end - start).days + 1
+    if granularity not in COMPARE_GRANULARITIES:
+        granularity = "daily" if span <= 45 else "weekly" if span <= 190 else "monthly"
+    buckets = []
+    bucket = _matrix_bucket_key(start, granularity)
+    while bucket <= end:
+        buckets.append(bucket)
+        bucket = _matrix_next_bucket(bucket, granularity)
+    prev_end = start - datetime.timedelta(days=1)
+    prev_start = prev_end - datetime.timedelta(days=span - 1)
+
+    items = []
+    for key in keys:
+        resolved = _resolve_comparison_key(key)
+        if resolved is None or any(i["key"] == key for i in items):
+            continue
+        label, kind_label, model, lookup = resolved
+        current = model.objects.filter(date__gte=start, date__lte=end, **lookup)
+        by_bucket = {b: ZERO for b in buckets}
+        for row in current.values("date").annotate(total=Sum("amount")):
+            by_bucket[_matrix_bucket_key(row["date"], granularity)] += row["total"] or ZERO
+        total = sum(by_bucket.values(), ZERO)
+        previous = _sum(model.objects.filter(date__gte=prev_start, date__lte=prev_end, **lookup))
+        quantity = None
+        if model is not ExpenseEntry:
+            quantity = current.aggregate(q=Sum("quantity"))["q"]
+        items.append({
+            "key": key,
+            "label": label,
+            "kind": kind_label,
+            "total": total,
+            "previous": previous,
+            "change_pct": _pct_change(previous, total),
+            "count": current.count(),
+            "quantity": quantity,
+            "daily_avg": total / span,
+            "series": [by_bucket[b] for b in buckets],
+        })
+        if len(items) == COMPARE_MAX_ITEMS:
+            break
+
+    grand = sum((i["total"] for i in items), ZERO)
+    for i in items:
+        i["share_pct"] = float(i["total"] / grand * 100) if grand else 0.0
+    return {
+        "items": items,
+        "granularity": granularity,
+        "labels": [_matrix_bucket_label(b, granularity) for b in buckets],
+        "prev_start": prev_start,
+        "prev_end": prev_end,
+    }
 
 
 def _subcategory_index(category_id) -> dict:

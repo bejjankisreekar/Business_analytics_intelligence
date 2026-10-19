@@ -99,6 +99,13 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 OTP_VALIDITY = timedelta(minutes=10)
+# Wrong guesses allowed against one code before it's burned — keeps a
+# 6-digit code (1M combinations) from being brute-forced in its lifetime.
+OTP_MAX_ATTEMPTS = 5
+# Throttle on issuing codes, per user: a cooldown between sends and a
+# rolling hourly cap, so the reset form can't be used to flood an inbox.
+OTP_RESEND_COOLDOWN = timedelta(seconds=60)
+OTP_MAX_PER_HOUR = 5
 
 
 class PasswordResetOTP(models.Model):
@@ -106,6 +113,7 @@ class PasswordResetOTP(models.Model):
     code = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     is_used = models.BooleanField(default=False)
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
         indexes = [models.Index(fields=["user", "code"])]
@@ -115,4 +123,8 @@ class PasswordResetOTP(models.Model):
         return "".join(secrets.choice("0123456789") for _ in range(6))
 
     def is_valid(self) -> bool:
-        return not self.is_used and timezone.now() <= self.created_at + OTP_VALIDITY
+        return (
+            not self.is_used
+            and self.failed_attempts < OTP_MAX_ATTEMPTS
+            and timezone.now() <= self.created_at + OTP_VALIDITY
+        )

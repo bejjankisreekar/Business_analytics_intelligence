@@ -1,0 +1,182 @@
+{% load humanize %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>Welcome to {{ site_name }}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#eef1f6; font-family:'Segoe UI', Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased;">
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0;">{% if trial_days %}Your {{ trial_days }}-day free trial of {{ plan.name }} is live. Here's everything you need to get started.{% else %}Your {{ site_name }} workspace is ready. Here's everything you need to get started.{% endif %}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#eef1f6; padding:32px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%;">
+
+          <!-- Brand -->
+          <tr>
+            <td style="padding:0 4px 18px 4px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="width:36px; height:36px; border-radius:10px; background-color:#4361ee; background-image:linear-gradient(135deg,#5b7cfa,#1fc4a0); font-size:13px; font-weight:800; color:#ffffff; text-align:center; vertical-align:middle;">BI</td>
+                  <td style="padding-left:10px; font-size:15px; font-weight:700; color:#101828;">{{ site_name }}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background-color:#ffffff; border-radius:20px; overflow:hidden; box-shadow:0 4px 24px rgba(16,24,40,0.08);">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+
+                <!-- Hero -->
+                <tr>
+                  <td style="background-color:#3a4fd8; background-image:linear-gradient(135deg,#4361ee 0%,#5b7cfa 55%,#1fc4a0 100%); padding:40px 36px 36px 36px; border-radius:20px 20px 0 0;">
+                    <p style="margin:0 0 10px 0; font-size:12px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; color:#d9e2ff;">Welcome aboard</p>
+                    <p style="margin:0; font-size:26px; line-height:34px; font-weight:800; color:#ffffff;">Hi {{ first_name }}, your workspace for {{ organization.name }} is ready.</p>
+                    {% if trial_days %}
+                    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px;">
+                      <tr>
+                        <td style="background-color:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.35); border-radius:999px; padding:9px 16px; font-size:14px; font-weight:700; color:#ffffff;">
+                          &#127881;&nbsp; Enjoy your {{ trial_days }}-day free trial
+                        </td>
+                      </tr>
+                    </table>
+                    {% endif %}
+                  </td>
+                </tr>
+
+                <!-- Intro -->
+                <tr>
+                  <td style="padding:30px 36px 6px 36px;">
+                    <p style="margin:0; font-size:15px; line-height:24px; color:#344054;">
+                      Thank you for choosing {{ site_name }}. Everything you need to track revenue, expenses, purchases and profit is set up and waiting for you.
+                      {% if trial_days %}You have full access to <strong>{{ plan.name }}</strong> free for <strong>{{ trial_days }} days</strong>{% if trial_end_date %}, until <strong>{{ trial_end_date|date:"j F Y" }}</strong>{% endif %} &mdash; no payment needed to get started.{% endif %}
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Subscription summary -->
+                <tr>
+                  <td style="padding:22px 36px 4px 36px;">
+                    <p style="margin:0 0 12px 0; font-size:12px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#667085;">Your setup</p>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ec; border-radius:14px; border-collapse:separate;">
+                      {% if plan %}
+                      <tr>
+                        <td style="padding:14px 18px; font-size:13px; color:#667085; border-bottom:1px solid #f0f2f5; width:42%;">Plan</td>
+                        <td style="padding:14px 18px; font-size:14px; font-weight:700; color:#101828; border-bottom:1px solid #f0f2f5;">{{ plan.name }}</td>
+                      </tr>
+                      {% endif %}
+                      <tr>
+                        <td style="padding:14px 18px; font-size:13px; color:#667085; border-bottom:1px solid #f0f2f5;">Free trial</td>
+                        <td style="padding:14px 18px; font-size:14px; font-weight:700; color:#101828; border-bottom:1px solid #f0f2f5;">
+                          {% if trial_days %}<span style="color:#0e9f7e;">{{ trial_days }} days</span>{% if trial_end_date %} <span style="font-weight:400; color:#667085;">&middot; ends {{ trial_end_date|date:"j M Y" }}</span>{% endif %}{% else %}Not included{% endif %}
+                        </td>
+                      </tr>
+                      {% if monthly_price %}
+                      <tr>
+                        <td style="padding:14px 18px; font-size:13px; color:#667085; border-bottom:1px solid #f0f2f5;">After the trial</td>
+                        <td style="padding:14px 18px; font-size:14px; font-weight:700; color:#101828; border-bottom:1px solid #f0f2f5;">&#8377;{{ monthly_price|floatformat:0|intcomma }} <span style="font-weight:400; color:#667085;">/ month</span></td>
+                      </tr>
+                      {% endif %}
+                      <tr>
+                        <td style="padding:14px 18px; font-size:13px; color:#667085; border-bottom:1px solid #f0f2f5;">Data storage</td>
+                        <td style="padding:14px 18px; font-size:14px; font-weight:700; color:#101828; border-bottom:1px solid #f0f2f5;">{{ storage_label }}</td>
+                      </tr>
+                      {% if logins_label %}
+                      <tr>
+                        <td style="padding:14px 18px; font-size:13px; color:#667085; border-bottom:1px solid #f0f2f5;">Login accounts</td>
+                        <td style="padding:14px 18px; font-size:14px; font-weight:700; color:#101828; border-bottom:1px solid #f0f2f5;">{{ logins_label }}</td>
+                      </tr>
+                      {% endif %}
+                      <tr>
+                        <td style="padding:14px 18px; font-size:13px; color:#667085; border-bottom:1px solid #f0f2f5;">Organization ID</td>
+                        <td style="padding:14px 18px; font-size:14px; font-weight:700; color:#101828; border-bottom:1px solid #f0f2f5; font-family:'Courier New', Courier, monospace; letter-spacing:0.5px;">{{ organization.organization_code }}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:14px 18px; font-size:13px; color:#667085;">Your username</td>
+                        <td style="padding:14px 18px; font-size:14px; font-weight:700; color:#101828;">{{ user.username }}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                {% if plan_features %}
+                <!-- Features -->
+                <tr>
+                  <td style="padding:26px 36px 4px 36px;">
+                    <p style="margin:0 0 12px 0; font-size:12px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#667085;">Included in your plan</p>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      {% for label in plan_features %}{% if forloop.counter0|divisibleby:2 %}<tr>{% endif %}
+                        <td width="50%" style="padding:5px 0; font-size:14px; color:#344054; vertical-align:top;">
+                          <span style="display:inline-block; width:18px; height:18px; line-height:18px; border-radius:50%; background-color:#e6f8f3; color:#0e9f7e; font-size:11px; font-weight:800; text-align:center; margin-right:8px;">&#10003;</span>{{ label }}
+                        </td>
+                      {% if forloop.counter|divisibleby:2 or forloop.last %}</tr>{% endif %}{% endfor %}
+                    </table>
+                  </td>
+                </tr>
+                {% endif %}
+
+                <!-- Next steps -->
+                <tr>
+                  <td style="padding:26px 36px 4px 36px;">
+                    <p style="margin:0 0 12px 0; font-size:12px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#667085;">Get started in 3 steps</p>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f6f8ff; border-radius:14px;">
+                      <tr>
+                        <td style="padding:18px 18px 6px 18px;">
+                          {% if is_sheets %}
+                          {% include "emails/_welcome_step.html" with n="1" title="Connect your Google Drive" text="Your data lives in your own Google Sheet. Connect Drive on first sign-in and we'll create it for you." %}
+                          {% else %}
+                          {% include "emails/_welcome_step.html" with n="1" title="Your database is ready" text="Your data is stored in our secure managed database, isolated to your organization. Nothing else to set up." %}
+                          {% endif %}
+                          {% include "emails/_welcome_step.html" with n="2" title="Record your first transactions" text="Add a few sales, purchases and expenses to see your numbers come alive." %}
+                          {% include "emails/_welcome_step.html" with n="3" title="Explore your dashboard" text="Watch revenue, profit and cash flow update in real time, with insights as your data grows." %}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- CTA -->
+                <tr>
+                  <td align="center" style="padding:30px 36px 8px 36px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td align="center" style="border-radius:12px; background-color:#4361ee;">
+                          <a href="{{ dashboard_url }}" style="display:inline-block; padding:15px 34px; font-size:15px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:12px;">Open your dashboard &rarr;</a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Support -->
+                <tr>
+                  <td style="padding:22px 36px 34px 36px;">
+                    <p style="margin:0; font-size:14px; line-height:22px; color:#475467;">
+                      Questions or need a hand getting set up? Just reply to this email{% if support_email %} or write to
+                      <a href="mailto:{{ support_email }}" style="color:#4361ee; text-decoration:none; font-weight:600;">{{ support_email }}</a>{% endif %} &mdash; we're happy to help.
+                    </p>
+                    <p style="margin:18px 0 0 0; font-size:14px; line-height:22px; color:#344054;">Warm regards,<br><strong>The {{ site_name }} team</strong></p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding:22px 20px 0 20px;">
+              <p style="margin:0; font-size:12px; line-height:18px; color:#98a2b3;">
+                You're receiving this one-time email because {{ user.email }} was used to create the {{ organization.name }} workspace on {{ site_name }}.<br>
+                &copy; {{ year }} {{ site_name }}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

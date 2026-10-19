@@ -1,155 +1,163 @@
 {% extends "superadmin/_base.html" %}
-{% block title %}{{ org.name }} · Superadmin{% endblock %}
+{% load humanize superadmin_tags %}
+{% block title %}{{ org.name }} · Clients{% endblock %}
 
 {% block sa_content %}
 <style>
-  .od-section-title { font-size: 0.8rem; font-weight: 600; color: #e2e8f0; }
-  .od-dt { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
-  .od-dd { margin-top: 0.2rem; font-size: 0.85rem; color: #e2e8f0; overflow-wrap: anywhere; }
-  .od-divider { border-top: 1px solid rgba(255,255,255,0.06); }
-  .od-avatar {
-    display: flex; flex: none; align-items: center; justify-content: center; border-radius: 0.6rem;
-    border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); color: #f59e0b; font-weight: 700;
-  }
-  .od-stat { border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); padding: 0.9rem 1rem; }
-  .od-stat-value { margin-top: 0.3rem; font-size: 1.05rem; font-weight: 700; color: #f1f5f9; }
-  .od-stat-hint { margin-top: 0.1rem; font-size: 0.72rem; color: #64748b; }
-  .od-tabs { display: flex; gap: 0.25rem; overflow-x: auto; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0 0.75rem; }
-  .od-tab {
-    flex: none; margin-bottom: -1px; border-bottom: 2px solid transparent; padding: 0.8rem 0.75rem;
-    font-size: 0.78rem; font-weight: 600; color: #94a3b8; transition: color .15s, border-color .15s;
-  }
-  .od-tab:hover { color: #e2e8f0; }
-  .od-tab--active { border-bottom-color: #f59e0b; color: #f59e0b; }
-  .od-panel-note { border-radius: 0.4rem; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); padding: 0.6rem 0.8rem; font-size: 0.75rem; color: #94a3b8; }
-  .od-summary { display: inline-flex; cursor: pointer; align-items: center; gap: 0.35rem; list-style: none; font-size: 0.75rem; font-weight: 600; color: #f59e0b; }
+  .od-dt { font-size: 0.68rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; color: var(--sa-text-3); }
+  .od-dd { margin-top: 0.2rem; font-size: 0.85rem; color: var(--sa-text); overflow-wrap: anywhere; }
+  .od-divider { border-top: 1px solid var(--sa-border); }
+  .od-tabs { display: flex; gap: 0.25rem; overflow-x: auto; border-bottom: 1px solid var(--sa-border); padding: 0 0.75rem; }
+  .od-tab { flex: none; margin-bottom: -1px; border-bottom: 2px solid transparent; padding: 0.8rem 0.75rem; font-size: 0.78rem; font-weight: 600; color: var(--sa-text-3); transition: color .15s, border-color .15s; }
+  .od-tab:hover { color: var(--sa-text); }
+  .od-tab--active { border-bottom-color: var(--sa-accent); color: var(--sa-accent); }
+  .od-panel-note { border-radius: 0.55rem; border: 1px solid var(--sa-border); background: var(--sa-surface-2); padding: 0.6rem 0.8rem; font-size: 0.75rem; color: var(--sa-text-2); }
+  .od-summary { display: inline-flex; cursor: pointer; align-items: center; gap: 0.35rem; list-style: none; font-size: 0.75rem; font-weight: 600; color: var(--sa-accent); }
   .od-summary::-webkit-details-marker { display: none; }
   .od-summary::before { content: "+"; font-weight: 700; }
   details[open] > .od-summary::before { content: "−"; }
-  .od-amount-row { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 0.4rem 0; font-size: 0.82rem; color: #94a3b8; }
-  .od-amount-row span:last-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #e2e8f0; }
-
-  html[data-theme="light"] .od-section-title { color: #0f172a; }
-  html[data-theme="light"] .od-dt { color: #94a3b8; }
-  html[data-theme="light"] .od-dd { color: #0f172a; }
-  html[data-theme="light"] .od-divider { border-top-color: rgba(15,23,42,0.08); }
-  html[data-theme="light"] .od-avatar { border-color: rgba(217,119,6,0.3); background: rgba(217,119,6,0.1); color: #b45309; }
-  html[data-theme="light"] .od-stat { border-color: rgba(15,23,42,0.08); background: #ffffff; }
-  html[data-theme="light"] .od-stat-value { color: #0f172a; }
-  html[data-theme="light"] .od-stat-hint { color: #64748b; }
-  html[data-theme="light"] .od-tabs { border-bottom-color: rgba(15,23,42,0.08); }
-  html[data-theme="light"] .od-tab { color: #64748b; }
-  html[data-theme="light"] .od-tab:hover { color: #0f172a; }
-  html[data-theme="light"] .od-tab--active { border-bottom-color: #d97706; color: #b45309; }
-  html[data-theme="light"] .od-panel-note { border-color: rgba(15,23,42,0.08); background: rgba(15,23,42,0.02); color: #64748b; }
-  html[data-theme="light"] .od-summary { color: #b45309; }
-  html[data-theme="light"] .od-amount-row { color: #64748b; }
-  html[data-theme="light"] .od-amount-row span:last-child { color: #0f172a; }
+  .od-amount-row { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 0.4rem 0; font-size: 0.82rem; color: var(--sa-text-2); }
+  .od-amount-row span:last-child { font-variant-numeric: tabular-nums; color: var(--sa-text); }
+  .od-ring { --v: 0; width: 4.5rem; height: 4.5rem; border-radius: 999px; display: grid; place-items: center;
+    background: conic-gradient(var(--ring) calc(var(--v) * 1%), var(--sa-surface-2) 0); }
+  .od-ring > span { width: 3.6rem; height: 3.6rem; border-radius: 999px; display: grid; place-items: center; background: var(--sa-surface); font-weight: 800; font-size: 1.15rem; color: var(--sa-text); }
+  .od-metric { border-radius: 0.65rem; background: var(--sa-surface-2); padding: 0.7rem 0.85rem; }
 </style>
 
-<a href="{% url 'superadmin:org_list' env_key %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← {{ env_label }} organizations</a>
+<a href="{% url 'superadmin:org_list' env_key %}" class="sa-crumb">← Clients</a>
 
 <!-- Header -->
-<div class="sa-card mt-4 p-5">
+<section class="sa-card mt-3 p-5">
   <div class="flex flex-wrap items-start justify-between gap-4">
-    <div class="flex min-w-0 items-center gap-4">
-      <span class="od-avatar h-12 w-12 text-lg">{{ org.name|slice:":1"|upper }}</span>
+    <div class="flex min-w-0 items-start gap-4">
+      <span class="sa-avatar !h-14 !w-14 !rounded-2xl !text-lg" style="background: var(--sa-accent-soft); color: var(--sa-accent)">{{ org.name|sa_initials }}</span>
       <div class="min-w-0">
-        <div class="flex flex-wrap items-center gap-2">
-          <h1 class="truncate text-xl font-bold text-slate-100">{{ org.name }}</h1>
-          {% if org.is_service_active %}
-          <span class="sa-badge sa-badge--active">Service Active</span>
-          {% else %}
-          <span class="sa-badge sa-badge--inactive">Service Suspended</span>
+        <h1 class="truncate">{{ org.name }}</h1>
+        <p class="mt-1 text-xs text-slate-500"><span class="sa-mono">{{ org.organization_code }}</span> · {{ org.get_business_type_display }} · joined {{ org.created_at|date:"d M Y" }} ({{ org.created_at|sa_ago }})</p>
+        <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+          {% if org.is_service_active %}<span class="sa-badge sa-badge--active"><span class="sa-dot"></span>Service active</span>{% else %}<span class="sa-badge sa-badge--inactive"><span class="sa-dot"></span>Service suspended</span>{% endif %}
+          {% sa_health health %}
+          {% if org.storage_mode == "GOOGLE_SHEETS" %}<span class="sa-chip sa-chip--blue">Google Sheets</span>{% else %}<span class="sa-chip sa-chip--mint">Our database</span>{% endif %}
+          {% if subscription.is_complimentary %}<span class="sa-chip sa-chip--violet">Complimentary</span>{% endif %}
+          {% for t in tags %}
+          <form method="post" action="{% url 'superadmin:client_tag_remove' env_key org.pk t.pk %}" class="inline-flex">
+            {% csrf_token %}
+            <button class="sa-chip sa-chip--{{ t.color }} group" title="Remove tag {{ t.name }}">{% sa_icon "tag" "h-3 w-3" %}{{ t.name }}<span class="opacity-0 group-hover:opacity-100">×</span></button>
+          </form>
+          {% endfor %}
+          {% if console_tables_ready %}
+          <details class="relative">
+            <summary class="sa-chip cursor-pointer list-none">+ Tag</summary>
+            <form method="post" action="{% url 'superadmin:client_tag_add' env_key org.pk %}" class="sa-card absolute left-0 z-20 mt-2 flex w-64 flex-col gap-2 p-3">
+              {% csrf_token %}
+              <input name="name" maxlength="32" required class="sa-input !mt-0" placeholder="e.g. VIP, Churn risk">
+              <div class="flex flex-wrap gap-1.5">
+                {% for value, label in tag_colors %}
+                <label class="cursor-pointer"><input type="radio" name="color" value="{{ value }}" class="peer sr-only" {% if forloop.first %}checked{% endif %}><span class="sa-chip sa-chip--{{ value }} peer-checked:ring-2 peer-checked:ring-amber-500/60">{{ label }}</span></label>
+                {% endfor %}
+              </div>
+              <button class="sa-btn-primary px-3 py-1.5 text-xs">Add tag</button>
+            </form>
+          </details>
           {% endif %}
-          {% if subscription.is_complimentary %}<span class="sa-badge sa-badge--warn">Complimentary</span>{% endif %}
         </div>
-        <p class="mt-1 text-xs text-slate-500">
-          <span class="sa-mono">{{ org.organization_code }}</span>
-          · {{ env_label }} · created {{ org.created_at|date:"d M Y, H:i" }}
-        </p>
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <a href="{% url 'superadmin:client_invoice_new' env_key org.pk %}" class="sa-btn-primary rounded px-3 py-1.5 text-xs font-semibold">Generate invoice</a>
-      <a href="{% url 'superadmin:service_control' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Service control</a>
-      <a href="{% url 'superadmin:financial_history' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Financial history</a>
-      <a href="{% url 'superadmin:org_edit' env_key org.pk %}" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Edit client</a>
-      <button type="button" data-confirm="Are you sure you want to delete this organization entirely? This cannot be undone." data-confirm-submit="delete-form" data-confirm-danger class="sa-btn-danger rounded px-3 py-1.5 text-xs font-semibold">Delete</button>
+      <a href="{% url 'superadmin:client_invoice_new' env_key org.pk %}" class="sa-btn-solid px-3 py-1.5 text-xs">{% sa_icon "document" "h-3.5 w-3.5" %} Generate invoice</a>
+      <a href="{% url 'superadmin:service_control' env_key org.pk %}" class="sa-btn-ghost px-3 py-1.5 text-xs">Service control</a>
+      <a href="{% url 'superadmin:financial_history' env_key org.pk %}" class="sa-btn-ghost px-3 py-1.5 text-xs">Financial history</a>
+      <a href="{% url 'superadmin:org_edit' env_key org.pk %}" class="sa-btn-ghost px-3 py-1.5 text-xs">Edit</a>
+      <button type="button" data-confirm="Are you sure you want to delete this organization entirely? This cannot be undone." data-confirm-submit="delete-form" data-confirm-danger class="sa-btn-danger px-3 py-1.5 text-xs">Delete</button>
       <form id="delete-form" method="post" action="{% url 'superadmin:org_delete' env_key org.pk %}" style="display:none;">{% csrf_token %}</form>
     </div>
   </div>
-</div>
+</section>
 
 <!-- At a glance -->
-<div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-  <div class="od-stat">
-    <p class="od-dt">Plan</p>
-    <p class="od-stat-value">{{ subscription.plan.name|default:"—" }}</p>
-    <p class="od-stat-hint">{% if subscription %}{{ subscription.get_billing_cycle_display }} billing{% else %}No subscription yet{% endif %}</p>
+<div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+  <div class="sa-card sa-stat">
+    <p class="sa-stat-label">Plan</p>
+    <p class="sa-stat-value !text-lg">{{ subscription.plan.name|default:"—" }}</p>
+    <p class="sa-stat-foot">{% if subscription %}{% sa_status "sub" subscription.status subscription.get_status_display %}{% else %}No subscription{% endif %}</p>
   </div>
-  <div class="od-stat">
-    <p class="od-dt">Final amount</p>
-    <p class="od-stat-value sa-mono">{% if subscription %}₹{{ subscription.final_amount }}{% else %}—{% endif %}</p>
-    <p class="od-stat-hint">{% if subscription %}Auto renewal {{ subscription.auto_renewal|yesno:"on,off" }}{% else %}&nbsp;{% endif %}</p>
+  <div class="sa-card sa-stat">
+    <p class="sa-stat-label">Final amount</p>
+    <p class="sa-stat-value !text-lg">{% if subscription %}₹{{ subscription.final_amount|floatformat:2|intcomma }}{% else %}—{% endif %}</p>
+    <p class="sa-stat-foot">{% if subscription %}{{ subscription.get_billing_cycle_display }} · auto-renew {{ subscription.auto_renewal|yesno:"on,off" }}{% endif %}</p>
   </div>
-  <div class="od-stat">
+  <div class="sa-card sa-stat">
     {% if subscription.status == "TRIAL" and subscription.trial_end_date %}
-    <p class="od-dt">Trial ends</p>
-    <p class="od-stat-value">{{ subscription.trial_end_date|date:"d M Y" }}</p>
-    <p class="od-stat-hint">Started {{ subscription.trial_start_date|date:"d M Y"|default:"—" }}</p>
+    <p class="sa-stat-label">Trial ends</p><p class="sa-stat-value !text-lg">{{ subscription.trial_end_date|date:"d M Y" }}</p><p class="sa-stat-foot">Started {{ subscription.trial_start_date|date:"d M Y"|default:"—" }}</p>
     {% else %}
-    <p class="od-dt">Billing ends</p>
-    <p class="od-stat-value">{{ subscription.end_date|date:"d M Y"|default:"—" }}</p>
-    <p class="od-stat-hint">Started {{ subscription.start_date|date:"d M Y"|default:"—" }}</p>
+    <p class="sa-stat-label">Renews / ends</p><p class="sa-stat-value !text-lg">{{ subscription.end_date|date:"d M Y"|default:"—" }}</p><p class="sa-stat-foot">Started {{ subscription.start_date|date:"d M Y"|default:"—" }}</p>
     {% endif %}
   </div>
-  <div class="od-stat">
-    <p class="od-dt">Team</p>
-    <p class="od-stat-value">{{ team|length }}</p>
-    <p class="od-stat-hint">user{{ team|length|pluralize }} on this account</p>
-  </div>
+  <a href="{% url 'superadmin:payment_list' env_key %}?q={{ org.organization_code }}" class="sa-card sa-card-link sa-stat">
+    <p class="sa-stat-label">Lifetime paid</p>
+    <p class="sa-stat-value !text-lg">₹{{ money.paid|floatformat:0|intcomma }}</p>
+    <p class="sa-stat-foot">{% if money.last_payment %}Last {{ money.last_payment.payment_date|sa_ago }}{% else %}No payments yet{% endif %}{% if money.refunded %} · ₹{{ money.refunded|floatformat:0|intcomma }} refunded{% endif %}</p>
+  </a>
+  <a href="{% url 'superadmin:invoice_list' env_key %}?q={{ org.organization_code }}&open=1" class="sa-card sa-card-link sa-stat">
+    <p class="sa-stat-label">Outstanding</p>
+    <p class="sa-stat-value !text-lg {% if money.outstanding > 0 %}sa-bad{% endif %}">₹{{ money.outstanding|floatformat:0|intcomma }}</p>
+    <p class="sa-stat-foot">{{ money.invoices }} invoice{{ money.invoices|pluralize }} · {% if usage.overdue_invoices %}<span class="sa-bad">{{ usage.overdue_invoices }} overdue</span>{% else %}none overdue{% endif %}</p>
+  </a>
 </div>
 
 <div class="mt-5 grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
   <!-- Main column -->
   <div class="space-y-5 lg:col-span-2">
 
-    <!-- Current subscription -->
-    <div class="sa-card">
-      <div class="flex items-center justify-between px-5 py-4">
-        <h2 class="od-section-title">Current subscription</h2>
-        {% if subscription %}<span class="sa-mono text-[11px] text-slate-500">{{ subscription.subscription_id }}</span>{% endif %}
+    <!-- Health & usage -->
+    <section class="sa-card p-5" aria-labelledby="health-title">
+      <div class="flex flex-wrap items-center gap-5">
+        {% with lvl=health.level %}
+        <div class="od-ring" style="--v: {{ health.score }}; --ring: {% if lvl == 'healthy' %}var(--sa-ok){% elif lvl == 'at_risk' %}var(--sa-warn){% else %}var(--sa-bad){% endif %}"><span>{{ health.score }}</span></div>
+        {% endwith %}
+        <div class="min-w-0 flex-1">
+          <h2 id="health-title" class="sa-section-title">Health: {{ health.label }}</h2>
+          {% if health.reasons %}
+          <ul class="mt-1.5 space-y-0.5 text-xs text-slate-400">{% for r in health.reasons %}<li class="flex items-center gap-1.5"><span class="sa-dot sa-warn"></span>{{ r }}</li>{% endfor %}</ul>
+          {% else %}<p class="mt-1 text-xs text-slate-400">Active, paying on time and using the product. Nothing to chase.</p>{% endif %}
+        </div>
       </div>
-      <div class="od-divider p-5">
+      <div class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div class="od-metric"><p class="od-dt">Team</p><p class="od-dd text-base font-bold">{{ usage.users }} <span class="text-xs font-normal sa-muted">{{ usage.active_users }} active (30d)</span></p></div>
+        <div class="od-metric"><p class="od-dt">Last login</p><p class="od-dd text-base font-bold">{% if usage.last_login %}{{ usage.last_login|sa_ago }}{% else %}<span class="sa-bad">Never</span>{% endif %}</p></div>
+        {% if org.storage_mode == "GOOGLE_SHEETS" %}
+        <div class="od-metric"><p class="od-dt">Sheet</p><p class="od-dd text-base font-bold">{% if usage.sync_error %}<span class="sa-bad">Failing</span>{% elif usage.sheet_connected %}<span class="sa-ok">Connected</span>{% else %}<span class="sa-warn">Not connected</span>{% endif %}</p></div>
+        <div class="od-metric"><p class="od-dt">Last sync</p><p class="od-dd text-base font-bold">{{ usage.last_synced_at|sa_ago|default:"Never" }}</p></div>
+        {% else %}
+        <div class="od-metric"><p class="od-dt">Entries (30d)</p><p class="od-dd text-base font-bold">{{ usage.entries_30d|intcomma }}</p></div>
+        <div class="od-metric"><p class="od-dt">Entries total</p><p class="od-dd text-base font-bold">{{ usage.entries_total|intcomma }} <span class="text-xs font-normal sa-muted">{% if usage.last_entry_at %}last {{ usage.last_entry_at|sa_ago }}{% endif %}</span></p></div>
+        {% endif %}
+      </div>
+      {% if usage.sync_error %}<p class="mt-3 rounded-lg p-2.5 text-xs" style="background: var(--sa-bad-soft); color: var(--sa-bad)">Sync error: {{ usage.sync_error }}</p>{% endif %}
+    </section>
+
+    <!-- Current subscription -->
+    <section class="sa-card">
+      <div class="sa-card-head">
+        <h2 class="sa-section-title">Current subscription</h2>
+        {% if subscription %}<a class="sa-link sa-mono text-[11px]" href="{% url 'superadmin:subscription_edit' env_key subscription.pk %}">{{ subscription.subscription_id }} · Edit</a>{% endif %}
+      </div>
+      <div class="p-5">
         {% if subscription %}
         <div class="grid grid-cols-1 gap-6 sm:grid-cols-5">
           <dl class="grid grid-cols-2 gap-x-4 gap-y-4 sm:col-span-3">
             <div><dt class="od-dt">Plan</dt><dd class="od-dd">{{ subscription.plan.name }}</dd></div>
             <div><dt class="od-dt">Billing cycle</dt><dd class="od-dd">{{ subscription.get_billing_cycle_display }}</dd></div>
-            <div>
-              <dt class="od-dt">Subscription status</dt>
-              <dd class="od-dd">
-                {% with s=subscription.status %}
-                <span class="sa-badge {% if s == "ACTIVE" %}sa-badge--active{% elif s == "TRIAL" %}sa-badge--warn{% elif s == "PAYMENT_DUE" or s == "PAST_DUE" or s == "SUSPENDED" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">{{ subscription.get_status_display }}</span>
-                {% endwith %}
-              </dd>
-            </div>
-            <div>
-              <dt class="od-dt">Payment status</dt>
-              <dd class="od-dd">
-                {% with p=subscription.payment_status %}
-                <span class="sa-badge {% if p == "PAID" %}sa-badge--active{% elif p == "PENDING" %}sa-badge--warn{% elif p == "FAILED" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">{{ subscription.get_payment_status_display }}</span>
-                {% endwith %}
-              </dd>
-            </div>
+            <div><dt class="od-dt">Subscription status</dt><dd class="od-dd">{% sa_status "sub" subscription.status subscription.get_status_display %}</dd></div>
+            <div><dt class="od-dt">Payment status</dt><dd class="od-dd">{% sa_status "payment" subscription.payment_status subscription.get_payment_status_display %}</dd></div>
             <div><dt class="od-dt">Auto renewal</dt><dd class="od-dd">{{ subscription.auto_renewal|yesno:"Yes,No" }}</dd></div>
+            <div><dt class="od-dt">Autopay</dt><dd class="od-dd">{% if subscription.autopay_enabled %}On{% if subscription.autopay_amount is not None %} · ₹{{ subscription.autopay_amount|floatformat:2|intcomma }}{% endif %}{% else %}Off{% endif %}</dd></div>
           </dl>
           <div class="od-panel-note sm:col-span-2">
-            <div class="od-amount-row"><span>Price</span><span>₹{{ subscription.price }}</span></div>
-            <div class="od-amount-row"><span>Discount</span><span>− ₹{{ subscription.discount }}</span></div>
-            <div class="od-amount-row"><span>Tax</span><span>+ ₹{{ subscription.tax }}</span></div>
-            <div class="od-amount-row od-divider mt-1 pt-2 font-semibold"><span>Final amount</span><span>₹{{ subscription.final_amount }}</span></div>
+            <div class="od-amount-row"><span>Price</span><span>₹{{ subscription.price|floatformat:2|intcomma }}</span></div>
+            <div class="od-amount-row"><span>Discount</span><span>− ₹{{ subscription.discount|floatformat:2|intcomma }}</span></div>
+            <div class="od-amount-row"><span>Tax</span><span>+ ₹{{ subscription.tax|floatformat:2|intcomma }}</span></div>
+            <div class="od-amount-row od-divider mt-1 pt-2 font-semibold"><span>Final amount</span><span>₹{{ subscription.final_amount|floatformat:2|intcomma }}</span></div>
           </div>
         </div>
         {% if subscription.notes %}<p class="od-panel-note mt-4">{{ subscription.notes }}</p>{% endif %}
@@ -157,13 +165,11 @@
         <p class="text-sm text-slate-500">No subscription record yet.</p>
         {% endif %}
       </div>
-    </div>
+    </section>
 
     <!-- Manage subscription: change plan / extend trial / complimentary -->
-    <div class="sa-card" id="manage">
-      <div class="px-5 py-4">
-        <h2 class="od-section-title">Manage subscription</h2>
-      </div>
+    <section class="sa-card" id="manage">
+      <div class="sa-card-head !border-b-0"><h2 class="sa-section-title">Manage subscription</h2></div>
       <div class="od-tabs" role="tablist">
         <button type="button" role="tab" class="od-tab od-tab--active" data-od-tab="plan">Change plan / renew</button>
         <button type="button" role="tab" class="od-tab" data-od-tab="trial">Extend trial</button>
@@ -179,14 +185,12 @@
             <div class="{% if field.name == "notes" %}sm:col-span-2{% endif %}">
               <label class="sa-field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
-              {% if field.help_text %}<p class="mt-1 text-[11px] text-slate-600">{{ field.help_text }}</p>{% endif %}
+              {% if field.help_text %}<p class="mt-1 text-[11px] text-slate-500">{{ field.help_text }}</p>{% endif %}
               {% for e in field.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
             </div>
             {% endfor %}
           </div>
-          <div class="mt-5 flex justify-end">
-            <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Save subscription</button>
-          </div>
+          <div class="mt-5 flex justify-end"><button type="submit" class="sa-btn-primary px-4 py-2 text-xs">Save subscription</button></div>
         </form>
       </div>
 
@@ -202,9 +206,7 @@
             </div>
             {% endfor %}
           </div>
-          <div class="mt-5 flex justify-end">
-            <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Extend trial</button>
-          </div>
+          <div class="mt-5 flex justify-end"><button type="submit" class="sa-btn-primary px-4 py-2 text-xs">Extend trial</button></div>
         </form>
       </div>
 
@@ -217,23 +219,19 @@
             <div class="{% if field.name == "notes" %}sm:col-span-2{% endif %}">
               <label class="sa-field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
-              {% if field.help_text %}<p class="mt-1 text-[11px] text-slate-600">{{ field.help_text }}</p>{% endif %}
+              {% if field.help_text %}<p class="mt-1 text-[11px] text-slate-500">{{ field.help_text }}</p>{% endif %}
             </div>
             {% endfor %}
           </div>
-          <div class="mt-5 flex justify-end">
-            <button type="submit" class="sa-btn-mint rounded px-4 py-2 text-xs font-semibold">Grant complimentary access</button>
-          </div>
+          <div class="mt-5 flex justify-end"><button type="submit" class="sa-btn-mint px-4 py-2 text-xs">Grant complimentary access</button></div>
         </form>
       </div>
-    </div>
+    </section>
 
     <!-- Key dates -->
-    <div class="sa-card">
-      <div class="px-5 py-4">
-        <h2 class="od-section-title">Key dates</h2>
-      </div>
-      <div class="od-divider p-5">
+    <section class="sa-card">
+      <div class="sa-card-head"><h2 class="sa-section-title">Key dates</h2></div>
+      <div class="p-5">
         <div class="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
           <dl class="space-y-3">
             <div><dt class="od-dt">Registered on</dt><dd class="od-dd">{{ org.created_at|date:"d M Y, H:i" }}</dd></div>
@@ -243,15 +241,10 @@
             <div>
               <dt class="od-dt">Entries allowed from</dt>
               <dd class="od-dd">
-                {% if org.historical_entry_no_limit %}
-                  No limit <span class="text-slate-500">(override)</span>
-                {% elif org.historical_entry_cutoff_date %}
-                  {{ org.historical_entry_cutoff_date|date:"d M Y" }} <span class="text-slate-500">(override)</span>
-                {% elif historical_window_start %}
-                  {{ historical_window_start|date:"d M Y" }} <span class="text-slate-500">(plan default)</span>
-                {% else %}
-                  —
-                {% endif %}
+                {% if org.historical_entry_no_limit %}No limit <span class="text-slate-500">(override)</span>
+                {% elif org.historical_entry_cutoff_date %}{{ org.historical_entry_cutoff_date|date:"d M Y" }} <span class="text-slate-500">(override)</span>
+                {% elif historical_window_start %}{{ historical_window_start|date:"d M Y" }} <span class="text-slate-500">(plan default)</span>
+                {% else %}—{% endif %}
               </dd>
             </div>
             {% if historical_window_start and not org.historical_entry_no_limit %}
@@ -268,18 +261,14 @@
               <dd class="od-dd">
                 {% if subscription.trial_end_date and subscription.start_date and subscription.start_date <= subscription.trial_end_date %}
                   {{ subscription.trial_end_date|date:"d M Y" }} <span class="text-slate-500">(after trial ends)</span>
-                {% else %}
-                  {{ subscription.start_date|date:"d M Y"|default:"—" }}
-                {% endif %}
+                {% else %}{{ subscription.start_date|date:"d M Y"|default:"—" }}{% endif %}
               </dd>
             </div>
             <div><dt class="od-dt">Billing end</dt><dd class="od-dd">{{ subscription.end_date|date:"d M Y"|default:"—" }}</dd></div>
             <div><dt class="od-dt">Cancellation date</dt><dd class="od-dd">{{ subscription.cancellation_date|date:"d M Y"|default:"—" }}</dd></div>
           </dl>
         </div>
-        {% if subscription_history %}
-        <p class="mt-4 text-[11px] text-slate-600">Extensions &amp; prior periods (plan changes, renewals, trial extensions) are listed with their own start/trial/end dates in the subscription history table below.</p>
-        {% endif %}
+        {% if subscription_history %}<p class="mt-4 text-[11px] text-slate-500">Extensions &amp; prior periods are listed with their own dates in the subscription history below.</p>{% endif %}
       </div>
 
       <details class="od-divider px-5 py-4">
@@ -289,59 +278,34 @@
           <div class="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-3">
             <div class="space-y-3">
               <h3 class="od-dt">Backdating limit</h3>
-              <div>
-                <label class="sa-field-label" for="{{ edit_dates_form.historical_entry_cutoff_date.id_for_label }}">{{ edit_dates_form.historical_entry_cutoff_date.label }}</label>
-                {{ edit_dates_form.historical_entry_cutoff_date }}
-              </div>
-              <label class="flex items-center gap-2 text-sm text-slate-300" for="{{ edit_dates_form.historical_entry_no_limit.id_for_label }}">
-                {{ edit_dates_form.historical_entry_no_limit }} {{ edit_dates_form.historical_entry_no_limit.label }}
-              </label>
+              <div><label class="sa-field-label" for="{{ edit_dates_form.historical_entry_cutoff_date.id_for_label }}">{{ edit_dates_form.historical_entry_cutoff_date.label }}</label>{{ edit_dates_form.historical_entry_cutoff_date }}</div>
+              <label class="flex items-center gap-2 text-sm text-slate-300" for="{{ edit_dates_form.historical_entry_no_limit.id_for_label }}">{{ edit_dates_form.historical_entry_no_limit }} {{ edit_dates_form.historical_entry_no_limit.label }}</label>
             </div>
             {% if subscription %}
             <div class="space-y-3">
               <h3 class="od-dt">Trial</h3>
-              <div>
-                <label class="sa-field-label" for="{{ edit_dates_form.trial_start_date.id_for_label }}">Trial start</label>
-                {{ edit_dates_form.trial_start_date }}
-              </div>
-              <div>
-                <label class="sa-field-label" for="{{ edit_dates_form.trial_end_date.id_for_label }}">Trial expiry</label>
-                {{ edit_dates_form.trial_end_date }}
-              </div>
+              <div><label class="sa-field-label" for="{{ edit_dates_form.trial_start_date.id_for_label }}">Trial start</label>{{ edit_dates_form.trial_start_date }}</div>
+              <div><label class="sa-field-label" for="{{ edit_dates_form.trial_end_date.id_for_label }}">Trial expiry</label>{{ edit_dates_form.trial_end_date }}</div>
             </div>
             <div class="space-y-3">
               <h3 class="od-dt">Billing</h3>
-              <div>
-                <label class="sa-field-label" for="{{ edit_dates_form.start_date.id_for_label }}">Billing start</label>
-                {{ edit_dates_form.start_date }}
-              </div>
-              <div>
-                <label class="sa-field-label" for="{{ edit_dates_form.end_date.id_for_label }}">Billing end</label>
-                {{ edit_dates_form.end_date }}
-              </div>
-              <div>
-                <label class="sa-field-label" for="{{ edit_dates_form.cancellation_date.id_for_label }}">Cancellation date</label>
-                {{ edit_dates_form.cancellation_date }}
-              </div>
+              <div><label class="sa-field-label" for="{{ edit_dates_form.start_date.id_for_label }}">Billing start</label>{{ edit_dates_form.start_date }}</div>
+              <div><label class="sa-field-label" for="{{ edit_dates_form.end_date.id_for_label }}">Billing end</label>{{ edit_dates_form.end_date }}</div>
+              <div><label class="sa-field-label" for="{{ edit_dates_form.cancellation_date.id_for_label }}">Cancellation date</label>{{ edit_dates_form.cancellation_date }}</div>
             </div>
             {% else %}
-            <div class="text-[11px] text-slate-600 sm:col-span-2">No current subscription — trial/billing dates aren't editable until one exists.</div>
+            <div class="text-[11px] text-slate-500 sm:col-span-2">No current subscription — trial/billing dates aren't editable until one exists.</div>
             {% endif %}
           </div>
-          <div class="mt-5 flex justify-end">
-            <button type="submit" class="sa-btn-primary rounded px-4 py-2 text-xs font-semibold">Save dates</button>
-          </div>
+          <div class="mt-5 flex justify-end"><button type="submit" class="sa-btn-primary px-4 py-2 text-xs">Save dates</button></div>
         </form>
       </details>
-    </div>
+    </section>
 
     <!-- Client info -->
-    <div class="sa-card">
-      <div class="flex items-center justify-between px-5 py-4">
-        <h2 class="od-section-title">Client information</h2>
-        <a href="{% url 'superadmin:org_edit' env_key org.pk %}" class="text-xs font-semibold text-brand-400 hover:text-brand-300">Edit</a>
-      </div>
-      <dl class="od-divider grid grid-cols-2 gap-x-4 gap-y-4 p-5 sm:grid-cols-3">
+    <section class="sa-card">
+      <div class="sa-card-head"><h2 class="sa-section-title">Client information</h2><a href="{% url 'superadmin:org_edit' env_key org.pk %}" class="sa-link text-xs">Edit</a></div>
+      <dl class="grid grid-cols-2 gap-x-4 gap-y-4 p-5 sm:grid-cols-3">
         <div><dt class="od-dt">Client ID</dt><dd class="od-dd sa-mono">{{ org.organization_code }}</dd></div>
         <div><dt class="od-dt">Business type</dt><dd class="od-dd">{{ org.get_business_type_display }}</dd></div>
         <div><dt class="od-dt">Industry</dt><dd class="od-dd">{{ org.industry|default:"—" }}</dd></div>
@@ -351,7 +315,7 @@
       </dl>
       <dl class="od-divider grid grid-cols-2 gap-x-4 gap-y-4 p-5 sm:grid-cols-3">
         <div><dt class="od-dt">Contact person</dt><dd class="od-dd">{{ org.contact_person|default:"—" }}</dd></div>
-        <div><dt class="od-dt">Email</dt><dd class="od-dd">{{ org.contact_email|default:"—" }}</dd></div>
+        <div><dt class="od-dt">Email</dt><dd class="od-dd">{% if org.contact_email %}<a class="sa-link !font-normal" href="mailto:{{ org.contact_email }}">{{ org.contact_email }}</a>{% else %}—{% endif %}</dd></div>
         <div><dt class="od-dt">Phone</dt><dd class="od-dd">{{ org.contact_phone|default:"—" }}</dd></div>
         <div><dt class="od-dt">Website</dt><dd class="od-dd">{{ org.website|default:"—" }}</dd></div>
         <div class="col-span-2"><dt class="od-dt">Address</dt><dd class="od-dd">{{ org.address|default:"—" }}</dd></div>
@@ -359,29 +323,63 @@
         <div><dt class="od-dt">State</dt><dd class="od-dd">{{ org.state|default:"—" }}</dd></div>
         <div><dt class="od-dt">Country</dt><dd class="od-dd">{{ org.country|default:"—" }}</dd></div>
       </dl>
-    </div>
+    </section>
   </div>
 
   <!-- Side column -->
   <div class="space-y-5">
+    <!-- Internal notes -->
+    <section class="sa-card" id="notes">
+      <div class="sa-card-head"><div><h2 class="sa-section-title">Internal notes</h2><p class="sa-section-sub">Only admins see these</p></div>{% if notes %}<span class="sa-badge sa-badge--neutral">{{ notes|length }}</span>{% endif %}</div>
+      {% if console_tables_ready %}
+      <form method="post" action="{% url 'superadmin:client_note_add' env_key org.pk %}" class="p-4">
+        {% csrf_token %}
+        <textarea name="body" rows="2" required class="sa-input !mt-0 resize-y" placeholder="Called the owner, they'll pay by Friday…"></textarea>
+        <div class="mt-2 flex items-center justify-between">
+          <label class="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" name="pin" value="1" class="sa-check"> Pin to top</label>
+          <button class="sa-btn-primary px-3 py-1.5 text-xs">Add note</button>
+        </div>
+      </form>
+      <ul>
+        {% for n in notes %}
+        <li class="od-divider px-4 py-3 {% if n.is_pinned %}bg-amber-500/[0.04]{% endif %}">
+          <div class="flex items-start justify-between gap-2">
+            <p class="whitespace-pre-line text-sm text-slate-200">{% if n.is_pinned %}<span class="sa-warn">{% sa_icon "pin" "inline h-3.5 w-3.5" %}</span> {% endif %}{{ n.body }}</p>
+            <span class="flex flex-none gap-0.5">
+              <form method="post" action="{% url 'superadmin:client_note_pin' env_key org.pk n.pk %}">{% csrf_token %}<button class="sa-btn-icon !h-7 !w-7" title="{% if n.is_pinned %}Unpin{% else %}Pin{% endif %}" aria-label="{% if n.is_pinned %}Unpin{% else %}Pin{% endif %} note">{% sa_icon "pin" "h-3.5 w-3.5" %}</button></form>
+              <form method="post" action="{% url 'superadmin:client_note_delete' env_key org.pk n.pk %}" data-confirm="Delete this note?">{% csrf_token %}<button class="sa-btn-icon !h-7 !w-7" title="Delete" aria-label="Delete note">{% sa_icon "trash" "h-3.5 w-3.5" %}</button></form>
+            </span>
+          </div>
+          <p class="mt-1 text-[11px] text-slate-500">{{ n.author_email }} · {{ n.created_at|sa_ago }}</p>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="p-4 text-xs text-slate-500">Notes aren't set up in this environment yet — run <code class="sa-mono">migrate --database {{ env_key }}</code>.</p>
+      {% endif %}
+    </section>
+
     <!-- Team -->
-    <div class="sa-card">
-      <div class="flex items-center justify-between px-5 py-4">
-        <h2 class="od-section-title">Team</h2>
-        <span class="sa-badge sa-badge--neutral">{{ team|length }}</span>
-      </div>
+    <section class="sa-card" id="team">
+      <div class="sa-card-head"><h2 class="sa-section-title">Team</h2><span class="sa-badge sa-badge--neutral">{{ team|length }}</span></div>
       <ul>
         {% for member in team %}
-        <li class="od-divider px-5 py-4">
+        <li class="{% if not forloop.first %}od-divider{% endif %} px-4 py-3.5">
           <div class="flex items-center gap-3">
-            <span class="od-avatar h-8 w-8 text-xs">{{ member.email|slice:":1"|upper }}</span>
+            <span class="sa-avatar sa-avatar--sm">{{ member.email|sa_initials }}</span>
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm text-slate-200">{{ member.email }}</p>
-              <p class="text-[11px] text-slate-500">Last login: {{ member.last_login|date:"d M Y, H:i"|default:"Never" }}</p>
+              <p class="truncate text-sm font-medium text-slate-200">{{ member.get_full_name }}</p>
+              <p class="truncate text-[11px] text-slate-500">{{ member.email }} · {% if member.last_login %}seen {{ member.last_login|sa_ago }}{% else %}never signed in{% endif %}</p>
             </div>
-            <span class="sa-badge sa-badge--neutral shrink-0">{{ member.role }}</span>
+            <span class="sa-chip sa-chip--slate shrink-0 !text-[10px]">{{ member.get_role_display }}</span>
           </div>
-          <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+          <div class="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {% if can_impersonate and member.is_active %}
+            <form method="post" action="{% url 'superadmin:impersonate_start' env_key org.pk member.pk %}" data-confirm="Log in as {{ member.email }}? You'll see exactly what they see. This is recorded in the audit log, and you can return from the banner at the top.">
+              {% csrf_token %}
+              <button class="sa-link inline-flex items-center gap-1 text-xs">{% sa_icon "eye" "h-3.5 w-3.5" %} Log in as</button>
+            </form>
+            {% endif %}
             <details class="w-full">
               <summary class="od-summary">Edit user</summary>
               <form method="post" action="{% url 'superadmin:edit_client_user' env_key org.pk member.pk %}" class="mt-2 space-y-2">
@@ -392,7 +390,7 @@
                 </div>
                 <input type="email" name="email" value="{{ member.email }}" placeholder="Email" required class="sa-input sa-mono">
                 <input type="text" name="username" value="{{ member.username|default:'' }}" placeholder="Username (optional)" class="sa-input sa-mono">
-                <button type="submit" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Save</button>
+                <button type="submit" class="sa-btn-ghost px-3 py-1.5 text-xs">Save</button>
               </form>
             </details>
             <details class="w-full">
@@ -401,26 +399,41 @@
                     data-confirm="Reset the password for {{ member.email }}? They will need the new password to log in.">
                 {% csrf_token %}
                 <input type="password" name="new_password" placeholder="Leave blank to auto-generate" autocomplete="new-password" class="sa-input sa-mono">
-                <button type="submit" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold">Set password</button>
+                <button type="submit" class="sa-btn-ghost px-3 py-1.5 text-xs">Set password</button>
               </form>
             </details>
           </div>
         </li>
         {% empty %}
-        <li class="od-divider px-5 py-4 text-sm text-slate-600">No users yet.</li>
+        <li class="px-4 py-4 text-sm text-slate-500">No users yet.</li>
         {% endfor %}
       </ul>
-    </div>
+      {% if not can_impersonate %}<p class="od-divider px-4 py-3 text-[11px] text-slate-500">“Log in as” works only for the environment this server signs people into.</p>{% endif %}
+    </section>
+
+    <!-- Activity -->
+    <section class="sa-card">
+      <div class="sa-card-head"><h2 class="sa-section-title">Recent activity</h2>{% if console_tables_ready %}<a class="sa-link text-xs" href="{% url 'superadmin:audit_log' env_key %}?org={{ org.pk }}">All →</a>{% endif %}</div>
+      <ol class="relative px-4 py-3">
+        {% for a in activity %}
+        <li class="relative border-l pb-3 pl-4 last:pb-0" style="border-color: var(--sa-border)">
+          <span class="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full" style="background: {% if a.kind == 'service' %}var(--sa-warn){% else %}var(--sa-info){% endif %}"></span>
+          <p class="text-sm text-slate-200">{{ a.what }}</p>
+          <p class="text-[11px] text-slate-500">{{ a.who }} · {{ a.when|sa_ago }}</p>
+        </li>
+        {% empty %}
+        <li class="py-2 text-xs text-slate-500">No console activity for this client yet.</li>
+        {% endfor %}
+      </ol>
+    </section>
 
     <!-- Database details -->
-    <div class="sa-card">
-      <div class="px-5 py-4">
-        <h2 class="od-section-title">Database</h2>
-      </div>
-      <dl class="od-divider space-y-4 p-5">
+    <section class="sa-card">
+      <div class="sa-card-head"><h2 class="sa-section-title">Data storage</h2></div>
+      <dl class="space-y-4 p-5">
         <div><dt class="od-dt">Organization ID</dt><dd class="od-dd sa-mono text-xs">{{ org.id }}</dd></div>
         <div class="grid grid-cols-2 gap-4">
-          <div><dt class="od-dt">Environment</dt><dd class="od-dd sa-mono">{{ env_key }}</dd></div>
+          <div><dt class="od-dt">Environment</dt><dd class="od-dd">{{ env_label }}</dd></div>
           <div><dt class="od-dt">Storage mode</dt><dd class="od-dd">{{ org.get_storage_mode_display }}</dd></div>
         </div>
         <div>
@@ -429,75 +442,53 @@
             {% if org.storage_mode == "GOOGLE_SHEETS" %}
               {% if org.cloud_backup and org.cloud_backup.external_file_id %}
               Connected{% if org.cloud_backup.connected_email %} as {{ org.cloud_backup.connected_email }}{% endif %} — own Google Sheet.
-              <a href="https://docs.google.com/spreadsheets/d/{{ org.cloud_backup.external_file_id }}/edit" target="_blank" rel="noopener" class="text-brand-400 hover:text-brand-300">Open →</a>
+              <a href="https://docs.google.com/spreadsheets/d/{{ org.cloud_backup.external_file_id }}/edit" target="_blank" rel="noopener" class="sa-link">Open →</a>
               {% elif org.cloud_backup %}
               Connected{% if org.cloud_backup.connected_email %} as {{ org.cloud_backup.connected_email }}{% endif %} — Google Sheet not yet provisioned.
-              {% else %}
-              Not connected yet — owner hasn't linked a Google account.
-              {% endif %}
-            {% else %}
-              Stored in Finday's own database — no Google account involved.
-            {% endif %}
+              {% else %}Not connected yet — owner hasn't linked a Google account.{% endif %}
+            {% else %}Stored in Finday's own database — no Google account involved.{% endif %}
           </dd>
         </div>
       </dl>
-    </div>
+    </section>
   </div>
 </div>
 
 <!-- Subscription history -->
-<div class="sa-card mt-5">
-  <div class="px-5 py-4">
-    <h2 class="od-section-title">Subscription history</h2>
-    <p class="mt-1 text-[11px] text-slate-600">Every prior subscription period, including plan changes, renewals, complimentary grants and trial extensions — each with its own dates.</p>
-  </div>
-  <div class="od-divider overflow-x-auto">
-    <table class="sa-table w-full whitespace-nowrap">
-      <thead>
-        <tr>
-          <th>Subscription ID</th><th>Plan</th><th>Cycle</th><th>Status</th><th>Payment</th>
-          <th>Start</th><th>End</th><th>Trial start</th><th>Trial end</th><th>Cancelled</th>
-          <th class="!text-right">Final amount</th><th>Comp</th><th>Created</th>
-        </tr>
-      </thead>
+<section class="sa-card mt-5 overflow-hidden">
+  <div class="sa-card-head"><div><h2 class="sa-section-title">Subscription history</h2><p class="sa-section-sub">Every prior period — plan changes, renewals, complimentary grants and trial extensions.</p></div></div>
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack whitespace-nowrap">
+      <thead><tr>
+        <th>Subscription</th><th>Plan</th><th>Status</th><th>Payment</th>
+        <th>Start</th><th>End</th><th>Trial</th><th>Cancelled</th><th class="!text-right">Final</th><th>Created</th>
+      </tr></thead>
       <tbody>
         {% for h in subscription_history %}
         <tr>
-          <td class="sa-mono">{{ h.subscription_id }}</td>
-          <td>{{ h.plan.name }}</td>
-          <td>{{ h.get_billing_cycle_display }}</td>
-          <td>
-            {% with s=h.status %}
-            <span class="sa-badge {% if s == "ACTIVE" %}sa-badge--active{% elif s == "TRIAL" %}sa-badge--warn{% elif s == "PAYMENT_DUE" or s == "PAST_DUE" or s == "SUSPENDED" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">{{ h.get_status_display }}</span>
-            {% endwith %}
-          </td>
-          <td>
-            {% with p=h.payment_status %}
-            <span class="sa-badge {% if p == "PAID" %}sa-badge--active{% elif p == "PENDING" %}sa-badge--warn{% elif p == "FAILED" %}sa-badge--inactive{% else %}sa-badge--neutral{% endif %}">{{ h.get_payment_status_display }}</span>
-            {% endwith %}
-          </td>
-          <td>{{ h.start_date|date:"d M Y"|default:"—" }}</td>
-          <td>{{ h.end_date|date:"d M Y"|default:"—" }}</td>
-          <td>{{ h.trial_start_date|date:"d M Y"|default:"—" }}</td>
-          <td>{{ h.trial_end_date|date:"d M Y"|default:"—" }}</td>
-          <td>{{ h.cancellation_date|date:"d M Y"|default:"—" }}</td>
-          <td class="sa-mono text-right">₹{{ h.final_amount }}</td>
-          <td>{% if h.is_complimentary %}<span class="sa-badge sa-badge--warn">Yes</span>{% else %}—{% endif %}</td>
-          <td>{{ h.created_at|date:"d M Y, H:i" }}</td>
+          <td data-label="Subscription" class="sa-mono">{{ h.subscription_id }}</td>
+          <td data-label="Plan">{{ h.plan.name }} <span class="text-[11px] text-slate-500">{{ h.get_billing_cycle_display }}</span>{% if h.is_complimentary %} <span class="sa-chip sa-chip--violet !py-0 !text-[10px]">Comp</span>{% endif %}</td>
+          <td data-label="Status">{% sa_status "sub" h.status h.get_status_display %}</td>
+          <td data-label="Payment">{% sa_status "payment" h.payment_status h.get_payment_status_display %}</td>
+          <td data-label="Start">{{ h.start_date|date:"d M Y"|default:"—" }}</td>
+          <td data-label="End">{{ h.end_date|date:"d M Y"|default:"—" }}</td>
+          <td data-label="Trial">{% if h.trial_start_date %}{{ h.trial_start_date|date:"d M" }} – {{ h.trial_end_date|date:"d M Y"|default:"?" }}{% else %}—{% endif %}</td>
+          <td data-label="Cancelled">{{ h.cancellation_date|date:"d M Y"|default:"—" }}</td>
+          <td data-label="Final" class="num">₹{{ h.final_amount|floatformat:2|intcomma }}</td>
+          <td data-label="Created">{{ h.created_at|date:"d M Y, H:i" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="13" class="text-center text-slate-600">No prior subscriptions.</td></tr>
+        <tr><td colspan="10"><div class="sa-empty !py-6">No prior subscriptions.</div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-</div>
+</section>
 
 <script>
 (function () {
   var tabs = document.querySelectorAll("[data-od-tab]");
   var panels = document.querySelectorAll("[data-od-panel]");
-
   function show(name) {
     tabs.forEach(function (t) {
       var active = t.dataset.odTab === name;
@@ -506,10 +497,7 @@
     });
     panels.forEach(function (p) { p.classList.toggle("hidden", p.dataset.odPanel !== name); });
   }
-
-  tabs.forEach(function (t) {
-    t.addEventListener("click", function () { show(t.dataset.odTab); });
-  });
+  tabs.forEach(function (t) { t.addEventListener("click", function () { show(t.dataset.odTab); }); });
 })();
 </script>
 {% endblock %}

@@ -1,0 +1,27 @@
+<!doctype html>
+<html><body style="margin:0;background:#f3f5f9;font-family:Inter,Arial,sans-serif;color:#0f172a">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:14px;border:1px solid #e2e8f0">
+  <tr><td style="padding:22px 24px 8px">
+    <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#c2680a">Finday Ops · {{ env_label }}</p>
+    <h1 style="margin:6px 0 0;font-size:20px">{% if items %}{{ items|length }} thing{{ items|pluralize }} need{{ items|pluralize:"s," }} attention{% else %}All clear{% endif %}</h1>
+    <p style="margin:4px 0 0;font-size:13px;color:#64748b">{{ today|date:"l, d F Y" }}</p>
+  </td></tr>
+  <tr><td style="padding:12px 24px 22px">
+    {% for i in items %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #eef2f7"><tr>
+      <td style="padding:12px 0">
+        <span style="display:inline-block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:99px;{% if i.severity == 'critical' %}background:#fde8e8;color:#b91c1c{% elif i.severity == 'warning' %}background:#fef3c7;color:#92400e{% else %}background:#e0e7ff;color:#3730a3{% endif %}">{{ i.severity }}</span>
+        <p style="margin:6px 0 0;font-size:14px;font-weight:600">{% if base_url %}<a href="{{ base_url }}{{ i.href }}" style="color:#0f172a">{{ i.title }}</a>{% else %}{{ i.title }}{% endif %}</p>
+        <p style="margin:2px 0 0;font-size:12px;color:#64748b">{{ i.detail }}{% if i.amount %} · ₹{{ i.amount|floatformat:0 }}{% endif %}</p>
+      </td>
+      <td align="right" style="font-size:22px;font-weight:700;padding-left:12px">{{ i.count }}</td>
+    </tr></table>
+    {% empty %}
+    <p style="font-size:14px;color:#475569">No failed payments, overdue invoices, expiring trials, pending storage requests or sync errors.</p>
+    {% endfor %}
+  </td></tr>
+</table>
+<p style="font-size:11px;color:#94a3b8">Sent by the Finday Intelligence operations console.</p>
+</td></tr></table>
+</body></html>

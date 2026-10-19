@@ -26,6 +26,8 @@ from apps.organizations.services import OrganizationSignupError, create_organiza
 from apps.organizations.forms import ApproveStorageChangeForm
 from apps.organizations.views import _handle_approved_storage_change
 
+from .audit import tables_ready
+from .listing import export_response, paginate, sorted_qs, wants_export
 from .forms import (
     ApplyInvoiceCouponForm,
     ClientCreateForm,
@@ -55,26 +57,22 @@ ENVIRONMENTS = {
     "prod": "Production",
 }
 
+# The client list's bulk actions (see ops_views.OrgBulkActionView).
+BULK_ACTIONS = [
+    ("extend_trial", "Extend trial by…"),
+    ("suspend", "Suspend service"),
+    ("resume", "Resume service"),
+    ("add_tag", "Add tag…"),
+    ("remove_tag", "Remove tag…"),
+    ("export", "Export selected (Excel)"),
+]
+
 
 def _env_label_or_404(env):
     label = ENVIRONMENTS.get(env)
     if label is None:
         raise Http404("Unknown environment")
     return label
-
-
-def _month_keys(months: int):
-    """Last `months` (year, month) tuples ending at the current month."""
-    today = timezone.localdate()
-    keys = []
-    y, m = today.year, today.month
-    for _ in range(months):
-        keys.append((y, m))
-        m -= 1
-        if m == 0:
-            m = 12
-            y -= 1
-    return list(reversed(keys))
 
 
 class PlatformAnalyticsView(SuperAdminRequiredMixin, TemplateView):
@@ -110,159 +108,225 @@ class PlatformAnalyticsView(SuperAdminRequiredMixin, TemplateView):
 
             data = empty_platform_analytics(months)
             context["db_error"] = True
+        from .growth import empty_growth, growth_metrics
+
+        try:
+            growth = empty_growth(months) if context["db_error"] else growth_metrics(env, months)
+        except DatabaseError:
+            logger.exception("Platform analytics growth: %s database unavailable", env)
+            growth = empty_growth(months)
         context["a"] = data
-        context["charts_json"] = json.dumps(data["charts"], default=float)
+        context["g"] = growth
+        context["charts_json"] = json.dumps({**data["charts"], "moves": growth["moves"]}, default=float)
         return context
 
 
 class EnvironmentOverviewView(SuperAdminRequiredMixin, TemplateView):
-    """The business's own financial dashboard — revenue, outstanding
-    balances, and client counts, per environment. Environment browsing
-    itself lives in the top nav / sidebar now; this page is a cross-
-    environment summary, not another way to pick one.
+    """The console's home: what needs attention right now, the headline
+    numbers for production (with development alongside), revenue trend,
+    latest signups and the latest console activity.
+
+    Revenue everywhere here is the same figure Analytics uses — money
+    collected (including later-refunded payments) minus refunds — so the
+    two pages always agree.
     """
 
     template_name = "superadmin/overview.html"
-    REVENUE_MONTHS = 6
+    MONTHS = 12
 
     def get_context_data(self, **kwargs):
+        from .alerts import safe_attention_items
+        from .analytics import empty_platform_analytics, platform_analytics
+        from .models import AuditLogEntry
+
         context = super().get_context_data(**kwargs)
-        context["stats"] = {env: self._env_stats(env) for env in ENVIRONMENTS}
-        context["revenue_chart"] = json.dumps(self._revenue_chart_data())
-        context["payment_status_chart"] = json.dumps(self._payment_status_chart_data("prod"))
-        return context
-
-    def _env_stats(self, env):
-        # An environment's database may be unreachable (e.g. no DEV_DB_* on a
-        # production host); show zeros for it instead of failing the page.
-        try:
-            return self._compute_env_stats(env)
-        except DatabaseError:
-            logger.exception("Superadmin overview: %s database unavailable", env)
-            return {
-                "total_clients": 0, "active_services": 0, "new_this_month": 0,
-                "total_revenue": Decimal("0"), "outstanding": Decimal("0"),
-            }
-
-    def _compute_env_stats(self, env):
-        month_start = timezone.localdate().replace(day=1)
-        total_revenue = (
-            Payment.objects.using(env).filter(status=Payment.Status.SUCCESS).aggregate(t=Sum("amount"))["t"]
-            or Decimal("0")
-        )
-        outstanding = (
-            Invoice.objects.using(env)
-            .exclude(status__in=[Invoice.Status.PAID, Invoice.Status.CANCELLED, Invoice.Status.DRAFT])
-            .aggregate(t=Sum("amount_due"))["t"]
-            or Decimal("0")
-        )
-        return {
-            "total_clients": Organization.objects.using(env).count(),
-            "active_services": Organization.objects.using(env)
-            .filter(service_status=Organization.ServiceStatus.ACTIVE)
-            .count(),
-            "new_this_month": Organization.objects.using(env).filter(created_at__date__gte=month_start).count(),
-            "total_revenue": total_revenue,
-            "outstanding": outstanding,
-        }
-
-    def _revenue_chart_data(self):
-        keys = _month_keys(self.REVENUE_MONTHS)
-        labels = [f"{calendar.month_abbr[m]} {y}" for y, m in keys]
-        series = {}
+        data, db_ok, attention, recent_orgs, activity = {}, {}, [], {}, []
         for env in ENVIRONMENTS:
-            buckets = {k: Decimal("0") for k in keys}
             try:
-                payments = list(
-                    Payment.objects.using(env).filter(
-                        status=Payment.Status.SUCCESS, payment_date__year__gte=keys[0][0]
-                    )
-                )
+                data[env] = platform_analytics(env, self.MONTHS)
+                db_ok[env] = True
             except DatabaseError:
                 logger.exception("Superadmin overview: %s database unavailable", env)
-                payments = []
-            for p in payments:
-                k = (p.payment_date.year, p.payment_date.month)
-                if k in buckets:
-                    buckets[k] += p.amount
-            series[env] = [float(buckets[k]) for k in keys]
-        return {"labels": labels, "dev": series["dev"], "prod": series["prod"]}
+                data[env] = empty_platform_analytics(self.MONTHS)
+                db_ok[env] = False
+            items, ok = safe_attention_items(env) if db_ok[env] else ([], False)
+            attention += items
+            try:
+                recent_orgs[env] = list(Organization.objects.using(env).order_by("-created_at")[:6])
+            except DatabaseError:
+                recent_orgs[env] = []
+            if db_ok[env] and tables_ready(env):
+                activity += [
+                    {"env": env, "entry": e} for e in AuditLogEntry.objects.using(env).order_by("-created_at")[:8]
+                ]
 
-    def _payment_status_chart_data(self, env):
-        try:
-            counts = {row["status"]: row["c"] for row in Payment.objects.using(env).values("status").annotate(c=Count("id"))}
-        except DatabaseError:
-            logger.exception("Superadmin overview: %s database unavailable", env)
-            counts = {}
-        labels = [label for _value, label in Payment.Status.choices]
-        values = [counts.get(value, 0) for value, _label in Payment.Status.choices]
-        return {"labels": labels, "values": values}
+        order = {"critical": 0, "warning": 1, "info": 2}
+        attention.sort(key=lambda i: (order[i["severity"]], i["env"] != "prod"))
+        activity.sort(key=lambda a: a["entry"].created_at, reverse=True)
+
+        context["a"] = data
+        context["db_ok"] = db_ok
+        context["attention"] = attention
+        context["recent_orgs"] = recent_orgs
+        context["activity"] = activity[:8]
+        context["charts_json"] = json.dumps({
+            env: {
+                "labels": d["charts"]["labels"],
+                "net": d["charts"].get("net", []),
+                "new_clients": d["charts"].get("new_clients", []),
+                "pay_status": d["charts"]["pay_status"],
+            }
+            for env, d in data.items()
+        }, default=float)
+        return context
 
 
 class OrganizationListView(SuperAdminRequiredMixin, TemplateView):
+    """Every client with plan, storage, usage and a health score; filter,
+    sort, page through, export, or act on several at once."""
+
     template_name = "superadmin/org_list.html"
+    SORTS = {"name": "name", "created": "created_at", "activity": "last_activity", "users": "user_count"}
+    EXPORT_HEADERS = [
+        "Client", "Code", "Contact person", "Contact email", "Phone", "Business type", "Storage", "Plan",
+        "Subscription status", "Payment status", "Renewal date", "Service", "Users", "Last login",
+        "Entries (30 days)", "Entries (total)", "Health", "Health score", "Tags", "Created",
+    ]
+
+    def get(self, request, *args, **kwargs):
+        context = self.get_context_data(**kwargs)
+        fmt = wants_export(request)
+        if fmt:
+            return export_response(fmt, f"clients-{kwargs['env']}", self.EXPORT_HEADERS, self._export_rows(context))
+        return self.render_to_response(context)
+
+    def _export_rows(self, context):
+        for org in context["all_organizations"]:
+            sub, u, h = org.current_subscription, org.usage, org.health
+            yield [
+                org.name, org.organization_code, org.contact_person, org.contact_email, org.contact_phone,
+                org.get_business_type_display(), org.get_storage_mode_display(),
+                sub.plan.name if sub else "", sub.get_status_display() if sub else "",
+                sub.get_payment_status_display() if sub else "", sub.end_date if sub else None,
+                org.get_service_status_display(), u["users"], u["last_login"], u["entries_30d"],
+                u["entries_total"], h["label"], h["score"], ", ".join(t.name for t in org.tag_list),
+                org.created_at,
+            ]
 
     def get_context_data(self, **kwargs):
+        from .health import is_inactive, score, usage_for
+        from .models import ClientTag
+
         env = kwargs["env"]
         context = super().get_context_data(**kwargs)
         context["env_key"] = env
         context["env_label"] = _env_label_or_404(env)
+        get = self.request.GET
+        ready = tables_ready(env)
 
         qs = Organization.objects.using(env).annotate(
             user_count=Count("users", distinct=True),
             last_activity=Max("users__last_login"),
         )
 
-        q = self.request.GET.get("q", "").strip()
+        q = get.get("q", "").strip()
         if q:
-            qs = qs.filter(
+            match = (
                 Q(name__icontains=q)
                 | Q(organization_code__icontains=q)
                 | Q(contact_person__icontains=q)
                 | Q(contact_email__icontains=q)
+                | Q(users__email__icontains=q)
             )
+            if ready:
+                match |= Q(admin_tags__name__iexact=q)
+            qs = qs.filter(match).distinct()
 
-        status = self.request.GET.get("status", "")
+        status = get.get("status", "")
         if status == "active":
             qs = qs.filter(service_status=Organization.ServiceStatus.ACTIVE)
         elif status == "suspended":
             qs = qs.filter(service_status=Organization.ServiceStatus.SUSPENDED)
 
-        business_type = self.request.GET.get("business_type", "")
+        business_type = get.get("business_type", "")
         if business_type:
             qs = qs.filter(business_type=business_type)
 
-        created_from = self.request.GET.get("created_from", "")
+        storage = get.get("storage", "")
+        if storage in Organization.StorageMode.values:
+            qs = qs.filter(storage_mode=storage)
+
+        created_from = get.get("created_from", "")
         if created_from:
             qs = qs.filter(created_at__date__gte=created_from)
 
-        plan_id = self.request.GET.get("plan", "")
+        plan_id = get.get("plan", "")
         if plan_id:
-            qs = qs.filter(
-                subscriptions__is_current=True, subscriptions__plan_id=plan_id
-            )
+            qs = qs.filter(subscriptions__is_current=True, subscriptions__plan_id=plan_id)
 
-        organizations = list(qs.order_by("-created_at"))
+        tag = get.get("tag", "").strip() if ready else ""
+        if tag:
+            qs = qs.filter(admin_tags__name=tag)
+
+        qs, sort = sorted_qs(self.request, qs, self.SORTS, "-created")
+        organizations = list(qs)
 
         # One extra query to attach each org's current subscription — cheap
         # (single IN query) and avoids fragile cross-alias annotate/subquery
         # tricks for a "dev"/"prod" alias that isn't "default".
-        current_subs = (
-            Subscription.objects.using(env)
-            .filter(organization_id__in=[o.id for o in organizations], is_current=True)
-            .select_related("plan")
-        )
-        subs_by_org = {sub.organization_id: sub for sub in current_subs}
+        ids = [o.id for o in organizations]
+        subs_by_org = {
+            sub.organization_id: sub
+            for sub in Subscription.objects.using(env).filter(organization_id__in=ids, is_current=True).select_related("plan")
+        }
+        tags_by_org = {}
+        for t in (ClientTag.objects.using(env).filter(organization_id__in=ids) if ready else []):
+            tags_by_org.setdefault(t.organization_id, []).append(t)
+        usage = usage_for(env, ids)
         for org in organizations:
             org.current_subscription = subs_by_org.get(org.id)
+            org.usage = usage[org.id]
+            org.health = score(org, org.current_subscription, org.usage)
+            org.tag_list = tags_by_org.get(org.id, [])
 
-        context["organizations"] = organizations
+        health_counts = {"healthy": 0, "at_risk": 0, "critical": 0}
+        for org in organizations:
+            health_counts[org.health["level"]] += 1
+
+        health = get.get("health", "")
+        if health in health_counts:
+            organizations = [o for o in organizations if o.health["level"] == health]
+        if get.get("inactive") == "1":
+            organizations = [o for o in organizations if is_inactive(o.usage)]
+        raw_sort = get.get("sort", "")
+        if raw_sort.lstrip("-") == "health":
+            sort = raw_sort
+            organizations.sort(key=lambda o: o.health["score"], reverse=raw_sort.startswith("-"))
+
+        context["all_organizations"] = organizations
+        context["organizations"] = paginate(self.request, organizations, context)
+        context["total_count"] = len(organizations)
+        context["health_counts"] = health_counts
+        context["sort"] = sort
         context["q"] = q
         context["status"] = status
         context["business_type"] = business_type
+        context["storage"] = storage
         context["plan"] = plan_id
+        context["tag"] = tag
+        context["health"] = health
+        context["inactive"] = get.get("inactive", "")
+        context["created_from"] = created_from
+        context["filtered"] = any([q, status, business_type, storage, plan_id, tag, health, context["inactive"], created_from])
         context["business_type_choices"] = Organization.BusinessType.choices
+        context["storage_choices"] = Organization.StorageMode.choices
         context["plan_choices"] = Plan.objects.using(env).order_by("name")
+        context["tag_choices"] = (
+            list(ClientTag.objects.using(env).values_list("name", flat=True).distinct().order_by("name"))
+            if ready else []
+        )
+        context["console_tables_ready"] = ready
+        context["bulk_actions"] = BULK_ACTIONS
         return context
 
 
@@ -305,7 +369,53 @@ class OrganizationDetailView(SuperAdminRequiredMixin, TemplateView):
             "cancellation_date": subscription.cancellation_date if subscription else None,
         })
         context["team"] = User.objects.using(env).filter(organization_id=org.id).order_by("email")
+        context.update(self._console_extras(env, org, subscription))
         return context
+
+    def _console_extras(self, env, org, subscription):
+        """Health, usage, money summary, notes/tags and recent activity."""
+        from .audit import current_env
+        from .health import score, usage_for
+        from .models import AuditLogEntry, ClientNote, ClientTag
+
+        usage = usage_for(env, [org.id])[org.id]
+        payments = Payment.objects.using(env).filter(organization_id=org.id)
+        invoices = Invoice.objects.using(env).filter(organization_id=org.id)
+        from .analytics import COLLECTED, OPEN_INVOICE
+
+        money = {
+            "paid": payments.filter(status__in=COLLECTED).aggregate(t=Sum("amount"))["t"] or Decimal("0"),
+            "refunded": payments.aggregate(t=Sum("refunded_amount"))["t"] or Decimal("0"),
+            "outstanding": invoices.filter(status__in=OPEN_INVOICE).aggregate(t=Sum("amount_due"))["t"] or Decimal("0"),
+            "invoices": invoices.exclude(status=Invoice.Status.DRAFT).count(),
+            "last_payment": payments.filter(status__in=COLLECTED).order_by("-payment_date").first(),
+        }
+
+        ready = tables_ready(env)
+        activity = [
+            {"when": e.created_at, "who": e.actor_email, "what": e.summary or e.action.replace("_", " "),
+             "kind": "audit"}
+            for e in (AuditLogEntry.objects.using(env).filter(organization_id=org.id)[:15] if ready else [])
+        ]
+        activity += [
+            {"when": c.created_at, "who": c.performed_by_email,
+             "what": f"{c.get_action_display()}" + (f" — {c.get_reason_display()}" if c.reason else ""),
+             "kind": "service"}
+            for c in ServiceStatusChange.objects.using(env).filter(organization_id=org.id).order_by("-created_at")[:10]
+        ]
+        activity.sort(key=lambda a: a["when"], reverse=True)
+
+        return {
+            "usage": usage,
+            "health": score(org, subscription, usage),
+            "money": money,
+            "notes": ClientNote.objects.using(env).filter(organization_id=org.id) if ready else [],
+            "tags": ClientTag.objects.using(env).filter(organization_id=org.id) if ready else [],
+            "console_tables_ready": ready,
+            "tag_colors": ClientTag.Color.choices,
+            "activity": activity[:15],
+            "can_impersonate": env == current_env(),
+        }
 
 
 class ClientUserEditView(SuperAdminRequiredMixin, View):
@@ -712,7 +822,26 @@ class PlanListView(SuperAdminRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context["env_key"] = env
         context["env_label"] = _env_label_or_404(env)
-        context["plans"] = Plan.objects.using(env).order_by("monthly_price", "name")
+        from .analytics import PAYING, monthly_equivalent
+
+        plans = list(Plan.objects.using(env).order_by("monthly_price", "name"))
+        stats = {p.pk: {"subs": 0, "paying": 0, "trials": 0, "mrr": Decimal("0")} for p in plans}
+        for sub in Subscription.objects.using(env).filter(is_current=True):
+            row = stats.get(sub.plan_id)
+            if row is None:
+                continue
+            row["subs"] += 1
+            if sub.status == Subscription.Status.TRIAL:
+                row["trials"] += 1
+            if sub.status in PAYING and not sub.is_complimentary:
+                row["paying"] += 1
+                row["mrr"] += monthly_equivalent(sub)
+        total_mrr = sum((r["mrr"] for r in stats.values()), Decimal("0"))
+        for p in plans:
+            p.stats = stats[p.pk]
+            p.stats["share"] = float(p.stats["mrr"] / total_mrr * 100) if total_mrr else 0
+        context["plans"] = plans
+        context["total_mrr"] = total_mrr
         return context
 
 
@@ -786,6 +915,29 @@ class SubscriptionListView(SuperAdminRequiredMixin, TemplateView):
     org's own detail page to see or correct any of it."""
 
     template_name = "superadmin/subscription_list.html"
+    SORTS = {
+        "client": "organization__name", "plan": "plan__name", "status": "status", "amount": "final_amount",
+        "renewal": "end_date", "trial_end": "trial_end_date", "created": "created_at",
+    }
+    EXPORT_HEADERS = [
+        "Subscription ID", "Client", "Code", "Plan", "Cycle", "Status", "Payment status", "Price", "Discount",
+        "Tax", "Final amount", "Start", "End / renewal", "Trial start", "Trial end", "Cancelled",
+        "Complimentary", "Autopay", "Autopay amount",
+    ]
+
+    def get(self, request, *args, **kwargs):
+        context = self.get_context_data(**kwargs)
+        fmt = wants_export(request)
+        if fmt:
+            rows = (
+                [s.subscription_id, s.organization.name, s.organization.organization_code, s.plan.name,
+                 s.get_billing_cycle_display(), s.get_status_display(), s.get_payment_status_display(), s.price,
+                 s.discount, s.tax, s.final_amount, s.start_date, s.end_date, s.trial_start_date, s.trial_end_date,
+                 s.cancellation_date, s.is_complimentary, s.autopay_enabled, s.autopay_amount]
+                for s in context["all_subscriptions"]
+            )
+            return export_response(fmt, f"subscriptions-{kwargs['env']}", self.EXPORT_HEADERS, rows)
+        return self.render_to_response(context)
 
     def get_context_data(self, **kwargs):
         env = kwargs["env"]
@@ -822,7 +974,23 @@ class SubscriptionListView(SuperAdminRequiredMixin, TemplateView):
         elif autopay == "off":
             qs = qs.filter(autopay_enabled=False)
 
-        context["subscriptions"] = qs.order_by("organization__name")
+        if self.request.GET.get("trial_ending") == "1":
+            today = timezone.localdate()
+            qs = qs.filter(trial_end_date__gte=today, trial_end_date__lte=today + datetime.timedelta(days=7))
+
+        plan_id = self.request.GET.get("plan", "")
+        if plan_id:
+            qs = qs.filter(plan_id=plan_id)
+
+        qs, context["sort"] = sorted_qs(self.request, qs, self.SORTS, "client")
+        context["all_subscriptions"] = qs
+        context["subscriptions"] = paginate(self.request, qs, context)
+        context["summary"] = qs.aggregate(total=Sum("final_amount"), n=Count("pk"))
+        context["plan"] = plan_id
+        context["plan_choices"] = Plan.objects.using(env).order_by("name")
+        context["trial_ending"] = self.request.GET.get("trial_ending", "")
+        context["cancelled_from"] = cancelled_from
+        context["paying"] = self.request.GET.get("paying", "")
         context["q"] = q
         context["status"] = status
         context["autopay"] = autopay
@@ -898,10 +1066,32 @@ class CouponListView(SuperAdminRequiredMixin, TemplateView):
             row["coupon_id"]: row["n"]
             for row in CouponRedemption.objects.using(env).values("coupon_id").annotate(n=Count("id"))
         }
+        discount_totals = {
+            row["coupon_id"]: row["t"]
+            for row in CouponRedemption.objects.using(env).values("coupon_id").annotate(t=Sum("discount_amount"))
+        }
+        today = timezone.localdate()
         for coupon in coupons:
             coupon.redemption_count = redemption_counts.get(coupon.id, 0)
+            coupon.discount_total = discount_totals.get(coupon.id) or Decimal("0")
+            coupon.state = coupon_state(coupon, today)
         context["coupons"] = coupons
         return context
+
+
+def coupon_state(coupon, today):
+    """(label, tone) for a coupon's current usability."""
+    if not coupon.is_active:
+        return ("Inactive", "neutral")
+    if coupon.valid_until and coupon.valid_until < today:
+        return ("Expired", "bad")
+    if coupon.max_redemptions and getattr(coupon, "redemption_count", 0) >= coupon.max_redemptions:
+        return ("Used up", "warn")
+    if coupon.valid_from and coupon.valid_from > today:
+        return ("Scheduled", "info")
+    if coupon.valid_until and (coupon.valid_until - today).days <= 7:
+        return ("Expiring soon", "warn")
+    return ("Live", "ok")
 
 
 class CouponCreateView(SuperAdminRequiredMixin, View):
@@ -957,6 +1147,26 @@ class CouponToggleActiveView(SuperAdminRequiredMixin, View):
 
 class PaymentListView(SuperAdminRequiredMixin, TemplateView):
     template_name = "superadmin/payment_list.html"
+    SORTS = {"date": "payment_date", "amount": "amount", "client": "organization__name", "status": "status",
+             "id": "payment_id"}
+    EXPORT_HEADERS = [
+        "Payment ID", "Date", "Client", "Code", "Invoice", "Amount", "Currency", "Method", "Gateway",
+        "Transaction ID", "Status", "Refunded", "Refund reason", "Failure reason",
+    ]
+
+    def get(self, request, *args, **kwargs):
+        context = self.get_context_data(**kwargs)
+        fmt = wants_export(request)
+        if fmt:
+            rows = (
+                [p.payment_id, p.payment_date, p.organization.name, p.organization.organization_code,
+                 p.invoice.invoice_number if p.invoice else "", p.amount, p.currency, p.get_payment_method_display(),
+                 p.get_gateway_display(), p.transaction_id, p.get_status_display(), p.refunded_amount,
+                 p.refund_reason, p.failure_reason]
+                for p in context["all_payments"]
+            )
+            return export_response(fmt, f"payments-{kwargs['env']}", self.EXPORT_HEADERS, rows)
+        return self.render_to_response(context)
 
     def get_context_data(self, **kwargs):
         env = kwargs["env"]
@@ -997,7 +1207,14 @@ class PaymentListView(SuperAdminRequiredMixin, TemplateView):
         if date_to:
             qs = qs.filter(payment_date__date__lte=date_to)
 
-        context["payments"] = qs.order_by("-payment_date")
+        qs, context["sort"] = sorted_qs(self.request, qs, self.SORTS, "-date")
+        context["all_payments"] = qs
+        context["payments"] = paginate(self.request, qs, context)
+        context["summary"] = qs.aggregate(
+            total=Sum("amount"), refunded=Sum("refunded_amount"), n=Count("pk"),
+            failed=Count("pk", filter=Q(status=Payment.Status.FAILED)),
+        )
+        context["refunded"] = self.request.GET.get("refunded", "")
         context["q"] = q
         context["status"] = status
         context["gateway"] = gateway
@@ -1012,6 +1229,25 @@ class PaymentListView(SuperAdminRequiredMixin, TemplateView):
 
 class InvoiceListView(SuperAdminRequiredMixin, TemplateView):
     template_name = "superadmin/invoice_list.html"
+    SORTS = {"number": "invoice_number", "date": "invoice_date", "due": "due_date", "client": "organization__name",
+             "total": "total", "amount_due": "amount_due", "status": "status"}
+    EXPORT_HEADERS = [
+        "Invoice", "Client", "Code", "Invoice date", "Due date", "Service from", "Service to", "Currency",
+        "Subtotal", "Discount", "Tax", "Total", "Paid", "Due", "Status",
+    ]
+
+    def get(self, request, *args, **kwargs):
+        context = self.get_context_data(**kwargs)
+        fmt = wants_export(request)
+        if fmt:
+            rows = (
+                [i.invoice_number, i.organization.name, i.organization.organization_code, i.invoice_date,
+                 i.due_date, i.service_billing_start_date, i.service_billing_end_date, i.currency, i.subtotal,
+                 i.discount, i.tax, i.total, i.amount_paid, i.amount_due, i.get_status_display()]
+                for i in context["all_invoices"]
+            )
+            return export_response(fmt, f"invoices-{kwargs['env']}", self.EXPORT_HEADERS, rows)
+        return self.render_to_response(context)
 
     def get_context_data(self, **kwargs):
         env = kwargs["env"]
@@ -1049,7 +1285,13 @@ class InvoiceListView(SuperAdminRequiredMixin, TemplateView):
         if date_to:
             qs = qs.filter(invoice_date__lte=date_to)
 
-        context["invoices"] = qs.order_by("-invoice_date", "-created_at")
+        qs, context["sort"] = sorted_qs(self.request, qs, self.SORTS, "-date")
+        context["all_invoices"] = qs
+        context["invoices"] = paginate(self.request, qs, context)
+        context["summary"] = qs.aggregate(total=Sum("total"), due=Sum("amount_due"), n=Count("pk"))
+        context["today"] = timezone.localdate()
+        context["open"] = self.request.GET.get("open", "")
+        context["overdue"] = self.request.GET.get("overdue", "")
         context["q"] = q
         context["status"] = status
         context["date_from"] = date_from
