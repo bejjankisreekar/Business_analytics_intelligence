@@ -1,0 +1,24 @@
+{% comment %}
+Shown across every app page for a GOOGLE_SHEETS org whose Drive connection
+has gone bad (refresh token expired/revoked at Google's end — see
+apps.organizations.drive_sync.get_valid_access_token). The middleware
+already falls back to an empty dataset for this case instead of crashing
+(see TenantSchemaMiddleware), so without this banner the owner would have
+no way to notice their data isn't syncing short of digging into Profile.
+{% endcomment %}
+{% if request.user.organization.storage_mode == 'GOOGLE_SHEETS' and request.user.organization.cloud_backup.last_sync_error %}
+<div class="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+  <svg class="h-5 w-5 flex-none text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M10.29 3.86l-8.18 14.18A1.5 1.5 0 003.42 20.5h17.16a1.5 1.5 0 001.31-2.46l-8.18-14.18a1.5 1.5 0 00-2.62 0z"/></svg>
+  <p class="min-w-0 flex-1">
+    <span class="font-medium text-red-100">Google Drive connection lost</span>
+    — your data stopped syncing with Google Sheets, so the app may be showing nothing until this is fixed.
+  </p>
+  {% if request.user.role == 'OWNER' or request.user.role == 'ADMIN' %}
+  <a href="{% url 'accounts:connect_drive' %}" class="flex-none rounded-lg bg-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-100 hover:bg-red-500/30">
+    Reconnect Google Drive
+  </a>
+  {% else %}
+  <span class="flex-none text-xs text-red-300/80">Ask your organization's owner/admin to reconnect it.</span>
+  {% endif %}
+</div>
+{% endif %}

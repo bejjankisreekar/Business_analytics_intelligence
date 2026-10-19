@@ -232,6 +232,9 @@
       {% endif %}
       {% if drive_connection.last_sync_error %}
       <p class="mt-1 text-xs text-red-400">{{ drive_connection.last_sync_error }}</p>
+      {% if can_connect_drive %}
+      <a href="{% url 'accounts:connect_drive' %}" class="btn-primary mt-3 inline-flex">Reconnect Google Drive</a>
+      {% endif %}
       {% endif %}
       {% elif can_connect_drive %}
       {% if drive_disconnected %}

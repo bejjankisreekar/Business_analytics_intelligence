@@ -1,6 +1,47 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}{{ SITE_NAME }} — Turn daily numbers into business decisions{% endblock %}
+{% block title %}{{ SITE_NAME }} — Business Analytics & Financial Intelligence Software{% endblock %}
+{% block meta_description %}Finday Intelligence is business analytics software for small business owners — turn daily sales, purchases and expenses into margins, ledgers, receivables and auto-generated business intelligence insights.{% endblock %}
+{% block og_title %}{{ SITE_NAME }} — Know exactly how your business is doing, every day{% endblock %}
+{% block og_description %}{{ SITE_NAME }} turns daily sales, purchases and expenses into margins, ledgers, receivables and auto-generated insights, so you always know what's working.{% endblock %}
+{% block twitter_title %}{{ SITE_NAME }} — Business Analytics & Financial Intelligence{% endblock %}
+{% block twitter_description %}Turn daily sales, purchases and expenses into margins, ledgers, receivables and auto-generated insights.{% endblock %}
+
+{% block structured_data %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "{{ SITE_NAME }}",
+  "url": "{{ SITE_URL }}",
+  "logo": "{{ SITE_URL }}{% static 'img/logo.png' %}",
+  "description": "Finday Intelligence turns daily sales, purchases and expenses into margins, ledgers, receivables and auto-generated business insights.",
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "email": "{{ CONTACT_EMAIL }}",
+    "telephone": "{{ CONTACT_PHONE }}",
+    "contactType": "customer support"
+  }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "{{ SITE_NAME }}",
+  "url": "{{ SITE_URL }}",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "description": "Business analytics and financial intelligence software that turns daily sales, purchases and expenses into margins, ledgers, receivables and auto-generated insights.",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "INR",
+    "description": "Free to start, no credit card required"
+  }
+}
+</script>
+{% endblock %}
 
 {% block body %}
 <div class="relative overflow-x-clip bg-grid">
@@ -23,6 +64,9 @@
         Log daily sales, purchases and expenses in seconds. Finday Intelligence turns
         that raw data into margins, ledgers, receivables and auto-generated insights — so you
         always know what's working and what's quietly eating your profit.
+      </p>
+      <p class="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-slate-500">
+        Business analytics and business intelligence software built for small business owners — no data team required.
       </p>
       <div class="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
         <a href="{% url 'accounts:signup' %}" class="keep-white w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-7 py-3.5 text-center text-sm font-semibold text-white shadow-xl shadow-brand-600/30 transition hover:brightness-110 sm:w-auto">
@@ -53,7 +97,7 @@
           <div class="rounded-xl border border-white/5 bg-white/[0.03] p-5">
             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Today's expenses</p>
             <p class="mt-2 text-2xl font-bold text-white">₹42,110</p>
-            <p class="mt-1 text-xs font-medium text-red-400">▲ 4.1% vs yesterday</p>
+            <p class="mt-1 text-xs font-medium text-red-400">▼ 4.1% vs yesterday</p>
           </div>
           <div class="rounded-xl border border-white/5 bg-white/[0.03] p-5">
             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Net margin</p>
@@ -96,7 +140,7 @@
   <section id="features" class="mx-auto max-w-7xl px-6 py-24 lg:px-8">
     <div class="mx-auto max-w-2xl text-center">
       <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Everything you need to understand your business</h2>
-      <p class="mt-4 text-base text-slate-400">From the first daily entry to a full set of ledgers, invoices and reports — replace spreadsheets, guesswork and end-of-month surprises.</p>
+      <p class="mt-4 text-base text-slate-400">From the first daily entry to a full set of ledgers, invoices and reports — replace spreadsheets, guesswork and end-of-month surprises. It's business analytics software for small business owners who want real business intelligence without hiring a data team.</p>
     </div>
     <div class="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:border-brand-500/30 hover:bg-white/[0.05]">

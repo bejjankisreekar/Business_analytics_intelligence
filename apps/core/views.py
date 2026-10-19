@@ -4,6 +4,7 @@ import threading
 from django.conf import settings
 from django.contrib import messages
 from django.core.mail import EmailMultiAlternatives
+from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -89,3 +90,21 @@ class PrivacyPolicyView(TemplateView):
 
 class TermsView(TemplateView):
     template_name = "marketing/terms.html"
+
+
+def robots_txt(request):
+    lines = [
+        "User-agent: *",
+        "Allow: /$",
+        "Allow: /privacy-policy/",
+        "Allow: /terms/",
+        "Disallow: /app/",
+        "Disallow: /accounts/",
+        "Disallow: /billing/",
+        "Disallow: /organizations/",
+        "Disallow: /superadmin/",
+        "Disallow: /admin/",
+        "",
+        f"Sitemap: {settings.SITE_URL}/sitemap.xml",
+    ]
+    return HttpResponse("\n".join(lines), content_type="text/plain")

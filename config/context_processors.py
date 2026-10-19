@@ -6,6 +6,7 @@ from apps.finance.access import has_kickbacks_access
 def site_meta(request):
     return {
         "SITE_NAME": settings.SITE_NAME,
+        "SITE_URL": settings.SITE_URL,
         "CONTACT_EMAIL": settings.CONTACT_EMAIL,
         "CONTACT_PHONE": settings.CONTACT_PHONE,
     }

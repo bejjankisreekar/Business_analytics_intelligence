@@ -3,7 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}{{ SITE_NAME }}{% endblock %}</title>
+<title>{% block title %}{{ SITE_NAME }} — Daily Sales, Expense & Profit Tracking for Business Owners{% endblock %}</title>
+<meta name="description" content="{% block meta_description %}{{ SITE_NAME }} turns your daily sales, purchases and expenses into margins, ledgers, receivables and auto-generated business insights — so you always know what's working.{% endblock %}">
+<meta name="robots" content="{% block robots %}index, follow{% endblock %}">
+<link rel="canonical" href="{% block canonical_url %}{{ SITE_URL }}{{ request.path }}{% endblock %}">
+{# Open Graph / Twitter: per-page blocks default to the site-wide title/description above. #}
+<meta property="og:site_name" content="{{ SITE_NAME }}">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="{{ SITE_URL }}{{ request.path }}">
+<meta property="og:title" content="{% block og_title %}{{ SITE_NAME }}{% endblock %}">
+<meta property="og:description" content="{% block og_description %}{{ SITE_NAME }} turns your daily sales, purchases and expenses into margins, ledgers, receivables and auto-generated business insights.{% endblock %}">
+<meta property="og:image" content="{% block og_image %}{{ SITE_URL }}{% static 'img/logo.png' %}{% endblock %}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{% block twitter_title %}{{ SITE_NAME }}{% endblock %}">
+<meta name="twitter:description" content="{% block twitter_description %}{{ SITE_NAME }} — business analytics and financial intelligence for daily sales, expenses and margins.{% endblock %}">
+<meta name="twitter:image" content="{% block twitter_image %}{{ SITE_URL }}{% static 'img/logo.png' %}{% endblock %}">
+{% block structured_data %}{% endblock %}
 <script>
   // Set the theme before first paint so there's no flash of the wrong
   // theme. Kept inline (not in theme.js) since it must run synchronously,
