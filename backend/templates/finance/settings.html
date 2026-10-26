@@ -12,12 +12,16 @@
   /* Phone-only: a smaller title, so the long heading wraps cleanly. */
   @media (max-width: 639px) {
     .setup-title { font-size: 1.5rem; line-height: 1.2; letter-spacing: -.01em; }
+    .setup-grid > .setup-card { min-width: 0; min-height: 9.5rem; padding: .85rem; }
+    .setup-grid .setup-card > div:first-child { width: 2.25rem; height: 2.25rem; }
+    .setup-grid .setup-card h3 { font-size: .8rem; line-height: 1.2rem; overflow-wrap: anywhere; }
+    .setup-grid .setup-card p { font-size: .7rem; line-height: 1.1rem; overflow-wrap: anywhere; }
   }
 </style>
 <h1 class="setup-title text-2xl font-bold text-white">Setup your Categories, Sub-Categories & Bank Accounts</h1>
 <p class="mt-1 text-sm text-slate-400">Controls how {{ organization.name }}'s reports and financial year are calculated. Click a card to edit it.</p>
 
-<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+<div class="setup-grid mt-6 grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
   <button type="button" onclick="bai.openModal('modal-fy')" class="card card-link setup-card p-5 text-left">
     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
       <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>

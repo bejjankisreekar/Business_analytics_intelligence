@@ -244,6 +244,12 @@ class Invoice(models.Model):
 
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
 
+    # Set on a plan-upgrade invoice (the prorated price difference): once it is
+    # paid in full the subscription moves to this plan. Not a renewal invoice.
+    upgrade_plan = models.ForeignKey(
+        "Plan", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

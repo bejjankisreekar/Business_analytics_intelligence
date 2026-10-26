@@ -31,6 +31,185 @@ def has_business_tier_plan(organization, using: str = "default") -> bool:
     return bool(sub and sub.plan.slug in BUSINESS_TIER_PLAN_SLUGS)
 
 
+# Self-serve plan changes stay on the same storage: Professional <-> Business on
+# Finday's managed database, Professional Drive <-> Business Drive on the
+# client's own Drive. Ordered low -> high.
+PLAN_CHANGE_LADDERS = (
+    ("starter", "smart-drive"),
+    ("pro", "enterprise"),
+)
+
+
+class PlanChangeError(Exception):
+    """Raised by change_plan() with a message safe to show the customer."""
+
+
+def get_plan_change_options(organization, *, using: str = "default") -> list[dict]:
+    """Plans this org may move to right now: the other tiers on the ladder its
+    current plan sits on, each tagged "upgrade" or "downgrade". Empty for
+    plans off every ladder (e.g. Complementary) or when there's no subscription."""
+    sub = get_current_subscription(organization.id, using=using)
+    if sub is None:
+        return []
+    ladder = next((l for l in PLAN_CHANGE_LADDERS if sub.plan.slug in l), None)
+    if ladder is None:
+        return []
+    current_rank = ladder.index(sub.plan.slug)
+    yearly = sub.billing_cycle == Subscription.BillingCycle.YEARLY
+    plans = {p.slug: p for p in Plan.objects.using(using).filter(slug__in=ladder, is_active=True)}
+    options = []
+    for rank, slug in enumerate(ladder):
+        plan = plans.get(slug)
+        if plan is None or rank == current_rank:
+            continue
+        options.append({
+            "plan": plan,
+            "direction": "upgrade" if rank > current_rank else "downgrade",
+            "gross": plan.yearly_price if yearly else plan.monthly_price,
+            "net": plan.effective_yearly_price if yearly else plan.effective_monthly_price,
+            "period": "year" if yearly else "month",
+        })
+    return options
+
+
+@transaction.atomic
+def change_plan(organization, target_slug: str, *, using: str = "default") -> Subscription:
+    """Move the org's current subscription to another plan on the same ladder.
+
+    Takes effect immediately and edits the current subscription in place (the
+    same way a storage switch does) so invoices already pointing at it keep
+    working. Billing dates are untouched; the new plan's price is what the
+    next renewal bills, and any still-unpaid renewal invoice is re-priced to it.
+    """
+    sub = get_current_subscription(organization.id, using=using)
+    if sub is None:
+        raise PlanChangeError("No active subscription to change.")
+    option = next((o for o in get_plan_change_options(organization, using=using) if o["plan"].slug == target_slug), None)
+    if option is None:
+        raise PlanChangeError("That plan isn't available for a self-serve change.")
+    if sub.autopay_enabled:
+        raise PlanChangeError("Turn off autopay before changing plan, then turn it back on afterwards.")
+    if sub.status in (Subscription.Status.CANCELLED, Subscription.Status.EXPIRED, Subscription.Status.SUSPENDED):
+        raise PlanChangeError("Your subscription isn't active, so the plan can't be changed.")
+
+    new_plan = option["plan"]
+    old_name = sub.plan.name
+    sub.plan = new_plan
+    if not sub.is_complimentary and sub.billing_cycle != Subscription.BillingCycle.CUSTOM:
+        sub.price = option["gross"]
+        sub.discount = option["gross"] - option["net"]
+    stamp = timezone.localdate().isoformat()
+    sub.notes = f"{sub.notes}\n{stamp}: plan changed {old_name} -> {new_plan.name} (self-serve)".strip()
+    sub.save(using=using)
+
+    _reprice_open_invoices(sub, using)
+    return sub
+
+
+def _reprice_open_invoices(sub: Subscription, using: str) -> None:
+    """Unpaid renewal invoices follow the subscription's (new) plan price."""
+    if sub.billing_cycle == Subscription.BillingCycle.CUSTOM:
+        return
+    gross, discount = _renewal_amount(sub)
+    for invoice in Invoice.objects.using(using).filter(
+        subscription=sub,
+        status__in=[Invoice.Status.ISSUED, Invoice.Status.OVERDUE],
+        amount_paid=0,
+        coupon_redemption__isnull=True,
+        upgrade_plan__isnull=True,
+    ):
+        invoice.subtotal = gross
+        invoice.discount = discount
+        invoice.save(using=using)
+
+
+def _prorated_upgrade_amount(sub: Subscription, new_plan: Plan, today: datetime.date) -> Decimal:
+    """The price difference between the new and current plan for what is left of
+    the paid period (end date less today, out of the full billing cycle)."""
+    yearly = sub.billing_cycle == Subscription.BillingCycle.YEARLY
+    old_net = sub.plan.effective_yearly_price if yearly else sub.plan.effective_monthly_price
+    new_net = new_plan.effective_yearly_price if yearly else new_plan.effective_monthly_price
+    period_start = _shift_months(sub.end_date, 12 if yearly else 1)
+    total_days = (sub.end_date - period_start).days
+    days_left = (sub.end_date - today).days
+    if total_days <= 0 or days_left <= 0 or new_net <= old_net:
+        return Decimal("0")
+    return ((new_net - old_net) * days_left / total_days).quantize(Decimal("1"))
+
+
+@transaction.atomic
+def request_plan_change(organization, target_slug: str, *, using: str = "default"):
+    """Start a self-serve plan change. Returns (subscription, invoice).
+
+    A downgrade, or any change with nothing to pay (trial, complimentary, no
+    time left on the paid period), takes effect at once and `invoice` is None.
+    An upgrade on a paid, active subscription instead issues an invoice for the
+    prorated price difference and leaves the plan alone; the plan switches when
+    that invoice is paid (see apply_upgrade_from_invoice)."""
+    sub = get_current_subscription(organization.id, using=using)
+    if sub is None:
+        raise PlanChangeError("No active subscription to change.")
+    option = next((o for o in get_plan_change_options(organization, using=using) if o["plan"].slug == target_slug), None)
+    if option is None:
+        raise PlanChangeError("That plan isn't available for a self-serve change.")
+
+    today = timezone.localdate()
+    needs_payment = (
+        option["direction"] == "upgrade"
+        and sub.status == Subscription.Status.ACTIVE
+        and not sub.is_complimentary
+        and sub.billing_cycle != Subscription.BillingCycle.CUSTOM
+        and sub.end_date is not None
+    )
+    amount = _prorated_upgrade_amount(sub, option["plan"], today) if needs_payment else Decimal("0")
+    if amount <= 0:
+        return change_plan(organization, target_slug, using=using), None
+
+    if sub.autopay_enabled:
+        raise PlanChangeError("Turn off autopay before changing plan, then turn it back on afterwards.")
+    # Only one upgrade is pending at a time; a new request replaces the old one.
+    for stale in Invoice.objects.using(using).filter(
+        subscription=sub, upgrade_plan__isnull=False,
+        status__in=[Invoice.Status.ISSUED, Invoice.Status.OVERDUE], amount_paid=0,
+    ):
+        invoicing.cancel_invoice(stale, using=using)
+    invoice = invoicing.create_invoice(
+        organization,
+        using=using,
+        subscription=sub,
+        subtotal=amount,
+        invoice_date=today,
+        due_date=today + datetime.timedelta(days=3),
+        service_billing_start_date=today,
+        service_billing_end_date=sub.end_date,
+        status=Invoice.Status.ISSUED,
+    )
+    invoice.upgrade_plan = option["plan"]
+    invoice.save(using=using)
+    return sub, invoice
+
+
+def apply_upgrade_from_invoice(invoice: Invoice, *, using: str = "default") -> None:
+    """A plan-upgrade invoice was paid in full: move its subscription onto the
+    new plan. Billing dates stay as they are (the invoice paid for the rest of
+    this period); the new plan's price is what the next renewal bills."""
+    sub = invoice.subscription
+    new_plan = invoice.upgrade_plan
+    if sub is None or new_plan is None or not sub.is_current or sub.plan_id == new_plan.id:
+        return
+    yearly = sub.billing_cycle == Subscription.BillingCycle.YEARLY
+    gross = new_plan.yearly_price if yearly else new_plan.monthly_price
+    net = new_plan.effective_yearly_price if yearly else new_plan.effective_monthly_price
+    old_name = sub.plan.name
+    sub.plan = new_plan
+    sub.price = gross
+    sub.discount = gross - net
+    stamp = timezone.localdate().isoformat()
+    sub.notes = f"{sub.notes}\n{stamp}: plan upgraded {old_name} -> {new_plan.name} (paid {invoice.invoice_number})".strip()
+    sub.save(using=using)
+    _reprice_open_invoices(sub, using)
+
+
 def _supersede_current(organization_id, using: str) -> None:
     """Mark whatever subscription is currently `is_current=True` for this
     org as no longer current, WITHOUT touching its other fields — it stays
@@ -300,6 +479,7 @@ def ensure_renewal_invoice(organization, *, using: str = "default") -> None:
     has_open_invoice = Invoice.objects.using(using).filter(
         organization_id=organization.id,
         subscription=sub,
+        upgrade_plan__isnull=True,
         status__in=[Invoice.Status.ISSUED, Invoice.Status.PARTIALLY_PAID, Invoice.Status.OVERDUE],
     ).exists()
 
@@ -355,6 +535,7 @@ def generate_upcoming_renewal_invoices(*, using: str = "default", lead_days: int
         has_open_invoice = Invoice.objects.using(using).filter(
             organization_id=sub.organization_id,
             subscription=sub,
+            upgrade_plan__isnull=True,
             status__in=[Invoice.Status.ISSUED, Invoice.Status.PARTIALLY_PAID, Invoice.Status.OVERDUE],
         ).exists()
         if has_open_invoice:

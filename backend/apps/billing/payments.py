@@ -62,7 +62,10 @@ def apply_payment_to_invoice(invoice, amount, *, using: str = "default"):
     invoice.amount_paid = (invoice.amount_paid or 0) + amount
     invoice = invoicing.refresh_invoice_status(invoice, using=using)
     if invoice.status == Invoice.Status.PAID:
-        services.renew_subscription_from_invoice(invoice, using=using)
+        if invoice.upgrade_plan_id:
+            services.apply_upgrade_from_invoice(invoice, using=using)
+        else:
+            services.renew_subscription_from_invoice(invoice, using=using)
         _resume_if_payment_hold_cleared(invoice, using=using)
     return invoice
 

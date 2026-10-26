@@ -121,6 +121,24 @@
   .se-list { display: flex; flex-direction: column; }
   .se-list-items { max-height: 17rem; overflow-y: auto; margin-top: 0.5rem; }
 
+  /* Phones: every control in the grid gets the same height and text size so
+     rows line up (16px inputs otherwise render taller than the selects). */
+  @media (max-width: 639px) {
+    .se-page .se-card { padding: 0.9rem; }
+    .se-grid { gap: 0.75rem 0.6rem; align-items: end; }
+    .se-page .se-field input:not([type=checkbox]), .se-page .se-field select,
+    .se-page .se-field .bai-select-trigger, .se-page .se-net {
+      height: 2.6rem; min-height: 2.6rem; box-sizing: border-box; margin-top: 0; padding-top: 0; padding-bottom: 0;
+    }
+    .se-page .se-field input[type=date] { padding-left: 0.6rem; padding-right: 0.4rem; }
+    .se-page .se-field textarea { font-size: 13px; min-height: 2.6rem; }
+    .se-page .se-field input, .se-page .se-field select, .se-page .se-field textarea,
+    .se-page .se-field .bai-select-trigger, .se-page .se-field .bai-select-trigger-label,
+    .se-page .se-field input[type=date]::-webkit-datetime-edit { font-size: 13px !important; line-height: 1.2; }
+    .se-page .se-label { font-size: 0.68rem; line-height: 1.15; }
+    .se-page .se-net-value { font-size: 0.95rem; }
+  }
+
   /* ---- Light theme ---- */
   html[data-theme="light"] .se-bulk-link { border-color: rgba(15,23,42,0.12); background: #ffffff; color: #0f172a; }
   html[data-theme="light"] .se-bulk-link:hover { background: rgba(15,23,42,0.04); }

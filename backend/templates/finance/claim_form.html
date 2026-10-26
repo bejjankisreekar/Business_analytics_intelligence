@@ -137,7 +137,7 @@
         {% for error in form.submitted_date.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
       </div>
       <div>
-        <label class="block text-xs font-medium text-slate-400">{{ form.decision_date.label }}</label>
+        <label class="block whitespace-nowrap text-xs font-medium text-slate-400">{{ form.decision_date.label }}</label>
         {{ form.decision_date }}
         {% for error in form.decision_date.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
       </div>

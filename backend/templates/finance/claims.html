@@ -11,6 +11,7 @@
   <div class="flex flex-wrap items-center gap-2">
     <a href="{% url 'finance:claims_excel' %}?{{ export_query }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ Excel</a>
     <a href="{% url 'finance:claims_pdf' %}?{{ export_query }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ PDF</a>
+    <a href="{% url 'finance:insurer_analytics' %}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Insurer analytics</a>
     <a href="{% url 'finance:add_claim' %}" class="btn-primary">+ New claim</a>
   </div>
 </div>
@@ -48,11 +49,16 @@
 
 <style>
   .claim-filters { display: grid; gap: 0.9rem 1rem; grid-template-columns: minmax(0, 1fr); align-items: end; }
+  .claim-filters .claim-dates { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.9rem 1rem; }
+  .claim-filters .claim-dates > div { flex: 0 0 auto; width: 10.5rem; }
+  .claim-filters .claim-dates > div:first-child { width: 12.5rem; }
   .claim-filters .claim-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
   @media (min-width: 640px) {
     .claim-filters { grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr) auto; }
+    .claim-filters .claim-dates { grid-column: 1 / 3; }
     .claim-filters .claim-actions { justify-content: flex-start; }
   }
+  .claim-filters .bai-select-wrap, .claim-filters .bai-select-trigger { width: 100%; height: 2.625rem; }
   .claim-filters label { display: block; margin: 0 0 0.35rem 0; font-size: 0.75rem; font-weight: 500; color: rgb(var(--slate-400)); }
   .claim-filters input, .claim-filters select {
     box-sizing: border-box; width: 100%; height: 2.625rem; margin: 0; padding: 0 0.75rem; font-size: 0.875rem; border-radius: 0.6rem;
@@ -75,8 +81,18 @@
       {% for value, label in status_choices %}<option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
   </div>
+  <div class="claim-dates">
+    <div>
+      <label for="claim-date-field">Date filter</label>
+      <select id="claim-date-field" name="date_field">
+        {% for value, label in date_field_choices %}<option value="{{ value }}" {% if filter_date_field == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label for="claim-from">From</label><input id="claim-from" type="date" name="from" value="{{ filter_from }}"></div>
+    <div><label for="claim-to">To</label><input id="claim-to" type="date" name="to" value="{{ filter_to }}"></div>
+  </div>
   <div class="claim-actions">
-    {% if filter_query or filter_status %}<a href="{% url 'finance:claims' %}" class="claim-clear">Clear</a>{% endif %}
+    <a href="{% url 'finance:claims' %}" class="claim-clear">Clear</a>
     <button type="submit" class="btn-primary claim-apply">Apply</button>
   </div>
 </form>

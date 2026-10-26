@@ -16,6 +16,25 @@
   .loading-note { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: rgb(100 116 139); }
   .loading-note.hidden { display: none; }
 </style>
+<style>
+  /* Phone-only polish: desktop layout is untouched. */
+  @media (max-width: 639px) {
+    .ins-page > .flex > form, .ins-page > .flex > form .bai-select-wrap { width: 100%; }
+    .ins-page #period-select + .bai-select-trigger, .ins-page #period-select { min-width: 0; width: 100%; }
+    .ins-page > .flex { gap: 0.75rem; }
+    .ins-page .card.p-5 { padding: 1rem; }
+    .ins-page .card.p-5 > .flex.flex-wrap > .flex.gap-1,
+    .ins-page .card.p-5 > .flex.flex-wrap > .flex.flex-wrap { width: 100%; }
+    .ins-page .flex.gap-1.rounded-lg > .granularity-btn { flex: 1 1 0; text-align: center; padding: 0.5rem 0.4rem; }
+    .ins-page .flex.flex-wrap.items-center.gap-2 > .flex.gap-1 { width: 100%; }
+    .ins-page .h-72 { height: 16rem; }
+    .ins-page .h-64 { height: 14rem; }
+    .ins-page .text-xl { font-size: 1.15rem; overflow-wrap: anywhere; }
+    .ins-page table th, .ins-page table td { white-space: nowrap; }
+    .ins-page h3 { font-size: 0.9rem; }
+  }
+</style>
+<div class="ins-page">
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold text-white">Revenue Insights</h1>
@@ -220,6 +239,7 @@
   </div>
 </div>
 
+</div>
 {% endblock %}
 
 {% block extra_js %}

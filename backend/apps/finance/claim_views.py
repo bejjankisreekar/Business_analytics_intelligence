@@ -15,9 +15,11 @@ from django.views.generic import View
 from . import services
 from .access import has_kickbacks_access
 from .forms import ClaimPaymentForm, InsuranceClaimForm, PatientPaymentForm
-from .models import ClaimPayment, InsuranceClaim, KickbackEntry, PaymentMode, SalesEntry, sync_claim_totals
+from .models import (
+    ClaimPayment, ExpenseEntry, InsuranceClaim, KickbackEntry, PaymentMode, SalesEntry, sync_claim_totals,
+)
 from .services import _patient_label
-from .views import TenantLoginRequiredMixin, _render_statement_pdf
+from .views import TenantLoginRequiredMixin, _referrer_names, _render_statement_pdf
 
 # An open claim older than this many days since it was submitted is flagged
 # for follow-up with the insurer or TPA.
@@ -81,8 +83,32 @@ def _summary(claims, today) -> dict:
     }
 
 
-def _apply_filters(claims, query, status, today):
-    """The list's search and status filter, shared with the exports."""
+DATE_FIELDS = {
+    "admission": ("Admission date", lambda c: c.bill.admission_date if c.bill else None),
+    "submitted": ("Submitted date", lambda c: c.submitted_date),
+    "decision": ("Decision date", lambda c: c.decision_date),
+    "payment": ("Last payment date", lambda c: c.last_payment_date),
+}
+DEFAULT_DATE_FIELD = "admission"
+
+
+def _date_filter(request):
+    """(field, from, to) from the query string; field falls back to the default."""
+    field = (request.GET.get("date_field") or "").strip()
+    if field not in DATE_FIELDS:
+        field = DEFAULT_DATE_FIELD
+    return field, _parse_date(request.GET.get("from")), _parse_date(request.GET.get("to"))
+
+
+def _apply_filters(claims, query, status, today, date_field=DEFAULT_DATE_FIELD, date_from=None, date_to=None):
+    """The list's search, status and date filter, shared with the exports.
+    A claim with no value for the chosen date is left out once a range is set."""
+    if date_from or date_to:
+        getter = DATE_FIELDS[date_field][1]
+        claims = [
+            c for c in claims
+            if (d := getter(c)) and (not date_from or d >= date_from) and (not date_to or d <= date_to)
+        ]
     if query:
         needle = query.lower()
         claims = [c for c in claims if needle in " ".join([
@@ -103,7 +129,9 @@ def _export_claims(request):
     today = datetime.date.today()
     query = (request.GET.get("q") or "").strip()
     status = (request.GET.get("status") or "").strip()
-    return _apply_filters(list(InsuranceClaim.objects.all()), query, status, today), today
+    date_field, date_from, date_to = _date_filter(request)
+    claims = list(InsuranceClaim.objects.select_related("bill"))
+    return _apply_filters(claims, query, status, today, date_field, date_from, date_to), today
 
 
 class InsuranceClaimsView(TenantLoginRequiredMixin, View):
@@ -116,9 +144,11 @@ class InsuranceClaimsView(TenantLoginRequiredMixin, View):
         query = (request.GET.get("q") or "").strip()
         status = (request.GET.get("status") or "").strip()
 
-        all_claims = list(InsuranceClaim.objects.all())
+        date_field, date_from, date_to = _date_filter(request)
+
+        all_claims = list(InsuranceClaim.objects.select_related("bill"))
         summary = _summary(all_claims, today)
-        claims = _apply_filters(all_claims, query, status, today)
+        claims = _apply_filters(all_claims, query, status, today, date_field, date_from, date_to)
 
         page = Paginator(claims, PAGE_SIZE).get_page(request.GET.get("page"))
         for claim in page.object_list:
@@ -135,6 +165,10 @@ class InsuranceClaimsView(TenantLoginRequiredMixin, View):
             "summary": summary,
             "filter_query": query,
             "filter_status": status,
+            "filter_date_field": date_field,
+            "filter_from": date_from.isoformat() if date_from else "",
+            "filter_to": date_to.isoformat() if date_to else "",
+            "date_field_choices": [(k, v[0]) for k, v in DATE_FIELDS.items()],
             "status_choices": InsuranceClaim.Status.choices,
             "open_filter": FILTER_OPEN,
             "overdue_filter": FILTER_OVERDUE,
@@ -413,3 +447,146 @@ class InsuranceClaimsPdfView(TenantLoginRequiredMixin, View):
             request, "finance/pdf/claims_pdf.html", context, "insurance-claims.pdf",
             fallback_url_name="finance:claims",
         )
+
+
+def _parse_date(value):
+    try:
+        return datetime.date.fromisoformat((value or "").strip())
+    except ValueError:
+        return None
+
+
+def _insurer_rows(bills, expenses_by_bill, claim_by_bill) -> list[dict]:
+    """One row per insurer/TPA across the given insurance bills. A bill belongs
+    to the TPA (else insurer) on its claim, falling back to the insurer named
+    on the bill itself. Payout is every expense booked against the bill."""
+    zero = services.ZERO
+    rows: dict[str, dict] = {}
+    for bill in bills:
+        claim = claim_by_bill.get(bill.pk)
+        name = ((claim.insurer_display if claim and claim.insurer_display != "—" else "")
+                or (bill.insurer_name or "").strip() or "Unspecified")
+        r = rows.setdefault(name, {"name": name, "bill_count": 0, "billing": zero, "revenue": zero, "payout": zero})
+        r["bill_count"] += 1
+        r["billing"] += bill.final_amount
+        r["revenue"] += bill.amount_received
+        r["payout"] += sum((e.amount for e in expenses_by_bill.get(bill.pk, [])), zero)
+    result = list(rows.values())
+    for r in result:
+        r["net"] = r["revenue"] - r["payout"]
+        r["payout_share"] = (r["payout"] / r["billing"] * 100) if r["billing"] else None
+    result.sort(key=lambda r: (r["revenue"], r["name"].lower()), reverse=True)
+    for rank, r in enumerate(result, start=1):
+        r["rank"] = rank
+    return result
+
+
+class InsurerAnalyticsView(TenantLoginRequiredMixin, View):
+    """Revenue received from each insurer/TPA on insurance bills, against the
+    payout booked on those bills, ranked by revenue."""
+
+    template_name = "finance/insurer_analytics.html"
+
+    def get(self, request, *args, **kwargs):
+        if not has_kickbacks_access(request):
+            return redirect("finance:dashboard")
+        date_from = _parse_date(request.GET.get("from"))
+        date_to = _parse_date(request.GET.get("to"))
+
+        # A bill can have several claims (e.g. one per insurer); the newest one
+        # decides which insurer the bill is counted under.
+        claim_by_bill = {c.bill_id: c for c in InsuranceClaim.objects.order_by("created_at") if c.bill_id}
+        claim_bill_ids = set(claim_by_bill)
+        bills = [
+            b for b in KickbackEntry.objects.all()
+            if (b.payer_type == KickbackEntry.PayerType.INSURANCE or b.pk in claim_bill_ids)
+            and (not date_from or b.admission_date >= date_from)
+            and (not date_to or b.admission_date <= date_to)
+        ]
+        expenses_by_bill: dict = {}
+        for expense in ExpenseEntry.objects.filter(
+            kickback_bill_id__in=[b.pk for b in bills]
+        ).select_related("paid_to_ledger"):
+            expenses_by_bill.setdefault(expense.kickback_bill_id, []).append(expense)
+
+        rows = _insurer_rows(bills, expenses_by_bill, claim_by_bill)
+        zero = services.ZERO
+        billing = sum((r["billing"] for r in rows), zero)
+        revenue = sum((r["revenue"] for r in rows), zero)
+        payout = sum((r["payout"] for r in rows), zero)
+        top = max((r["revenue"] for r in rows), default=zero)
+        for r in rows:
+            r["bar"] = int(r["revenue"] / top * 100) if top else 0
+        bills_by_insurer: dict[str, list] = {}
+        for b in sorted(bills, key=lambda b: b.admission_date, reverse=True):
+            claim = claim_by_bill.get(b.pk)
+            name = ((claim.insurer_display if claim and claim.insurer_display != "—" else "")
+                    or (b.insurer_name or "").strip() or "Unspecified")
+            bills_by_insurer.setdefault(name, []).append({
+                "bill_number": b.bill_number,
+                "admission_date": b.admission_date,
+                "patient_name": b.patient_name,
+                "claim_number": claim.claim_number if claim else "",
+                "status": claim.get_status_display() if claim else "",
+                "status_code": claim.status if claim else "",
+                "claimed": claim.claimed_amount if claim else zero,
+                "billing": b.final_amount,
+                "revenue": b.amount_received,
+                "payout": sum((e.amount for e in expenses_by_bill.get(b.pk, [])), zero),
+            })
+        selected = (request.GET.get("insurer") or "").strip()
+        if selected:
+            insurer_bills = bills_by_insurer.get(selected, [])
+            status_filter = (request.GET.get("status") or "").strip()
+            shown_bills = insurer_bills
+            if status_filter == "NONE":
+                shown_bills = [b for b in insurer_bills if not b["status_code"]]
+            elif status_filter:
+                shown_bills = [b for b in insurer_bills if b["status_code"] == status_filter]
+            page_obj = Paginator(shown_bills, 20).get_page(request.GET.get("page"))
+            claimed_total = sum((b["claimed"] for b in insurer_bills), zero)
+            billing_total = sum((b["billing"] for b in insurer_bills), zero)
+
+            def status_share(codes):
+                amount = sum((b["claimed"] for b in insurer_bills if b["status_code"] in codes), zero)
+                return (amount / claimed_total * 100) if claimed_total else None
+
+            approved_codes = (InsuranceClaim.Status.APPROVED, InsuranceClaim.Status.SETTLED)
+            rejected_codes = (InsuranceClaim.Status.REJECTED,)
+            approved_pct = status_share(approved_codes)
+            rejected_pct = status_share(rejected_codes)
+            submitted_pct = status_share((InsuranceClaim.Status.SUBMITTED,))
+            not_submitted_pct = status_share((InsuranceClaim.Status.DRAFT,))
+            other_pct = status_share((InsuranceClaim.Status.QUERY,))
+            return render(request, "finance/insurer_bills.html", {
+                "active_nav": "claims",
+                "organization": request.user.organization,
+                "insurer": selected,
+                "row": next((r for r in rows if r["name"] == selected), None),
+                "bills": page_obj,
+                "page_obj": page_obj,
+                "status_filter": status_filter,
+                "status_choices": [("NONE", "No claim")] + list(InsuranceClaim.Status.choices),
+                "analytics": {
+                    "claimed_pct": (claimed_total / billing_total * 100) if billing_total else None,
+                    "approved_pct": approved_pct,
+                    "rejected_pct": rejected_pct,
+                    "submitted_pct": submitted_pct,
+                    "not_submitted_pct": not_submitted_pct,
+                    "other_pct": other_pct,
+                },
+                "filter_from": date_from.isoformat() if date_from else "",
+                "filter_to": date_to.isoformat() if date_to else "",
+            })
+        return render(request, self.template_name, {
+            "active_nav": "claims",
+            "organization": request.user.organization,
+            "rows": rows,
+            "totals": {
+                "billing": billing, "revenue": revenue, "payout": payout, "net": revenue - payout,
+                "payout_share": (payout / billing * 100) if billing else None,
+            },
+            "bill_count": len(bills),
+            "filter_from": date_from.isoformat() if date_from else "",
+            "filter_to": date_to.isoformat() if date_to else "",
+        })

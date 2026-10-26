@@ -16,6 +16,24 @@
   @media (max-width: 639px) {
     .plan-name { font-size: 2rem !important; white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere; }
   }
+  .pc-card { position: relative; border-radius: 1rem; padding: 1rem 1.1rem; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); }
+  .pc-card + .pc-card { margin-top: 0.75rem; }
+  .pc-card--up { border-color: transparent; background: linear-gradient(rgba(17,24,39,0.92), rgba(17,24,39,0.92)) padding-box, linear-gradient(135deg, #a78bfa, #5b7cfa 60%, #38bdf8) border-box; box-shadow: 0 10px 30px -12px rgba(91,124,250,0.45); }
+  .pc-tag { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; }
+  .pc-card--up .pc-tag { color: #a5b4fc; }
+  .pc-tag svg { width: 12px; height: 12px; }
+  .pc-chip { font-size: 10px; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 999px; background: rgba(91,124,250,0.14); color: #a5b4fc; }
+  .pc-btn { display: flex; align-items: center; justify-content: center; gap: 0.4rem; width: 100%; margin-top: 0.85rem; padding: 0.55rem 1rem; border-radius: 0.7rem; font-size: 0.8rem; font-weight: 600; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.12); transition: transform .15s, background .15s, box-shadow .15s; }
+  .pc-btn:hover:not(:disabled) { background: rgba(255,255,255,0.06); }
+  .pc-btn svg { width: 14px; height: 14px; transition: transform .15s; }
+  .pc-btn:hover:not(:disabled) svg { transform: translateX(3px); }
+  .pc-btn--up { color: #fff; border: 0; background: linear-gradient(135deg, #8b5cf6, #5b7cfa); box-shadow: 0 6px 18px -6px rgba(91,124,250,0.7); }
+  .pc-btn--up:hover:not(:disabled) { background: linear-gradient(135deg, #7c4def, #4f6ff0); transform: translateY(-1px); }
+  .pc-btn--inline { width: auto; margin-top: 0; padding: 0.5rem 1.4rem; }
+  .pc-btn:disabled { opacity: .4; cursor: not-allowed; }
+  html[data-theme="light"] .pc-card { background: #fff; border-color: rgba(15,23,42,0.1); }
+  html[data-theme="light"] .pc-card--up { background: linear-gradient(#fff, #fff) padding-box, linear-gradient(135deg, #8b5cf6, #5b7cfa 60%, #38bdf8) border-box; border-color: transparent; }
+  html[data-theme="light"] .pc-btn:not(.pc-btn--up) { color: #334155; border-color: rgba(15,23,42,0.15); }
 </style>
 {% csrf_token %}
 <h1 class="text-2xl font-bold text-white">Billing</h1>
@@ -61,7 +79,7 @@
         <span class="flex h-12 w-12 flex-none items-center justify-center rounded-2xl text-white shadow-lg shadow-brand-500/20 keep-white" style="background:linear-gradient(135deg,#a78bfa,#5b7cfa)">
           <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.2H22l-6 4.6L18.4 21 12 16.4 5.6 21 8 13.8l-6-4.6h7.6z"/></svg>
         </span>
-        <div class="min-w-0">
+        <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
             <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Current plan</p>
             <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold
@@ -71,7 +89,27 @@
               <span class="h-1.5 w-1.5 rounded-full bg-current"></span>{{ subscription.get_status_display }}
             </span>
           </div>
-          <h2 class="plan-name mt-1 truncate text-[2.7rem] font-extrabold leading-tight">{{ subscription.plan.name }}</h2>
+          <div class="mt-1 flex flex-wrap items-center gap-x-5 gap-y-2">
+            <h2 class="plan-name truncate text-[2.7rem] font-extrabold leading-tight">{{ subscription.plan.name }}</h2>
+            {% if plan_options %}
+            <div id="change-plan" class="ml-auto flex flex-wrap items-center gap-2">
+              {% for opt in plan_options %}
+              <form method="post" action="{% url 'finance:change_plan' %}"
+                    data-direction="{{ opt.direction }}" data-plan="{{ opt.plan.name }}" data-current="{{ subscription.plan.name }}"
+                    data-price="{{ organization.currency }} {{ opt.net|floatformat:0|intcomma }} / {{ opt.period }}"
+                    data-gross="{% if opt.gross > opt.net %}{{ organization.currency }} {{ opt.gross|floatformat:0|intcomma }}{% endif %}"
+                    data-storage="{% if 'Drive' in opt.plan.name %}Google Drive storage{% else %}Finday managed database{% endif %}"
+                    onsubmit="return bai.askPlanChange(this);">
+                {% csrf_token %}
+                <input type="hidden" name="plan" value="{{ opt.plan.slug }}">
+                <button type="submit" {% if subscription.autopay_enabled %}disabled title="Turn off autopay to change your plan"{% endif %} class="pc-btn pc-btn--inline {% if opt.direction == 'upgrade' %}pc-btn--up{% endif %}">
+                  {% if opt.direction == 'upgrade' %}Upgrade{% else %}Downgrade{% endif %}
+                </button>
+              </form>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
         </div>
       </div>
       <p class="mt-2 text-sm text-slate-400">Billed {{ subscription.get_billing_cycle_display|lower }}</p>
@@ -281,9 +319,54 @@
     <button onclick="bai.closeModal('modal-autopay-soon')" class="btn-primary mt-5 w-full !py-2 text-xs">Got it</button>
   </div>
 </div>
+
+<div id="modal-plan-change" class="modal-overlay hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" onclick="if(event.target===this) bai.closePlanChange()">
+  <div class="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 id="plan-change-title" class="text-base font-semibold text-white"></h3>
+      <button type="button" onclick="bai.closePlanChange()" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <p id="plan-change-from" class="mt-3 text-xs text-slate-500"></p>
+    <p class="mt-1 flex items-baseline gap-2"><span id="plan-change-price" class="text-2xl font-bold text-white"></span><span id="plan-change-gross" class="text-xs text-slate-500 line-through"></span></p>
+    <p id="plan-change-storage" class="mt-1 text-xs text-slate-400"></p>
+    <p id="plan-change-note" class="mt-2 text-sm text-slate-400"></p>
+    <div class="mt-5 flex gap-2">
+      <button type="button" onclick="bai.closePlanChange()" class="flex-1 rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">Cancel</button>
+      <button type="button" id="plan-change-confirm" onclick="bai.confirmPlanChange(this)" class="btn-primary flex-1 !py-2 text-xs"></button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<script>
+  window.bai = window.bai || {};
+  (function () {
+    let pending = null;
+    const modal = () => document.getElementById("modal-plan-change");
+    bai.askPlanChange = (form) => {
+      pending = form;
+      const verb = form.dataset.direction === "upgrade" ? "Upgrade" : "Downgrade";
+      document.getElementById("plan-change-title").textContent = verb + " to " + form.dataset.plan + "?";
+      document.getElementById("plan-change-from").textContent = "From " + form.dataset.current;
+      document.getElementById("plan-change-price").textContent = form.dataset.price;
+      document.getElementById("plan-change-gross").textContent = form.dataset.gross;
+      document.getElementById("plan-change-storage").textContent = "Storage: " + form.dataset.storage + " (unchanged)";
+      document.getElementById("plan-change-confirm").textContent = "Yes, " + verb.toLowerCase();
+      document.getElementById("plan-change-note").textContent = form.dataset.direction === "upgrade"
+        ? "You pay the price difference for the rest of your current period now. The plan switches as soon as the payment goes through, and the new price applies from your next renewal."
+        : "Your plan changes straight away. The new price applies from your next renewal.";
+      modal().classList.remove("hidden");
+      return false;
+    };
+    bai.closePlanChange = () => { pending = null; modal().classList.add("hidden"); };
+    bai.confirmPlanChange = (btn) => {
+      if (!pending) return;
+      btn.disabled = true;
+      pending.submit();
+    };
+  })();
+</script>
 {% if razorpay_configured %}
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
@@ -360,6 +443,15 @@
       reset();
     }
   };
+
+  // After choosing an upgrade, the server redirects here with ?pay=<invoice id>
+  // so the payment popup opens straight away.
+  (function () {
+    const payId = new URLSearchParams(window.location.search).get("pay");
+    if (!payId) return;
+    history.replaceState(null, "", window.location.pathname);
+    bai.payInvoice(payId, { textContent: "", disabled: false });
+  })();
 
   bai.autopayComingSoon = () => bai.openModal("modal-autopay-soon");
 

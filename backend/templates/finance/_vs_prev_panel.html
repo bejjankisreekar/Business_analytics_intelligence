@@ -14,7 +14,20 @@
     {% endif %}
   </div>
 
-  <div class="space-y-4">
+  <style>
+  .vsp-stats > div { min-width: 0; }
+  .vsp-stats p { overflow-wrap: anywhere; }
+  @media (max-width: 639px) {
+    .vsp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; align-items: stretch; }
+    .vsp-stats > div { margin-top: 0 !important; }
+    .vsp-stats > div { padding: .65rem .7rem; border-radius: .75rem; border: 1px solid rgba(128,128,128,.18); }
+    .vsp-stats > div { display: flex; flex-direction: column; justify-content: flex-start; min-height: 5.5rem; }
+    .vsp-stats > div > p:first-child { font-size: 10px; white-space: nowrap; }
+    .vsp-stats .text-2xl, .vsp-stats .text-lg { font-size: 1.05rem; line-height: 1.35rem; font-weight: 700; color: inherit; }
+    .vsp-stats > div > p:last-child { margin-top: auto; padding-top: .25rem; }
+  }
+</style>
+<div class="vsp-stats space-y-4">
     <div>
       <p class="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
         <span class="h-2.5 w-2.5 rounded-full bg-mint-500"></span> This period

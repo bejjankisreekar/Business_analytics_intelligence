@@ -328,6 +328,7 @@ class BillingView(TenantLoginRequiredMixin, TemplateView):
                 "organization": org,
                 "subscription": subscription,
                 "plan_pricing": plan_pricing,
+                "plan_options": [] if locked else billing_services.get_plan_change_options(org),
                 "invoices": invoices,
                 "payments": Payment.objects.filter(organization_id=org.id).order_by("-payment_date")[:15],
                 "outstanding": outstanding,
@@ -522,6 +523,31 @@ class VerifyAutopaySetupView(TenantLoginRequiredMixin, View):
             return JsonResponse({"error": str(exc)}, status=400)
         messages.success(request, "Autopay is on — your subscription will renew automatically every billing cycle.")
         return JsonResponse({"ok": True})
+
+
+class ChangePlanView(TenantLoginRequiredMixin, View):
+    """Upgrade/downgrade between a plan and its Drive version
+    (Professional <-> Professional Drive, Business <-> Business Drive)."""
+
+    def post(self, request, *args, **kwargs):
+        org = request.user.organization
+        if request.user.role not in ("OWNER", "ADMIN"):
+            messages.error(request, "Only the account owner can change the plan.")
+            return redirect("finance:billing")
+        try:
+            sub, invoice = billing_services.request_plan_change(org, request.POST.get("plan", ""))
+        except billing_services.PlanChangeError as exc:
+            messages.error(request, str(exc))
+        else:
+            if invoice is not None:
+                messages.info(
+                    request,
+                    f"Pay invoice {invoice.invoice_number} ({org.currency} {invoice.amount_due:.0f}, the price "
+                    f"difference for the rest of this period) to complete your upgrade.",
+                )
+                return redirect(f"{reverse('finance:billing')}?pay={invoice.pk}")
+            messages.success(request, f"Your plan is now {sub.plan.name}. The new price applies from your next renewal.")
+        return redirect("finance:billing")
 
 
 class CancelAutopayView(TenantLoginRequiredMixin, View):
@@ -1555,6 +1581,7 @@ def _import_review_context(request, headers, data_rows, mapping) -> dict:
         "rows": list(zip(formset, warnings)),
         "row_count": len(initial_rows),
         "flagged_count": sum(1 for w in warnings if w),
+        "cash_default_count": sum(1 for w in warnings if any("Payment mode blank" in note for note in w)),
         "headers": headers,
         "mapping_fields": [
             (field, label, required, mapping.get(field))
@@ -1576,34 +1603,46 @@ class ImportSalesUploadView(TenantLoginRequiredMixin, View):
         return render(request, "finance/import_sales_upload.html", {
             "active_nav": "daily_report",
             "target_fields": imports.TARGET_FIELDS,
+            "column_guide": imports.column_guide(),
             "max_rows": imports.MAX_IMPORT_ROWS,
             "max_upload_mb": imports.MAX_UPLOAD_BYTES // (1024 * 1024),
         })
 
     def post(self, request, *args, **kwargs):
-        raw_json = request.POST.get("raw_data")
-        if raw_json:
-            try:
-                payload = json.loads(raw_json)
-                headers, data_rows = payload["headers"], payload["rows"]
-            except (ValueError, KeyError, TypeError):
-                messages.error(request, "Something went wrong reading that data — please upload the file again.")
-                return redirect("finance:import_sales")
-            mapping = {
-                field: request.POST.get(f"map_{field}") or None for field, _label, _required in imports.TARGET_FIELDS
-            }
-        else:
-            uploaded = request.FILES.get("file")
-            if not uploaded:
-                messages.error(request, "Choose a CSV or Excel file first.")
-                return self.get(request, *args, **kwargs)
-            try:
-                headers, data_rows = imports.parse_upload(uploaded)
-            except imports.ImportParseError as exc:
-                messages.error(request, str(exc))
-                return self.get(request, *args, **kwargs)
-            mapping = imports.guess_column_mapping(headers)
+        uploaded = request.FILES.get("file")
+        if not uploaded:
+            messages.error(request, "Choose a CSV or Excel file first.")
+            return self.get(request, *args, **kwargs)
+        try:
+            headers, data_rows = imports.parse_upload(uploaded)
+        except imports.ImportParseError as exc:
+            messages.error(request, str(exc))
+            return self.get(request, *args, **kwargs)
+        mapping = imports.guess_column_mapping(headers)
+        # The mapping saved last time wins, as long as its column is still in this file.
+        for field, column in services.sales_import_mapping().items():
+            if field in mapping and column in headers:
+                mapping[field] = column
 
+        context = _import_review_context(request, headers, data_rows, mapping)
+        return render(request, "finance/import_sales_review.html", context)
+
+
+class ImportSalesMappingView(TenantLoginRequiredMixin, View):
+    """A column-mapping change: saves the mapping for next time, re-reads the
+    rows already uploaded with the new mapping and returns the review page."""
+
+    def post(self, request, *args, **kwargs):
+        try:
+            payload = json.loads(request.POST.get("raw_data") or "")
+            headers, data_rows = payload["headers"], payload["rows"]
+        except (ValueError, KeyError, TypeError):
+            return JsonResponse({"error": "Upload the file again."}, status=400)
+        mapping = {
+            field: request.POST.get(f"map_{field}") or None for field, _label, _required in imports.TARGET_FIELDS
+        }
+        services.save_sales_import_mapping({field: col for field, col in mapping.items() if col})
+        messages.success(request, "Mapping updated and saved for next time.")
         context = _import_review_context(request, headers, data_rows, mapping)
         return render(request, "finance/import_sales_review.html", context)
 

@@ -635,6 +635,10 @@ class FinanceSettings(SheetAwareModelMixin, models.Model):
         Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
         help_text="Sales category for IP billing revenue",
     )
+    # JSON object {"date": "Bill Date", "channel": "Dept", ...} of which column
+    # in the imported revenue file holds each field, remembered for next time.
+    # Text, same as the column-label settings above. Appended last on purpose.
+    sales_import_mapping = models.TextField(blank=True, default="")
 
     class Meta:
         base_manager_name = "objects"

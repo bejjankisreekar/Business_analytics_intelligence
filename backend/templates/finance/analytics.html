@@ -5,6 +5,7 @@
 {% block app_content %}
 <style>
   #period-select + .bai-select-trigger { min-width: 12rem; }
+  .an-badge { display: inline-block; white-space: nowrap; }
   #compare .bai-select-wrap, #compare .bai-select-trigger { width: 100%; }
   /* Phone-only polish: desktop layout is untouched. */
   @media (max-width: 639px) {
@@ -19,6 +20,15 @@
     .an-page .card.p-4 { border-radius: 1rem; }
     .an-kpi { border-left: 3px solid var(--tone); padding: .9rem 1rem; }
     .an-kpi .an-val { font-size: 1.5rem; line-height: 1.25; }
+    .an-badge { display: table; margin: .5rem 0 0; white-space: normal; line-height: 1.3; }
+    .an-page form .bai-select-wrap, .an-page form .bai-select-trigger { width: 100%; }
+    .an-page .card .an-seg { margin-top: .25rem; }
+    .cmp-controls { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; align-items: end; justify-content: stretch; }
+    .cmp-controls > div:first-child { grid-column: 1 / -1; }
+    .cmp-controls > div, .cmp-controls .bai-select-wrap, .cmp-controls .bai-select-trigger,
+    .cmp-controls input, .cmp-controls select { width: 100%; min-width: 0; }
+    .cmp-controls input[type=date] { font-size: 14px; padding-left: .6rem; padding-right: .5rem; }
+    .cmp-controls .btn-primary { grid-column: 1 / -1; width: 100%; padding: .7rem 1rem; }
     .an-seg { width: 100%; }
     .an-seg > * { flex: 1 1 0; text-align: center; }
     .an-page h3 { font-size: .9rem; }
@@ -183,7 +193,7 @@
     <div>
       <h3 class="text-sm font-semibold text-white">Activity by sub-category</h3>
             <p class="text-xs text-slate-500">{{ period.label }} ({{ period.start|date:"d M Y" }} – {{ period.chart_end|date:"d M Y" }}) · quantity recorded, not revenue · nested sub-categories roll up to their parent
-    <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · quantity recorded</span></p>
+    <span class="an-badge ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · quantity recorded</span></p>
       <p class="mt-1 text-[11px] text-slate-500">Click any slice, bar or legend entry for its details — sales, purchases, items and estimated stock.</p>
     </div>
     <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -222,7 +232,7 @@
     <div>
       <h3 class="text-sm font-semibold text-white">Purchase quantity by sub-category</h3>
             <p class="text-xs text-slate-500">{{ period.label }} · quantity recorded, not cost · nested sub-categories roll up to their parent
-    <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · quantity recorded</span></p>
+    <span class="an-badge ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · quantity recorded</span></p>
       <p class="mt-1 text-[11px] text-slate-500">Click any slice, bar or legend entry for its details — sales, purchases, items and estimated stock.</p>
     </div>
     <div class="an-seg flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
@@ -282,7 +292,7 @@
     </div>
     {% endfor %}
     </div>
-    <div class="mt-3 flex flex-wrap items-end justify-end gap-3">
+    <div class="cmp-controls mt-3 flex flex-wrap items-end justify-end gap-3">
     <div>
       <label for="cmp-by" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">View by</label>
       <select id="cmp-by" name="cmp_by" class="!mt-1 !w-auto">

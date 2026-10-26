@@ -70,6 +70,19 @@
   html[data-theme="light"] .ds-total .ds-t-pos { color: #059669; }
   html[data-theme="light"] .ds-total .ds-t-neg { color: #dc2626; }
   .ds-export-group { display: inline-flex; gap: .5rem; margin-left: .25rem; }
+  @media (max-width: 639px) {
+    .ds-filter { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem .6rem; width: 100%; margin-top: .75rem; }
+    .ds-filter > div { min-width: 0; }
+    .ds-filter label { display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; }
+    .ds-filter input[type=date] { width: 100% !important; min-width: 0; height: 2.6rem; font-size: 14px; padding: 0 .6rem; }
+    .ds-filter input[type=date]::-webkit-datetime-edit { font-size: 14px; }
+    .ds-filter .btn-primary { grid-column: 1 / -1; width: 100%; padding: .7rem 1rem; }
+    .ds-export-group { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-left: 0; }
+    .ds-export-btn { justify-content: center; padding: .6rem .8rem; }
+    .ds-total { padding: 10px 12px; }
+    .ds-total p { font-size: 10px; }
+    .ds-total strong { font-size: 17px; overflow-wrap: anywhere; }
+  }
   .ds-export-btn {
     display: inline-flex; align-items: center; gap: .4rem; border-radius: .55rem;
     border: 1px solid rgb(var(--tint-rgb) / .14); padding: .5rem .8rem;
@@ -164,7 +177,7 @@
     <h1 class="text-2xl font-bold text-white">Daily Performance</h1>
     <p class="mt-1 text-sm text-slate-400">{{ date_from|date:"d M Y" }} – {{ date_to|date:"d M Y" }}</p>
   </div>
-  <form method="get" class="flex flex-wrap items-end gap-3">
+  <form method="get" class="ds-filter flex flex-wrap items-end gap-3">
     <div>
       <label for="ds-from" class="text-xs font-medium text-slate-500">From</label>
       <input id="ds-from" type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" class="!mt-1 !w-auto">

@@ -29,7 +29,7 @@ SAMPLE_ROWS = [
 # (field name, label shown in the mapping UI, required)
 TARGET_FIELDS = [
     ("date", "Date", True),
-    ("channel", "Category", False),
+    ("channel", "Category", True),
     ("subcategory", "Sub-category", False),
     ("customer", "Customer", False),
     ("quantity", "Qty / Count", False),
@@ -52,6 +52,15 @@ _FIELD_ALIASES = {
     "bank_account": ["bank", "bank account", "account"],
     "note": ["note", "notes", "remark", "remarks", "description"],
 }
+
+
+def column_guide() -> list[tuple[str, bool, str]]:
+    """(label, required, column names in a file that match it) for each field,
+    for the upload page's column guide."""
+    return [
+        (label, required, ", ".join(name.title() for name in _FIELD_ALIASES[field]))
+        for field, label, required in TARGET_FIELDS
+    ]
 
 
 class ImportParseError(ValueError):
@@ -371,6 +380,10 @@ def build_initial_rows(
         if raw_bank and not bank_id:
             row_warnings.append(f"Bank “{raw_bank}” not found")
 
+        payment_mode = _match_payment_mode(cell(row, "payment_mode"))
+        if not payment_mode:
+            row_warnings.append("Payment mode blank — set to Cash")
+
         initial_rows.append({
             "date": date_value,
             "channel": channel_id or None,
@@ -379,7 +392,7 @@ def build_initial_rows(
             "quantity": _parse_int_cell(cell(row, "quantity")),
             "gross_amount": gross_amount,
             "discount": _parse_decimal_cell(cell(row, "discount")),
-            "payment_mode": _match_payment_mode(cell(row, "payment_mode")) or PaymentMode.CASH,
+            "payment_mode": payment_mode or PaymentMode.CASH,
             "bank_account": bank_id or None,
             "note": str(cell(row, "note") or "").strip(),
         })

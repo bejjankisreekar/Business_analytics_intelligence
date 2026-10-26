@@ -457,3 +457,78 @@ class RenewalAutomationTests(SheetsBackedMixin, TestCase):
         )
         sub = self._pay(sub, amount=self.plan.yearly_price)
         self.assertEqual(sub.end_date, datetime.date(old_end.year + 1, old_end.month, old_end.day))
+
+
+class PlanChangeTests(SheetsBackedMixin, TestCase):
+    """Self-serve upgrade/downgrade between Professional and Business on the same storage."""
+
+    def setUp(self):
+        super().setUp()
+        self.org = _make_org(self, name="Plan Change Org")
+
+    def tearDown(self):
+        delete_organization_and_tenant(self.org)
+
+    def _sub(self, slug):
+        return billing_services.create_subscription(self.org, Plan.objects.get(slug=slug))
+
+    def test_options_stay_on_same_storage_ladder(self):
+        self._sub("starter")
+        opts = billing_services.get_plan_change_options(self.org)
+        self.assertEqual([(o["plan"].slug, o["direction"]) for o in opts], [("smart-drive", "upgrade")])
+        self._sub("enterprise")
+        opts = billing_services.get_plan_change_options(self.org)
+        self.assertEqual([(o["plan"].slug, o["direction"]) for o in opts], [("pro", "downgrade")])
+
+    def test_upgrade_reprices_current_subscription(self):
+        sub = self._sub("pro")
+        billing_services.change_plan(self.org, "enterprise")
+        sub.refresh_from_db()
+        self.assertEqual(sub.plan.slug, "enterprise")
+        self.assertEqual(sub.price, sub.plan.monthly_price)
+        self.assertTrue(sub.is_current)
+
+    def _active_sub(self, slug, days_left=15):
+        sub = self._sub(slug)
+        today = datetime.date.today()
+        sub.status = Subscription.Status.ACTIVE
+        sub.billing_cycle = Subscription.BillingCycle.MONTHLY
+        sub.end_date = today + datetime.timedelta(days=days_left)
+        sub.save()
+        return sub
+
+    def test_paid_upgrade_issues_prorated_invoice_and_waits_for_payment(self):
+        sub = self._active_sub("pro")
+        _, invoice = billing_services.request_plan_change(self.org, "enterprise")
+        sub.refresh_from_db()
+        self.assertEqual(sub.plan.slug, "pro")  # not switched yet
+        self.assertIsNotNone(invoice)
+        self.assertEqual(invoice.upgrade_plan.slug, "enterprise")
+        diff = Plan.objects.get(slug="enterprise").effective_monthly_price - Plan.objects.get(slug="pro").effective_monthly_price
+        self.assertTrue(0 < invoice.total < diff)
+
+        payment_services.record_payment(self.org, invoice=invoice, amount=invoice.amount_due, subscription=sub)
+        sub.refresh_from_db()
+        self.assertEqual(sub.plan.slug, "enterprise")
+        self.assertEqual(sub.end_date, datetime.date.today() + datetime.timedelta(days=15))  # not renewed
+
+    def test_upgrade_invoice_is_not_a_renewal_invoice(self):
+        self._active_sub("pro", days_left=1)
+        billing_services.request_plan_change(self.org, "enterprise")
+        self.assertEqual(billing_services.generate_upcoming_renewal_invoices(), 1)
+
+    def test_downgrade_takes_effect_without_payment(self):
+        sub = self._active_sub("enterprise")
+        _, invoice = billing_services.request_plan_change(self.org, "pro")
+        sub.refresh_from_db()
+        self.assertIsNone(invoice)
+        self.assertEqual(sub.plan.slug, "pro")
+
+    def test_cannot_cross_storage_or_use_autopay(self):
+        sub = self._sub("starter")
+        with self.assertRaises(billing_services.PlanChangeError):
+            billing_services.change_plan(self.org, "enterprise")
+        sub.autopay_enabled = True
+        sub.save()
+        with self.assertRaises(billing_services.PlanChangeError):
+            billing_services.change_plan(self.org, "smart-drive")

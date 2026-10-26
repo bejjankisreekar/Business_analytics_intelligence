@@ -3,26 +3,32 @@
 {% block title %}Import Revenue — Review · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
+<style>
+  /* Keep every column-mapping dropdown the same size: fill its grid column. */
+  .map-field .bai-select-wrap { width: 100% !important; min-width: 0 !important; }
+  .map-field .bai-select-trigger { width: 100% !important; height: 2.5rem !important; }
+</style>
 <a href="{% url 'finance:import_sales' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Upload</a>
 
 <h1 class="mt-2 text-2xl font-bold text-white">Review before saving</h1>
 <p class="mt-1 max-w-2xl text-sm text-slate-400">
   {{ row_count }} row{{ row_count|pluralize }} read from the file.
-  {% if flagged_count %}<span class="font-medium text-amber-400">{{ flagged_count }} need{{ flagged_count|pluralize:"s," }} a look</span> — check the ⚠ rows below.{% else %}Nothing looks off, but take a look before saving.{% endif %}
+  <span id="flag-summary">{% if flagged_count %}<span class="font-medium text-amber-400">{{ flagged_count }} need{{ flagged_count|pluralize:"s," }} a look</span> — check the ⚠ rows below.{% else %}Nothing looks off, but take a look before saving.{% endif %}</span>
+  {% if cash_default_count %}<span class="block mt-1 text-amber-400">{{ cash_default_count }} row{{ cash_default_count|pluralize }} had no payment mode, so {{ cash_default_count|pluralize:"it was,they were" }} set to Cash.</span>{% endif %}
   Nothing is saved yet.
 </p>
 
 {% if headers %}
-<details class="card mt-4 p-5">
-  <summary class="cursor-pointer text-sm font-semibold text-slate-200">Column mapping — wrong? adjust and re-apply</summary>
-  <form method="post" action="{% url 'finance:import_sales' %}" class="mt-3">
+<details class="card mt-4 p-5" open>
+  <summary class="cursor-pointer text-sm font-semibold text-slate-200">Column mapping — pick the file column for each field</summary>
+  <form id="sales-mapping-form" method="post" action="{% url 'finance:import_sales_mapping' %}" class="mt-3">
     {% csrf_token %}
     <input type="hidden" name="raw_data" value="{{ raw_data_json }}">
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {% for field, label, required, current in mapping_fields %}
-      <div>
+      <div class="map-field">
         <label class="block text-xs font-medium text-slate-400">{{ label }}{% if required %} *{% endif %}</label>
-        <select name="map_{{ field }}" class="mt-1 w-full sel-wide">
+        <select name="map_{{ field }}" class="mt-1 w-full">
           <option value="">— not in file —</option>
           {% for header in headers %}
           <option value="{{ header }}" {% if header == current %}selected{% endif %}>{{ header }}</option>
@@ -31,7 +37,7 @@
       </div>
       {% endfor %}
     </div>
-    <button type="submit" class="btn-primary mt-3">Re-apply mapping</button>
+    <p class="mt-3 text-xs text-slate-500">Changing a column here updates the rows below and is saved for next time.</p>
   </form>
 </details>
 {% endif %}
@@ -67,7 +73,7 @@
         </thead>
         <tbody id="sale-formset-body">
           {% for form, warnings in rows %}
-          <tr>
+          <tr data-server-flag="{% if warnings or form.errors %}1{% else %}0{% endif %}">
             <td data-label="Check" class="px-1 py-1 align-top">
               {% if warnings or form.errors %}<span class="text-amber-400" title="{{ warnings|join:'; ' }}">⚠</span>{% else %}<span class="text-mint-400">✓</span>{% endif %}
             </td>
@@ -94,4 +100,90 @@
 </script>
 {% include "finance/_bulk_entry_js.html" with bulk_prefixes_json=bulk_prefixes_json %}
 {% include "finance/_bulk_table_style.html" %}
+<script>
+  // Live review: a row you edit (or a new row) is re-checked on the spot and
+  // the summary count updates. Untouched rows keep the warnings from upload.
+  (function () {
+    var body = document.getElementById('sale-formset-body');
+    var summary = document.getElementById('flag-summary');
+
+    function field(tr, suffix) {
+      return tr.querySelector('[name$="-' + suffix + '"]');
+    }
+
+    function clientIssues(tr) {
+      var issues = [];
+      var date = field(tr, 'date');
+      if (!date || !date.value.trim()) issues.push('Date missing');
+      var channel = field(tr, 'channel');
+      if (!channel || !channel.value) issues.push('Category missing');
+      var gross = field(tr, 'gross_amount');
+      if (!gross || !gross.value.trim() || parseFloat(gross.value) <= 0) issues.push('Gross amount is 0');
+      return issues;
+    }
+
+    function isDeleted(tr) {
+      var del = field(tr, 'DELETE');
+      return !!(del && del.checked);
+    }
+
+    function refresh() {
+      var count = 0;
+      Array.prototype.forEach.call(body.querySelectorAll('tr'), function (tr) {
+        if (isDeleted(tr)) return;
+        var untouched = tr.dataset.serverFlag !== undefined && !tr.dataset.touched;
+        if (untouched) {
+          if (tr.dataset.serverFlag === '1') count++;
+          return;
+        }
+        var issues = clientIssues(tr);
+        var icon = tr.querySelector('td span');
+        if (icon) {
+          icon.className = issues.length ? 'text-amber-400' : 'text-mint-400';
+          icon.textContent = issues.length ? '⚠' : '✓';
+          icon.title = issues.join('; ');
+        }
+        if (issues.length) count++;
+      });
+      summary.innerHTML = count
+        ? '<span class="font-medium text-amber-400">' + count + ' ' + (count === 1 ? 'needs' : 'need') + ' a look</span> — check the ⚠ rows below.'
+        : 'Nothing looks off, but take a look before saving.';
+    }
+
+    function onEdit(e) {
+      var tr = e.target.closest('tr');
+      if (tr) tr.dataset.touched = '1';
+      refresh();
+    }
+
+    body.addEventListener('input', onEdit);
+    body.addEventListener('change', onEdit);
+    // "+ Add row" adds a row to the table body, so re-check when rows change.
+    new MutationObserver(refresh).observe(body, { childList: true });
+    refresh();
+  })();
+
+  // A column change re-reads the uploaded rows with the new mapping and
+  // saves it for next time. The server returns the whole review page.
+  (function () {
+    var form = document.getElementById('sales-mapping-form');
+    if (!form) return;
+    form.addEventListener('change', function () {
+      fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        credentials: 'same-origin'
+      }).then(function (res) {
+        if (!res.ok) throw new Error('status ' + res.status);
+        return res.text();
+      }).then(function (html) {
+        document.open();
+        document.write(html);
+        document.close();
+      }).catch(function () {
+        alert('Could not update the mapping. Please upload the file again.');
+      });
+    });
+  })();
+</script>
 {% endblock %}

@@ -56,8 +56,8 @@ html {
      literal font stack, so swapping the typeface is a one-line change
      here rather than an edit in every template that uses it. */
   --font-identity: 'IBM Plex Sans', 'Inter', sans-serif;   /* org name, user greetings/usernames */
-  --font-logotype: 'Lobster Two', cursive;   /* the "Finday" brand wordmark */
-  --font-tagline: 'DM Serif Display', serif;  /* the "Intelligence" brand tagline */
+  --font-logotype: 'Rooster', 'Kaushan Script', cursive;   /* the "Finday" brand wordmark */
+  --font-tagline: 'Brandes', 'Abril Fatface', serif;    /* the "Intelligence" brand tagline */
 
   color-scheme: dark;
 }
@@ -313,14 +313,14 @@ html[data-theme="light"] .theme-toggle-btn .icon-moon { display: none; }
   --brand-logo-size: 2.75rem;
   --brand-logo-radius: 0.75rem;
   --brand-gap: 0.75rem;
-  --brand-wordmark-size: 24px;
+  --brand-wordmark-size: 26px;
   --brand-wordmark-weight: 400;
-  --brand-wordmark-tracking: -0.01em;
+  --brand-wordmark-tracking: 0;
   --brand-wordmark-color: rgb(var(--fg-strong));
-  --brand-tagline-size: 10px;
+  --brand-tagline-size: 14px;
   --brand-tagline-weight: 400;
-  --brand-tagline-tracking: 0.3em;
-  --brand-tagline-gap: 0.3rem;
+  --brand-tagline-tracking: 0.02em;
+  --brand-tagline-gap: 0.1rem;
   --brand-tagline-color: rgb(var(--brand-400));
 }
 
@@ -329,10 +329,10 @@ html[data-theme="light"] .theme-toggle-btn .icon-moon { display: none; }
   --brand-logo-size: 2.25rem;
   --brand-logo-radius: 0.6rem;
   --brand-gap: 0.625rem;
-  --brand-wordmark-size: 16px;
-  --brand-tagline-size: 8px;
-  --brand-tagline-tracking: 0.26em;
-  --brand-tagline-gap: 0.2rem;
+  --brand-wordmark-size: 18px;
+  --brand-tagline-size: 10px;
+  --brand-tagline-tracking: 0.02em;
+  --brand-tagline-gap: 0.05rem;
 }
 
 .brand-lockup {
@@ -369,7 +369,6 @@ html[data-theme="light"] .theme-toggle-btn .icon-moon { display: none; }
   font-size: var(--brand-tagline-size);
   font-weight: var(--brand-tagline-weight);
   letter-spacing: var(--brand-tagline-tracking);
-  text-transform: uppercase;
   color: var(--brand-tagline-color);
   white-space: nowrap;
 }

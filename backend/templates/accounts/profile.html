@@ -7,9 +7,39 @@
      dropdown trigger ended up as narrow as its label. In these form sections
      let it fill the whole field, like the text inputs beside it. */
   [id^="section-"] .bai-select-trigger { width: 100%; }
+  /* Phones: stack header/action rows, full-width buttons, even field heights. */
+  @media (max-width: 639px) {
+    .pf-head { flex-direction: column; align-items: stretch; }
+    .pf-head > .flex-col { align-items: stretch; }
+    .pf-head .btn-primary { width: 100%; padding: .7rem 1rem; }
+    .pf-head p.text-sm { font-size: .8rem; }
+    #profile-form { margin-top: 1rem; }
+    #profile-form .card, #section-database, #section-mobile-app { padding: 1rem; }
+    #profile-form .card h2 { font-size: .9rem; }
+    #profile-form .card > .grid { gap: .85rem; }
+    #profile-form .card label.block { margin-bottom: .1rem; }
+    #profile-form input:not([type=checkbox]), #profile-form select, #profile-form .bai-select-trigger {
+      height: 2.6rem; box-sizing: border-box; font-size: 14px; margin-top: .25rem;
+    }
+    #profile-form textarea { font-size: 14px; margin-top: .25rem; }
+    .pf-actions { flex-direction: column; align-items: stretch; gap: .6rem; }
+    .pf-actions > * { width: 100%; text-align: center; padding: .7rem 1rem; }
+    #section-database .flex.items-center.justify-between.gap-4,
+    #section-mobile-app .flex.flex-wrap { flex-direction: column; align-items: stretch; }
+    #section-database .flex.items-center.justify-between.gap-4 > a,
+    #section-database .flex.items-center.justify-between.gap-4 > form,
+    #section-database .flex.items-center.justify-between.gap-4 > form button,
+    #section-mobile-app .btn-primary, #section-database .btn-primary {
+      width: 100%; text-align: center; justify-content: center; white-space: normal; padding: .7rem 1rem;
+    }
+    #section-database a.rounded-lg, #section-database button.rounded-lg { display: block; text-align: center; white-space: normal; }
+    #section-manager > .mt-4.border-t button { width: 100%; padding: .6rem; border: 1px solid rgba(255,255,255,.15); border-radius: .5rem; }
+    dialog { max-width: calc(100vw - 1.5rem); max-height: 92vh; padding: 1rem; overflow-y: auto; }
+    dialog .btn-primary { padding: .6rem 1rem; }
+  }
   #{{ user_form.username.id_for_label }}{% if org_form %}, #{{ org_form.name.id_for_label }}{% endif %} { font-family: var(--font-identity); }
 </style>
-<div class="flex items-center justify-between gap-4">
+<div class="pf-head flex items-center justify-between gap-4">
   <div>
     <h1 class="text-2xl font-bold text-white">Profile</h1>
     <p class="mt-1 text-sm text-slate-400">Update your personal details{% if org_form %} and your organization's information{% endif %}. Each section is locked by default — click its lock icon to edit it.</p>
@@ -172,7 +202,7 @@
   </div>
   {% endif %}
 
-  <div class="flex items-center gap-4">
+  <div class="pf-actions flex items-center gap-4">
     <button type="submit" class="btn-primary">Save changes</button>
     <a href="{% url 'accounts:change_password' %}" class="rounded-lg border border-white/20 px-4 py-2 text-sm text-slate-300 hover:border-white/40 hover:text-white transition">Change password</a>
   </div>

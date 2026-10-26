@@ -104,6 +104,27 @@ def kickback_column_labels(fs: FinanceSettings | None = None) -> dict:
     }
 
 
+def sales_import_mapping(fs: FinanceSettings | None = None) -> dict:
+    """{field: file column name} remembered from the last Import Revenue
+    mapping. Blank or corrupt settings give an empty dict."""
+    import json
+
+    fs = fs or get_finance_settings()
+    try:
+        saved = json.loads(fs.sales_import_mapping or "{}")
+    except ValueError:
+        return {}
+    return saved if isinstance(saved, dict) else {}
+
+
+def save_sales_import_mapping(mapping: dict) -> None:
+    import json
+
+    fs = get_finance_settings()
+    fs.sales_import_mapping = json.dumps(mapping)
+    fs.save(update_fields=["sales_import_mapping"])
+
+
 def bulk_column_labels(fs: FinanceSettings | None = None) -> dict:
     """{"sale": {"category": label, ...}, ...} — the organization's saved
     names layered over the defaults, so a missing/blank/corrupt entry

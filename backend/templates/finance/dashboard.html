@@ -12,19 +12,35 @@
       .dash-period { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.7rem; padding: 0.3rem 0.8rem; border-radius: 999px; border: 1px solid rgba(91,124,250,0.3); background: rgba(91,124,250,0.08); font-size: 0.8rem; color: #94a3b8; }
       .dash-period strong { font-weight: 600; color: #e2e8f0; }
       .dash-period::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; }
+      .dash-cta { max-width: 100%; text-align: center; white-space: normal; }
+      .kpi-card { min-width: 0; }
+      .kpi-card p { overflow-wrap: anywhere; }
+      @media (max-width: 639px) {
+        .dash-hello { font-size: 1.5rem; overflow-wrap: anywhere; }
+        .dash-period { font-size: 0.75rem; flex-wrap: wrap; }
+        .dash-cta { display: flex; width: 100%; justify-content: center; margin-top: 0.75rem; padding: 0.7rem 1rem; }
+        .kpi-grid { gap: 0.75rem; }
+        .kpi-card { padding: 0.8rem; }
+        .kpi-card .text-xl { font-size: 1.05rem; line-height: 1.4rem; }
+        .kpi-card:last-child { grid-column: 1 / -1; }
+        .dash-card { padding: 1rem; }
+        .dash-chart { height: 16rem !important; }
+        .dash-table th, .dash-table td { white-space: nowrap; }
+        .dash-table td:nth-child(4), .dash-table th:nth-child(4) { display: none; }
+      }
       html[data-theme="light"] .dash-hello-sub { color: #3a56d4; }
       html[data-theme="light"] .dash-period strong { color: #0f172a; }
     </style>
     <h1 class="dash-hello text-white">Welcome back, <span class="dash-grad">{{ request.user.get_full_name|default:request.user.username }}</span> ✨</h1>
     <p class="dash-period">Showing <strong>{{ period.label }}</strong></p>
   </div>
-  <div class="flex flex-wrap items-center gap-2">
-    <a href="{% url 'finance:daily_bulk_entry' %}" class="glow-btn inline-flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-sm font-medium text-brand-300" style="--glow-color: rgba(91,124,250,0.55)">Enter Today's Revenue / Expenses →</a>
+  <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+    <a href="{% url 'finance:daily_bulk_entry' %}" class="dash-cta glow-btn inline-flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-sm font-medium text-brand-300" style="--glow-color: rgba(91,124,250,0.55)">Enter Today's Revenue / Expenses →</a>
   </div>
 </div>
 
 <!-- KPI cards -->
-<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+<div class="kpi-grid mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
   <div class="card kpi-card p-4">
     <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Revenue</p>
     <p class="mt-1.5 text-xl font-bold text-white">{{ organization.currency }} {{ kpis.sales|floatformat:0|intcomma }}</p>
@@ -72,16 +88,16 @@
 
 <!-- Headline charts -->
 <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
-  <div class="card p-5 xl:col-span-2">
+  <div class="card dash-card p-5 xl:col-span-2">
     <h3 class="text-sm font-semibold text-white">Revenue vs expenses vs purchases</h3>
     <p class="text-xs text-slate-500">Daily totals for {{ period.label }}</p>
-    <div class="mt-4 h-72"><canvas id="chartDaily"></canvas></div>
+    <div class="dash-chart mt-4 h-72"><canvas id="chartDaily"></canvas></div>
   </div>
-  <div class="card p-5">
+  <div class="card dash-card p-5">
     <h3 class="text-sm font-semibold text-white">Expense breakdown</h3>
     <p class="text-xs text-slate-500">By category</p>
     {% if expense_breakdown|length > 1 %}
-    <div class="mt-4 h-72"><canvas id="chartExpenseBreakdown"></canvas></div>
+    <div class="dash-chart mt-4 h-72"><canvas id="chartExpenseBreakdown"></canvas></div>
     {% else %}
     <p class="mt-8 py-6 text-center text-sm text-slate-500">Not enough categories yet to compare.</p>
     {% endif %}
@@ -89,12 +105,12 @@
 </div>
 
 <!-- Recent entries -->
-<div class="card mt-5 p-5">
+<div class="card dash-card mt-5 p-5">
   <div class="flex items-center justify-between">
     <h3 class="text-sm font-semibold text-white">Recent entries</h3>
   </div>
   <div class="mt-4 overflow-x-auto">
-    <table class="w-full text-left text-sm">
+    <table class="dash-table w-full text-left text-sm">
       <thead>
         <tr class="text-[11px] uppercase tracking-wide text-slate-500">
           <th class="pb-2 pr-4 font-medium">Date</th>

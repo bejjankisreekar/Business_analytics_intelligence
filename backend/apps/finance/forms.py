@@ -717,7 +717,7 @@ class InsuranceClaimForm(forms.ModelForm):
             "claimed_amount": "Amount claimed",
             "approved_amount": "Amount approved",
             "submitted_date": "Submitted on",
-            "decision_date": "Decision date",
+            "decision_date": "Decision date (when the insurer approved or rejected the claim)",
             "remarks": "Remarks / query",
         }
         widgets = {
@@ -727,11 +727,15 @@ class InsuranceClaimForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Only insurance bills can have a claim. A claim already linked to a
-        # bill that has since been switched to cash stays selectable, so it
-        # can still be edited.
+        # Only insurance bills can have a claim, and a bill that already has a
+        # claim is left out so it is not picked twice. This claim's own bill
+        # stays selectable, so it can still be edited (even if since switched
+        # to cash).
+        claimed_bill_ids = {c.bill_id for c in InsuranceClaim.objects.all() if c.bill_id}
+        claimed_bill_ids.discard(self.instance.bill_id)
         self.fields["bill"].queryset = KickbackEntry.objects.filter(
-            Q(payer_type=KickbackEntry.PayerType.INSURANCE) | Q(pk=self.instance.bill_id),
+            (Q(payer_type=KickbackEntry.PayerType.INSURANCE) & ~Q(pk__in=claimed_bill_ids))
+            | Q(pk=self.instance.bill_id),
         ).order_by("-admission_date", "-created_at")
         # MRN, then name, then address (where the village is written). A bill
         # with no MRN shows its bill number in that first slot instead.

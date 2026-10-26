@@ -112,10 +112,10 @@
         <td class="py-2.5 pr-4 text-slate-300">{{ e.customer|default:e.vendor|default:"—" }}</td>
         <td class="py-2.5 pr-4 text-right text-slate-400">{{ e.quantity|default:"—" }}</td>
         {% if kind == "sales" %}
-        <td class="py-2.5 pr-4 text-right text-slate-300">{{ organization.currency }} {{ e.gross_amount|floatformat:0|intcomma }}</td>
-        <td class="py-2.5 pr-4 text-right text-amber-400">{{ organization.currency }} {{ e.discount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-300">{{ e.gross_amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right text-amber-400">{{ e.discount|floatformat:0|intcomma }}</td>
         {% endif %}
-        <td class="py-2.5 pr-4 text-right font-medium text-white">{{ organization.currency }} {{ e.amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right font-medium text-white">{{ e.amount|floatformat:0|intcomma }}</td>
         <td class="py-2.5 pr-4 text-slate-400">{{ e.payment_mode }}</td>
         <td class="py-2.5 text-slate-500">{{ e.note|default:"—" }}</td>
       </tr>
@@ -129,10 +129,10 @@
         <td class="py-2.5 pr-4 text-slate-300" colspan="4">Total ({{ totals.count }} entr{{ totals.count|pluralize:"y,ies" }})</td>
         <td class="py-2.5 pr-4 text-right text-slate-300">{{ totals.quantity }}</td>
         {% if kind == "sales" %}
-        <td class="py-2.5 pr-4 text-right text-slate-200">{{ organization.currency }} {{ totals.gross|floatformat:0|intcomma }}</td>
-        <td class="py-2.5 pr-4 text-right text-amber-400">{{ organization.currency }} {{ totals.discount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-200">{{ totals.gross|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right text-amber-400">{{ totals.discount|floatformat:0|intcomma }}</td>
         {% endif %}
-        <td class="py-2.5 pr-4 text-right text-white">{{ organization.currency }} {{ totals.amount|floatformat:0|intcomma }}</td>
+        <td class="py-2.5 pr-4 text-right text-white">{{ totals.amount|floatformat:0|intcomma }}</td>
         <td class="py-2.5 pr-4"></td>
         <td class="py-2.5"></td>
       </tr>
