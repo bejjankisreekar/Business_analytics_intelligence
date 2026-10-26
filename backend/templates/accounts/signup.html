@@ -1,0 +1,530 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Create your organization · {{ SITE_NAME }}{% endblock %}
+
+{% block body %}
+{% include "includes/_theme_toggle.html" with extra_class="theme-toggle-floating" %}
+<div class="relative flex min-h-screen bg-grid" style="overflow-x: clip;">
+  <div class="pointer-events-none absolute -top-40 right-1/3 h-[500px] w-[800px] rounded-full bg-mint-500/10 blur-[120px]"></div>
+
+  <!-- Left: brand panel -->
+  <div id="signup-brand-panel" class="hidden flex-col justify-between border-r border-white/5 bg-ink-900 px-14 py-12 lg:flex">
+    {% include "includes/_brand.html" with size="sm" %}
+    <div class="max-w-md">
+      <span class="auth-eyebrow">Get started</span>
+      <h1 class="auth-hero-title mt-4 text-white">Set up your organization in<br><span class="auth-grad">under a minute.</span></h1>
+      <p class="mt-4 text-sm leading-relaxed text-slate-400">We'll create a dedicated, isolated workspace for your business the moment you sign up — one account per organization.</p>
+      <div class="mt-10 space-y-4">
+        <div class="flex items-start gap-3 text-sm text-slate-1800">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-brand-500/10 text-brand-400 text-xs font-bold">1</span>
+          Tell us about your organization
+        </div>
+        <div class="flex items-start gap-3 text-sm text-slate-400">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-brand-500/10 text-brand-400 text-xs font-bold">2</span>
+          Create your owner login
+        </div>
+        <div class="flex items-start gap-3 text-sm text-slate-400">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-mint-500/10 text-mint-400 text-xs font-bold">3</span>
+          Your isolated workspace is provisioned instantly
+        </div>
+      </div>
+    </div>
+    <p class="text-xs text-slate-600">© {% now "Y" %} Finday Intelligence</p>
+  </div>
+
+  <!-- Right: form -->
+  <div class="relative flex w-full flex-col justify-center px-6 py-14 sm:px-12 lg:w-[58%] lg:px-32" id="signup-form-panel">
+    <div class="mx-auto w-full max-w-3xl ml-0 sm:ml-4 lg:ml-8">
+      {% include "includes/_brand.html" with size="sm" class="mb-6 lg:hidden" %}
+
+      <h2 class="auth-title text-white">Create your <span class="auth-grad">organization</span></h2>
+      <p class="mt-2 text-sm text-slate-400">Free to start. No credit card required.</p>
+
+      {% if form.non_field_errors %}
+      <div class="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+      {% endif %}
+
+      <form method="post" id="signup-form" class="mt-8 space-y-6">
+        {% csrf_token %}
+
+        <div>
+          <div class="space-y-4">
+            <div>
+              <label for="{{ form.organization_name.id_for_label }}" class="block text-xs font-medium text-slate-200">Organization name <span class="required-mark">*</span></label>
+              {{ form.organization_name }}
+              {% for error in form.organization_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label for="business-type-search" class="block text-xs font-medium text-slate-200">Business type <span class="required-mark">*</span></label>
+                <div class="relative" id="business-type-combobox">
+                  {{ form.business_type }}
+                  <input type="text" id="business-type-search" autocomplete="off" placeholder="Search business type…">
+                  <div id="business-type-options" class="combobox-options hidden"></div>
+                </div>
+              </div>
+              <div>
+                <label for="size-search" class="block text-xs font-medium text-slate-200">Team size <span class="required-mark">*</span></label>
+                <div class="relative" id="size-combobox">
+                  {{ form.size }}
+                  <input type="text" id="size-search" autocomplete="off" placeholder="Search team size…">
+                  <div id="size-options" class="combobox-options hidden"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="space-y-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label for="{{ form.first_name.id_for_label }}" class="block text-xs font-medium text-slate-200">First name <span class="required-mark">*</span></label>
+                {{ form.first_name }}
+                {% for error in form.first_name.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+              </div>
+              <div>
+                <label for="{{ form.last_name.id_for_label }}" class="block text-xs font-medium text-slate-200">Last name</label>
+                {{ form.last_name }}
+              </div>
+            </div>
+            <div>
+              <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-200">Email <span class="required-mark">*</span></label>
+              {{ form.email }}
+              {% for error in form.email.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium text-slate-200">Username <span class="required-mark">*</span></label>
+                <button type="button" class="info-tooltip relative inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-600 text-white text-xs hover:bg-slate-500 transition" title="Only letters, numbers, underscores, dots and hyphens. No spaces.">
+                  i
+                </button>
+              </div>
+              {{ form.username }}
+              {% for error in form.username.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <div class="flex items-center gap-2">
+                  <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-200">Password <span class="required-mark">*</span></label>
+                  <button type="button" class="info-tooltip relative inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-600 text-white text-xs hover:bg-slate-500 transition" title="Password must be at least 8 characters. No spaces or emojis allowed.">
+                    i
+                  </button>
+                </div>
+                {{ form.password }}
+                {% for error in form.password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+              </div>
+              <div>
+                <label for="{{ form.confirm_password.id_for_label }}" class="block text-xs font-medium text-slate-200">Confirm password <span class="required-mark">*</span></label>
+                {{ form.confirm_password }}
+                {% for error in form.confirm_password.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center gap-2">
+            <label class="block text-xs font-medium text-slate-200">Where should your data be stored? <span class="required-mark">*</span></label>
+            <button type="button" class="info-tooltip relative inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-600 text-white text-xs hover:bg-slate-500 transition" title="Whichever you pick, your data is exportable to Excel any time from your profile.">
+              i
+            </button>
+          </div>
+          <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {% for radio in form.storage_mode %}
+            <label class="storage-mode-option">
+              {{ radio.tag }}
+              <span class="storage-mode-option-label">
+                {{ radio.choice_label }}
+                {% if radio.data.value == "GOOGLE_SHEETS" %}
+                <span class="storage-mode-option-hint">Lives in a Google Sheet in your own Drive — you'll connect your Google account next.</span>
+                {% else %}
+                <span class="storage-mode-option-hint">Lives in our secure, managed database — no Google account needed.</span>
+                {% endif %}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+          {% for error in form.storage_mode.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-200">{{ form.manager_logins.label }} <span class="required-mark">*</span></label>
+          <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {% for radio in form.manager_logins %}
+            <label class="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 cursor-pointer transition hover:border-brand-500/30 hover:bg-white/[0.05]">
+              {{ radio.tag }}
+              <span class="text-sm text-slate-200 font-medium">{{ radio.choice_label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          {% for error in form.manager_logins.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+
+        <!-- Pricing Card -->
+        <div id="pricing-card" class="rounded-lg border border-brand-500/30 bg-brand-500/10 p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-400 mb-1">Monthly billing</p>
+              <p class="text-2xl font-bold text-white" id="pricing-amount">₹1,299</p>
+              <p class="text-xs text-slate-500 mt-1" id="pricing-plan">Professional</p>
+            </div>
+            <a href="{% url 'core:landing' %}#pricing" target="_blank" class="text-xs font-semibold text-brand-400 hover:text-brand-300 transition">View pricing →</a>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-2 pt-1">
+          <div class="-mt-0.5 flex-shrink-0">
+            {{ form.terms_agree }}
+          </div>
+          <label for="{{ form.terms_agree.id_for_label }}" class="text-xs text-slate-300 leading-relaxed">
+            I agree to the <a href="{% url 'core:privacy_policy' %}" target="_blank" class="font-semibold text-brand-400 hover:text-brand-300">Privacy Policy</a> and <a href="{% url 'core:terms' %}" target="_blank" class="font-semibold text-brand-400 hover:text-brand-300">Terms of Service</a>
+          </label>
+        </div>
+        {% for error in form.terms_agree.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
+
+        <button type="submit" id="signup-submit" class="keep-white flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-80">
+          <svg id="signup-spinner" class="hidden h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+          <span id="signup-submit-label">Create organization &amp; sign in</span>
+        </button>
+      </form>
+
+      <p class="mt-8 text-center text-sm text-slate-200">
+        Already have a workspace?
+        <a href="{% url 'accounts:login' %}" class="font-semibold text-brand-400 hover:text-brand-300">Sign in</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Pricing update based on selections
+  const pricingData = {
+    '1_OUR_DATABASE': { amount: '₹1,299', plan: 'Professional' },
+    '1_GOOGLE_SHEETS': { amount: '₹1,499', plan: 'Professional Drive' },
+    '2_OUR_DATABASE': { amount: '₹1,599', plan: 'Business' },
+    '2_GOOGLE_SHEETS': { amount: '₹1,799', plan: 'Business Drive' }
+  };
+
+  function updatePricing() {
+    const logins = document.querySelector('input[name="manager_logins"]:checked');
+    const storage = document.querySelector('input[name="storage_mode"]:checked');
+
+    if (logins && storage) {
+      const key = `${logins.value}_${storage.value}`;
+      const pricing = pricingData[key];
+      if (pricing) {
+        document.getElementById('pricing-amount').textContent = pricing.amount;
+        document.getElementById('pricing-plan').textContent = pricing.plan;
+      }
+    }
+  }
+
+  // Listen for changes
+  document.querySelectorAll('input[name="manager_logins"], input[name="storage_mode"]').forEach(input => {
+    input.addEventListener('change', updatePricing);
+  });
+
+  // Initial update
+  updatePricing();
+</script>
+
+<script>
+  function initCombobox(selectId, wrapId, searchId, optionsId) {
+    const select = document.getElementById(selectId);
+    const wrap = document.getElementById(wrapId);
+    const searchInput = document.getElementById(searchId);
+    const optionsList = document.getElementById(optionsId);
+    if (!select || !wrap) return;
+
+    const options = Array.from(select.options).map((o) => ({ value: o.value, label: o.text }));
+
+    function currentLabel() {
+      const opt = options.find((o) => o.value === select.value);
+      return opt ? opt.label : "";
+    }
+
+    function renderOptions(filter) {
+      const q = (filter || "").trim().toLowerCase();
+      const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+      optionsList.innerHTML = filtered.length
+        ? filtered.map((o) =>
+            `<button type="button" data-value="${o.value}" class="combobox-option${o.value === select.value ? " combobox-option--active" : ""}">${o.label}</button>`
+          ).join("")
+        : '<p class="combobox-empty">No matches</p>';
+    }
+
+    function openList() {
+      renderOptions(searchInput.value === currentLabel() ? "" : searchInput.value);
+      optionsList.classList.remove("hidden");
+    }
+
+    function closeList() {
+      optionsList.classList.add("hidden");
+    }
+
+    searchInput.value = currentLabel();
+
+    searchInput.addEventListener("focus", () => {
+      searchInput.select();
+      openList();
+    });
+    searchInput.addEventListener("input", () => {
+      renderOptions(searchInput.value);
+      optionsList.classList.remove("hidden");
+    });
+    optionsList.addEventListener("mousedown", (e) => {
+      const btn = e.target.closest("[data-value]");
+      if (!btn) return;
+      e.preventDefault();
+      select.value = btn.dataset.value;
+      searchInput.value = btn.textContent;
+      closeList();
+    });
+    document.addEventListener("click", (e) => {
+      if (!wrap.contains(e.target)) {
+        closeList();
+        searchInput.value = currentLabel();
+      }
+    });
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeList();
+        searchInput.blur();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const first = optionsList.querySelector("[data-value]");
+        if (first) {
+          select.value = first.dataset.value;
+          searchInput.value = first.textContent;
+          closeList();
+        }
+      }
+    });
+  }
+
+  document.querySelectorAll("input[type=password]").forEach((input) => {
+    const wrap = document.createElement("div");
+    wrap.className = "pw-wrap";
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pw-toggle";
+    btn.textContent = "Show";
+    btn.setAttribute("aria-label", "Show password");
+    btn.addEventListener("click", () => {
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.textContent = show ? "Hide" : "Show";
+      btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    });
+    wrap.appendChild(btn);
+  });
+
+  initCombobox("{{ form.business_type.id_for_label }}", "business-type-combobox", "business-type-search", "business-type-options");
+  initCombobox("{{ form.size.id_for_label }}", "size-combobox", "size-search", "size-options");
+
+  // Signup provisions a whole tenant schema server-side, so this can take
+  // noticeably longer than a login — same spinner/lock/pageshow-reset
+  // pattern as the login page.
+  const signupForm = document.getElementById("signup-form");
+  const signupSubmit = document.getElementById("signup-submit");
+  const signupSpinner = document.getElementById("signup-spinner");
+  const signupLabel = document.getElementById("signup-submit-label");
+  signupForm.addEventListener("submit", () => {
+    signupSubmit.disabled = true;
+    signupSpinner.classList.remove("hidden");
+    signupLabel.textContent = "Creating your organization…";
+  });
+  window.addEventListener("pageshow", () => {
+    signupSubmit.disabled = false;
+    signupSpinner.classList.add("hidden");
+    signupLabel.textContent = "Create organization & sign in";
+  });
+</script>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auth-grad { background: linear-gradient(90deg, #5b7cfa, #34d399); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+  .required-mark { color: #f87171; }
+  .auth-eyebrow { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 999px; border: 1px solid rgba(91,124,250,0.35); background: rgba(91,124,250,0.1); color: #8fa6ff; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+  .auth-hero-title { font-size: 2.6rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
+  .auth-title { font-size: 1.85rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.025em; }
+  .auth-title::after { content: ""; display: block; width: 3rem; height: 4px; margin-top: 0.7rem; border-radius: 999px; background: linear-gradient(90deg, #5b7cfa, #34d399); }
+  html[data-theme="light"] .auth-eyebrow { color: #3a56d4; }
+  /* Brand panel stays pinned; only the form column scrolls. */
+  @media (min-width: 1024px) {
+    #signup-brand-panel {
+      display: flex !important; position: fixed !important;
+      top: 0; bottom: 0; left: 0; width: 42%; z-index: 10; overflow: hidden;
+    }
+    #signup-form-panel { margin-left: 42%; }
+  }
+  input[type=checkbox] {
+    margin-top: 0.25rem;
+    height: 1rem;
+    width: 1rem;
+    border-radius: 0.25rem;
+    accent-color: #5b7cfa;
+    cursor: pointer;
+  }
+  input[type=email], input[type=password], input[type=text] {
+    width: 100%;
+    margin-top: 0.375rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    padding: 0.85rem 1.1rem;
+    font-size: 0.95rem;
+    color: #fff;
+    outline: none;
+  }
+  input[type=email]:focus, input[type=password]:focus, input[type=text]:focus {
+    border-color: #5b7cfa;
+    box-shadow: 0 0 0 3px rgba(91,124,250,0.15);
+  }
+  #{{ form.username.id_for_label }} { font-family: var(--font-identity); }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 3.5rem; }
+  input[type=password]::-ms-reveal,
+  input[type=password]::-ms-clear { display: none; }
+  .pw-toggle {
+    position: absolute; top: 0.375rem; bottom: 0; right: 0.75rem;
+    display: flex; align-items: center;
+    background: none; border: 0; cursor: pointer;
+    font-size: 0.75rem; font-weight: 500; color: #9aa4bd;
+  }
+  .pw-toggle:hover { color: #fff; }
+  select {
+    width: 100%;
+    margin-top: 0.375rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    padding: 0.7rem 9.25rem 0.7rem 10.15rem;
+    font-size: 0.875rem;
+    color: #fff;
+    outline: none;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa4bd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.85rem center;
+    background-size: 1rem;
+    cursor: pointer;
+    transition: border-color .15s, background-color .15s, box-shadow .15s;
+  }
+  select:hover { border-color: rgba(255,255,255,0.24); background-color: rgba(255,255,255,0.06); }
+  select:focus { border-color: #5b7cfa; box-shadow: 5 5 5 12px rgba(91,124,250,0.15); }
+  select option { background: #111627; color: #fff; padding: 1.5rem; }
+  .combobox-options {
+    position: absolute; z-index: 40; top: 100%; left: 0; right: 0; margin-top: 0.375rem;
+    max-height: 14rem; overflow-y: auto; border-radius: 0.75rem;
+    border: 1px solid rgba(255,255,255,0.1); background: #111627;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  }
+  .combobox-option {
+    display: block; width: 100%; text-align: left; padding: 0.55rem 0.9rem;
+    font-size: 0.83rem; color: #e2e8f0; background: transparent; border: none; cursor: pointer;
+  }
+  .combobox-option:hover, .combobox-option--active { background: rgba(91,124,250,0.18); color: #fff; }
+  .combobox-empty { padding: 0.6rem 0.9rem; font-size: 0.8rem; color: #64748b; }
+
+  .storage-mode-option {
+    display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer;
+    border-radius: 0.75rem; border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03); padding: 0.75rem 0.9rem;
+    transition: border-color .15s, background-color .15s;
+  }
+  .storage-mode-option:hover { border-color: rgba(255,255,255,0.24); }
+  .storage-mode-option input[type=radio] { margin-top: 0.2rem; flex: none; accent-color: #5b7cfa; }
+  .storage-mode-option:has(input:checked) { border-color: #5b7cfa; background: rgba(91,124,250,0.1); }
+  .storage-mode-option-label { font-size: 0.85rem; font-weight: 600; color: #fff; }
+  .storage-mode-option-hint { display: block; margin-top: 0.2rem; font-size: 0.75rem; font-weight: 400; color: #94a3b8; }
+
+  html[data-theme="light"] .storage-mode-option { border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.015); }
+  html[data-theme="light"] .storage-mode-option-label { color: #0f172a; }
+  html[data-theme="light"] .storage-mode-option-hint { color: #64748b; }
+
+  html[data-theme="light"] input[type=email], html[data-theme="light"] input[type=password], html[data-theme="light"] input[type=text] {
+    border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.015); color: #0f172a;
+  }
+  html[data-theme="light"] .pw-toggle { color: #64748b; }
+  html[data-theme="light"] .pw-toggle:hover { color: #0f172a; }
+  html[data-theme="light"] select {
+    border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.015); color: #0f172a;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  html[data-theme="light"] select:hover { border-color: rgba(15,23,42,0.24); background-color: rgba(15,23,42,0.03); }
+  html[data-theme="light"] select option { background: #ffffff; color: #0f172a; }
+  html[data-theme="light"] .combobox-options { border-color: rgba(15,23,42,0.1); background: #ffffff; box-shadow: 0 10px 30px rgba(15,23,42,0.14); }
+  html[data-theme="light"] .combobox-option { color: #334155; }
+  html[data-theme="light"] .combobox-option:hover, html[data-theme="light"] .combobox-option--active { background: rgba(67,97,238,0.12); color: #1e3a8a; }
+  html[data-theme="light"] .combobox-empty { color: #94a3b8; }
+
+  .info-tooltip {
+    cursor: help;
+    position: relative;
+  }
+  .info-tooltip::before {
+    content: attr(title);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 41, 59, 0.95);
+    color: #e2e8f0;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 400;
+    white-space: nowrap;
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    border: 1px solid rgba(100, 116, 139, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  .info-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: calc(125% - 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(30, 41, 59, 0.95);
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+  }
+  .info-tooltip:hover::before,
+  .info-tooltip:hover::after {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  html[data-theme="light"] .info-tooltip {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+  html[data-theme="light"] .info-tooltip:hover {
+    background: #cbd5e1;
+  }
+  html[data-theme="light"] .info-tooltip::before {
+    background: rgba(15, 23, 42, 0.95);
+    color: #f1f5f9;
+    border-color: rgba(15, 23, 42, 0.5);
+  }
+  html[data-theme="light"] .info-tooltip::after {
+    border-top-color: rgba(15, 23, 42, 0.95);
+  }
+</style>
+{% endblock %}

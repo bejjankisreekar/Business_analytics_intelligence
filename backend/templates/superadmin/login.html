@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load static static_cache_bust %}
+{% block title %}Operations sign in · {{ SITE_NAME }}{% endblock %}
+
+{% block extra_head %}
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="{% static_v 'css/superadmin.css' %}">
+<style>
+  .sa-login input[type=text], .sa-login input[type=password] {
+    width: 100%; margin-top: 0.375rem; border-radius: 0.75rem;
+    border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
+    padding: 0.65rem 0.9rem; font-size: 0.875rem; color: #fff; outline: none;
+  }
+  .sa-login input:focus { border-color: #5b7cfa; box-shadow: 0 0 0 3px rgba(91,124,250,0.15); }
+  html[data-theme="light"] .sa-login input[type=text], html[data-theme="light"] .sa-login input[type=password] {
+    border-color: rgba(15,23,42,0.12); background: rgba(15,23,42,0.015); color: #0f172a;
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="sa-login relative flex min-h-screen items-center justify-center overflow-x-hidden bg-grid px-6 py-16">
+  <div class="w-full max-w-sm">
+    <div class="mb-8 flex items-center gap-3">
+      <span class="sa-brand-mark">OPS</span>
+      <span class="leading-tight">
+        <span class="block text-sm font-bold text-slate-100">Finday Ops</span>
+        <span class="block text-[11px] text-slate-500">Operations console · authorised staff only</span>
+      </span>
+    </div>
+
+    <h1 class="text-2xl font-extrabold tracking-tight text-white">Operations sign in</h1>
+    <p class="mt-2 text-sm text-slate-400">Super admin credentials only.</p>
+
+    {% if form.non_field_errors %}
+    <div class="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" class="mt-8 space-y-5" autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <div>
+        <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium text-slate-400">Email or username</label>
+        {{ form.email }}
+      </div>
+      <div>
+        <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium text-slate-400">Password</label>
+        {{ form.password }}
+      </div>
+      <button type="submit" class="keep-white w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110">Sign in</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

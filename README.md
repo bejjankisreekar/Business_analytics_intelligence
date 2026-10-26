@@ -19,35 +19,44 @@ PDF: xhtml2pdf for statement export
 - `apps.finance` (Revenue/Expense/Purchase entries, Categories, FinanceSettings)
   is the tenant-scoped app: its tables are migrated once into `public` as a
   template, then cloned into every organization's own schema at signup —
-  see [`apps/organizations/tenant.py`](apps/organizations/tenant.py).
-- `TenantSchemaMiddleware` ([`apps/organizations/middleware.py`](apps/organizations/middleware.py))
+  see [`backend/apps/organizations/tenant.py`](backend/apps/organizations/tenant.py).
+- `TenantSchemaMiddleware` ([`backend/apps/organizations/middleware.py`](backend/apps/organizations/middleware.py))
   points each request's DB connection at the logged-in user's organization
   schema, so `apps.finance` queries transparently read/write that
   organization's own isolated tables — no `organization` FK needed on any
   finance model, isolation is structural.
-- Schema helpers live in [`apps/organizations/utils.py`](apps/organizations/utils.py);
-  the signup transaction lives in [`apps/organizations/services.py`](apps/organizations/services.py).
+- Schema helpers live in [`backend/apps/organizations/utils.py`](backend/apps/organizations/utils.py);
+  the signup transaction lives in [`backend/apps/organizations/services.py`](backend/apps/organizations/services.py).
 
 ## Project structure
 
 ```text
 Business_analytics_Inteligence/
-  apps/
-    accounts/       # custom User model, login/signup views & forms
-    organizations/  # Organization model, tenant schema/provisioning + signup service
-    finance/        # tenant-scoped: entries, categories, dashboard, reports, PDFs
-    core/           # landing page
-  config/            # settings, urls
-  templates/
-  static/
-  manage.py
-  venv/
+  backend/           # everything server-side: web app + the JSON API for mobile
+    apps/
+      accounts/       # custom User model, login/signup views & forms
+      organizations/  # Organization model, tenant schema/provisioning + signup service
+      finance/        # tenant-scoped: entries, categories, dashboard, reports, PDFs
+      mobile_api/     # JSON API (/api/mobile/) used by the mobile app
+      core/           # landing page
+    config/           # settings, urls
+    templates/
+    static/
+    manage.py
+    Dockerfile
+    requirements.txt
+    .env              # copy of .env.example (not committed)
+  mobile/            # Flutter app (entries + reports) — see mobile/README.md
+  docs/
+  cloudbuild.yaml    # builds the image from backend/
 ```
+
+All `manage.py` commands below are run from inside `backend/`.
 
 ## Setup (Windows)
 
 ```powershell
-cd D:\projects\Business_analytics_Inteligence
+cd D:\projects\Business_analytics_intelligence\backend
 python -m venv venv
 .\venv\Scripts\Activate
 pip install -r requirements.txt
@@ -146,7 +155,7 @@ credentials.
 - Sign in: `/accounts/login/`
 - Dashboard (charts, KPIs, quick-add sales/expenses/purchases): `/app/`
 - Daily entries (browse/delete): `/app/entries/`
-- Financial reports — P&L, Balance Sheet, Cash Flow, with PDF export: `/app/reports/`
+- Financial reports — P&L, Balance Sheet, Cash Flow, with PDF export: `/app/reports/` (Cash Flow can be viewed for cash and online together, cash only or online only: `?flow=all|cash|bank`)
 - Finance settings (financial-year start month, opening balance, categories): `/app/settings/`
 - Django admin: `/admin/`
 
@@ -159,7 +168,9 @@ statement: it assumes the business started with opening capital equal to its
 opening cash balance and tracks no separate inventory, receivables or
 payables — appropriate for a business logging simple daily sales, expenses
 and purchases rather than running full double-entry bookkeeping. All three
-statements (P&L, Balance Sheet, Cash Flow) can be downloaded as PDF.
+statements (P&L, Balance Sheet, Cash Flow) can be downloaded as PDF. The Cash Flow
+statement can be limited to cash or to online (bank) money; the single-mode views also show
+deposits and withdrawals moved between the two, and the chosen view is named on screen and in the PDF.
 
 ## Notes
 

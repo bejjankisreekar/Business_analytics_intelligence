@@ -30,7 +30,8 @@ Finday turns a business's daily sales, purchase and expense entries into profit,
 | Partners | Partner transactions and a per-partner ledger |
 | Referral commissions | Commission entries per referrer, with payouts due and paid |
 | General ledger | Ledger entries and a general-ledger view |
-| Reports | P&L, Balance Sheet (simplified, cash basis), Cash Flow, GST summary; period picker (today, week, month, quarter, financial year, custom range) |
+| Reports | P&L, Balance Sheet (simplified, cash basis), Cash Flow, GST summary; period picker (today, week, month, quarter, financial year, custom range). Cash Flow can be viewed for cash and online together, cash only or online only |
+| Mobile app | Flutter app for Android and iOS: enter revenue, expenses and purchases (category, sub-category, item, quantity, discount) and read the dashboard, intelligence (with quantity by category), monthly summary, financial reports, category statements, cash position and ledgers. It uses the same server and access rules as the web app |
 | Exports | PDF for statements; Excel and CSV for data |
 | Settings | Financial-year start month, categories and subcategories, column labels |
 

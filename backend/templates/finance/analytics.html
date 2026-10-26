@@ -1,0 +1,808 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize static %}
+{% block title %}Business Analytics · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<style>
+  #period-select + .bai-select-trigger { min-width: 12rem; }
+  #compare .bai-select-wrap, #compare .bai-select-trigger { width: 100%; }
+  /* Phone-only polish: desktop layout is untouched. */
+  @media (max-width: 639px) {
+    .an-title { font-size: 1.75rem; line-height: 1.15; letter-spacing: -.01em; }
+    .an-period { width: 100%; margin-top: .25rem; }
+    #period-select + .bai-select-trigger { min-width: 0; width: 100%; }
+    .an-hint {
+      margin-top: .75rem; padding: .6rem .8rem; border-radius: .75rem; line-height: 1.5;
+      background: rgb(var(--tint-rgb) / .04); border: 1px solid rgb(var(--tint-rgb) / .08);
+    }
+    .an-page .card.p-5 { padding: 1rem; border-radius: 1rem; }
+    .an-page .card.p-4 { border-radius: 1rem; }
+    .an-kpi { border-left: 3px solid var(--tone); padding: .9rem 1rem; }
+    .an-kpi .an-val { font-size: 1.5rem; line-height: 1.25; }
+    .an-seg { width: 100%; }
+    .an-seg > * { flex: 1 1 0; text-align: center; }
+    .an-page h3 { font-size: .9rem; }
+  }
+</style>
+<div class="an-page">
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="an-title text-2xl font-bold text-white">Business Analytics</h1>
+    <p class="mt-1 text-sm text-slate-400">Showing <span class="text-slate-300">{{ period.label }}</span></p>
+  </div>
+  <form method="get" class="an-period flex items-center gap-2">
+    <select id="period-select" name="period" onchange="this.form.submit()" class="!mt-0 !w-auto">
+      {% for value, label in period_choices %}
+      <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+<p class="an-hint mt-1 text-xs text-slate-500">Change the period above and every chart on this page updates with it. Headline totals and the expense breakdown are on the Dashboard.</p>
+
+<!-- KPI row -->
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+  <div class="card kpi-card an-kpi min-w-0 p-4" style="--tone:#34d399">
+    <p class="text-xs font-medium text-slate-500">Total Revenue</p>
+    <p class="an-val mt-1.5 truncate text-lg font-bold xl:text-xl text-mint-400">{{ organization.currency }} {{ kpis.sales|floatformat:0|intcomma }}</p>
+    {% if kpis.sales_growth_pct is not None %}
+    <p class="mt-0.5 text-xs {% if kpis.sales_growth_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">{{ kpis.sales_growth_pct|floatformat:1 }}% vs prior period</p>
+    {% endif %}
+  </div>
+  <div class="card kpi-card an-kpi min-w-0 p-4" style="--tone:#f87171">
+    <p class="text-xs font-medium text-slate-500">Expenses</p>
+    <p class="an-val mt-1.5 truncate text-lg font-bold xl:text-xl text-red-400">{{ organization.currency }} {{ kpis.expenses|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Operating expenses, {{ period.label }}</p>
+  </div>
+  <div class="card kpi-card an-kpi min-w-0 p-4" style="--tone:#5b7cfa">
+    <p class="text-xs font-medium text-slate-500">Net Profit</p>
+    <p class="an-val mt-1.5 truncate text-lg font-bold xl:text-xl {% if kpis.net_profit >= 0 %}text-white{% else %}text-red-400{% endif %}">{{ organization.currency }} {{ kpis.net_profit|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">Revenue − purchases − expenses</p>
+  </div>
+  <div class="card kpi-card an-kpi min-w-0 p-4" style="--tone:#a78bfa">
+    <p class="text-xs font-medium text-slate-500">Margin</p>
+    <p class="an-val mt-1.5 truncate text-lg font-bold xl:text-xl text-white">{{ kpis.margin_pct|floatformat:1 }}%</p>
+    <p class="mt-0.5 text-xs text-slate-500">Net profit / revenue</p>
+  </div>
+  <div class="card kpi-card an-kpi min-w-0 p-4" style="--tone:#38bdf8">
+    <p class="text-xs font-medium text-slate-500">Cash &amp; Bank</p>
+    <p class="an-val mt-1.5 truncate text-lg font-bold xl:text-xl text-white">{{ organization.currency }} {{ kpis.cash_balance|floatformat:0|intcomma }}</p>
+    <p class="mt-0.5 text-xs text-slate-500">As of {{ period.end|date:"d M Y" }}</p>
+  </div>
+</div>
+
+<!-- Revenue, expenses & purchases trend (full breakdown) -->
+<div class="card mt-5 p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Revenue, expenses &amp; purchases trend</h3>
+      <p class="text-xs text-slate-500">Switch between daily, weekly and monthly views</p>
+    </div>
+    <div class="an-seg flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+      <button type="button" onclick="bai.setGranularity('daily')" id="gran-btn-daily" class="granularity-btn granularity-btn--active">Daily</button>
+      <button type="button" onclick="bai.setGranularity('weekly')" id="gran-btn-weekly" class="granularity-btn">Weekly</button>
+      <button type="button" onclick="bai.setGranularity('monthly')" id="gran-btn-monthly" class="granularity-btn">Monthly</button>
+    </div>
+  </div>
+  <div class="mt-4 h-[50vh] chart-box"><canvas id="chartSalesTrendFull"></canvas></div>
+</div>
+
+<!-- Top expense categories -->
+<div class="mt-5 grid grid-cols-1 gap-5">
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Top expense categories</h3>
+    <p class="text-xs text-slate-500">{{ period.label }}</p>
+    {% if expense_breakdown %}
+    <div class="mt-4 chart-box" style="height: max(18rem, {% widthratio expense_breakdown|length 1 34 %}px)"><canvas id="chartTopExpenses"></canvas></div>
+    {% else %}
+    <p class="mt-8 py-6 text-center text-sm text-slate-500">No expenses recorded in this period.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Charts row 2 -->
+<div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Net profit trend</h3>
+    <p class="text-xs text-slate-500">Daily, {{ period.label }}</p>
+    <div class="mt-4 h-64 chart-box"><canvas id="chartNetProfit"></canvas></div>
+  </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Cash balance</h3>
+    <p class="text-xs text-slate-500">Running balance across the period</p>
+    <div class="mt-4 h-64 chart-box"><canvas id="chartCash"></canvas></div>
+  </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Purchases by category</h3>
+    <p class="text-xs text-slate-500">{{ period.label }}</p>
+    {% if purchase_breakdown|length > 1 %}
+    <div class="mt-4 h-64 chart-box"><canvas id="chartPurchaseBreakdown"></canvas></div>
+    {% else %}
+    <p class="mt-8 py-6 text-center text-sm text-slate-500">Not enough categories yet to compare.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Charts row 4 -->
+<div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Revenue by channel</h3>
+    <p class="text-xs text-slate-500">{{ period.label }}</p>
+    {% if channel_breakdown|length > 1 %}
+    <div class="mt-4 chart-box" style="height: max(16rem, {% widthratio channel_breakdown|length 1 34 %}px)"><canvas id="chartChannelBreakdown"></canvas></div>
+    {% else %}
+    <p class="mt-8 py-6 text-center text-sm text-slate-500">Not enough categories yet to compare.</p>
+    {% endif %}
+  </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Cash vs bank</h3>
+    <p class="text-xs text-slate-500">Money moved through each, {{ period.label }}</p>
+    <div class="mt-4 h-64 chart-box"><canvas id="chartPaymentMode"></canvas></div>
+  </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold text-white">Best days for revenue</h3>
+    <p class="text-xs text-slate-500">Average revenue by weekday</p>
+    <div class="mt-4 h-64 chart-box"><canvas id="chartWeekday"></canvas></div>
+  </div>
+</div>
+
+<!-- Revenue by sub-category -->
+<div class="mt-8 flex items-center justify-between">
+  <div>
+    <h2 class="text-lg font-bold text-white">Where am I making money?</h2>
+    <p class="text-xs text-slate-500">{{ period.label }} · revenue by sub-category — cost isn't tracked at that level.</p>
+  </div>
+</div>
+
+<div class="mt-4 card p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Revenue by sub-category</h3>
+      <p class="text-xs text-slate-500">{{ period.label }}</p>
+    </div>
+    {% if subcategory_categories %}
+    <form method="get" class="flex items-center gap-2">
+      <input type="hidden" name="period" value="{{ period.key }}">
+      <select name="subcat_category" onchange="this.form.submit()" class="!mt-0 !w-auto sel-wide">
+        {% for c in subcategory_categories %}
+        <option value="{{ c.id }}" {% if selected_subcategory_category == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% endif %}
+  </div>
+  {% if product_revenue %}
+  <div class="mt-4 chart-box" style="height: max(16rem, {% widthratio product_revenue|length 1 34 %}px)"><canvas id="chartProductRevenue"></canvas></div>
+  {% else %}
+  <p class="mt-4 py-6 text-center text-sm text-slate-500">No revenue tagged with a sub-category yet.</p>
+  {% endif %}
+</div>
+
+<div class="mt-5 card p-5">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Activity by sub-category</h3>
+            <p class="text-xs text-slate-500">{{ period.label }} ({{ period.start|date:"d M Y" }} – {{ period.chart_end|date:"d M Y" }}) · quantity recorded, not revenue · nested sub-categories roll up to their parent
+    <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · quantity recorded</span></p>
+      <p class="mt-1 text-[11px] text-slate-500">Click any slice, bar or legend entry for its details — sales, purchases, items and estimated stock.</p>
+    </div>
+    <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+      <form method="get" class="w-full sm:w-auto">
+        <select name="period" onchange="this.form.submit()" class="!mt-0 !w-full sm:!w-auto" aria-label="Date range">
+          {% for value, label in period_choices %}
+          <option value="{{ value }}" {% if period.key == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    <div class="an-seg flex w-full gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1 sm:w-auto" role="group" aria-label="Chart type">
+      <button type="button" onclick="bai.setQtyType('PQ', 'pie')" id="qty-btn-PQ-pie" class="granularity-btn granularity-btn--active flex-1 sm:flex-none">Pie</button>
+      <button type="button" onclick="bai.setQtyType('PQ', 'bar')" id="qty-btn-PQ-bar" class="granularity-btn flex-1 sm:flex-none">Bar</button>
+    </div>
+    </div>
+  </div>
+  {% if product_quantity_groups %}
+  <div class="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
+    {% for group in product_quantity_groups %}
+    <div class="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+      <div class="flex items-center justify-between gap-2">
+        <h4 class="text-sm font-semibold text-white">{{ group.category }}</h4>
+        <span class="flex-none text-xs text-slate-500">{{ group.total }} {{ quantity_word }}</span>
+      </div>
+      <div class="mt-3 chart-box" style="height: {{ group.chart_height }}px"><canvas id="chartPQ-{{ forloop.counter }}"></canvas></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="mt-4 py-6 text-center text-sm text-slate-500">No revenue with a quantity recorded yet.</p>
+  {% endif %}
+</div>
+
+<div class="mt-5 card p-5">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Purchase quantity by sub-category</h3>
+            <p class="text-xs text-slate-500">{{ period.label }} · quantity recorded, not cost · nested sub-categories roll up to their parent
+    <span class="ml-1 rounded-full border border-brand-500/35 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400">Count · quantity recorded</span></p>
+      <p class="mt-1 text-[11px] text-slate-500">Click any slice, bar or legend entry for its details — sales, purchases, items and estimated stock.</p>
+    </div>
+    <div class="an-seg flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
+      <button type="button" onclick="bai.setQtyType('PP', 'pie')" id="qty-btn-PP-pie" class="granularity-btn granularity-btn--active">Pie</button>
+      <button type="button" onclick="bai.setQtyType('PP', 'bar')" id="qty-btn-PP-bar" class="granularity-btn">Bar</button>
+    </div>
+  </div>
+  {% if purchase_quantity_groups %}
+  <div class="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
+    {% for group in purchase_quantity_groups %}
+    <div class="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+      <div class="flex items-center justify-between gap-2">
+        <h4 class="text-sm font-semibold text-white">{{ group.category }}</h4>
+        <span class="flex-none text-xs text-slate-500">{{ group.total }} {{ quantity_word }}</span>
+      </div>
+      <div class="mt-3 chart-box" style="height: {{ group.chart_height }}px"><canvas id="chartPP-{{ forloop.counter }}"></canvas></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="mt-4 py-6 text-center text-sm text-slate-500">No purchases with a quantity recorded yet.</p>
+  {% endif %}
+</div>
+
+<!-- Compare up to 3 categories / sub-categories over a date range -->
+<div id="compare" class="mt-5 card scroll-mt-6 p-5">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold text-white">Compare categories</h3>
+      <p class="text-xs text-slate-500">Pick up to 3 categories or sub-categories, from revenue, expenses or purchases, and compare them over any date range.</p>
+    </div>
+    <div class="an-seg flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1" role="group" aria-label="Chart type">
+      <button type="button" onclick="bai.setCompareType('line')" id="cmp-btn-line" class="granularity-btn granularity-btn--active">Line</button>
+      <button type="button" onclick="bai.setCompareType('bar')" id="cmp-btn-bar" class="granularity-btn">Bar</button>
+      <button type="button" onclick="bai.setCompareType('list')" id="cmp-btn-list" class="granularity-btn">List</button>
+    </div>
+  </div>
+
+  <form method="get" action="#compare" class="mt-4 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+    {% for key, value in request.GET.items %}{% if key != "cmp" and key != "cmp_from" and key != "cmp_to" and key != "cmp_by" %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+    {% for slot in comparison.slots %}
+    <div class="min-w-0">
+      <label class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        <span class="cmp-dot inline-block h-2 w-2 rounded-full" data-cmp-index="{{ forloop.counter0 }}"></span>Item {{ forloop.counter }}
+      </label>
+      <select name="cmp" data-searchable class="!mt-1" aria-label="Item {{ forloop.counter }}">
+        <option value="">— None —</option>
+        {% for group in comparison_options %}
+        <optgroup label="{{ group.label }}">
+          {% for opt in group.options %}
+          <option value="{{ opt.value }}" {% if opt.value == slot %}selected{% endif %}>{{ group.label }} · {{ opt.label }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+    {% endfor %}
+    </div>
+    <div class="mt-3 flex flex-wrap items-end justify-end gap-3">
+    <div>
+      <label for="cmp-by" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">View by</label>
+      <select id="cmp-by" name="cmp_by" class="!mt-1 !w-auto">
+        <option value="auto" {% if comparison.view_by == "auto" %}selected{% endif %}>Auto</option>
+        <option value="daily" {% if comparison.view_by == "daily" %}selected{% endif %}>Daily</option>
+        <option value="weekly" {% if comparison.view_by == "weekly" %}selected{% endif %}>Weekly</option>
+        <option value="monthly" {% if comparison.view_by == "monthly" %}selected{% endif %}>Monthly</option>
+      </select>
+    </div>
+    <div>
+      <label for="cmp-from" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
+      <input id="cmp-from" type="date" name="cmp_from" value="{{ comparison.start|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+    </div>
+    <div>
+      <label for="cmp-to" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">To</label>
+      <input id="cmp-to" type="date" name="cmp_to" value="{{ comparison.end|date:'Y-m-d' }}" class="!mt-1 !w-auto">
+    </div>
+    <button type="submit" class="btn-primary">Compare</button>
+    </div>
+  </form>
+
+  {% if comparison.items %}
+  <p class="mt-4 text-xs text-slate-500">
+    {{ comparison.start|date:"d M Y" }} – {{ comparison.end|date:"d M Y" }} · {{ comparison.granularity }} totals ·
+    change is vs {{ comparison.prev_start|date:"d M" }} – {{ comparison.prev_end|date:"d M Y" }}
+  </p>
+  <div class="mt-3 grid grid-cols-1 gap-4 {% if comparison.items|length == 3 %}md:grid-cols-3{% elif comparison.items|length == 2 %}md:grid-cols-2{% endif %}">
+    {% for item in comparison.items %}
+    <div class="cmp-card min-w-0 rounded-xl border border-white/5 bg-white/[0.02] p-4" data-cmp-index="{{ forloop.counter0 }}" style="border-top-width: 3px">
+      <div class="flex items-start justify-between gap-2">
+        <p class="min-w-0 text-sm font-semibold leading-snug text-white">{{ item.label }}</p>
+        <span class="flex-none rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400">{{ item.kind }}</span>
+      </div>
+      <p class="mt-2 truncate text-xl font-bold text-white">{{ organization.currency }} {{ item.total|floatformat:0|intcomma }}</p>
+      {% if item.change_pct is not None %}
+      <p class="mt-0.5 text-xs {% if item.change_pct >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if item.change_pct >= 0 %}▲{% else %}▼{% endif %} {{ item.change_pct|floatformat:1 }}% vs previous {{ organization.currency }} {{ item.previous|floatformat:0|intcomma }}</p>
+      {% else %}
+      <p class="mt-0.5 text-xs text-slate-500">Nothing recorded in the previous range</p>
+      {% endif %}
+      <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/5">
+        <div class="cmp-bar h-full rounded-full" data-cmp-index="{{ forloop.counter0 }}" style="width: {{ item.share_pct|floatformat:1 }}%"></div>
+      </div>
+      <dl class="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+        <div><dt class="text-slate-500">Share of compared</dt><dd class="font-semibold text-slate-200">{{ item.share_pct|floatformat:1 }}%</dd></div>
+        <div><dt class="text-slate-500">Daily average</dt><dd class="font-semibold text-slate-200">{{ organization.currency }} {{ item.daily_avg|floatformat:0|intcomma }}</dd></div>
+        <div><dt class="text-slate-500">Entries</dt><dd class="font-semibold text-slate-200">{{ item.count|intcomma }}</dd></div>
+        {% if item.quantity %}<div><dt class="text-slate-500">Quantity</dt><dd class="font-semibold text-slate-200">{{ item.quantity|intcomma }} {{ quantity_word }}</dd></div>{% endif %}
+      </dl>
+    </div>
+    {% endfor %}
+  </div>
+  <div id="cmp-chart" class="mt-5 h-80 chart-box"><canvas id="chartCompare"></canvas></div>
+  <div id="cmp-list" class="mt-5 hidden overflow-auto">
+    <table class="w-full text-left text-sm">
+      <thead class="sticky top-0 bg-ink-900">
+        <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+          <th class="pb-2 pr-4 font-medium">{% if comparison.granularity == "daily" %}Day{% elif comparison.granularity == "weekly" %}Week{% else %}Month{% endif %}</th>
+          {% for item in comparison.items %}
+          <th class="pb-2 pr-4 text-right font-medium"><span class="cmp-dot mr-1.5 inline-block h-2 w-2 rounded-full" data-cmp-index="{{ forloop.counter0 }}"></span>{{ item.label }}</th>
+          {% endfor %}
+          {% if comparison.items|length > 1 %}<th class="pb-2 text-right font-medium">Total</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/5">
+        {% for row in comparison.rows %}
+        <tr>
+          <td class="py-2 pr-4 text-slate-400">{{ row.label }}</td>
+          {% for value in row.values %}
+          <td class="py-2 pr-4 text-right text-slate-200">{{ value|floatformat:0|intcomma }}</td>
+          {% endfor %}
+          {% if comparison.items|length > 1 %}<td class="py-2 text-right font-semibold text-white">{{ row.total|floatformat:0|intcomma }}</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="sticky bottom-0 bg-ink-900">
+        <tr class="border-t border-white/10">
+          <td class="py-2 pr-4 font-semibold text-white">Total ({{ organization.currency }})</td>
+          {% for item in comparison.items %}
+          <td class="py-2 pr-4 text-right font-semibold text-white">{{ item.total|floatformat:0|intcomma }}</td>
+          {% endfor %}
+          {% if comparison.items|length > 1 %}<td class="py-2 text-right font-semibold text-white">{{ comparison.grand_total|floatformat:0|intcomma }}</td>{% endif %}
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+  <p class="mt-4 py-6 text-center text-sm text-slate-500">Pick at least one category or sub-category above and press Compare.</p>
+  {% endif %}
+</div>
+
+<!-- Sub-category details, opened by clicking a quantity chart -->
+<div id="qty-detail" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="qty-detail-title" onclick="if (event.target === this) bai.closeQtyDetail()">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h3 id="qty-detail-title" class="text-lg font-semibold text-white"></h3>
+        <p id="qty-detail-sub" class="mt-0.5 text-xs text-slate-500"></p>
+      </div>
+      <button type="button" onclick="bai.closeQtyDetail()" aria-label="Close" class="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="qty-detail-body" class="mt-5"></div>
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/chart-theme.js' %}"></script>
+<script>Chart.defaults.locale = "en-IN";</script>
+<script>
+  // Chart.js clips y-axis labels wider than its label gutter (~1/3 of the
+  // chart), so wrap long names onto several lines and size the gutter to fit.
+  const wrapLabel = (label, max = 14) => {
+    const lines = [];
+    let line = "";
+    String(label).split(" ").forEach((word) => {
+      if (line && (line + " " + word).length > max) { lines.push(line); line = word; }
+      else line = line ? line + " " + word : word;
+    });
+    if (line) lines.push(line);
+    return lines;
+  };
+  const yLabelScale = {
+    grid: { display: false },
+    ticks: { autoSkip: false, callback(value) { return wrapLabel(this.getLabelForValue(value)); } },
+    afterFit(scale) {
+      const ctx = scale.chart.ctx;
+      ctx.save();
+      ctx.font = "12px sans-serif";
+      let widest = 0;
+      scale.getLabels().forEach((label) => wrapLabel(label).forEach((line) => {
+        widest = Math.max(widest, ctx.measureText(line).width);
+      }));
+      ctx.restore();
+      scale.width = Math.min(Math.ceil(widest) + 20, scale.chart.width * 0.5);
+    },
+  };
+
+  const dailyLabels = {{ chart_daily_labels|safe }};
+
+  const granularityData = {
+    daily: { labels: dailyLabels, sales: {{ chart_daily_sales|safe }}, expenses: {{ chart_daily_expenses|safe }}, purchases: {{ chart_daily_purchases|safe }} },
+    weekly: { labels: {{ chart_weekly_labels|safe }}, sales: {{ chart_weekly_sales|safe }}, expenses: {{ chart_weekly_expenses|safe }}, purchases: {{ chart_weekly_purchases|safe }} },
+    monthly: { labels: {{ chart_monthly_labels|safe }}, sales: {{ chart_monthly_sales|safe }}, expenses: {{ chart_monthly_expenses|safe }}, purchases: {{ chart_monthly_purchases|safe }} },
+  };
+
+  // Re-assigned (not re-declared) on every theme-change re-render, so
+  // bai.setGranularity below keeps working against whichever instance is
+  // current.
+  let salesTrendFullChart;
+
+  window.bai = window.bai || {};
+  bai.qtyCharts = {};
+  const qtyType = { PQ: "pie", PP: "pie" };
+  try {
+    ["PQ", "PP"].forEach((k) => { const v = localStorage.getItem("bai.qtyType." + k); if (v === "pie" || v === "bar") qtyType[k] = v; });
+  } catch (e) { /* storage unavailable: default to pie */ }
+
+  function buildQuantityChart(canvasId, labels, values, type, meta) {
+    const c = baiChartTheme.colors();
+    const colors = labels.map((_, i) => c.donut[i % c.donut.length]);
+    const total = values.reduce((a, b) => a + Number(b), 0);
+    const tooltip = { callbacks: { label: (ctx) => {
+      const share = total ? ((Number(ctx.raw) / total) * 100).toFixed(1) : "0.0";
+      return ` ${ctx.label}: ${Number(ctx.raw).toLocaleString("en-IN")} ${QTY_WORD} (${share}%)`;
+    } } };
+    const open = (index) => { if (index != null && labels[index] != null) bai.openQtyDetail(meta, labels[index]); };
+    const clickable = {
+      onClick: (evt, elements) => { if (elements.length) open(elements[0].index); },
+      onHover: (evt, elements) => { evt.native.target.style.cursor = elements.length ? "pointer" : "default"; },
+    };
+    if (type === "bar") {
+      return new Chart(document.getElementById(canvasId), {
+        type: "bar",
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 4 }] },
+        options: {
+          indexAxis: "y", responsive: true, maintainAspectRatio: false, ...clickable,
+          plugins: { legend: { display: false }, tooltip },
+          scales: {
+            x: { grid: { color: c.grid }, ticks: { precision: 0 }, title: { display: true, text: QTY_WORD_CAP } },
+            y: yLabelScale,
+          },
+        },
+      });
+    }
+    return new Chart(document.getElementById(canvasId), {
+      type: "doughnut",
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverOffset: 10, hoverBorderWidth: 0 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, ...clickable,
+        plugins: {
+          tooltip,
+          legend: {
+            position: "right",
+            onClick: (evt, item) => open(item.index),
+            labels: {
+              boxWidth: 10, boxHeight: 10, padding: 10, usePointStyle: true, color: c.text, font: { size: 11 },
+              generateLabels: (chart) => {
+                const { labels, datasets } = chart.data;
+                const ds = datasets[0];
+                return labels.map((label, i) => ({
+                  text: `${label}: ${ds.data[i]}`,
+                  fillStyle: ds.backgroundColor[i],
+                  strokeStyle: ds.backgroundColor[i],
+                  fontColor: c.text,
+                  pointStyle: "circle",
+                  index: i,
+                }));
+              },
+            },
+          },
+        },
+        transitions: { active: { animation: { duration: 250, easing: "easeOutQuart" } } },
+      },
+    });
+  }
+
+  function registerQuantityChart(prefix, canvasId, labels, values, meta) {
+    bai.qtyCharts[canvasId] = { prefix, labels, values, meta, chart: buildQuantityChart(canvasId, labels, values, qtyType[prefix], meta) };
+  }
+
+  bai.setQtyType = (prefix, type) => {
+    qtyType[prefix] = type;
+    try { localStorage.setItem("bai.qtyType." + prefix, type); } catch (e) { /* not persisted */ }
+    Object.entries(bai.qtyCharts).forEach(([id, entry]) => {
+      if (entry.prefix !== prefix) return;
+      entry.chart.destroy();
+      entry.chart = buildQuantityChart(id, entry.labels, entry.values, type, entry.meta);
+    });
+    ["pie", "bar"].forEach((t) => {
+      const btn = document.getElementById(`qty-btn-${prefix}-${t}`);
+      if (btn) btn.classList.toggle("granularity-btn--active", t === type);
+    });
+  };
+
+  // ---- Sub-category details (opened by clicking a quantity chart) ----
+  const CURRENCY = "{{ organization.currency|escapejs }}";
+  const QTY_WORD = "{{ quantity_word|escapejs }}";
+  const QTY_WORD_CAP = QTY_WORD.charAt(0).toUpperCase() + QTY_WORD.slice(1);
+  const QTY_WORD_SINGULAR = QTY_WORD.replace(/s$/, "");
+  const QTY_LABEL = "{{ sale_labels.qty|escapejs }}";
+  const ITEM_LABEL = "{{ sale_labels.item|escapejs }}";
+  const fmtNum = (n) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const fmtMoney = (n) => (n == null ? "—" : CURRENCY + " " + fmtNum(n));
+  const qtyModal = document.getElementById("qty-detail");
+
+  function h(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function stat(label, value, hint) {
+    const box = h("div", "rounded-xl border border-white/5 bg-white/[0.03] p-3");
+    box.append(h("p", "text-[11px] font-medium uppercase tracking-wide text-slate-500", label),
+               h("p", "mt-1 text-lg font-bold text-white", value));
+    if (hint) box.append(h("p", "mt-0.5 text-[11px] text-slate-500", hint));
+    return box;
+  }
+  function section(title) { return h("p", "mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400", title); }
+
+  function renderQtyDetail(d) {
+    const body = document.getElementById("qty-detail-body");
+    body.replaceChildren();
+    document.getElementById("qty-detail-title").textContent = d.name;
+    document.getElementById("qty-detail-sub").textContent =
+      [d.sales_category, d.period.label].filter(Boolean).join(" · ");
+
+    body.append(section("Sales · " + d.period.label));
+    const sales = h("div", "grid grid-cols-1 gap-3 sm:grid-cols-3");
+    sales.append(stat(QTY_LABEL, fmtNum(d.sales.units)), stat("Revenue", fmtMoney(d.sales.amount)),
+                 stat("Avg price / " + QTY_LABEL.toLowerCase(), fmtMoney(d.sales.avg_price)));
+    body.append(sales);
+
+    if (d.items.length) {
+      body.append(section(ITEM_LABEL + " · " + d.period.label));
+      const table = h("table", "w-full text-left text-sm");
+      const thead = h("thead");
+      const head = h("tr", "text-[11px] uppercase tracking-wide text-slate-500");
+      [ITEM_LABEL, QTY_LABEL, "Revenue"].forEach((t, i) => head.append(h("th", "pb-2 font-medium" + (i ? " text-right" : ""), t)));
+      thead.append(head);
+      const tbody = h("tbody", "divide-y divide-white/5");
+      d.items.forEach((it) => {
+        const row = h("tr");
+        row.append(h("td", "py-2 pr-3 text-slate-200", it.name), h("td", "py-2 text-right text-slate-300", fmtNum(it.units)),
+                   h("td", "py-2 text-right text-slate-300", fmtMoney(it.amount)));
+        tbody.append(row);
+      });
+      table.append(thead, tbody);
+      const wrap = h("div", "overflow-x-auto");
+      wrap.append(table);
+      body.append(wrap);
+    }
+  }
+
+  bai.openQtyDetail = async (meta, name) => {
+    qtyModal.classList.remove("hidden");
+    qtyModal.classList.add("flex");
+    document.getElementById("qty-detail-title").textContent = name;
+    document.getElementById("qty-detail-sub").textContent = meta.category;
+    const body = document.getElementById("qty-detail-body");
+    body.replaceChildren(h("p", "py-8 text-center text-sm text-slate-500", "Loading…"));
+    const params = new URLSearchParams(window.location.search);
+    params.set("kind", meta.kind); params.set("category", meta.category); params.set("name", name);
+    try {
+      const res = await fetch("{% url 'finance:subcategory_detail' %}?" + params.toString(), { headers: { Accept: "application/json" } });
+      if (!res.ok) throw new Error(res.status === 404 ? "No details found for this item." : "Could not load details.");
+      renderQtyDetail(await res.json());
+    } catch (err) {
+      body.replaceChildren(h("p", "py-8 text-center text-sm text-red-300", err.message));
+    }
+  };
+  bai.closeQtyDetail = () => { qtyModal.classList.add("hidden"); qtyModal.classList.remove("flex"); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") bai.closeQtyDetail(); });
+
+  window.bai = window.bai || {};
+  bai.setGranularity = (key) => {
+    const g = granularityData[key];
+    salesTrendFullChart.data.labels = g.labels;
+    salesTrendFullChart.data.datasets[0].data = g.sales;
+    salesTrendFullChart.data.datasets[1].data = g.expenses;
+    salesTrendFullChart.data.datasets[2].data = g.purchases;
+    salesTrendFullChart.update();
+
+    ["daily", "weekly", "monthly"].forEach((k) => {
+      document.getElementById("gran-btn-" + k).classList.toggle("granularity-btn--active", k === key);
+    });
+  };
+
+  const compareData = {{ chart_comparison|safe }};
+  // compareType is the view picked (line/bar/list); chartType is the chart
+  // drawn under it, which stays the last line/bar choice while List is open.
+  const COMPARE_VIEWS = ["line", "bar", "list"];
+  let compareType = "line";
+  let chartType = "line";
+  let compareChart;
+  try { const v = localStorage.getItem("bai.compareType"); if (COMPARE_VIEWS.includes(v)) compareType = v; } catch (e) { /* default to line */ }
+  try { const v = localStorage.getItem("bai.compareChartType"); if (v === "line" || v === "bar") chartType = v; } catch (e) { /* default to line */ }
+  if (compareType !== "list") chartType = compareType;
+
+  function showCompareView() {
+    COMPARE_VIEWS.forEach((t) => document.getElementById("cmp-btn-" + t).classList.toggle("granularity-btn--active", t === compareType));
+    const chartBox = document.getElementById("cmp-chart");
+    if (!chartBox) return;
+    chartBox.classList.toggle("hidden", compareType === "list");
+    document.getElementById("cmp-list").classList.toggle("hidden", compareType !== "list");
+    if (compareType === "list") fitCompareList();
+  }
+
+  // Show up to COMPARE_LIST_ROWS rows (plus the header and total row);
+  // anything longer scrolls with the header and totals pinned.
+  const COMPARE_LIST_ROWS = 20;
+  function fitCompareList() {
+    const box = document.getElementById("cmp-list");
+    const rows = box.querySelectorAll("tbody tr");
+    box.style.maxHeight = "";
+    if (rows.length <= COMPARE_LIST_ROWS) return;
+    const top = box.querySelector("table").getBoundingClientRect().top;
+    const lastShown = rows[COMPARE_LIST_ROWS - 1].getBoundingClientRect().bottom;
+    box.style.maxHeight = Math.ceil(lastShown - top + box.querySelector("tfoot").offsetHeight) + "px";
+  }
+  window.addEventListener("resize", () => { if (compareType === "list" && document.getElementById("cmp-list")) fitCompareList(); });
+
+  function buildCompareChart(c) {
+    return new Chart(document.getElementById("chartCompare"), buildCompareConfig(c));
+  }
+
+  function buildCompareConfig(c) {
+    const line = chartType === "line";
+    return {
+      type: chartType,
+      data: {
+        labels: compareData.labels,
+        datasets: compareData.items.map((item, i) => {
+          const color = c.donut[i % c.donut.length];
+          return { label: item.label, data: item.series, borderColor: color, backgroundColor: line ? color + "26" : color,
+            borderWidth: line ? 2.5 : 0, borderRadius: 4, tension: .35, fill: line && compareData.items.length === 1,
+            pointRadius: compareData.labels.length > 31 ? 0 : 3, pointHoverRadius: 5 };
+        }),
+      },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.parsed.y).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` } } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: c.grid } } } },
+    };
+  }
+
+  bai.setCompareType = function (type) {
+    compareType = type;
+    try { localStorage.setItem("bai.compareType", type); } catch (e) { /* not persisted */ }
+    showCompareView();
+    if (type === "list") return;
+    chartType = type;
+    try { localStorage.setItem("bai.compareChartType", type); } catch (e) { /* not persisted */ }
+    if (!compareChart) return;
+    // Swap the type in place: the theme handler owns destroying/rebuilding charts.
+    const fresh = buildCompareConfig(baiChartTheme.colors());
+    compareChart.config.type = fresh.type;
+    compareChart.data.datasets = fresh.data.datasets;
+    compareChart.update();
+  };
+  showCompareView();
+
+  baiChartTheme.onThemeChange((c) => {
+    const donutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { size: 11 } } } },
+      transitions: { active: { animation: { duration: 250, easing: "easeOutQuart" } } } };
+
+    const charts = [];
+
+    salesTrendFullChart = new Chart(document.getElementById("chartSalesTrendFull"), {
+      type: "bar",
+      data: {
+        labels: granularityData.daily.labels,
+        datasets: [
+          { label: "Revenue", data: granularityData.daily.sales, backgroundColor: c.mint, borderRadius: 4 },
+          { label: "Expenses", data: granularityData.daily.expenses, backgroundColor: c.red, borderRadius: 4 },
+          { label: "Purchases", data: granularityData.daily.purchases, backgroundColor: c.brand, borderRadius: 4 },
+        ],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    });
+    charts.push(salesTrendFullChart);
+
+    charts.push(new Chart(document.getElementById("chartNetProfit"), {
+      type: "bar",
+      data: { labels: dailyLabels, datasets: [{ label: "Net profit", data: {{ chart_daily_net|safe }},
+        backgroundColor: ({{ chart_daily_net|safe }}).map(v => v >= 0 ? c.mint : c.red), borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    }));
+
+    charts.push(new Chart(document.getElementById("chartCash"), {
+      type: "line",
+      data: { labels: {{ chart_cash_labels|safe }}, datasets: [{ label: "Cash balance", data: {{ chart_cash_balance|safe }},
+        borderColor: c.brand, backgroundColor: c.brandFill, tension: .35, fill: true, pointRadius: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    }));
+
+    {% if purchase_breakdown|length > 1 %}
+    charts.push(new Chart(document.getElementById("chartPurchaseBreakdown"), {
+      type: "doughnut",
+      data: { labels: {{ chart_purchase_labels|safe }}, datasets: [{ data: {{ chart_purchase_values|safe }}, backgroundColor: c.donut, borderWidth: 0, hoverOffset: 14, hoverBorderWidth: 0 }] },
+      options: donutOpts,
+    }));
+    {% endif %}
+
+    charts.push(new Chart(document.getElementById("chartWeekday"), {
+      type: "bar",
+      data: { labels: {{ chart_weekday_labels|safe }}, datasets: [{ label: "Avg revenue", data: {{ chart_weekday_avg|safe }},
+        backgroundColor: c.mint, borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: c.grid } } } },
+    }));
+
+    {% if channel_breakdown|length > 1 %}
+    charts.push(new Chart(document.getElementById("chartChannelBreakdown"), {
+      type: "bar",
+      data: { labels: {{ chart_channel_labels|safe }}, datasets: [{ data: {{ chart_channel_values|safe }}, backgroundColor: c.donut, borderRadius: 4 }] },
+      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { color: c.grid } }, y: yLabelScale } },
+    }));
+    {% endif %}
+
+    charts.push(new Chart(document.getElementById("chartPaymentMode"), {
+      type: "pie",
+      data: { labels: {{ chart_payment_labels|safe }}, datasets: [{ data: {{ chart_payment_values|safe }}, backgroundColor: [c.mint, c.brand], borderWidth: 0, hoverOffset: 14, hoverBorderWidth: 0 }] },
+      options: donutOpts,
+    }));
+
+    {% if expense_breakdown %}
+    charts.push(new Chart(document.getElementById("chartTopExpenses"), {
+      type: "bar",
+      data: { labels: {{ chart_expense_labels|safe }}, datasets: [{ data: {{ chart_expense_values|safe }}, backgroundColor: c.red, borderRadius: 4 }] },
+      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { color: c.grid } }, y: yLabelScale } },
+    }));
+    {% endif %}
+
+    {% if product_revenue %}
+    charts.push(new Chart(document.getElementById("chartProductRevenue"), {
+      type: "bar",
+      data: { labels: {{ chart_product_revenue_labels|safe }}, datasets: [{ data: {{ chart_product_revenue_values|safe }}, backgroundColor: c.donut, borderRadius: 4 }] },
+      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { color: c.grid } }, y: yLabelScale } },
+    }));
+    {% endif %}
+
+    // Quantity charts: one chart per category, switchable between pie and bar.
+    bai.qtyCharts = {};
+    {% for group in product_quantity_groups %}
+    registerQuantityChart("PQ", "chartPQ-{{ forloop.counter }}", {{ group.labels_json|safe }}, {{ group.values_json|safe }}, { kind: "sale", category: "{{ group.category|escapejs }}" });
+    {% endfor %}
+    {% for group in purchase_quantity_groups %}
+    registerQuantityChart("PP", "chartPP-{{ forloop.counter }}", {{ group.labels_json|safe }}, {{ group.values_json|safe }}, { kind: "purchase", category: "{{ group.category|escapejs }}" });
+    {% endfor %}
+    ["PQ", "PP"].forEach((k) => {
+      ["pie", "bar"].forEach((t) => {
+        const btn = document.getElementById(`qty-btn-${k}-${t}`);
+        if (btn) btn.classList.toggle("granularity-btn--active", t === qtyType[k]);
+      });
+    });
+    charts.push(...Object.values(bai.qtyCharts).map((e) => e.chart));
+
+    // Compare categories: tint the cards/dots with each item's series colour.
+    document.querySelectorAll("[data-cmp-index]").forEach((el) => {
+      const color = c.donut[Number(el.dataset.cmpIndex) % c.donut.length];
+      if (el.classList.contains("cmp-card")) el.style.borderTopColor = color;
+      else el.style.backgroundColor = color;
+    });
+    {% if comparison.items %}
+    compareChart = buildCompareChart(c);
+    charts.push(compareChart);
+    {% endif %}
+
+    return charts;
+  });
+</script>
+{% endblock %}
