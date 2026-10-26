@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -203,6 +203,25 @@ class ChangePasswordView(LoginRequiredMixin, FormView):
 SHOW_SWITCH_DATABASE = False
 
 
+class MobileAppDownloadView(LoginRequiredMixin, View):
+    """Sends the current Android app to signed-in client accounts. Not offered
+    to anyone who isn't on an organization (e.g. super admins)."""
+
+    def get(self, request, *args, **kwargs):
+        from apps.superadmin.models import MobileAppVersion
+
+        if not request.user.organization_id:
+            raise Http404
+        version = MobileAppVersion.objects.filter(is_current=True).first()
+        if version is None:
+            raise Http404
+        response = HttpResponse(bytes(version.file), content_type="application/vnd.android.package-archive")
+        response["Content-Disposition"] = f'attachment; filename="finday-{version.version}.apk"'
+        response["Content-Length"] = str(version.file_size)
+        response["Cache-Control"] = "private, no-store"
+        return response
+
+
 class ProfileView(LoginRequiredMixin, View):
     template_name = "accounts/profile.html"
 
@@ -266,7 +285,14 @@ class ProfileView(LoginRequiredMixin, View):
             can_create_manager = is_eligible and not is_professional and manager_account is None
             disable_manager_button = not can_create_manager
 
+        mobile_app = None
+        if user.organization_id:
+            from apps.superadmin.models import MobileAppVersion
+
+            mobile_app = MobileAppVersion.objects.defer("file").filter(is_current=True).first()
+
         return {
+            "mobile_app": mobile_app,
             "user_form": user_form,
             "org_form": org_form,
             "can_edit_org": can_edit_org,

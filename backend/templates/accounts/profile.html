@@ -180,6 +180,24 @@
 
 {% if request.user.organization_id %}
 
+{% if mobile_app %}
+<div class="card mt-6 p-6" id="section-mobile-app">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5h3a1.5 1.5 0 011.5 1.5v18a1.5 1.5 0 01-1.5 1.5h-3A1.5 1.5 0 019 21V3a1.5 1.5 0 011.5-1.5zM11 19.5h2"/></svg>
+      </div>
+      <div>
+        <p class="text-sm font-semibold text-white">Finday mobile app (Android)</p>
+        <p class="mt-0.5 text-xs text-slate-500">Version {{ mobile_app.version }} · {{ mobile_app.file_size|filesizeformat }}{% if mobile_app.notes %} · {{ mobile_app.notes }}{% endif %}</p>
+      </div>
+    </div>
+    <a href="{% url 'accounts:mobile_app_download' %}" class="btn-primary inline-flex whitespace-nowrap">Download APK</a>
+  </div>
+  <p class="mt-3 text-xs text-slate-500">Open the file on your Android phone to install. If asked, allow installs from this source, then sign in with your usual email and password.</p>
+</div>
+{% endif %}
+
 <div class="card mt-6 p-6" id="section-database">
   <div class="flex items-center justify-between gap-4">
     <div class="flex items-center gap-3">

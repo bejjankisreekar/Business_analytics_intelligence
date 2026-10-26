@@ -112,3 +112,88 @@ class MissingEntriesTests(SheetsBackedMixin, TestCase):
         self.assertEqual(silent_clients(ENV), {})
         self._entries(org, [0, 1, 2, 3, 5, 6])  # posted today
         self.assertEqual(silent_clients(ENV), {})
+
+
+class MobileAppTests(SheetsBackedMixin, TestCase):
+    databases = DATABASES
+    APK = b"PK\x03\x04" + b"0" * 2048
+
+    def setUp(self):
+        super().setUp()
+        self.admin = _make_superadmin("apk-admin@test.local")
+        self.org, self.owner = _make_client(self)
+        self.sa = Client()
+        self.sa.force_login(self.admin)
+
+    def _upload(self, version, data=None, name="app.apk"):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        return self.sa.post(
+            f"/superadmin/{ENV}/mobile-app/upload/",
+            {"version": version, "notes": "n", "file": SimpleUploadedFile(name, data or self.APK)},
+        )
+
+    def _versions(self):
+        from .models import MobileAppVersion
+
+        return MobileAppVersion.objects.using(ENV).defer("file")
+
+    def test_upload_makes_newest_current_and_old_can_be_deleted(self):
+        self._upload("1.0.0")
+        self._upload("1.0.1")
+        current = [v.version for v in self._versions() if v.is_current]
+        self.assertEqual(current, ["1.0.1"])
+        old = self._versions().get(version="1.0.0")
+        self.sa.post(f"/superadmin/{ENV}/mobile-app/{old.pk}/current/")
+        self.assertEqual([v.version for v in self._versions() if v.is_current], ["1.0.0"])
+        self.sa.post(f"/superadmin/{ENV}/mobile-app/{old.pk}/delete/")  # deleting current promotes the newest
+        self.assertEqual([(v.version, v.is_current) for v in self._versions()], [("1.0.1", True)])
+
+    def test_rejects_non_apk_and_duplicate_version(self):
+        self._upload("1.0.0", name="notes.txt")
+        self._upload("1.0.0", data=b"not a zip")
+        self.assertEqual(self._versions().count(), 0)
+        self._upload("1.0.0")
+        self._upload("1.0.0")
+        self.assertEqual(self._versions().count(), 1)
+
+    def test_client_downloads_current_version(self):
+        from django.contrib.auth.models import AnonymousUser
+        from django.http import Http404
+        from django.test import RequestFactory
+
+        from apps.accounts.views import MobileAppDownloadView
+
+        view = MobileAppDownloadView.as_view()
+        rf = RequestFactory()
+
+        def get(user):
+            request = rf.get("/accounts/mobile-app/download/")
+            request.user = user
+            return view(request)
+
+        self.assertEqual(get(AnonymousUser()).status_code, 302)  # sent to sign in
+        client_user = User(email="c@test.local", organization_id=self.org.pk)
+        with self.assertRaises(Http404):  # nothing uploaded yet
+            get(client_user)
+        from .models import MobileAppVersion
+
+        MobileAppVersion.objects.create(
+            version="2.0.0", file=self.APK, file_name="app.apk", file_size=len(self.APK),
+            sha256="0" * 64, is_current=True, uploaded_by_email="a@test.local",
+        )
+        r = get(client_user)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.content, self.APK)
+        self.assertIn("finday-2.0.0.apk", r["Content-Disposition"])
+        with self.assertRaises(Http404):  # an account without an organization
+            get(User(email="nobody@test.local"))
+
+    def test_clients_cannot_manage_uploads(self):
+        c = Client()
+        c.force_login(User.objects.create_user(email="plain@test.local", password="x" * 12, role=User.Role.OWNER))
+        self.assertEqual(c.get(f"/superadmin/{ENV}/mobile-app/").status_code, 403)
+
+    def test_console_page_renders(self):
+        self._upload("1.0.0")
+        self.assertContains(self.sa.get(f"/superadmin/{ENV}/mobile-app/"), "Upload new version")

@@ -73,3 +73,26 @@ class ClientTag(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class MobileAppVersion(models.Model):
+    """An uploaded Android build (.apk) that clients can download. The file is
+    kept in the database itself, so it survives redeploys on hosts whose disk
+    is wiped (e.g. Render's free plan). Exactly one version is "current" — the
+    one clients are offered. Always load lists with .defer("file")."""
+
+    version = models.CharField(max_length=40, help_text="e.g. 1.0.3")
+    notes = models.CharField(max_length=500, blank=True)
+    file = models.BinaryField(editable=False)
+    file_name = models.CharField(max_length=120)
+    file_size = models.PositiveIntegerField()
+    sha256 = models.CharField(max_length=64)
+    is_current = models.BooleanField(default=False, db_index=True)
+    uploaded_by_email = models.EmailField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Mobile app {self.version}"

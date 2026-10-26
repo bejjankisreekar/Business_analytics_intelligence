@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import ops_views, views
+from . import mobile_app_views, ops_views, views
 
 app_name = "superadmin"
 
@@ -9,6 +9,10 @@ urlpatterns = [
     path("login/", views.SuperadminLoginView.as_view(), name="login"),
     path("impersonate/stop/", ops_views.ImpersonateStopView.as_view(), name="impersonate_stop"),
     path("<str:env>/", views.OrganizationListView.as_view(), name="org_list"),
+    path("<str:env>/mobile-app/", mobile_app_views.MobileAppListView.as_view(), name="mobile_app"),
+    path("<str:env>/mobile-app/upload/", mobile_app_views.MobileAppUploadView.as_view(), name="mobile_app_upload"),
+    path("<str:env>/mobile-app/<int:pk>/current/", mobile_app_views.MobileAppMakeCurrentView.as_view(), name="mobile_app_current"),
+    path("<str:env>/mobile-app/<int:pk>/delete/", mobile_app_views.MobileAppDeleteView.as_view(), name="mobile_app_delete"),
     path("<str:env>/create/", views.OrganizationCreateView.as_view(), name="org_create"),
     path("<str:env>/analytics/", views.PlatformAnalyticsView.as_view(), name="platform_analytics"),
     path("<str:env>/search/", ops_views.GlobalSearchView.as_view(), name="global_search"),
