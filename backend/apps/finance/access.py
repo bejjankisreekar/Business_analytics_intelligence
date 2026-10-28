@@ -1,6 +1,6 @@
 """Who gets the Kickbacks feature (and its Settings card).
 
-Kickbacks is for Healthcare & Medical organizations on a Business or
+Kickbacks is for Healthcare & Medical organizations on an Advance or
 Business Drive plan. Every page that shows the menu, and every Kickbacks
 view, asks this one question, so they can never disagree.
 """

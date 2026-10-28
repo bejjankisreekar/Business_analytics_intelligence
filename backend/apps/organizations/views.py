@@ -6,8 +6,8 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.db.models import Q
 
-from .models import DataStorageChangeRequest, Organization
-from .forms import RequestStorageChangeForm, compute_plan_impact, paired_plan_name
+from .models import DataStorageChangeRequest, Organization, SupportRequest
+from .forms import RequestStorageChangeForm, SupportRequestForm, compute_plan_impact, paired_plan_name
 
 
 # ============================================================================
@@ -15,8 +15,8 @@ from .forms import RequestStorageChangeForm, compute_plan_impact, paired_plan_na
 # ============================================================================
 
 def _switch_subscription_plan(storage_request):
-    """Move the org's current subscription to the paired plan (e.g. Professional
-    -> Professional Drive) and re-price it to that plan's price and discount,
+    """Move the org's current subscription to the paired plan (e.g. Standard
+    -> Standard Drive) and re-price it to that plan's price and discount,
     the same figures shown to the client when they raised the request."""
     organization = storage_request.organization
     db = storage_request._state.db
@@ -225,3 +225,32 @@ def storage_change_requests(request):
         'organization': organization,
     }
     return render(request, 'organizations/storage_change_requests.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def support(request):
+    """Client view: send a question or problem to the superadmin console, and see the replies."""
+    organization = request.user.organization
+    if not organization:
+        messages.error(request, "You don't have access to an organization.")
+        return redirect('finance:dashboard')
+
+    if request.method == 'POST':
+        form = SupportRequestForm(request.POST)
+        if form.is_valid():
+            support_request = form.save(commit=False)
+            support_request.organization = organization
+            support_request.submitted_by_email = request.user.email
+            support_request.save()
+            messages.success(request, "Thanks, your message has reached our support team. Replies will show here.")
+            return redirect('organizations:support')
+    else:
+        form = SupportRequestForm()
+
+    context = {
+        'form': form,
+        'organization': organization,
+        'support_requests': SupportRequest.objects.filter(organization=organization),
+    }
+    return render(request, 'organizations/support.html', context)

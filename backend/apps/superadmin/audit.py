@@ -33,6 +33,7 @@ TARGET_TYPES = (
     ("coupon", "Coupon"),
     ("subscription_edit", "Subscription"),
     ("storage_change", "Storage request"),
+    ("support_", "Support request"),
     ("webhook", "Webhook event"),
     ("admin_", "Admin"),
 )
@@ -217,6 +218,7 @@ ACTION_LABELS = {
     "coupon_edit": "Edited coupon",
     "coupon_toggle": "Toggled coupon",
     "storage_change_detail": "Reviewed storage request",
+    "support_detail": "Replied to support request",
     "client_note_add": "Added note",
     "client_note_delete": "Deleted note",
     "client_note_pin": "Pinned/unpinned note",

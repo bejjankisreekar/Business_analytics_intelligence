@@ -527,7 +527,7 @@ class VerifyAutopaySetupView(TenantLoginRequiredMixin, View):
 
 class ChangePlanView(TenantLoginRequiredMixin, View):
     """Upgrade/downgrade between a plan and its Drive version
-    (Professional <-> Professional Drive, Business <-> Business Drive)."""
+    (Standard <-> Standard Drive, Advance <-> Advance Drive)."""
 
     def post(self, request, *args, **kwargs):
         org = request.user.organization
@@ -2913,7 +2913,7 @@ def _referrer_labels() -> dict[str, str]:
 
 
 class KickbacksView(TenantLoginRequiredMixin, TemplateView):
-    """Kickbacks tracking — a Business/Business Drive plan exclusive.
+    """Kickbacks tracking — an Advance/Advance Drive plan exclusive.
     One bill per row, entered manually, spreadsheet-style."""
 
     template_name = "finance/kickbacks.html"

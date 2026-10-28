@@ -21,8 +21,8 @@ def ping():
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         req = urllib.request.Request(URL, headers={"User-Agent": "findayintelligence-keepalive/1.0"})
-        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
-            print(f"[{stamp}] {URL} -> {resp.status}", flush=True)
+        # with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
+        #     print(f"[{stamp}] {URL} -> {resp.status}", flush=True)
     except Exception as exc:  # keep looping on any failure
         print(f"[{stamp}] {URL} -> FAILED: {exc}", flush=True)
 

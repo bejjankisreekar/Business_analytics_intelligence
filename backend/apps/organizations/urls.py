@@ -12,4 +12,6 @@ urlpatterns = [
 
     path('sheet/refresh/', views.refresh_sheet_cache, name='refresh_sheet_cache'),
 
+    path('support/', views.support, name='support'),
+
 ]

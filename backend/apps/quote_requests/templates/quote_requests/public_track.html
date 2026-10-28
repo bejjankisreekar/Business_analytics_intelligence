@@ -1,0 +1,197 @@
+{% extends "quote_requests/_public_base.html" %}
+{% block title %}Order #{{ req.number }} · {{ org.name }}{% endblock %}
+
+{% block orgline %}{% endblock %}
+
+{% block content %}
+<style>
+  .wrap { max-width: 34rem; padding-bottom: 2rem; }
+  .shop { display: flex; align-items: center; gap: .65rem; margin: .5rem 0 0; }
+  .shop-badge { flex: 0 0 auto; width: 2.4rem; height: 2.4rem; border-radius: .7rem; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; }
+  .shop b { display: block; font-size: 1.05rem; }
+  .shop div span { color: var(--muted); font-size: .85rem; }
+
+  .hero { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1rem; margin-top: 1rem; }
+  .hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+  .hero h1 { margin: 0; font-size: 1.3rem; }
+  .hero .who { color: var(--muted); font-size: .88rem; margin-top: .15rem; }
+  .pill { flex: 0 0 auto; border-radius: 999px; padding: .25rem .75rem; font-size: .8rem; font-weight: 700; }
+  .pill--wait { background: rgba(245,158,11,.18); color: #b87505; }
+  .pill--quoted { background: rgba(67,97,238,.15); color: var(--brand); }
+  .pill--done { background: rgba(16,185,129,.18); color: var(--ok); }
+
+  .steps { display: flex; align-items: flex-start; margin-top: 1rem; }
+  .step { flex: 1; text-align: center; position: relative; font-size: .78rem; color: var(--muted); }
+  .step i { display: flex; align-items: center; justify-content: center; width: 1.7rem; height: 1.7rem; margin: 0 auto .3rem; border-radius: 50%;
+            background: var(--card); border: 2px solid var(--line); font-style: normal; font-weight: 700; font-size: .8rem; position: relative; z-index: 1; }
+  .step::before { content: ""; position: absolute; top: .85rem; left: -50%; width: 100%; height: 2px; background: var(--line); }
+  .step:first-child::before { display: none; }
+  .step.done { color: var(--text); font-weight: 600; }
+  .step.done i { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .step.done::before { background: var(--ok); }
+
+  .note { border-radius: .9rem; padding: .8rem .95rem; margin-top: .9rem; font-size: .93rem; border: 1px solid var(--line); background: var(--card); }
+  .note--ok { border-color: var(--ok); background: rgba(16,185,129,.1); }
+  .note--pay { border-color: var(--brand); background: rgba(67,97,238,.08); }
+
+  .sec { display: flex; align-items: baseline; justify-content: space-between; margin: 1.3rem 0 0; }
+  .sec h2 { margin: 0; font-size: 1rem; }
+  .sec span { color: var(--muted); font-size: .85rem; }
+
+  .li { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: .85rem .9rem; margin-top: .6rem; }
+  .li-head { display: flex; align-items: flex-start; gap: .65rem; }
+  .sno { flex: 0 0 auto; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: rgba(67,97,238,.14); color: var(--brand);
+         display: flex; align-items: center; justify-content: center; font-size: .82rem; font-weight: 800; }
+  .li-name { flex: 1; min-width: 0; font-weight: 700; font-size: 1.05rem; word-break: break-word; padding-top: .1rem; }
+  .qty { flex: 0 0 auto; border-radius: .6rem; padding: .2rem .6rem; font-size: .85rem; font-weight: 700; background: rgba(128,128,128,.14); white-space: nowrap; }
+  .li-price { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-top: .7rem; padding-top: .65rem; border-top: 1px dashed var(--line); }
+  .calc { color: var(--muted); font-size: .88rem; }
+  .amt { font-weight: 800; font-size: 1.15rem; white-space: nowrap; }
+  .li-remark { margin-top: .55rem; font-size: .88rem; background: rgba(245,158,11,.12); border-radius: .6rem; padding: .4rem .6rem; }
+  .li--off { background: transparent; border-style: dashed; }
+  .li--off .li-name { text-decoration: line-through; color: var(--muted); }
+  .na { display: inline-block; border-radius: .5rem; padding: .15rem .6rem; font-size: .8rem; font-weight: 700; background: rgba(214,69,69,.14); color: var(--bad); }
+
+  .summary { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: .9rem 1rem; margin-top: 1rem; }
+  .sum-row { display: flex; justify-content: space-between; padding: .2rem 0; font-size: .92rem; color: var(--muted); }
+  .sum-row b { color: var(--text); }
+  .totalbar { display: flex; align-items: center; justify-content: space-between; margin-top: .6rem; padding: .85rem 1rem; border-radius: .8rem; background: var(--brand); color: #fff; }
+  .totalbar span { font-size: 1rem; font-weight: 600; }
+  .totalbar b { font-size: 1.6rem; }
+  .dl { display: block; margin-top: .7rem; text-align: center; padding: .65rem; border-radius: .7rem; border: 1px solid var(--line); color: var(--brand); font-weight: 700; text-decoration: none; }
+  .editbtn { display: block; margin-top: .65rem; text-align: center; padding: .6rem; border-radius: .7rem; border: 1px solid var(--brand); color: var(--brand); font-weight: 700; text-decoration: none; }
+  .sharebar { display: flex; gap: .5rem; margin-top: .6rem; }
+  .sharebtn { flex: 1; padding: .55rem; border-radius: .7rem; border: 1px solid var(--line); background: var(--card); color: var(--brand); font-weight: 700; font-size: .9rem; cursor: pointer; font-family: inherit; }
+  .wabtn { display: block; margin-top: .65rem; text-align: center; padding: .65rem; border-radius: .7rem; background: #25d366; color: #fff; font-weight: 700; text-decoration: none; }
+  .help { margin-top: 1rem; text-align: center; color: var(--muted); font-size: .88rem; }
+  .help a { color: var(--brand); font-weight: 700; text-decoration: none; }
+</style>
+
+<div class="shop">
+  <span class="shop-badge">{{ org.name|slice:":1"|upper }}</span>
+  <div><b>{{ org.name }}</b><span>{% if readonly %}Shared order (view only){% else %}Your order{% endif %}</span></div>
+</div>
+
+<div class="hero">
+  <div class="hero-top">
+    <div>
+      <h1>Order #{{ req.number }}</h1>
+      <div class="who">{% if not readonly %}{{ req.customer_name }} · {{ req.customer_phone }}{% if req.customer_address %}<br>{{ req.customer_address }}{% endif %}<br>{% endif %}{{ req.created_at|date:"d M Y, H:i" }}</div>
+    </div>
+    {% if req.status == 'QUOTED' and req.payment_status == 'PAID' %}<span class="pill pill--done">Paid</span>{% elif req.status == 'QUOTED' %}<span class="pill pill--quoted">Quoted · unpaid</span>{% else %}<span class="pill pill--wait">Waiting</span>{% endif %}
+  </div>
+  <div class="steps" aria-label="Order progress">
+    <div class="step done"><i>1</i>List sent</div>
+    <div class="step {% if req.status == 'QUOTED' %}done{% endif %}"><i>2</i>Quote ready</div>
+    <div class="step {% if req.payment_status == 'PAID' %}done{% endif %}"><i>3</i>Paid</div>
+  </div>
+</div>
+
+{% if just_updated and req.status == 'PENDING' %}
+<div class="note note--ok">Your list was updated. {{ org.name }} will see the new list.</div>
+{% endif %}
+
+{% if just_submitted and req.status == 'PENDING' %}
+<div class="note note--ok">Your list has been sent. Save this page's link — you'll see {{ org.name }}'s prices here once they reply.</div>
+{% endif %}
+
+{% if req.status == 'QUOTED' %}
+  {% if readonly %}
+<div class="note">{{ org.name }} has replied with prices. Total <b>{{ org.currency }} {{ req.total|floatformat:2 }}</b>.</div>
+  {% elif req.payment_status == 'PAID' %}
+<div class="note note--ok"><b>Payment received</b> on {{ req.paid_at|date:"d M Y, H:i" }}. Thank you! Your order is ready for delivery.</div>
+  {% else %}
+<div class="note note--pay">Your quote is ready. Please pay {{ org.name }} <b>{{ org.currency }} {{ req.total|floatformat:2 }}</b> to get your order delivered.</div>
+  {% endif %}
+{% elif readonly %}
+<div class="note">Waiting for {{ org.name }} to check availability and add prices.</div>
+{% else %}
+<div class="note">Waiting for {{ org.name }} to check availability and add prices. Come back to this page later.
+  {% if shop_whatsapp_url %}<a class="wabtn" href="{{ shop_whatsapp_url }}" target="_blank" rel="noopener">Tell {{ org.name }} on WhatsApp</a>{% endif %}
+  <a class="editbtn" href="{% url 'quote_requests:public_edit' req.tracking_token %}">Edit my list</a></div>
+{% endif %}
+
+<div class="sec"><h2>Your items</h2><span>{{ item_count }} item{{ item_count|pluralize }}</span></div>
+{% if not readonly %}
+<div class="sharebar">
+  <button type="button" class="sharebtn" id="share-list">Share list</button>
+  <button type="button" class="sharebtn" id="copy-list">Copy link</button>
+</div>
+<p class="help" style="margin:.35rem 0 0">Anyone with the link can open this page to see your list and the prices. Your name, number and address are not shown, and they cannot change anything.</p>
+{{ share_url|json_script:"share-url" }}
+{{ share_title|json_script:"share-title" }}
+{% endif %}
+
+{% for item in items %}
+<div class="li{% if req.status == 'QUOTED' and not item.available %} li--off{% endif %}">
+  <div class="li-head">
+    <span class="sno">{{ item.serial }}</span>
+    <div class="li-name">{{ item.product_name }}</div>
+    <span class="qty">{{ item.qty|floatformat:"-3" }} {{ item.get_unit_display }}</span>
+  </div>
+
+  {% if req.status == 'QUOTED' %}
+    {% if item.available and item.price is not None %}
+    <div class="li-price">
+      <span class="calc">{{ org.currency }} {{ item.price|floatformat:2 }} per {{ item.rate_unit }} × {{ item.qty|floatformat:"-3" }}</span>
+      <span class="amt">{{ org.currency }} {{ item.line_total|floatformat:2 }}</span>
+    </div>
+    {% elif not item.available %}
+    <div class="li-price"><span class="na">Not available</span></div>
+    {% endif %}
+    {% if item.remark %}<div class="li-remark">{{ item.remark }}</div>{% endif %}
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if req.status == 'QUOTED' %}
+<div class="summary">
+  <div class="sum-row"><span>Items you asked for</span><b>{{ item_count }}</b></div>
+  <div class="sum-row"><span>Items available</span><b>{{ available_count }}</b></div>
+  <div class="totalbar"><span>Total to pay</span><b>{{ org.currency }} {{ req.total|floatformat:2 }}</b></div>
+  {% if not readonly %}<a class="dl" href="{% url 'quote_requests:public_pdf' req.tracking_token %}">Download quotation (PDF)</a>{% endif %}
+</div>
+{% endif %}
+
+{% if org.contact_phone %}
+<p class="help">Questions? Call {{ org.name }} on <a href="tel:{{ org.contact_phone }}">{{ org.contact_phone }}</a></p>
+{% endif %}
+{% if not readonly %}
+<script>
+  (function () {
+    try {
+      localStorage.removeItem('qr-draft:{{ org.slug }}');
+      localStorage.removeItem('qr-draft-edit:{{ req.tracking_token }}');
+    } catch (e) { /* nothing stored */ }
+    var url = JSON.parse(document.getElementById('share-url').textContent);
+    var title = JSON.parse(document.getElementById('share-title').textContent);
+
+    function shareLink() {
+      // A phone opens its share sheet (WhatsApp, Messages...). Elsewhere, open WhatsApp with the link.
+      if (navigator.share) {
+        return navigator.share({ title: title, text: title, url: url }).catch(function (e) {
+          if (e && e.name === 'AbortError') return;
+          window.open('https://wa.me/?text=' + encodeURIComponent(title + '
+' + url), '_blank', 'noopener');
+        });
+      }
+      window.open('https://wa.me/?text=' + encodeURIComponent(title + '
+' + url), '_blank', 'noopener');
+    }
+
+    function copyText(text, button) {
+      var done = function () { var old = button.textContent; button.textContent = 'Copied'; setTimeout(function () { button.textContent = old; }, 1600); };
+      if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done); return; }
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { /* nothing more to try */ }
+      document.body.removeChild(ta);
+    }
+
+    document.getElementById('share-list').addEventListener('click', shareLink);
+    document.getElementById('copy-list').addEventListener('click', function () { copyText(url, this); });
+  })();
+</script>
+{% endif %}
+{% endblock %}

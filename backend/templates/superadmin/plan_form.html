@@ -69,6 +69,18 @@
   </div>
 
   <div class="mt-4 flex items-baseline justify-between gap-3">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Pages included</h2>
+    <p class="text-[11px] text-slate-600">{{ form.allowed_pages.help_text }}</p>
+  </div>
+  <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+    {% for checkbox in form.allowed_pages %}
+    <label class="flex items-center gap-2 rounded border border-white/5 bg-white/[0.02] px-3 py-1.5 text-xs text-slate-300">
+      {{ checkbox.tag }} {{ checkbox.choice_label }}
+    </label>
+    {% endfor %}
+  </div>
+
+  <div class="mt-4 flex items-baseline justify-between gap-3">
     <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Feature access</h2>
     <p class="text-[11px] text-slate-600">Recorded only — not enforced anywhere in the app yet.</p>
   </div>

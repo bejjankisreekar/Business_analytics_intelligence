@@ -46,15 +46,29 @@ class ManagerPageAccessMiddleware:
         return self.get_response(request)
 
     def process_view(self, request, view_func, view_args, view_kwargs):
-        from apps.accounts.manager_pages import RESTRICTED_ROLES, first_allowed_url, manager_can_open, pages_for
+        from apps.accounts.manager_pages import (
+            ALWAYS_ALLOWED_URL_NAMES, CUSTOMER_REQUESTS_PAGE, CUSTOMER_REQUESTS_URL_NAMES, RESTRICTED_ROLES,
+            _page_for_finance_url, landing_url, manager_can_open, org_pages_for, pages_for,
+        )
 
         user = request.user
         match = request.resolver_match
-        if not (user.is_authenticated and user.role in RESTRICTED_ROLES) or match is None:
+        if not user.is_authenticated or match is None:
             return None
-        if match.namespace != "finance":
-            return None
-        pages = pages_for(user)
-        if manager_can_open(pages, match.url_name):
-            return None
-        return redirect(first_allowed_url(pages))
+
+        # 1. A superadmin may have limited the whole organization to some pages.
+        org_pages = org_pages_for(getattr(user, "organization", None))
+        if org_pages is not None:
+            if match.namespace == "finance":
+                page = _page_for_finance_url(match.url_name)
+                if match.url_name not in ALWAYS_ALLOWED_URL_NAMES and page not in org_pages:
+                    return redirect(landing_url(user))
+            elif match.namespace == "quote_requests":
+                if match.url_name in CUSTOMER_REQUESTS_URL_NAMES and CUSTOMER_REQUESTS_PAGE not in org_pages:
+                    return redirect(landing_url(user))
+
+        # 2. A manager is limited to the pages their owner ticked.
+        if user.role in RESTRICTED_ROLES and match.namespace == "finance":
+            if not manager_can_open(pages_for(user), match.url_name):
+                return redirect(landing_url(user))
+        return None

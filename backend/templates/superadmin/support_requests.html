@@ -1,0 +1,39 @@
+{% extends "superadmin/_base.html" %}
+{% load superadmin_tags %}
+{% block title %}Support · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">Support</h1>
+    <p class="sa-subtitle">Questions and problems clients send from their Help / Support page. Replies show under the client's message.</p>
+  </div>
+  <div class="sa-tabs">
+    {% for value, label in status_choices %}<a href="?status={{ value }}" class="{% if status_filter == value %}is-active{% endif %}">{{ label }}</a>{% endfor %}
+  </div>
+</div>
+
+<div class="sa-card mt-6 overflow-hidden">
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr><th>Client</th><th>Topic</th><th>Subject</th><th>Sent by</th><th>Received</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for item in requests %}
+        <tr>
+          <td data-label="Client"><a class="font-semibold text-slate-100 hover:underline" href="{% url 'superadmin:support_detail' env_key item.id %}">{{ item.organization.name }}</a><span class="block sa-mono text-[11px] text-slate-500">{{ item.organization.organization_code }}</span></td>
+          <td data-label="Topic">{{ item.get_category_display }}</td>
+          <td data-label="Subject" class="max-w-xs"><span class="block truncate" title="{{ item.subject }}">{{ item.subject }}</span></td>
+          <td data-label="Sent by" class="sa-muted">{{ item.submitted_by_email }}</td>
+          <td data-label="Received" class="whitespace-nowrap">{{ item.created_at|date:"d M Y" }}<span class="block text-[11px] text-slate-500">{{ item.created_at|sa_ago }}</span></td>
+          <td data-label="Status"><span class="sa-badge {% if item.status == 'OPEN' %}sa-badge--warn{% else %}sa-badge--active{% endif %}"><span class="sa-dot"></span>{{ item.get_status_display }}</span></td>
+          <td data-label="" class="text-right"><a href="{% url 'superadmin:support_detail' env_key item.id %}" class="{% if item.status == 'OPEN' %}sa-btn-primary{% else %}sa-btn-ghost{% endif %} px-2.5 py-1 text-xs">{% if item.status == 'OPEN' %}Reply{% else %}View{% endif %}</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="sa-empty">{% sa_icon "mail" %}<p class="font-semibold text-slate-200">No {{ status_filter|lower }} support messages</p><p>When a client sends a question or problem, it shows up here.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

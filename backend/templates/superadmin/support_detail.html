@@ -1,0 +1,52 @@
+{% extends "superadmin/_base.html" %}
+{% block title %}Support message · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<div class="max-w-3xl space-y-6">
+  <div>
+    <a href="{% url 'superadmin:support_requests' env_key %}" class="sa-crumb mb-3">← Back to Support</a>
+    <h1 class="mb-1">{{ support_request.subject }}</h1>
+    <p class="sa-subtitle">{{ organization.name }} · {{ support_request.get_category_display }} · {{ support_request.created_at|date:"d M Y, H:i" }}</p>
+  </div>
+
+  <!-- The client's message -->
+  <div class="sa-card p-6 space-y-3">
+    <div class="flex items-center justify-between gap-3">
+      <h3 class="sa-section-title">Message</h3>
+      <span class="sa-badge {% if support_request.status == 'OPEN' %}sa-badge--warn{% else %}sa-badge--active{% endif %}"><span class="sa-dot"></span>{{ support_request.get_status_display }}</span>
+    </div>
+    <p class="whitespace-pre-line text-slate-200">{{ support_request.message }}</p>
+    <p class="text-xs text-slate-500">From {{ support_request.submitted_by_email }} · {{ organization.contact_email|default:"no contact email on file" }}</p>
+  </div>
+
+  <!-- Reply and status -->
+  <form method="post" class="sa-card p-6 space-y-5">
+    {% csrf_token %}
+    <h3 class="sa-section-title">Reply</h3>
+
+    <div>
+      <label for="{{ form.admin_reply.id_for_label }}" class="block text-sm font-medium text-slate-100 mb-2">{{ form.admin_reply.label }}</label>
+      {{ form.admin_reply }}
+      {% for error in form.admin_reply.errors %}<p class="mt-1 text-xs sa-bad">{{ error }}</p>{% endfor %}
+      {% if support_request.replied_at %}
+      <p class="mt-2 text-xs text-slate-500">Last replied by {{ support_request.replied_by_email }} on {{ support_request.replied_at|date:"d M Y, H:i" }}</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <p class="block text-sm font-medium text-slate-100 mb-2">After replying</p>
+      <div class="space-y-2">
+        {% for value, label in form.status.field.choices %}
+        <label class="flex items-center gap-3 rounded-lg border border-white/10 p-3 hover:bg-white/[0.03] cursor-pointer">
+          <input type="radio" name="status" value="{{ value }}" {% if form.status.value == value %}checked{% endif %}>
+          <span class="text-slate-100">{% if value == 'RESOLVED' %}Mark resolved{% else %}Keep open{% endif %}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {% for error in form.status.errors %}<p class="mt-1 text-xs sa-bad">{{ error }}</p>{% endfor %}
+    </div>
+
+    <button type="submit" class="sa-btn-solid w-full px-6 py-3 text-sm">Save reply</button>
+  </form>
+</div>
+{% endblock %}

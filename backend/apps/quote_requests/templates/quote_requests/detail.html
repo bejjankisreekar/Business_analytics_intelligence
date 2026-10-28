@@ -1,0 +1,180 @@
+{% extends "finance/_app_base.html" %}
+{% block title %}Request #{{ req.number }} · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+{% include "quote_requests/_owner_styles.html" %}
+<div class="qr-wrap">
+  <a href="{% url 'quote_requests:inbox' %}" class="qr-muted">&larr; All requests</a>
+
+  <div class="qx-panel qx-hero">
+    <div class="qx-hero-l">
+      <span class="qx-avatar qx-avatar--lg">{{ req.customer_name|slice:":1"|upper }}</span>
+      <div style="min-width:0">
+        <h1>{{ req.customer_name }}</h1>
+        <div class="qx-meta">
+          <span>Request #{{ req.number }}</span>
+          <a href="tel:{{ req.customer_phone|cut:' ' }}">{{ req.customer_phone }}</a>
+          {% if req.customer_address %}<span>{{ req.customer_address }}</span>{% endif %}
+          <span>{{ req.created_at|date:"d M Y, H:i" }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="qx-hero-r">
+      {% if req.status == 'QUOTED' %}
+      <button type="button" class="qr-btn qr-btn--wa js-wa-share"
+              data-pdf="{{ pdf_url }}" data-link="{{ public_pdf_url }}" data-phone="{{ whatsapp_phone }}"
+              data-filename="quote-{{ organization.slug }}-{{ req.number }}.pdf"
+              data-text="Hello {{ req.customer_name }}, your quotation #{{ req.number }} from {{ organization.name }} is ready. Total: {{ organization.currency }} {{ req.total|floatformat:2 }}.">
+        Share PDF on WhatsApp
+      </button>
+      {% endif %}
+      {% if req.status == 'QUOTED' and req.payment_status == 'PAID' %}<span class="qr-badge qr-badge--quoted" style="font-size:.85rem;padding:.2rem .8rem">Paid</span>{% else %}<span class="qr-badge qr-badge--{{ req.status|lower }}" style="font-size:.85rem;padding:.2rem .8rem">{{ req.get_status_display }}</span>{% endif %}
+      <div class="qx-sum" style="margin-left:1.25rem"><b>{{ organization.currency }} <span id="qr-total-top" style="font-size:inherit;text-transform:none;letter-spacing:0;opacity:1">0.00</span></b><span>Quote total</span></div>
+    </div>
+  </div>
+
+  {% if req.edited_at %}<div class="qx-panel qx-edited">The customer updated this list on {{ req.edited_at|date:"d M Y, H:i" }}. Check the items below before quoting.</div>{% endif %}
+
+  <div class="qx-split">
+  <div class="qx-main">
+  <form method="post" id="qr-form">
+    {% csrf_token %}
+    <input type="hidden" name="version" value="{{ version }}">
+    <div class="qx-panel qx-table-card">
+      <div class="qx-toolbar">
+        <b>Set availability and rates</b>
+        <p class="qr-count">Requested: <b>{{ items|length }}</b> &nbsp;·&nbsp; Can supply: <b id="qr-avail-count">{{ items|length }}</b></p>
+      </div>
+      <div class="qr-table-wrap">
+      <table class="qr-table qr-quote">
+        <colgroup>
+          <col style="width:3.5rem"><col><col style="width:6.5rem"><col style="width:5.5rem">
+          <col style="width:8rem"><col style="width:7.5rem"><col style="width:14rem">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>S.No</th><th>Product</th><th class="qr-num">Qty</th><th class="qr-mid">Available</th>
+            <th class="qr-num">Rate / unit ({{ organization.currency }})</th><th class="qr-num">Total ({{ organization.currency }})</th><th>Remark</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+          <tr class="qr-row" data-row>
+            <td class="qc-no">{{ item.serial }}</td>
+            <td class="qr-pname qc-name"><span class="qc-serial">{{ item.serial }}.</span> {{ item.product_name }}</td>
+            <td class="qr-num qr-nowrap qc-qty">{{ item.qty|floatformat:"-3" }} {{ item.get_unit_display }}</td>
+            <td class="qr-mid qc-avail" data-label="Available"><input type="checkbox" class="qr-check" name="available_{{ item.pk }}" {% if item.available %}checked{% endif %} data-avail></td>
+            <td class="qc-rate" data-label="Rate / unit ({{ organization.currency }})"><input class="qr-input qr-num" type="number" step="0.01" min="0" name="price_{{ item.pk }}" value="{% if item.price is not None %}{{ item.price|stringformat:'.2f' }}{% endif %}" data-price data-qty="{{ item.qty|stringformat:'s' }}"></td>
+            <td class="qr-num qc-line" data-label="Total ({{ organization.currency }})"><span data-line>–</span></td>
+            <td class="qc-remark" data-label="Remark"><input class="qr-input" type="text" maxlength="255" name="remark_{{ item.pk }}" value="{{ item.remark }}" placeholder="e.g. not available"></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="qc-foot"><td colspan="5" class="qr-num"><b>Total</b></td><td class="qr-total qr-num">{{ organization.currency }} <span id="qr-total">0.00</span></td><td></td></tr>
+        </tfoot>
+      </table>
+      </div>
+
+      <div class="qr-actions">
+        <button type="submit" name="save" class="qr-btn">Save draft</button>
+        <button type="submit" name="send" class="qr-btn qr-btn--primary">{% if req.status == 'QUOTED' %}Update &amp; resend quote{% else %}Send quote{% endif %}</button>
+      </div>
+    </div>
+  </form>
+
+  </div>
+  <aside class="qx-side">
+  {% if req.status == 'QUOTED' %}
+  <div class="qx-panel qx-pay">
+    <div>
+      <b>Payment</b>
+      {% if req.payment_status == 'PAID' %}
+        <span class="qr-badge qr-badge--quoted" style="margin-left:.4rem">Paid</span>
+        <p class="qr-muted" style="margin:.35rem 0 0">Received {{ req.paid_at|date:"d M Y, H:i" }}{% if req.payment_mode %} · {% if req.payment_mode == 'BANK' %}Online{% else %}Cash{% endif %}{% endif %} · <b>Ready to deliver</b></p>
+        {% if req.sales_entry_id %}<p class="qr-muted" style="margin:.35rem 0 0">Added to your Daily Book as a sale. <a href="{% url 'finance:daily_report' %}" style="text-decoration:underline">View Daily Book</a></p>{% endif %}
+      {% else %}
+        <span class="qr-badge qr-badge--pending" style="margin-left:.4rem">Pending</span>
+        <p class="qr-muted" style="margin:.35rem 0 0">Waiting for {{ organization.currency }} <b>{{ req.total|floatformat:2 }}</b>. Once the customer has paid, mark it here. The amount is added to your Daily Book as a sale.</p>
+      {% endif %}
+    </div>
+    <form method="post" action="{% url 'quote_requests:payment' req.number %}">
+      {% csrf_token %}
+      {% if req.payment_status == 'PAID' %}
+        <input type="hidden" name="payment" value="pending">
+        <button type="submit" class="qr-btn">Mark as pending</button>
+      {% else %}
+        <input type="hidden" name="payment" value="paid">
+        <label class="qr-muted" for="pay-mode" style="display:block;margin-bottom:.25rem">Paid by</label>
+        <select id="pay-mode" name="mode">
+          <option value="CASH">Cash</option>
+          <option value="BANK">Online</option>
+        </select>
+        <button type="submit" class="qr-btn qr-btn--primary">Mark as paid</button>
+      {% endif %}
+    </form>
+  </div>
+  {% endif %}
+
+  {% if req.status == 'QUOTED' %}
+  <div class="qr-card">
+    <p class="font-semibold">Customer's private link</p>
+    <p class="qr-link mt-2" id="qr-track-link">{{ tracking_url }}</p>
+    <div class="qx-trio">
+      <button type="button" class="qr-btn" onclick="navigator.clipboard.writeText(document.getElementById('qr-track-link').textContent.trim()).then(function(){ this.textContent='Copied'; }.bind(this))">Copy link</button>
+      <button type="button" class="qr-btn qr-btn--wa js-wa-share"
+              data-pdf="{{ pdf_url }}" data-link="{{ public_pdf_url }}" data-phone="{{ whatsapp_phone }}"
+              data-filename="quote-{{ organization.slug }}-{{ req.number }}.pdf"
+              data-text="Hello {{ req.customer_name }}, your quotation #{{ req.number }} from {{ organization.name }} is ready. Total: {{ organization.currency }} {{ req.total|floatformat:2 }}.">WhatsApp PDF</button>
+      <a class="qr-btn" href="{{ pdf_url }}" target="_blank" rel="noopener">Download PDF</a>
+    </div>
+  </div>
+  {% endif %}
+  </aside>
+  </div>
+</div>
+
+<script>
+  (function () {
+    function recalc() {
+      var total = 0, supply = 0;
+      document.querySelectorAll('[data-row]').forEach(function (row) {
+        var avail = row.querySelector('[data-avail]').checked;
+        var price = row.querySelector('[data-price]');
+        price.disabled = !avail;
+        row.classList.toggle('qr-row-off', !avail);
+        if (avail) supply++;
+        var qty = parseFloat(price.dataset.qty) || 0;
+        var line = avail && price.value !== '' ? (parseFloat(price.value) || 0) * qty : null;
+        row.querySelector('[data-line]').textContent = line === null ? '–' : line.toFixed(2);
+        if (line !== null) total += line;
+      });
+      document.getElementById('qr-total').textContent = total.toFixed(2);
+      document.getElementById('qr-total-top').textContent = total.toFixed(2);
+      document.getElementById('qr-avail-count').textContent = supply;
+    }
+
+    document.querySelectorAll('.js-wa-share').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var text = btn.dataset.text;
+        try {
+          // On a phone this shares the real PDF file into WhatsApp (the share sheet).
+          var res = await fetch(btn.dataset.pdf, { credentials: 'same-origin' });
+          var file = new File([await res.blob()], btn.dataset.filename, { type: 'application/pdf' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], text: text });
+            return;
+          }
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;   // the owner closed the share sheet
+        }
+        // Computers (and plain http): WhatsApp can't take a file from a link, so open the
+        // customer's chat with the message and a link to the PDF.
+        window.open('https://wa.me/' + btn.dataset.phone + '?text=' + encodeURIComponent(text + ' Quotation PDF: ' + btn.dataset.link), '_blank', 'noopener');
+      });
+    });
+    document.getElementById('qr-form').addEventListener('input', recalc);
+    recalc();
+  })();
+</script>
+{% endblock %}

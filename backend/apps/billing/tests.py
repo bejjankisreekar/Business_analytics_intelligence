@@ -460,7 +460,7 @@ class RenewalAutomationTests(SheetsBackedMixin, TestCase):
 
 
 class PlanChangeTests(SheetsBackedMixin, TestCase):
-    """Self-serve upgrade/downgrade between Professional and Business on the same storage."""
+    """Self-serve upgrade/downgrade between Standard and Advance on the same storage."""
 
     def setUp(self):
         super().setUp()

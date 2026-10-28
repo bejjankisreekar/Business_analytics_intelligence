@@ -55,7 +55,7 @@
   .claim-filters .claim-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
   @media (min-width: 640px) {
     .claim-filters { grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr) auto; }
-    .claim-filters .claim-dates { grid-column: 1 / 3; }
+    .claim-filters .claim-dates { grid-column: 1 / -1; justify-content: flex-end; }
     .claim-filters .claim-actions { justify-content: flex-start; }
   }
   .claim-filters .bai-select-wrap, .claim-filters .bai-select-trigger { width: 100%; height: 2.625rem; }
@@ -66,6 +66,7 @@
   .claim-filters .claim-clear { display: inline-flex; align-items: center; height: 2.625rem; padding: 0 0.9rem; border-radius: 0.6rem; border: 1px solid rgba(255,255,255,0.1); font-size: 0.875rem; font-weight: 500; color: #cbd5e1; white-space: nowrap; }
   .claim-filters .claim-clear:hover { background: rgba(255,255,255,0.05); }
   .claim-filters .claim-apply { height: 2.625rem; padding: 0 1.5rem; white-space: nowrap; }
+  .claim-filters .claim-dates > .claim-actions { width: auto; align-self: flex-end; }
 </style>
 <form method="get" class="claim-filters card mt-6 p-4">
   <div>
@@ -90,10 +91,10 @@
     </div>
     <div><label for="claim-from">From</label><input id="claim-from" type="date" name="from" value="{{ filter_from }}"></div>
     <div><label for="claim-to">To</label><input id="claim-to" type="date" name="to" value="{{ filter_to }}"></div>
-  </div>
-  <div class="claim-actions">
-    <a href="{% url 'finance:claims' %}" class="claim-clear">Clear</a>
-    <button type="submit" class="btn-primary claim-apply">Apply</button>
+    <div class="claim-actions">
+      <a href="{% url 'finance:claims' %}" class="claim-clear">Clear</a>
+      <button type="submit" class="btn-primary claim-apply">Apply</button>
+    </div>
   </div>
 </form>
 

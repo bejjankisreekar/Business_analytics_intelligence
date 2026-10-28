@@ -94,6 +94,19 @@
     {% endfor %}
   </div>
 
+  <h2 class="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Page access</h2>
+  <div class="mt-3">
+    {% with field=form.allowed_pages %}
+    <p class="text-[11px] text-slate-500">{{ field.help_text }}</p>
+    <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {% for checkbox in field %}
+      <label class="flex items-center gap-2 text-xs text-slate-300" for="{{ checkbox.id_for_label }}">{{ checkbox.tag }} {{ checkbox.choice_label }}</label>
+      {% endfor %}
+    </div>
+    {% if field.errors %}<ul class="sa-errorlist">{% for e in field.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    {% endwith %}
+  </div>
+
   {% if mode == "create" %}
   <h2 class="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Owner login</h2>
   <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -61,6 +61,11 @@ class Plan(models.Model):
     # limits) — this is the data model for that; gating is a follow-up.
     features = models.JSONField(default=list, blank=True)
 
+    # Page keys (apps.accounts.manager_pages.ORG_PAGE_CHOICES) every organization on
+    # this plan is limited to, e.g. the Lite pack. Empty = every page. An
+    # organization's own `allowed_pages` (set by a superadmin) takes precedence.
+    allowed_pages = models.JSONField(default=list, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

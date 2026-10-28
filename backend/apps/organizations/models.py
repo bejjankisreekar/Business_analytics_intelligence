@@ -137,6 +137,15 @@ class Organization(models.Model):
                    "default and the cutoff date above. Superadmin-only.",
     )
 
+    # Pages this organization may open, set only by a superadmin (client edit form). An
+    # empty list means full access, so every existing organization is unaffected. When set,
+    # it limits every login of the organization (owner, admins and managers alike) to these
+    # pages — see apps.accounts.manager_pages.org_pages_for.
+    allowed_pages = models.JSONField(
+        default=list, blank=True,
+        help_text="Page keys this organization may open. Empty = every page. Superadmin-only.",
+    )
+
     # Account status: whether this is a legitimate, non-deleted account.
     # Deliberately separate from `service_status` below — a client is never
     # deleted or deactivated as an account just because their payment is
@@ -313,7 +322,7 @@ class DataStorageChangeRequest(models.Model):
         max_length=20, choices=Organization.StorageMode.choices
     )
 
-    # Plan names before/after the switch (e.g. "Professional" -> "Professional Drive")
+    # Plan names before/after the switch (e.g. "Standard" -> "Standard Drive")
     current_plan_name = models.CharField(max_length=100, blank=True)
     requested_plan_name = models.CharField(max_length=100, blank=True)
 
@@ -355,7 +364,7 @@ class DataStorageChangeRequest(models.Model):
 
     @property
     def plan_change_text(self) -> str:
-        """e.g. "Professional → Professional Drive", or "" if unknown."""
+        """e.g. "Standard → Standard Drive", or "" if unknown."""
         if self.current_plan_name and self.requested_plan_name:
             return f"{self.current_plan_name} → {self.requested_plan_name}"
         return ""
@@ -369,3 +378,43 @@ class DataStorageChangeRequest(models.Model):
             return f"₹{abs(self.price_difference):.2f} increase per month"
         else:
             return f"₹{abs(self.price_difference):.2f} decrease per month"
+
+
+class SupportRequest(models.Model):
+    """A question or problem a client raises from the Help / Support page.
+    Stored in the same database as storage requests so the superadmin console
+    (per environment) reads and answers it there."""
+
+    class Category(models.TextChoices):
+        BILLING = "BILLING", "Billing or payment"
+        TECHNICAL = "TECHNICAL", "Something is not working"
+        DATA = "DATA", "Data or reports"
+        ACCOUNT = "ACCOUNT", "Account or access"
+        OTHER = "OTHER", "Other"
+
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        RESOLVED = "RESOLVED", "Resolved"
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="support_requests"
+    )
+    submitted_by_email = models.EmailField()
+    category = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)
+    subject = models.CharField(max_length=150)
+    message = models.TextField()
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
+    # Superadmin's answer, shown to the client on their Help / Support page.
+    admin_reply = models.TextField(blank=True)
+    replied_by_email = models.EmailField(blank=True)
+    replied_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.organization_id}: {self.subject}"

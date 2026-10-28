@@ -45,8 +45,13 @@ RESET_SESSION_KEY = "password_reset_email"
 def _post_login_redirect(user):
     if user.role == User.Role.SUPER_ADMIN:
         return redirect("superadmin:overview")
+    from .manager_pages import landing_url, org_pages_for
+
     if user.role == User.Role.MANAGER:
         return redirect("finance:daily_report")
+    if user.organization_id and org_pages_for(user.organization) is not None:
+        # A superadmin limited this organization to some pages; start on one of them.
+        return redirect(landing_url(user))
     return redirect("finance:dashboard")
 
 
@@ -159,7 +164,7 @@ class SignupView(FormView):
             messages.error(self.request, str(exc))
             return self.form_invalid(form)
 
-        base_name = "Professional" if int(data["manager_logins"]) == 1 else "Business"
+        base_name = "Standard" if int(data["manager_logins"]) == 1 else "Advance"
         plan_name = paired_plan_name(base_name, data["storage_mode"])
         bootstrap_plan = Plan.objects.filter(name=plan_name, is_active=True).first() or (
             Plan.objects.filter(is_active=True, show_on_landing_page=True).order_by("monthly_price").first()
@@ -280,7 +285,7 @@ class ProfileView(LoginRequiredMixin, View):
             is_eligible = can_organization_have_manager_accounts(user.organization)
 
             # Always show the button to org owners; it is disabled when the plan
-            # doesn't allow manager accounts (Professional allows only 1 account).
+            # doesn't allow manager accounts (Standard allows only 1 account).
             show_manager_button = True
             can_create_manager = is_eligible and not is_professional and manager_account is None
             disable_manager_button = not can_create_manager
@@ -732,7 +737,7 @@ class CreateManagerAccountView(LoginRequiredMixin, FormView):
     """Create a new manager account for the current organization.
 
     Only OWNER and ADMIN users can create manager accounts, and only if:
-    1. The organization has an eligible plan (Business or Business Drive)
+    1. The organization has an eligible plan (Advance or Advance Drive)
     2. The organization has available manager account slots
     """
     template_name = "accounts/create_manager.html"

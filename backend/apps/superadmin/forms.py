@@ -5,7 +5,8 @@ from django.utils.text import slugify
 
 from apps.billing.models import Coupon, Invoice, Payment, Plan, Subscription
 from apps.core.widgets import SearchableChoiceWidget, SearchableModelChoiceWidget
-from apps.organizations.models import Organization, ServiceStatusChange
+from apps.organizations.models import Organization, ServiceStatusChange, SupportRequest
+from apps.accounts.manager_pages import ORG_PAGE_CHOICES
 
 PROFILE_FIELDS = [
     "name",
@@ -32,9 +33,15 @@ def _style(fields):
 
 
 class ClientProfileForm(forms.ModelForm):
+    allowed_pages = forms.MultipleChoiceField(
+        choices=ORG_PAGE_CHOICES, required=False, widget=forms.CheckboxSelectMultiple,
+        label="Pages this client can open",
+        help_text="Leave every box unticked for full access. Tick some to limit all of this client's logins to just those pages.",
+    )
+
     class Meta:
         model = Organization
-        fields = PROFILE_FIELDS
+        fields = PROFILE_FIELDS + ["allowed_pages"]
         widgets = {
             "historical_entry_cutoff_date": forms.DateInput(attrs={"type": "date"}),
         }
@@ -48,6 +55,7 @@ class ClientProfileForm(forms.ModelForm):
         self.fields["historical_entry_no_limit"].label = "No backdating limit"
         _style(self.fields)
         self.fields["historical_entry_no_limit"].widget.attrs.pop("class", None)
+        self.fields["allowed_pages"].widget.attrs.pop("class", None)
 
 
 class ClientCreateForm(ClientProfileForm):
@@ -146,12 +154,18 @@ class PlanForm(forms.ModelForm):
         choices=Plan.FEATURE_CHOICES, required=False, widget=forms.CheckboxSelectMultiple
     )
 
+    allowed_pages = forms.MultipleChoiceField(
+        choices=ORG_PAGE_CHOICES, required=False, widget=forms.CheckboxSelectMultiple,
+        label="Pages included",
+        help_text="Leave every box unticked for all pages. Tick some to limit clients on this plan to just those pages.",
+    )
+
     class Meta:
         model = Plan
         fields = [
             "name", "is_active", "show_on_landing_page", "monthly_price", "yearly_price",
             "monthly_discount_percent", "yearly_discount_percent",
-            "trial_days", "user_limit", "features",
+            "trial_days", "user_limit", "features", "allowed_pages",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -159,6 +173,7 @@ class PlanForm(forms.ModelForm):
         _style(self.fields)
         # Checkbox lists shouldn't get the generic text-input styling.
         self.fields["features"].widget.attrs.pop("class", None)
+        self.fields["allowed_pages"].widget.attrs.pop("class", None)
         self.fields["is_active"].widget.attrs.pop("class", None)
         self.fields["show_on_landing_page"].widget.attrs.pop("class", None)
         if self.instance and self.instance.pk:
@@ -563,3 +578,16 @@ class RecordInvoicePaymentForm(forms.Form):
         if self.amount_due is not None and amount > self.amount_due:
             raise forms.ValidationError(f"This is more than the amount still due ({self.amount_due}).")
         return amount
+
+
+class SupportReplyForm(forms.ModelForm):
+    """Superadmin's answer to a client's support request, and whether it is closed."""
+
+    class Meta:
+        model = SupportRequest
+        fields = ["status", "admin_reply"]
+        widgets = {
+            "status": forms.RadioSelect(choices=SupportRequest.Status.choices),
+            "admin_reply": forms.Textarea(attrs={"rows": 6, "placeholder": "Write the answer the client will see"}),
+        }
+        labels = {"admin_reply": "Reply to client"}

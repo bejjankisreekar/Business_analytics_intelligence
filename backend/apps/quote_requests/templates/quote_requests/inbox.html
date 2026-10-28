@@ -1,0 +1,117 @@
+{% extends "finance/_app_base.html" %}
+{% block title %}Customer Requests · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+{% include "quote_requests/_owner_styles.html" %}
+<div class="qr-wrap">
+  <div class="qr-head">
+    <div>
+      <h1 class="qx-title">Customer Requests</h1>
+      <p class="qr-muted">Customers send a list of what they need; you reply with prices.</p>
+    </div>
+    <form method="post" action="{% url 'quote_requests:toggle' %}">
+      {% csrf_token %}
+      <button type="submit" class="qr-btn {% if settings_obj.is_enabled %}qr-btn--danger{% else %}qr-btn--primary{% endif %}">
+        {% if settings_obj.is_enabled %}Turn open link off{% else %}Turn open link on{% endif %}
+      </button>
+    </form>
+  </div>
+
+  <div class="qx-panel qx-link-card">
+    <div style="min-width:0">
+      <span class="qx-live"><span class="qx-dot {% if not settings_obj.is_enabled %}qx-dot--off{% endif %}"></span>{% if settings_obj.is_enabled %}Open link is live{% else %}Open link is off{% endif %}</span>
+      <p class="qr-link" id="qr-public-link">{{ public_url }}</p>
+      <p class="qr-muted" style="margin:.3rem 0 0">Share it on WhatsApp or print the QR for your counter.{% if not settings_obj.is_enabled %} It stays unreachable until you turn it on.{% endif %}</p>
+    </div>
+    <div class="qx-btns">
+      <button type="button" class="qr-btn" onclick="navigator.clipboard.writeText(document.getElementById('qr-public-link').textContent.trim()).then(function(){ this.textContent='Copied'; }.bind(this))">Copy link</button>
+      <a href="{% url 'quote_requests:qr' %}" class="qr-btn qr-btn--primary">Print QR code</a>
+    </div>
+  </div>
+
+  {% comment %}Notifications box hidden for now; remove this comment tag pair to show it again.
+  <details class="qx-panel qx-notify">
+    <summary>
+      <b>Notifications</b>
+      <span class="qr-muted">
+        {% if settings_obj.notify_email_enabled %}Email to {{ settings_obj.notify_email|default:owner_login_email|default:"(no email set)" }}{% else %}Email off{% endif %}
+        &middot; {% if settings_obj.notify_whatsapp %}WhatsApp {{ settings_obj.notify_whatsapp }}{% else %}no WhatsApp number{% endif %}
+      </span>
+    </summary>
+    <form method="post" action="{% url 'quote_requests:notify_settings' %}" class="qx-notify-form">
+      {% csrf_token %}
+      <label class="qx-check"><input type="checkbox" name="notify_email_enabled" {% if settings_obj.notify_email_enabled %}checked{% endif %}> Email me when a customer sends or changes a list</label>
+      <label class="qr-muted" for="notify-email">Send emails to</label>
+      <input type="email" id="notify-email" name="notify_email" class="qr-input" value="{{ settings_obj.notify_email }}" placeholder="{{ owner_login_email|default:'your email' }} (your login email if left blank)">
+      <label class="qr-muted" for="notify-wa">Your WhatsApp number</label>
+      <input type="tel" id="notify-wa" name="notify_whatsapp" class="qr-input" value="{{ settings_obj.notify_whatsapp }}" maxlength="20" placeholder="e.g. 98765 43210">
+      <p class="qr-muted" style="margin:0">With a WhatsApp number set, customers see a button after sending their list that opens a ready-made message to you.</p>
+      <button type="submit" class="qr-btn qr-btn--primary">Save</button>
+    </form>
+  </details>
+  {% endcomment %}
+
+  <div class="qx-days">
+    <a href="{{ urls.today }}" class="qx-day {% if day == 'today' %}qx-day--on{% endif %}">Today</a>
+    <a href="{{ urls.yesterday }}" class="qx-day {% if day == 'yesterday' %}qx-day--on{% endif %}">Yesterday</a>
+    <form method="get" class="qx-datepick {% if day == 'date' %}qx-day--on{% endif %}">
+      <label for="day-pick">Pick a date</label>
+      <input type="date" id="day-pick" name="day" value="{{ picked_date }}" max="{{ today_iso }}" onchange="if (this.value) this.form.submit()">
+      {% for name, value in keep_for_date.items %}{% if value %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endif %}{% endfor %}
+    </form>
+    <a href="{{ urls.all_days }}" class="qx-day {% if day == 'all' %}qx-day--on{% endif %}">All days</a>
+    <span class="qx-daylabel">Showing: <b>{{ day_label }}</b></span>
+  </div>
+
+  <div class="qx-stats">
+    <a href="{{ urls.all }}" class="qx-panel qx-stat {% if not status and not payment %}qx-stat--on{% endif %}"><b>{{ total_count }}</b><span>All requests</span></a>
+    <a href="{{ urls.pending }}" class="qx-panel qx-stat qx-stat--pending {% if status == 'PENDING' %}qx-stat--on{% endif %}"><b>{{ pending_count }}</b><span>Waiting for quote</span></a>
+    <a href="{{ urls.quoted }}" class="qx-panel qx-stat qx-stat--quoted {% if status == 'QUOTED' %}qx-stat--on{% endif %}"><b>{{ quoted_count }}</b><span>Quoted</span></a>
+    <a href="{{ urls.unpaid }}" class="qx-panel qx-stat qx-stat--unpaid {% if payment == 'UNPAID' %}qx-stat--on{% endif %}"><b>{{ unpaid_count }}</b><span>Unpaid</span></a>
+    <a href="{{ urls.paid }}" class="qx-panel qx-stat qx-stat--quoted {% if payment == 'PAID' %}qx-stat--on{% endif %}"><b>{{ paid_count }}</b><span>Paid</span></a>
+    <div class="qx-panel qx-amount">
+      <span class="qx-amount-label">Total quoted amount</span>
+      <b class="qx-amount-value">{{ organization.currency }} {{ amounts.total|floatformat:2 }}</b>
+      <div class="qx-bar" role="img" aria-label="{{ paid_pct }}% paid"><span style="width:{{ paid_pct }}%"></span></div>
+      <div class="qx-legend">
+        <span><i class="qx-key qx-key--paid"></i>Paid <b>{{ amounts.paid|floatformat:2 }}</b></span>
+        <span><i class="qx-key qx-key--unpaid"></i>Unpaid <b>{{ amounts.unpaid|floatformat:2 }}</b></span>
+      </div>
+    </div>
+  </div>
+
+  <form method="get" class="qx-search" role="search">
+    <input type="search" name="q" value="{{ q }}" class="qr-input" maxlength="100" autocomplete="off"
+           placeholder="Search name, phone, order no." aria-label="Search requests">
+    {% for name, value in keep_for_search.items %}{% if value %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endif %}{% endfor %}
+    <button type="submit" class="qr-btn qr-btn--primary">Search</button>
+    {% if q %}<a class="qr-btn" href="{{ urls.clear_search }}">Clear</a>{% endif %}
+  </form>
+  {% if q %}<p class="qr-muted qx-found">{{ quote_requests|length }} result{{ quote_requests|length|pluralize }} for &ldquo;{{ q }}&rdquo;</p>{% endif %}
+
+  <div class="qx-panel qx-list">
+    <div class="qr-table-wrap">
+      <table class="qr-table">
+        <thead><tr><th>#</th><th>Customer</th><th>Phone</th><th class="qr-mid">Items</th><th>Received</th><th>Status</th><th>Payment</th><th class="qr-num">Amount ({{ organization.currency }})</th><th></th></tr></thead>
+        <tbody>
+        {% for r in quote_requests %}
+          <tr>
+            <td class="qx-c-no"><b>{{ r.number }}</b></td>
+            <td class="qx-c-who"><div class="qx-who"><span class="qx-avatar">{{ r.customer_name|slice:":1"|upper }}</span>{{ r.customer_name }}</div></td>
+            <td class="qx-c-phone"><a href="tel:{{ r.customer_phone|cut:' ' }}" style="color:inherit">{{ r.customer_phone }}</a></td>
+            <td class="qr-mid qx-c-items"><span class="qx-chip">{{ r.item_count }}</span></td>
+            <td class="qr-muted qx-c-received" style="opacity:.8"><span class="qx-d">{{ r.created_at|date:"d M, H:i" }}</span><span class="qx-m">&nbsp;&middot; #{{ r.number }} &middot; {{ r.item_count }} item{{ r.item_count|pluralize }} &middot; {{ r.created_at|date:"d M, H:i" }}</span></td>
+            <td class="qx-c-status"><span class="qr-badge qr-badge--{{ r.status|lower }}">{{ r.get_status_display }}</span></td>
+            <td class="qx-c-pay" data-label="Payment">{% if r.status == 'QUOTED' %}{% if r.payment_status == 'PAID' %}<span class="qr-badge qr-badge--quoted">Paid</span>{% else %}<span class="qr-badge qr-badge--pending">Unpaid</span>{% endif %}{% else %}<span class="qr-muted">–</span>{% endif %}</td>
+            <td class="qr-num qx-c-amount" data-label="Amount ({{ organization.currency }})">{% if r.status == 'QUOTED' %}<b>{{ r.amount|floatformat:2 }}</b>{% else %}<span class="qr-muted">–</span>{% endif %}</td>
+            <td class="qr-num qx-c-go"><a class="qr-btn {% if r.status == 'PENDING' %}qr-btn--primary{% endif %}" href="{% url 'quote_requests:detail' r.number %}">{% if r.status == 'PENDING' %}Quote{% else %}View{% endif %}</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="qx-c-empty" style="padding:0"><div class="qx-empty"><b>{% if q or status or payment %}Nothing here{% elif day != 'all' %}No requests for this day{% else %}No requests yet{% endif %}</b><span class="qr-muted">{% if q %}No requests match &ldquo;{{ q }}&rdquo;.{% elif status or payment %}No requests match this filter.{% elif day != 'all' %}Nothing came in on {{ day_label }}. Try another day, or <a href="{{ urls.all_days }}" style="text-decoration:underline">show all days</a>.{% else %}Share your link or QR code and customers' lists will show up here.{% endif %}</span></div></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

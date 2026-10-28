@@ -56,10 +56,12 @@
   }
   .combobox-options {
     position: absolute; z-index: 60; top: 100%; left: 0; right: 0; margin-top: 0.375rem;
-    max-height: 14rem; overflow-y: auto; border-radius: 0.75rem;
+    max-height: 40rem; overflow-y: auto; border-radius: 0.75rem;
     border: 1px solid rgba(255,255,255,0.1); background: #111627; box-shadow: 0 10px 30px rgba(0,0,0,0.45);
   }
   .combobox-options.hidden { display: none; }
+  /* Searchable dropdowns show about six rows, then scroll. */
+  .searchable-dropdown .combobox-options { max-height: 14rem; }
   .combobox-option { display: block; width: 100%; text-align: left; padding: 0.55rem 0.9rem; font-size: 0.83rem; color: #e2e8f0; background: transparent; border: none; cursor: pointer; }
   .combobox-option:hover, .combobox-option--active { background: rgba(91,124,250,0.18); color: #fff; }
   .combobox-empty { padding: 0.6rem 0.9rem; font-size: 0.8rem; color: #64748b; }
@@ -98,7 +100,7 @@
        `fixed` escapes that clipping; JS sets its top/left/width to match the
        trigger since it's no longer positioned relative to .bai-select-wrap. */
     position: fixed; z-index: 50; margin-top: 0.375rem;
-    max-height: 14rem; overflow-y: auto; overscroll-behavior: contain; border-radius: 0.75rem;
+    max-height: 40rem; overflow-y: auto; overscroll-behavior: contain; border-radius: 0.75rem;
     border: 1px solid rgba(255,255,255,0.1); background: #111627;
     box-shadow: 0 10px 30px rgba(0,0,0,0.45);
   }
@@ -119,7 +121,7 @@
   .bai-select-panel.sel-wide .bai-select-option { padding: 0.65rem 1rem; font-size: 0.9rem; }
   /* Searchable pickers show ~5 options before scrolling (the default 14rem
      only fits ~4 once the search box takes its share). */
-  .bai-select-panel--searchable { display: flex; flex-direction: column; overflow: hidden; padding: 0.5rem; max-height: 16rem; }
+  .bai-select-panel--searchable { display: flex; flex-direction: column; overflow: hidden; padding: 0.5rem; max-height: 40rem; }
   .bai-select-panel--searchable .bai-select-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .bai-select-search {
     display: block; flex: none; width: 100%; box-sizing: border-box;

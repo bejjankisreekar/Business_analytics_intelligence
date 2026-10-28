@@ -1,0 +1,334 @@
+{% extends "quote_requests/_public_base.html" %}
+{% block title %}{% if editing %}Edit your list{% else %}Send your list{% endif %} · {{ org.name }}{% endblock %}
+
+{% block content %}
+<style>
+  .wrap { max-width: 32rem; }
+  .field-err { color: var(--bad); font-size: .85rem; margin-top: .4rem; min-height: 1.1rem; }
+  .btn--block { display: block; width: 100%; min-height: 3rem; font-size: 1.05rem; text-align: center; }
+  input[type=text], input[type=tel], input[type=number] { min-height: 3rem; }
+  .who { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+         background: var(--card); border: 1px solid var(--line); border-radius: .9rem; padding: .7rem .9rem; margin-top: .75rem; }
+  .who b { display: block; font-size: 1.05rem; word-break: break-word; }
+  .who span { color: var(--muted); font-size: .9rem; }
+  .who button { min-height: 2.5rem; padding: .3rem .8rem; font-size: .85rem; }
+  .list-card { background: var(--card); border: 1px solid var(--line); border-radius: .9rem; padding: .5rem .45rem .35rem; margin-top: .75rem; }
+  .cols, .item { display: grid; grid-template-columns: 1.3rem minmax(0, 1fr) 3.3rem 5.1rem 1.4rem; align-items: center; gap: .3rem; }
+  .cols { padding: .2rem 0 .35rem; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .cols span:nth-child(3) { text-align: center; }
+  .item { padding: .3rem 0; border-top: 1px solid var(--line); }
+  .item .sno { width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--brand); color: #fff;
+               display: flex; align-items: center; justify-content: center; font-size: .68rem; font-weight: 700; }
+  .item input[type=text], .item input[type=number], .item select { width: 100%; min-width: 0; min-height: 2.9rem; padding: .5rem .35rem; }
+  .item input[name=qty] { text-align: center; padding-left: .2rem; padding-right: .2rem; }
+  .item .rm { width: 1.4rem; min-height: 2.9rem; padding: 0; font-size: 1.25rem; line-height: 1; color: var(--muted); border: none; }
+  select { font-size: 16px; border: 1px solid var(--line); border-radius: .55rem; background: var(--card); color: var(--text); font-family: inherit; }
+  .sendbar { position: sticky; bottom: 0; background: var(--bg); padding: .75rem 0 1rem; margin-top: .5rem; }
+  .hint { color: var(--muted); font-size: .85rem; margin: .6rem 0 0; }
+  .note-edit { margin-top: .75rem; padding: .65rem .85rem; border: 1px solid var(--brand); border-radius: .8rem; font-size: .88rem; background: rgba(67,97,238,.08); }
+  .note-edit a { color: var(--brand); font-weight: 700; margin-left: .35rem; }
+  .optional { font-weight: 400; text-transform: none; opacity: .7; }
+  textarea { width: 100%; padding: .6rem .65rem; font-size: 16px; border: 1px solid var(--line); border-radius: .55rem; background: transparent; color: var(--text); font-family: inherit; resize: vertical; min-height: 4rem; }
+  .who-address { display: block; margin-top: .1rem; font-size: .82rem; }
+  .share-row { display: flex; gap: .5rem; margin-top: .6rem; }
+  .share-row .btn { flex: 1; text-align: center; min-height: 2.75rem; }
+  .draft-bar { display: flex; justify-content: space-between; align-items: center; margin-top: .5rem; padding: 0 .25rem; font-size: .8rem; color: var(--muted); }
+  .linkbtn { background: none; border: none; color: var(--brand); font-weight: 700; cursor: pointer; font-size: .8rem; padding: .35rem 0; font-family: inherit; }
+  [hidden] { display: none !important; }
+</style>
+
+<form method="post" id="req-form" novalidate>
+  {% csrf_token %}
+  <input type="hidden" name="name" id="f-name" value="{{ form.name }}">
+  <input type="hidden" name="phone" id="f-phone" value="{{ form.phone }}">
+  <input type="hidden" name="address" id="f-address" value="{{ form.address }}">
+
+  <section id="stage-start">
+    <h1>{% if editing %}Edit your details{% else %}Send us your list{% endif %}</h1>
+    <p class="muted">Tell us who you are first. Then add what you need and {{ org.name }} will reply with prices.</p>
+    <div class="card">
+      <label for="s-name">Your name</label>
+      <input type="text" id="s-name" maxlength="150" autocomplete="name" value="{{ form.name }}">
+      <div style="height:.8rem"></div>
+      <label for="s-phone">Mobile number</label>
+      <input type="tel" id="s-phone" maxlength="20" inputmode="tel" autocomplete="tel" value="{{ form.phone }}">
+      <div style="height:.8rem"></div>
+      <label for="s-address">Address <span class="optional">(optional)</span></label>
+      <textarea id="s-address" rows="2" maxlength="255" autocomplete="street-address" placeholder="House no., street, area (for delivery)">{{ form.address }}</textarea>
+      <div class="field-err" id="start-err" role="alert"></div>
+      <button type="button" class="btn btn--primary btn--block" id="go">Continue</button>
+    </div>
+  </section>
+
+  <section id="stage-list" hidden>
+    <div class="who">
+      <div><b id="who-name"></b><span id="who-phone"></span><span id="who-address" class="who-address"></span></div>
+      <button type="button" class="btn" id="edit-who">Change</button>
+    </div>
+
+    <div class="draft-bar" id="draft-bar" hidden>
+      <span id="draft-status"></span>
+      <button type="button" class="linkbtn" id="draft-clear">{% if editing %}Discard changes{% else %}Start over{% endif %}</button>
+    </div>
+    {% if editing %}<div class="note-edit">Editing order #{{ req.number }}. You can change your items until {{ org.name }} sends the quote. <a href="{% url 'quote_requests:public_track' req.tracking_token %}">Cancel</a></div>{% endif %}
+    {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+    <div class="error" id="list-err" role="alert" hidden></div>
+
+    <div class="list-card">
+      <div class="cols"><span>#</span><span>Item</span><span>Qty</span><span>Unit</span><span></span></div>
+      <div id="items"></div>
+    </div>
+    <button type="button" class="btn btn--block" id="add" style="margin-top:.75rem">+ Add another item</button>
+    <div class="share-row">
+      <button type="button" class="btn" id="share-draft">Share list</button>
+      <button type="button" class="btn" id="copy-draft">Copy list</button>
+    </div>
+    <p class="hint" id="share-hint" style="margin-top:.4rem">Show your list to family or friends before you send it. Your name, number and address are not shared.</p>
+    <p class="hint">Enter how much you need and pick the unit (kg, pc, litre, dozen and more). Start typing to pick from our list, or type anything else. Up to {{ max_rows }} items.</p>
+
+    <div class="sendbar">
+      <button type="submit" class="btn btn--primary btn--block" id="send">Send my list</button>
+    </div>
+  </section>
+</form>
+
+<datalist id="product-suggestions">{% for name in suggestions %}<option value="{{ name }}">{% endfor %}</datalist>
+{{ rows|json_script:"initial-rows" }}
+{{ units|json_script:"unit-choices" }}
+
+<script>
+  (function () {
+    var MAX = {{ max_rows }};
+    var MIN_ROWS = 5;   // rows shown to start with, so a longer list needs no tapping on Add
+    var SEND_LABEL = '{% if editing %}Save changes{% else %}Send my list{% endif %}';
+    var UNITS = JSON.parse(document.getElementById('unit-choices').textContent);
+    var $ = function (id) { return document.getElementById(id); };
+    var stageStart = $('stage-start'), stageList = $('stage-list'), items = $('items');
+
+
+    function shareText(text, title) {
+      // A phone opens its share sheet (WhatsApp, Messages...). Elsewhere, open WhatsApp with the text.
+      if (navigator.share) {
+        return navigator.share({ title: title, text: text }).catch(function (e) {
+          if (e && e.name === 'AbortError') return;
+          window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+        });
+      }
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+    }
+
+    function copyText(text, button) {
+      var done = function () { var old = button.textContent; button.textContent = 'Copied'; setTimeout(function () { button.textContent = old; }, 1600); };
+      if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done); return; }
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { /* nothing more to try */ }
+      document.body.removeChild(ta);
+    }
+
+    function phoneOk(v) { var d = v.replace(/\D/g, ''); return d.length >= 7 && d.length <= 15; }
+
+    function showList() {
+      $('who-name').textContent = $('f-name').value;
+      $('who-phone').textContent = $('f-phone').value;
+      $('who-address').textContent = $('f-address').value;
+      stageStart.hidden = true;
+      stageList.hidden = false;
+      window.scrollTo(0, 0);
+    }
+
+    function renumber() {
+      var rows = items.children;
+      for (var i = 0; i < rows.length; i++) rows[i].querySelector('.sno').textContent = i + 1;
+      $('send').textContent = SEND_LABEL + ' (' + filled() + ' item' + (filled() === 1 ? '' : 's') + ')';
+      saveDraft();
+    }
+
+    function filled() {
+      var n = 0;
+      Array.prototype.forEach.call(items.querySelectorAll('input[name=product]'), function (i) { if (i.value.trim()) n++; });
+      return n;
+    }
+
+    function addItem(data, focus) {
+      if (items.children.length >= MAX) return;
+      data = data || {};
+      var el = document.createElement('div');
+      el.className = 'item';
+      el.innerHTML =
+        '<span class="sno"></span>' +
+        '<input type="text" name="product" maxlength="200" list="product-suggestions" autocomplete="off" autocapitalize="sentences" placeholder="Item name" aria-label="Item name">' +
+        '<input type="number" name="qty" min="0" step="any" inputmode="decimal" placeholder="0" aria-label="Quantity">' +
+        '<select name="unit" aria-label="Unit"></select>' +
+        '<button type="button" class="btn rm" aria-label="Remove item">&times;</button>';
+      el.querySelector('[name=product]').value = data.product || '';
+      el.querySelector('[name=qty]').value = data.qty || '';
+      var sel = el.querySelector('[name=unit]');
+      UNITS.forEach(function (u) {
+        var o = document.createElement('option');
+        o.value = u[0]; o.textContent = u[1];
+        sel.appendChild(o);
+      });
+      sel.value = data.unit || 'kg';
+      el.querySelector('.rm').addEventListener('click', function () {
+        if (items.children.length === 1) {
+          el.querySelectorAll('input').forEach(function (i) { i.value = ''; });
+        } else {
+          items.removeChild(el);
+        }
+        renumber();
+      });
+      el.querySelector('[name=product]').addEventListener('input', renumber);
+      items.appendChild(el);
+      renumber();
+      if (focus) { el.querySelector('[name=product]').focus(); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    }
+
+    $('go').addEventListener('click', function () {
+      var name = $('s-name').value.trim(), phone = $('s-phone').value.trim(), err = $('start-err');
+      if (!name) { err.textContent = 'Please enter your name.'; $('s-name').focus(); return; }
+      if (!phoneOk(phone)) { err.textContent = 'Please enter a valid mobile number.'; $('s-phone').focus(); return; }
+      err.textContent = '';
+      $('f-name').value = name;
+      $('f-phone').value = phone;
+      $('f-address').value = $('s-address').value.trim();
+      showList();
+      saveDraft();
+      var first = items.querySelector('[name=product]');
+      if (first && !first.value) first.focus();
+    });
+
+    ['s-name', 's-phone'].forEach(function (id) {
+      $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('go').click(); } });
+    });
+
+    $('edit-who').addEventListener('click', function () {
+      stageList.hidden = true;
+      stageStart.hidden = false;
+      saveDraft();
+      $('s-name').focus();
+    });
+
+    $('add').addEventListener('click', function () { addItem({}, true); });
+
+    $('req-form').addEventListener('submit', function (e) {
+      var err = $('list-err');
+      if (!filled()) {
+        e.preventDefault();
+        err.textContent = 'Add at least one item to your list.';
+        err.hidden = false;
+        return;
+      }
+      var rows = items.children;
+      for (var i = 0; i < rows.length; i++) {
+        var p = rows[i].querySelector('[name=product]').value.trim();
+        var qty = rows[i].querySelector('[name=qty]').value;
+        if (p && !qty) {
+          e.preventDefault();
+          err.textContent = 'Enter a quantity for "' + p + '".';
+          err.hidden = false;
+          rows[i].scrollIntoView({ block: 'center', behavior: 'smooth' });
+          return;
+        }
+      }
+      err.hidden = true;
+      $('send').disabled = true;
+      $('send').textContent = 'Sending…';
+    });
+
+    // The list is saved on this device as the customer types, so a refresh, a closed tab or a phone
+    // that reloads the page while they ask family on WhatsApp never loses their work. A draft is kept
+    // for 24 hours, forgotten once the order is sent, and "Start over" wipes it at any time. The
+    // server's own re-display after an error always wins over the draft.
+    var DRAFT_KEY = '{% if editing %}qr-draft-edit:{{ req.tracking_token }}{% else %}qr-draft:{{ org.slug }}{% endif %}';
+    var DRAFT_HOURS = 24;
+    var SERVER_ERROR = {% if error %}true{% else %}false{% endif %};
+    var restoring = true;
+
+    function readDraft() {
+      try {
+        var d = JSON.parse(localStorage.getItem(DRAFT_KEY));
+        if (!d || typeof d !== 'object') return null;
+        if (!d.savedAt || Date.now() - d.savedAt > DRAFT_HOURS * 3600 * 1000) {
+          localStorage.removeItem(DRAFT_KEY);
+          return null;
+        }
+        return d;
+      } catch (e) { return null; }
+    }
+
+    function showDraftBar() {
+      $('draft-bar').hidden = false;
+      $('draft-status').textContent = 'Draft saved automatically';
+    }
+
+    function saveDraft() {
+      if (restoring) return;
+      try {
+        var onList = !stageList.hidden, rows = [];
+        Array.prototype.forEach.call(items.children, function (row) {
+          var product = row.querySelector('[name=product]').value, qty = row.querySelector('[name=qty]').value;
+          if (product.trim() || qty) rows.push({ product: product, qty: qty, unit: row.querySelector('[name=unit]').value });
+        });
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          savedAt: Date.now(),
+          stage: onList ? 'list' : 'start',
+          name: onList ? $('f-name').value : $('s-name').value,
+          phone: onList ? $('f-phone').value : $('s-phone').value,
+          address: onList ? $('f-address').value : $('s-address').value,
+          rows: rows
+        }));
+        showDraftBar();
+      } catch (e) { /* storage unavailable: the page still works, it just can't remember */ }
+    }
+
+    $('draft-clear').addEventListener('click', function () {
+      if (!confirm('Clear everything you have entered and start over?')) return;
+      try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* nothing stored */ }
+      location.assign(location.pathname);       // a plain GET, never a re-submit of the form
+    });
+
+    var draft = SERVER_ERROR ? null : readDraft();
+    if (draft) {
+      ['name', 'phone', 'address'].forEach(function (k) {
+        $('s-' + k).value = draft[k] || '';
+        if (draft.stage === 'list') $('f-' + k).value = draft[k] || '';
+      });
+    }
+
+    var initial = (draft && draft.rows && draft.rows.length) ? draft.rows : (JSON.parse($('initial-rows').textContent) || []);
+    var hasInitial = initial.some(function (r) { return r.product || r.qty; });
+    var startRows = hasInitial ? initial.slice() : [];
+    while (startRows.length < MIN_ROWS) startRows.push({});
+    startRows.forEach(function (r) { addItem(r, false); });
+
+    function draftText() {
+      var lines = ['{{ org.name|escapejs }} - my list'], n = 0;
+      Array.prototype.forEach.call(items.children, function (row) {
+        var name = row.querySelector('[name=product]').value.trim();
+        if (!name) return;
+        var qty = row.querySelector('[name=qty]').value.trim();
+        var unit = row.querySelector('[name=unit]');
+        n += 1;
+        lines.push(n + '. ' + name + (qty ? ' - ' + qty + ' ' + unit.options[unit.selectedIndex].text : ''));
+      });
+      return n ? lines.join('\n') : '';
+    }
+    function withDraft(action) {
+      var text = draftText(), err = $('list-err');
+      if (!text) { err.textContent = 'Add at least one item to share.'; err.hidden = false; return; }
+      err.hidden = true;
+      action(text);
+    }
+    $('share-draft').addEventListener('click', function () { withDraft(function (t) { shareText(t, document.title); }); });
+    $('copy-draft').addEventListener('click', function () { var b = this; withDraft(function (t) { copyText(t, b); }); });
+
+    if ($('f-name').value.trim() && phoneOk($('f-phone').value)) showList();
+    restoring = false;
+    if (draft) showDraftBar();
+    $('req-form').addEventListener('input', saveDraft);
+    $('req-form').addEventListener('change', saveDraft);
+  })();
+</script>
+{% endblock %}

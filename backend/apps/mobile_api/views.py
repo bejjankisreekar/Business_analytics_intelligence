@@ -70,10 +70,14 @@ def _entry_json(entry, kind: str) -> dict:
 
 
 def _identity_json(user) -> dict:
+    from apps.quote_requests.access import user_has_access
+
     org = user.organization
     return {
         "user": {"email": user.email, "name": user.get_full_name(), "role": user.role},
         "organization": {"name": org.name if org else ""},
+        # Optional add-ons this account may use: the app shows their tabs only when true.
+        "features": {"customer_requests": user_has_access(user)},
     }
 
 

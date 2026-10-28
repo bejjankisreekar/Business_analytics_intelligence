@@ -10,8 +10,12 @@ function initializeSearchableDropdowns() {
 
     if (!select || !searchInput || !optionsList) return;
 
+    // Opt-in (data-allow-new on the <select>): a typed name that is not listed
+    // can be picked as a new option.
+    const allowNew = select.hasAttribute('data-allow-new');
+
     // Read from the <select> each time, so an option added later by page
-    // script (e.g. "+ Add new insurance") shows up in the list.
+    // script shows up in the list.
     function getOptions() {
       return Array.from(select.options).map((o) => ({ value: o.value, label: o.text }));
     }
@@ -35,8 +39,13 @@ function initializeSearchableDropdowns() {
       const options = getOptions();
       const q = (filter || '').trim().toLowerCase();
       const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
-      optionsList.innerHTML = filtered.length
-        ? filtered
+      const typed = (filter || '').trim();
+      const exact = options.some((o) => o.label.toLowerCase() === q);
+      const addNew = allowNew && typed && !exact
+        ? `<button type="button" data-value="${esc(typed)}" data-new="true" class="combobox-option">+ Use “${esc(typed)}”</button>`
+        : '';
+      optionsList.innerHTML = filtered.length || addNew
+        ? addNew + filtered
             .map(
               (o) =>
                 `<button type="button" data-value="${esc(o.value)}" class="combobox-option${
@@ -45,6 +54,16 @@ function initializeSearchableDropdowns() {
             )
             .join('')
         : '<p class="combobox-empty">No matches</p>';
+    }
+
+    function choose(value, label, isNew) {
+      if (isNew && !getOptions().some((o) => o.value === value)) {
+        select.add(new Option(label, value));
+      }
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      searchInput.value = label;
+      closeList();
     }
 
     function openList() {
@@ -78,10 +97,8 @@ function initializeSearchableDropdowns() {
       const btn = e.target.closest('[data-value]');
       if (!btn) return;
       e.preventDefault();
-      select.value = btn.dataset.value;
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-      searchInput.value = btn.textContent;
-      closeList();
+      const isNew = btn.dataset.new === 'true';
+      choose(btn.dataset.value, isNew ? btn.dataset.value : btn.textContent, isNew);
     });
 
     document.addEventListener('click', (e) => {
@@ -99,10 +116,8 @@ function initializeSearchableDropdowns() {
         e.preventDefault();
         const first = optionsList.querySelector('[data-value]');
         if (first) {
-          select.value = first.dataset.value;
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-          searchInput.value = first.textContent;
-          closeList();
+          const isNew = first.dataset.new === 'true';
+          choose(first.dataset.value, isNew ? first.dataset.value : first.textContent, isNew);
         }
       }
     });

@@ -1,0 +1,48 @@
+{% extends "finance/_app_base.html" %}
+{% block title %}Shop QR code · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+{% include "quote_requests/_owner_styles.html" %}
+<style>
+  .qr-poster { background: #fff; color: #111; border: 1px solid #ccd; border-radius: 1rem; max-width: 26rem; margin: 1.25rem auto 0; padding: 2rem 1.5rem; text-align: center; }
+  .qr-poster h2 { margin: 0 0 .25rem; font-size: 1.6rem; font-weight: 700; }
+  .qr-poster .qr-sub { font-size: 1.05rem; margin: 0 0 1rem; color: #333; }
+  .qr-poster svg { width: 100%; max-width: 18rem; height: auto; margin: 0 auto; display: block; }
+  .qr-poster .qr-how { margin: 1rem 0 0; font-size: .95rem; color: #333; }
+  .qr-poster .qr-url { margin-top: .6rem; font-size: .7rem; color: #666; word-break: break-all; font-family: ui-monospace, monospace; }
+  @media print {
+    body * { visibility: hidden; }
+    .qr-poster, .qr-poster * { visibility: visible; }
+    .qr-poster { position: absolute; left: 0; top: 0; width: 100%; max-width: none; border: none; margin: 0; }
+    .qr-poster svg { max-width: 16cm; }
+  }
+</style>
+<div class="qr-wrap">
+  <a href="{% url 'quote_requests:inbox' %}" class="qr-muted">&larr; Customer requests</a>
+  <div class="qr-head mt-2">
+    <div>
+      <h1 class="text-2xl font-bold">Shop QR code</h1>
+      <p class="qr-muted">Print this and stick it at your counter. Customers scan it and type in what they need.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="qr-btn qr-btn--primary" onclick="window.print()">Print</button>
+      <a class="qr-btn" href="{% url 'quote_requests:qr_download' %}">Download SVG</a>
+    </div>
+  </div>
+
+  {% if not is_enabled %}
+  <div class="qr-card" style="border-color:#d98a06">
+    Your open link is currently <strong>off</strong>, so scanning this code would show a "not found" page.
+    <a href="{% url 'quote_requests:inbox' %}" style="text-decoration:underline">Turn it on first</a>.
+  </div>
+  {% endif %}
+
+  <div class="qr-poster">
+    <h2>{{ organization.name }}</h2>
+    <p class="qr-sub">Need something? Send us your list.</p>
+    {{ qr }}
+    <p class="qr-how">Scan with your phone camera, enter what you want, and we'll reply with prices.</p>
+    <p class="qr-url">{{ public_url }}</p>
+  </div>
+</div>
+{% endblock %}

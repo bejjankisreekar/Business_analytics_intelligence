@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     "apps.core",  # provides the `humanize` template library (Indian digit grouping)
     "apps.superadmin",
     "apps.mobile_api",
+    "apps.quote_requests",  # optional plug-in: open customer request links (shops/restaurants only)
 ]
 
 MIDDLEWARE = [

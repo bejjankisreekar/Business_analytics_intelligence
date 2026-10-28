@@ -10,7 +10,7 @@ class ManagerAccountError(Exception):
 def can_organization_have_manager_accounts(organization: Organization) -> bool:
     """Check if an organization's current plan allows manager accounts.
 
-    Only Business and Business Drive plans allow manager account creation.
+    Only Advance and Advance Drive plans allow manager account creation.
     """
     current_subscription = organization.subscriptions.filter(is_current=True).first()
     if not current_subscription:
@@ -49,7 +49,7 @@ def validate_manager_account_creation(organization: Organization) -> None:
     """
     if not can_organization_have_manager_accounts(organization):
         raise ManagerAccountError(
-            "Manager accounts are only available on Business and Business Drive plans. "
+            "Manager accounts are only available on Advance and Advance Drive plans. "
             "Please upgrade your plan to create manager accounts."
         )
 

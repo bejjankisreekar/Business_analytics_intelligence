@@ -23,7 +23,7 @@ from apps.billing import services as billing_services
 from apps.billing import payments as payment_services
 from apps.billing.models import Coupon, CouponRedemption, Invoice, Payment, Plan, Subscription
 from apps.organizations import service_control
-from apps.organizations.models import DataStorageChangeRequest, Organization, ServiceStatusChange
+from apps.organizations.models import DataStorageChangeRequest, Organization, ServiceStatusChange, SupportRequest
 from apps.organizations.services import OrganizationSignupError, create_organization_with_tenant_schema_and_admin
 
 from apps.organizations.forms import ApproveStorageChangeForm
@@ -38,6 +38,7 @@ from .forms import (
     ClientUserEditForm,
     CouponForm,
     CreateInvoiceForm,
+    SupportReplyForm,
     EditInvoiceForm,
     EditKeyDatesForm,
     EditPaymentForm,
@@ -1751,6 +1752,68 @@ class RecordPaymentView(SuperAdminRequiredMixin, View):
         else:
             messages.error(request, "Couldn't record the payment — please check the form.")
         return redirect("superadmin:financial_history", env=env, pk=pk)
+
+
+class SupportRequestListView(SuperAdminRequiredMixin, TemplateView):
+    """Help / Support messages clients have sent in this environment."""
+
+    template_name = "superadmin/support_requests.html"
+
+    def get_context_data(self, **kwargs):
+        env = kwargs["env"]
+        context = super().get_context_data(**kwargs)
+        context["env_key"] = env
+        context["env_label"] = _env_label_or_404(env)
+
+        status = self.request.GET.get("status", "OPEN")
+        qs = SupportRequest.objects.using(env).select_related("organization")
+        if status in SupportRequest.Status.values:
+            qs = qs.filter(status=status)
+        else:
+            status = "ALL"
+        context["requests"] = qs.order_by("-created_at")
+        context["status_filter"] = status
+        context["status_choices"] = [("OPEN", "Open"), ("RESOLVED", "Resolved"), ("ALL", "All")]
+        return context
+
+
+class SupportRequestDetailView(SuperAdminRequiredMixin, View):
+    """Read a client's message, reply to it, and mark it resolved or still open."""
+
+    def _render(self, request, env, support_request, form):
+        return render(
+            request,
+            "superadmin/support_detail.html",
+            {
+                "env_key": env,
+                "env_label": ENVIRONMENTS[env],
+                "support_request": support_request,
+                "organization": support_request.organization,
+                "form": form,
+            },
+        )
+
+    def _get(self, env, pk):
+        _env_label_or_404(env)
+        return get_object_or_404(SupportRequest.objects.using(env).select_related("organization"), pk=pk)
+
+    def get(self, request, env, pk):
+        support_request = self._get(env, pk)
+        return self._render(request, env, support_request, SupportReplyForm(instance=support_request))
+
+    def post(self, request, env, pk):
+        support_request = self._get(env, pk)
+        form = SupportReplyForm(request.POST, instance=support_request)
+        if not form.is_valid():
+            return self._render(request, env, support_request, form)
+
+        support_request = form.save(commit=False)
+        if "admin_reply" in form.changed_data and support_request.admin_reply:
+            support_request.replied_by_email = request.user.email
+            support_request.replied_at = timezone.now()
+        support_request.save(using=env)
+        messages.success(request, "Reply saved. The client will see it on their Help / Support page.")
+        return redirect("superadmin:support_detail", env=env, pk=pk)
 
 
 class StorageChangeRequestListView(SuperAdminRequiredMixin, TemplateView):

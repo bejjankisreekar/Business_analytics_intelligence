@@ -1,0 +1,66 @@
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 1.6cm 1.5cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #1e293b; }
+  h1 { font-size: 20pt; margin: 0 0 2px 0; color: #1e3a8a; }
+  .sub { color: #64748b; font-size: 9.5pt; margin: 0 0 14px 0; }
+  .meta td { padding: 2px 14px 2px 0; font-size: 10pt; vertical-align: top; }
+  .meta .k { color: #64748b; }
+  table.items { width: 100%; border-collapse: collapse; margin-top: 14px; }
+  table.items th { background: #eef2ff; color: #1e3a8a; text-align: left; font-size: 9pt; padding: 6px 6px; border-bottom: 1px solid #c7d2fe; }
+  table.items td { padding: 6px 6px; border-bottom: 1px solid #e2e8f0; font-size: 10pt; vertical-align: top; }
+  .r { text-align: right; }
+  .off { color: #94a3b8; }
+  .na { color: #b91c1c; font-size: 9pt; }
+  .total td { border-top: 2px solid #1e3a8a; border-bottom: none; font-size: 12pt; font-weight: bold; padding-top: 8px; }
+  .status { margin-top: 16px; padding: 8px 10px; font-size: 10.5pt; }
+  .paid { background: #d1fae5; color: #065f46; }
+  .unpaid { background: #e0e7ff; color: #3730a3; }
+  .foot { margin-top: 22px; color: #94a3b8; font-size: 8.5pt; }
+</style>
+</head>
+<body>
+  <h1>{{ org.name }}</h1>
+  <p class="sub">Quotation &middot; Order #{{ req.number }}</p>
+
+  <table class="meta">
+    <tr><td class="k">Customer</td><td>{{ req.customer_name }}</td><td class="k">Date</td><td>{{ req.created_at|date:"d M Y" }}</td></tr>
+    <tr><td class="k">Phone</td><td>{{ req.customer_phone }}</td><td class="k">Quoted on</td><td>{{ req.quoted_at|date:"d M Y" }}</td></tr>
+  </table>
+  {% if req.customer_address %}<p class="sub" style="margin:4px 0 0 0">Deliver to: {{ req.customer_address }}</p>{% endif %}
+
+  <table class="items">
+    <tr>
+      <th style="width:7%">S.No</th>
+      <th>Product</th>
+      <th class="r" style="width:16%">Qty</th>
+      <th class="r" style="width:17%">Rate ({{ org.currency }})</th>
+      <th class="r" style="width:18%">Amount ({{ org.currency }})</th>
+    </tr>
+    {% for item in items %}
+    <tr{% if not item.available %} class="off"{% endif %}>
+      <td>{{ item.serial }}</td>
+      <td>{{ item.product_name }}{% if not item.available %}<br><span class="na">Not available</span>{% endif %}{% if item.remark %}<br><span class="off">{{ item.remark }}</span>{% endif %}</td>
+      <td class="r">{{ item.qty|floatformat:"-3" }} {{ item.get_unit_display }}</td>
+      <td class="r">{% if item.available and item.price is not None %}{{ item.price|floatformat:2 }}{% else %}-{% endif %}</td>
+      <td class="r">{% if item.available and item.price is not None %}{{ item.line_total|floatformat:2 }}{% else %}-{% endif %}</td>
+    </tr>
+    {% endfor %}
+    <tr class="total">
+      <td colspan="2">{{ available_count }} of {{ item_count }} item{{ item_count|pluralize }} available</td>
+      <td colspan="2" class="r">Total</td>
+      <td class="r">{{ org.currency }} {{ req.total|floatformat:2 }}</td>
+    </tr>
+  </table>
+
+  {% if req.payment_status == 'PAID' %}
+  <div class="status paid">Payment received{% if req.paid_at %} on {{ req.paid_at|date:"d M Y" }}{% endif %}. Thank you!</div>
+  {% else %}
+  <div class="status unpaid">Payment pending. Please pay {{ org.currency }} {{ req.total|floatformat:2 }} to {{ org.name }} to get your order delivered.</div>
+  {% endif %}
+
+  {% if org.contact_phone %}<p class="foot">Questions? Call {{ org.name }} on {{ org.contact_phone }}</p>{% endif %}
+</body>
+</html>

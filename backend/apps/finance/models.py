@@ -651,7 +651,7 @@ class FinanceSettings(SheetAwareModelMixin, models.Model):
 
 class KickbackEntry(SheetAwareModelMixin, models.Model):
     """One hospital bill tracked for the commission/kickback paid out
-    against it — a Business/Business Drive plan exclusive (see
+    against it — an Advance/Advance Drive plan exclusive (see
     finance:kickbacks). `net_amount` is always derived from
     final_amount - kickback_amount, the same pattern SalesEntry uses
     for its own derived `amount`.

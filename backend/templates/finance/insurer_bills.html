@@ -3,10 +3,6 @@
 {% block title %}{{ insurer }} · Insurer &amp; TPA Analytics · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
-<style>
-  .bai-select-wrap.bill-status { min-width: 28rem !important; width: 28rem !important; }
-  .bai-select-wrap.bill-status .bai-select-trigger { height: 3.5rem !important; font-size: 1.1rem !important; }
-</style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold text-white">{{ insurer }}</h1>
@@ -50,18 +46,41 @@
 </div>
 
 <div class="card mt-6 p-5">
-  <form method="get" class="mb-4 flex flex-wrap items-end justify-end gap-3">
+  <style>
+    .ib-filters { display: grid; gap: 0.9rem 1rem; grid-template-columns: minmax(0, 1fr); align-items: end; margin-bottom: 1rem; }
+    .ib-filters .ib-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+    @media (min-width: 640px) {
+      .ib-filters { grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr) auto; }
+      .ib-filters .ib-actions { justify-content: flex-start; }
+    }
+    .ib-filters .bai-select-wrap, .ib-filters .bai-select-trigger { width: 100%; height: 2.625rem; }
+    .ib-filters label { display: block; margin: 0 0 0.35rem 0; font-size: 0.75rem; font-weight: 500; color: rgb(var(--slate-400)); }
+    .ib-filters input, .ib-filters select {
+      box-sizing: border-box; width: 100%; height: 2.625rem; margin: 0; padding: 0 0.75rem; font-size: 0.875rem; border-radius: 0.6rem;
+    }
+    .ib-filters .ib-clear { display: inline-flex; align-items: center; height: 2.625rem; padding: 0 0.9rem; border-radius: 0.6rem; border: 1px solid rgba(255,255,255,0.1); font-size: 0.875rem; font-weight: 500; color: #cbd5e1; white-space: nowrap; }
+    .ib-filters .ib-clear:hover { background: rgba(255,255,255,0.05); }
+    .ib-filters .ib-apply { height: 2.625rem; padding: 0 1.5rem; white-space: nowrap; }
+  </style>
+  <form method="get" class="ib-filters">
     <input type="hidden" name="insurer" value="{{ insurer }}">
     <div>
-      <label class="mb-1 block text-sm font-medium text-slate-400" for="bill-status">Claim status</label>
-      <select id="bill-status" name="status" onchange="this.form.submit()" class="sel-wide bill-status">
+      <label for="bill-search">Search</label>
+      <input id="bill-search" type="search" name="q" value="{{ search }}" placeholder="Patient, bill no. or claim no.">
+    </div>
+    <div>
+      <label for="bill-status">Claim status</label>
+      <select id="bill-status" name="status">
         <option value="">All statuses</option>
         {% for code, label in status_choices %}
         <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>
-    {% if status_filter %}<a href="?insurer={{ insurer|urlencode }}" class="text-sm text-slate-400 hover:text-slate-200">Clear</a>{% endif %}
+    <div class="ib-actions">
+      {% if status_filter or search %}<a href="?insurer={{ insurer|urlencode }}" class="ib-clear">Clear</a>{% endif %}
+      <button type="submit" class="btn-primary ib-apply">Apply</button>
+    </div>
   </form>
   {% if bills %}
   <div class="overflow-x-auto">
@@ -80,8 +99,9 @@
       </thead>
       <tbody class="divide-y divide-white/5 text-slate-300">
         {% for b in bills %}
-        <tr>
-          <td class="whitespace-nowrap px-3 py-2">{{ b.admission_date|date:"d M Y" }}</td>
+        {% if b.claim_pk %}{% url 'finance:claim_detail' b.claim_pk as row_url %}{% else %}{% url 'finance:kickback_detail' b.bill_pk as row_url %}{% endif %}
+        <tr class="cursor-pointer hover:bg-white/5" onclick="window.location.href='{{ row_url }}'">
+          <td class="whitespace-nowrap px-3 py-2"><a href="{{ row_url }}" class="block">{{ b.admission_date|date:"d M Y" }}</a></td>
           <td class="whitespace-nowrap px-3 py-2">{{ b.bill_number }}</td>
           <td class="px-3 py-2">{{ b.patient_name|default:"—" }}</td>
           <td class="whitespace-nowrap px-3 py-2">{{ b.claim_number|default:"—" }}</td>
@@ -99,16 +119,16 @@
     <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} bills</span>
     <div class="flex items-center gap-2">
       {% if page_obj.has_previous %}
-      <a href="?insurer={{ insurer|urlencode }}&status={{ status_filter|urlencode }}&page={{ page_obj.previous_page_number }}" class="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/5">← Previous</a>
+      <a href="?insurer={{ insurer|urlencode }}&status={{ status_filter|urlencode }}&q={{ search|urlencode }}&page={{ page_obj.previous_page_number }}" class="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/5">← Previous</a>
       {% endif %}
       {% if page_obj.has_next %}
-      <a href="?insurer={{ insurer|urlencode }}&status={{ status_filter|urlencode }}&page={{ page_obj.next_page_number }}" class="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/5">Next →</a>
+      <a href="?insurer={{ insurer|urlencode }}&status={{ status_filter|urlencode }}&q={{ search|urlencode }}&page={{ page_obj.next_page_number }}" class="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/5">Next →</a>
       {% endif %}
     </div>
   </div>
   {% endif %}
   {% else %}
-  <p class="py-10 text-center text-slate-500">{% if status_filter %}No bills with this status.{% else %}No insurance bills for this insurer.{% endif %}</p>
+  <p class="py-10 text-center text-slate-500">{% if status_filter or search %}No bills match these filters.{% else %}No insurance bills for this insurer.{% endif %}</p>
   {% endif %}
 </div>
 {% endblock %}

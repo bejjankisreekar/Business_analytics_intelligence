@@ -569,8 +569,11 @@ DEFAULT_INSURERS = [
 
 
 def _used_insurer_names() -> list[str]:
-    """Insurance names already saved on this organization's bills."""
-    return [e.insurer_name for e in KickbackEntry.objects.all() if e.insurer_name]
+    """Insurance names already saved on this organization's bills and claims,
+    so a name typed once on a claim is offered on the next one."""
+    bill_names = [e.insurer_name for e in KickbackEntry.objects.all() if e.insurer_name]
+    claim_names = [c.insurer_name for c in InsuranceClaim.objects.all() if c.insurer_name]
+    return bill_names + claim_names
 
 
 def insurer_choices(*extra: str) -> list[str]:
@@ -769,6 +772,7 @@ class InsuranceClaimForm(forms.ModelForm):
         names = insurer_choices(self.instance.insurer_name, posted or "")
         self.fields["insurer_name"].required = False
         self.fields["insurer_name"].widget = SearchableChoiceWidget(
+            attrs={"data-allow-new": "true"},
             choices=[("", "Select insurer")] + [(n, n) for n in names],
             search_placeholder="Search insurer...",
         )

@@ -8,6 +8,7 @@ from apps.finance import urls as finance_urls
 
 from .manager_pages import (
     ALWAYS_ALLOWED_URL_NAMES,
+    CLOSED_URL_NAMES,
     MANAGER_PAGES,
     PageAccess,
     manager_can_open,
@@ -24,7 +25,7 @@ def _user(role, pages=()):
 class ManagerPageRegistryTests(SimpleTestCase):
     def test_every_finance_url_is_registered(self):
         names = {p.name for p in finance_urls.urlpatterns if p.name}
-        unregistered = names - ALWAYS_ALLOWED_URL_NAMES - {
+        unregistered = names - ALWAYS_ALLOWED_URL_NAMES - CLOSED_URL_NAMES - {
             name for _, _, page_names in MANAGER_PAGES for name in page_names
         }
         self.assertEqual(unregistered, set(), "Add these finance URLs to apps/accounts/manager_pages.py")
@@ -103,8 +104,8 @@ class WelcomeEmailTests(TestCase):
     def setUp(self):
         from apps.billing.models import Plan
 
-        Plan.objects.update_or_create(name="Professional", defaults={
-            "slug": "professional", "is_active": True, "trial_days": 21, "features": ["business_dashboard", "reports"],
+        Plan.objects.update_or_create(name="Standard", defaults={
+            "is_active": True, "trial_days": 21, "features": ["business_dashboard", "reports"],
         })
 
     def _signup(self, **overrides):
@@ -124,7 +125,7 @@ class WelcomeEmailTests(TestCase):
         self.assertEqual(message.to, ["asha@welcometest.example"])
         self.assertIn("21-day free trial", message.subject)
         html = message.alternatives[0][0]
-        for text in ("Professional", "21 days", "Finday&#x27;s secure managed database", "Reports"):
+        for text in ("Standard", "21 days", "Finday&#x27;s secure managed database", "Reports"):
             self.assertIn(text, html)
 
     def test_welcome_email_is_never_sent_twice(self):
@@ -206,3 +207,8 @@ class PasswordResetEmailTests(TestCase):
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("newpass123"))
         self.assertTrue(self._latest().is_used)
+
+
+class ClosedUrlTests(SimpleTestCase):
+    def test_plan_change_stays_closed_to_managers_and_limited_clients(self):
+        self.assertFalse(manager_can_open(("daily_report", "setup"), "change_plan"))

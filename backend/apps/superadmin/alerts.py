@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.billing.models import Invoice, Payment, PaymentWebhookEvent, Subscription
-from apps.organizations.models import CloudBackupConnection, DataStorageChangeRequest
+from apps.organizations.models import CloudBackupConnection, DataStorageChangeRequest, SupportRequest
 
 from .analytics import OPEN_INVOICE
 
@@ -28,6 +28,8 @@ def nav_counts(env: str) -> dict:
         return {
             "storage_requests": DataStorageChangeRequest.objects.using(env)
             .filter(status=DataStorageChangeRequest.Status.PENDING).count(),
+            "support_requests": SupportRequest.objects.using(env)
+            .filter(status=SupportRequest.Status.OPEN).count(),
             "overdue_invoices": Invoice.objects.using(env)
             .filter(status__in=OPEN_INVOICE, due_date__lt=today).count(),
             "failed_payments": Payment.objects.using(env).filter(
@@ -89,6 +91,10 @@ def attention_items(env: str, *, include_activity: bool = True) -> list[dict]:
     pending = DataStorageChangeRequest.objects.using(env).filter(status=DataStorageChangeRequest.Status.PENDING)
     add("info", "storage_requests", "Storage requests to review", "Clients waiting on approval",
         pending.count(), reverse("superadmin:storage_change_requests", args=[env]))
+
+    open_support = SupportRequest.objects.using(env).filter(status=SupportRequest.Status.OPEN)
+    add("info", "support_requests", "Support messages to answer", "Clients waiting on a reply",
+        open_support.count(), reverse("superadmin:support_requests", args=[env]))
 
     sync_errors = CloudBackupConnection.objects.using(env).exclude(last_sync_error="")
     add("warning", "drive_errors", "Google Drive sync errors", "Clients whose Sheet can't be reached",

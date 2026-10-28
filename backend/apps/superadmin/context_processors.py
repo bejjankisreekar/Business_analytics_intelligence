@@ -13,6 +13,7 @@ SECTION_OF = {
     "invoice_detail": "invoice_list", "invoice_edit": "invoice_list", "invoice_new": "invoice_list",
     "payment_edit": "payment_list", "subscription_edit": "subscription_list",
     "storage_change_detail": "storage_change_requests", "webhook_detail": "webhook_list",
+    "support_detail": "support_requests",
 }
 
 # Sidebar: (section, [(url_name, label, icon, active url_names, badge key, badge tone)])
@@ -27,6 +28,8 @@ NAV = [
         ("subscription_list", "Subscriptions", "refresh", {"subscription_list", "subscription_edit"}, None, None),
         ("storage_change_requests", "Storage requests", "database",
          {"storage_change_requests", "storage_change_detail"}, "storage_requests", "warn"),
+        ("support_requests", "Support", "mail",
+         {"support_requests", "support_detail"}, "support_requests", "warn"),
     ]),
     ("Revenue", [
         ("invoice_list", "Invoices", "document",

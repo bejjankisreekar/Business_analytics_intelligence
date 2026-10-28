@@ -456,16 +456,25 @@ def _parse_date(value):
         return None
 
 
+def _insurer_group_name(bill, claim) -> str:
+    """The insurer a bill is counted under: the claim's insurer, else the one on
+    the bill. The TPA is only a last resort when no insurer is recorded."""
+    return (
+        ((claim.insurer_name if claim else "") or "").strip()
+        or (bill.insurer_name or "").strip()
+        or ((claim.tpa_name if claim else "") or "").strip()
+        or "Unspecified"
+    )
+
+
 def _insurer_rows(bills, expenses_by_bill, claim_by_bill) -> list[dict]:
-    """One row per insurer/TPA across the given insurance bills. A bill belongs
-    to the TPA (else insurer) on its claim, falling back to the insurer named
-    on the bill itself. Payout is every expense booked against the bill."""
+    """One row per insurer across the given insurance bills (see
+    _insurer_group_name). Payout is every expense booked against the bill."""
     zero = services.ZERO
     rows: dict[str, dict] = {}
     for bill in bills:
         claim = claim_by_bill.get(bill.pk)
-        name = ((claim.insurer_display if claim and claim.insurer_display != "—" else "")
-                or (bill.insurer_name or "").strip() or "Unspecified")
+        name = _insurer_group_name(bill, claim)
         r = rows.setdefault(name, {"name": name, "bill_count": 0, "billing": zero, "revenue": zero, "payout": zero})
         r["bill_count"] += 1
         r["billing"] += bill.final_amount
@@ -520,9 +529,10 @@ class InsurerAnalyticsView(TenantLoginRequiredMixin, View):
         bills_by_insurer: dict[str, list] = {}
         for b in sorted(bills, key=lambda b: b.admission_date, reverse=True):
             claim = claim_by_bill.get(b.pk)
-            name = ((claim.insurer_display if claim and claim.insurer_display != "—" else "")
-                    or (b.insurer_name or "").strip() or "Unspecified")
+            name = _insurer_group_name(b, claim)
             bills_by_insurer.setdefault(name, []).append({
+                "bill_pk": b.pk,
+                "claim_pk": claim.pk if claim else None,
                 "bill_number": b.bill_number,
                 "admission_date": b.admission_date,
                 "patient_name": b.patient_name,
@@ -543,6 +553,13 @@ class InsurerAnalyticsView(TenantLoginRequiredMixin, View):
                 shown_bills = [b for b in insurer_bills if not b["status_code"]]
             elif status_filter:
                 shown_bills = [b for b in insurer_bills if b["status_code"] == status_filter]
+            search = (request.GET.get("q") or "").strip()
+            if search:
+                needle = search.lower()
+                shown_bills = [
+                    b for b in shown_bills
+                    if any(needle in str(b[key] or "").lower() for key in ("bill_number", "patient_name", "claim_number"))
+                ]
             page_obj = Paginator(shown_bills, 20).get_page(request.GET.get("page"))
             claimed_total = sum((b["claimed"] for b in insurer_bills), zero)
             billing_total = sum((b["billing"] for b in insurer_bills), zero)
@@ -566,6 +583,7 @@ class InsurerAnalyticsView(TenantLoginRequiredMixin, View):
                 "bills": page_obj,
                 "page_obj": page_obj,
                 "status_filter": status_filter,
+                "search": search,
                 "status_choices": [("NONE", "No claim")] + list(InsuranceClaim.Status.choices),
                 "analytics": {
                     "claimed_pct": (claimed_total / billing_total * 100) if billing_total else None,

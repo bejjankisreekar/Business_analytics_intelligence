@@ -1,10 +1,10 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import DataStorageChangeRequest, Organization
+from .models import DataStorageChangeRequest, Organization, SupportRequest
 
 
 # Each managed-database plan has a Drive twin; switching storage swaps between them.
-_TO_DRIVE_PLAN = {"Professional": "Professional Drive", "Business": "Business Drive"}
+_TO_DRIVE_PLAN = {"Standard": "Standard Drive", "Advance": "Advance Drive"}
 _TO_DB_PLAN = {v: k for k, v in _TO_DRIVE_PLAN.items()}
 
 
@@ -155,3 +155,15 @@ class ApproveStorageChangeForm(forms.ModelForm):
             raise ValidationError("Invalid status. Please select either Approve or Reject.")
 
         return cleaned_data
+
+
+class SupportRequestForm(forms.ModelForm):
+    """What a client sends from the Help / Support page."""
+
+    class Meta:
+        model = SupportRequest
+        fields = ["category", "subject", "message"]
+        widgets = {
+            "subject": forms.TextInput(attrs={"placeholder": "A short summary"}),
+            "message": forms.Textarea(attrs={"rows": 6, "placeholder": "What happened, and what you were trying to do"}),
+        }

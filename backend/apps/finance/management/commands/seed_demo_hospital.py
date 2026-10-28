@@ -15,15 +15,27 @@ from ...models import (
 )
 
 DEMO_USERNAME = "demo_hospital"
-DOCTORS = ["Dr. Rao (Cardiology)", "Dr. Sharma (Orthopaedics)", "Dr. Reddy (General Medicine)",
-           "Dr. Iyer (Paediatrics)", "Dr. Khan (Gynaecology)"]
+# (department, doctor): departments are subcategories of OPD Consultation, doctors sit under them.
+DOCTORS = [("Cardiology", "Dr. Rao"), ("Orthopaedics", "Dr. Sharma"), ("General Medicine", "Dr. Reddy"),
+           ("Paediatrics", "Dr. Iyer"), ("Gynaecology", "Dr. Khan")]
 REFERRERS = ["Ramesh RMP", "Suresh Clinic", "Lakshmi Medicals", "Venkat PHC", "Anand Diagnostics"]
-INSURERS = ["Star Health", "HDFC Ergo", "Niva Bupa", "ICICI Lombard", "Care Health"]
+# Top health insurers by FY25 health premium (New India, Star Health, then National, ICICI Lombard, United India).
+INSURERS = ["New India Assurance", "Star Health", "National Insurance", "ICICI Lombard", "United India Insurance"]
 TPAS = ["MediAssist", "Paramount TPA", "Vidal Health", "Family Health Plan"]
 DIAGNOSES = ["Appendicitis", "Fracture - femur", "Acute MI", "Dengue fever", "Normal delivery", "C-section",
              "Pneumonia", "Cataract surgery", "Hernia repair", "Typhoid", "Gall stones", "Knee replacement"]
 FIRST = ["Ravi", "Sita", "Arjun", "Meena", "Kiran", "Lata", "Mohan", "Priya", "Sunil", "Anita", "Rahul", "Geeta"]
 LAST = ["Kumar", "Devi", "Reddy", "Naidu", "Rao", "Sharma", "Patel", "Singh", "Gupta", "Prasad"]
+# Salaries & Wages > department > employee. Monthly pay range per department.
+PAYROLL = {
+    "Nursing": ["Lakshmi Bai", "Sunitha Rao", "Kavitha M", "Padma Devi", "Shabana Begum", "Rekha Naidu",
+                "Anjali Verma", "Savitri K"],
+    "Reception": ["Harika P", "Rama Krishna", "Suresh B", "Divya S"],
+    "Backoffice": ["Mahesh Gowd", "Venkatesh T", "Naveen Kumar"],
+    "Medical": ["Ravi Teja", "Pooja Sharma", "Imran Ali", "Sneha Kulkarni"],
+}
+PAY_RANGE = {"Nursing": (18000, 26000), "Reception": (13000, 17000), "Backoffice": (15000, 22000),
+             "Medical": (22000, 35000)}
 
 
 def money(n) -> Decimal:
@@ -71,6 +83,12 @@ class Command(BaseCommand):
                   Customer, Vendor, BankAccount):
             for obj in list(m.objects.all()):
                 obj.delete()
+        # Old flat doctor subcategories; departments and doctors are recreated by _setup.
+        Subcategory.objects.filter(category__kind=Category.Kind.SALES, category__name="OPD Consultation",
+                                   parent=None).delete()
+        Subcategory.objects.filter(category__kind=Category.Kind.EXPENSE,
+                                   category__name__in=["Salaries & Wages", "Doctor Fees",
+                                                       "Referral Commission"]).delete()
 
     def cat(self, kind, name, gst=0):
         c, _ = Category.objects.get_or_create(kind=kind, name=name, defaults={"gst_rate": gst})
@@ -88,8 +106,28 @@ class Command(BaseCommand):
             "Salaries & Wages", "Rent", "Utilities", "Maintenance", "Marketing", "Miscellaneous",
             "Bank & Payment Charges", "Doctor Fees", "Referral Commission", "Housekeeping & Laundry")}
         self.pur = {n: self.cat(P, n) for n in ("Medicines", "Surgical Supplies", "Lab Reagents", "Equipment")}
-        self.doctor_subs = [Subcategory.objects.get_or_create(category=self.opd, parent=None, name=d)[0]
-                            for d in DOCTORS]
+        self.doctor_subs = []
+        for dept, doctor in DOCTORS:
+            department = Subcategory.objects.get_or_create(category=self.opd, parent=None, name=dept)[0]
+            self.doctor_subs.append(
+                Subcategory.objects.get_or_create(category=self.opd, parent=department, name=doctor)[0])
+        # Salaries & Wages > department > employee, each with a fixed monthly pay.
+        salaries = self.exp["Salaries & Wages"]
+        self.payroll = []
+        for dept, names in PAYROLL.items():
+            department = Subcategory.objects.get_or_create(category=salaries, parent=None, name=dept)[0]
+            for name in names:
+                sub = Subcategory.objects.get_or_create(category=salaries, parent=department, name=name)[0]
+                self.payroll.append((sub, random.randint(*PAY_RANGE[dept])))
+        # Doctor Fees > doctor, each with a fixed monthly fee.
+        self.doctor_fees = []
+        for _, doctor in DOCTORS:
+            sub = Subcategory.objects.get_or_create(category=self.exp["Doctor Fees"], parent=None, name=doctor)[0]
+            self.doctor_fees.append((sub, random.randint(50000, 70000)))
+        # Referral Commission > referrer, for admissions and monthly OPD/lab referral payouts.
+        referral = self.exp["Referral Commission"]
+        self.referrer_subs = {r: Subcategory.objects.get_or_create(category=referral, parent=None, name=r)[0]
+                              for r in REFERRERS}
         fs = FinanceSettings.objects.first()
         fs.opening_date = self.start
         fs.opening_balance = money(150000)
@@ -177,6 +215,10 @@ class Command(BaseCommand):
             y, m = (y + 1, 1) if m == 12 else (y, m + 1)
 
     def _monthly(self):
+        for d in self._month_dates(10):
+            for name, sub in self.referrer_subs.items():
+                self.expense(d, self.exp["Referral Commission"], money(random.randint(4000, 18000)),
+                             f"OPD & lab referral payout · {name}", mode=PaymentMode.BANK, subcategory=sub)
         for d in self._month_dates(1):
             self.expense(d, self.exp["Rent"], 85000, "Building rent", mode=PaymentMode.BANK)
         for d in self._month_dates(5):
@@ -185,10 +227,12 @@ class Command(BaseCommand):
             self.expense(d, self.exp["Marketing"], random.randint(8000, 20000), "Health camps & local ads",
                          mode=PaymentMode.BANK)
         for d in self._month_dates(28):
-            self.expense(d, self.exp["Salaries & Wages"], random.randint(420000, 470000),
-                         "Nursing & admin staff payroll", mode=PaymentMode.BANK)
-            self.expense(d, self.exp["Doctor Fees"], random.randint(250000, 320000),
-                         "Visiting consultants' fees", mode=PaymentMode.BANK)
+            for sub, amount in self.payroll:
+                self.expense(d, self.exp["Salaries & Wages"], money(amount), f"Salary · {sub.name}",
+                             mode=PaymentMode.BANK, subcategory=sub)
+            for sub, amount in self.doctor_fees:
+                self.expense(d, self.exp["Doctor Fees"], money(amount), f"Consultant fee · {sub.name}",
+                             mode=PaymentMode.BANK, subcategory=sub)
             self.expense(d, self.exp["Bank & Payment Charges"], random.randint(2500, 6000),
                          "Gateway & bank charges", mode=PaymentMode.BANK)
 
@@ -227,7 +271,8 @@ class Command(BaseCommand):
             for r in refs:
                 self.expense(after(dis, 2, self.today), self.exp["Referral Commission"],
                              money(final * Decimal("0.05") / len(refs)),
-                             f"Referral commission · {r} · {bill.bill_number}", kickback_bill=bill)
+                             f"Referral commission · {r} · {bill.bill_number}", kickback_bill=bill,
+                             subcategory=self.referrer_subs[r])
             if insured:
                 self._claim(bill, patient, insurer, insurer_part, dis)
 
