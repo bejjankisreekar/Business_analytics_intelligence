@@ -4,7 +4,7 @@
 
 {% block app_content %}
 <div class="mx-auto max-w-6xl">
-  <a href="{% url 'finance:kickbacks' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to IP Admissions</a>
+  <a href="{% url 'finance:kickbacks' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to {{ pt.page }}</a>
   <h1 class="mt-2 text-2xl font-bold text-white">Edit bill</h1>
   <p class="mt-1 text-sm text-slate-400">Update bill {{ entry.bill_number }}. Net amount is calculated automatically as Final amount − Referral commission.</p>
 
@@ -64,11 +64,11 @@
         {{ form.admission_date }}
         {% for error in form.admission_date.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
       </div>
-      <div>
+      {% if not pt.is_diagnostic %}<div>
         <label class="block text-xs font-medium text-slate-400">{{ form.ward.label }}</label>
         {{ form.ward }}
         {% for error in form.ward.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
-      </div>
+      </div>{% endif %}
       <div>
         <label class="block text-xs font-medium text-slate-400">{{ form.diagnosis.label }}</label>
         {{ form.diagnosis }}
@@ -79,11 +79,11 @@
         {{ form.final_amount }}
         {% for error in form.final_amount.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
       </div>
-      <div>
+      {% if not pt.is_diagnostic %}<div>
         <label class="block text-xs font-medium text-slate-400">{{ form.discharge_date.label }}</label>
         {{ form.discharge_date }}
         {% for error in form.discharge_date.errors %}<p class="mt-1 text-xs text-red-400">{{ error }}</p>{% endfor %}
-      </div>
+      </div>{% endif %}
 
       <div>
         <label class="block text-xs font-medium text-slate-400">{{ form.consulting_doctor_item.label }}</label>

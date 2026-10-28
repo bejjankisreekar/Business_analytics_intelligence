@@ -22,6 +22,8 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/entries/presentation/entry_screen.dart';
 import '../features/history/presentation/history_screen.dart';
+import '../features/requests/presentation/request_detail_screen.dart';
+import '../features/requests/presentation/requests_screen.dart';
 import '../features/splash/presentation/splash_screen.dart';
 import '../shared/widgets/main_shell.dart';
 
@@ -31,6 +33,8 @@ abstract final class AppRoutes {
   static const dashboard = '/dashboard';
   static const daily = '/daily';
   static const intelligence = '/intelligence';
+  static const requests = '/requests';
+  static const request = '/request';
   static const more = '/more';
   static const dailyBook = '/daily-book';
   static const monthlySummary = '/monthly-summary';
@@ -94,12 +98,26 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: AppRoutes.requests,
+                builder: (_, _) => const RequestsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: AppRoutes.more,
                 builder: (_, _) => const MoreScreen(),
               ),
             ],
           ),
         ],
+      ),
+      GoRoute(
+        path: '${AppRoutes.request}/:number',
+        builder: (_, state) => RequestDetailScreen(
+          number: int.tryParse(state.pathParameters['number'] ?? '') ?? 0,
+        ),
       ),
       GoRoute(
         path: AppRoutes.dailyBook,
@@ -199,7 +217,15 @@ String? _redirect(SessionState session, GoRouterState state) {
       return location == AppRoutes.login ? null : AppRoutes.login;
     case SessionStatus.signedIn:
       const authOnly = [AppRoutes.splash, AppRoutes.login];
-      return authOnly.contains(location) ? AppRoutes.dashboard : null;
+      if (authOnly.contains(location)) return AppRoutes.dashboard;
+      // Customer requests are an add-on: accounts without it never reach its screens.
+      final isRequests =
+          location == AppRoutes.requests ||
+          location.startsWith('${AppRoutes.request}/');
+      if (isRequests && !(session.user?.customerRequests ?? false)) {
+        return AppRoutes.dashboard;
+      }
+      return null;
   }
 }
 

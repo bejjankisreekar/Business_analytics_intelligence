@@ -1,12 +1,12 @@
 {% extends "finance/_app_base.html" %}
 {% load humanize %}
-{% block title %}IP Admissions · {{ SITE_NAME }}{% endblock %}
+{% block title %}{{ pt.page }} · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-white">IP Admissions</h1>
-    <p class="mt-1 text-sm text-slate-400">Inpatient admissions, bills &amp; referral commission — one row per admission</p>
+    <h1 class="text-2xl font-bold text-white">{{ pt.page }}</h1>
+    <p class="mt-1 text-sm text-slate-400">{{ pt.page_subtitle }}</p>
   </div>
   <div class="flex flex-wrap items-center gap-2">
     <a href="{% url 'finance:kickbacks_excel' %}?{{ pager.page_query }}" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5">⬇ Excel</a>
@@ -193,8 +193,8 @@
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
         </span>
         <div>
-          <h3 class="text-lg font-semibold text-white">Add a patient admission</h3>
-          <p class="mt-0.5 text-sm text-slate-400">Record an IP admission. Its revenue and referral commission come from the Daily Book.</p>
+          <h3 class="text-lg font-semibold text-white">{{ pt.add_title }}</h3>
+          <p class="mt-0.5 text-sm text-slate-400">{{ pt.add_help }}</p>
         </div>
       </div>
       <button type="button" onclick="bai.closeModal('modal-kickback')" aria-label="Close" class="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white">
@@ -217,8 +217,8 @@
             <div><label class="kb-label" for="{{ kickback_form.patient_age.id_for_label }}">{{ kickback_form.patient_age.label }}</label>{{ kickback_form.patient_age }}</div>
             <div><label class="kb-label" for="{{ kickback_form.patient_gender.id_for_label }}">{{ kickback_form.patient_gender.label }}</label>{{ kickback_form.patient_gender }}</div>
             <div><label class="kb-label" for="{{ kickback_form.admission_date.id_for_label }}">{{ kickback_form.admission_date.label }}</label>{{ kickback_form.admission_date }}</div>
-            <div><label class="kb-label" for="{{ kickback_form.discharge_date.id_for_label }}">{{ kickback_form.discharge_date.label }}</label>{{ kickback_form.discharge_date }}</div>
-            <div><label class="kb-label" for="{{ kickback_form.ward.id_for_label }}">{{ kickback_form.ward.label }}</label>{{ kickback_form.ward }}</div>
+            {% if not pt.is_diagnostic %}<div><label class="kb-label" for="{{ kickback_form.discharge_date.id_for_label }}">{{ kickback_form.discharge_date.label }}</label>{{ kickback_form.discharge_date }}</div>
+            <div><label class="kb-label" for="{{ kickback_form.ward.id_for_label }}">{{ kickback_form.ward.label }}</label>{{ kickback_form.ward }}</div>{% endif %}
             <div><label class="kb-label" for="{{ kickback_form.diagnosis.id_for_label }}">{{ kickback_form.diagnosis.label }}</label>{{ kickback_form.diagnosis }}</div>
           </div>
         </section>
@@ -228,7 +228,7 @@
           <div class="kb-grid">
             <div><label class="kb-label" for="{{ kickback_form.consulting_doctor_item.id_for_label }}">{{ kickback_form.consulting_doctor_item.label }}</label>{{ kickback_form.consulting_doctor_item }}
               {% if kickback_form.doctor_category %}<a href="{% url 'finance:categories' %}?kind={{ kickback_form.doctor_category.kind }}" target="_blank" rel="noopener" class="mt-1.5 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">+ Add a doctor to “{{ kickback_form.doctor_category.name }}” (opens in a new tab)</a>
-              {% else %}<p class="mt-1.5 text-xs text-amber-400">Set the doctors category first — <a href="{% url 'finance:settings' %}" target="_blank" rel="noopener" class="underline hover:text-amber-300">Settings → Hospital Consulting Doctors</a>.</p>{% endif %}
+              {% else %}<p class="mt-1.5 text-xs text-amber-400">Set the doctors category first — <a href="{% url 'finance:settings' %}" target="_blank" rel="noopener" class="underline hover:text-amber-300">Settings → Consulting Doctors</a>.</p>{% endif %}
             </div>
             <div><span class="kb-label">{{ kickback_form.referred_by_names.label }}</span>{% include "finance/_referrer_checklist.html" with field=kickback_form.referred_by_names %}<a href="{% url 'finance:ledgers' %}" target="_blank" rel="noopener" class="mt-1.5 inline-block text-xs font-medium text-brand-400 hover:text-brand-300">+ Add a ledger (opens in a new tab)</a></div>
           </div>
@@ -239,7 +239,7 @@
           <div class="kb-grid">
             <div><label class="kb-label" for="{{ kickback_form.payer_type.id_for_label }}">{{ kickback_form.payer_type.label }}</label>{{ kickback_form.payer_type }}</div>
           </div>
-          <p class="mt-4 text-xs text-slate-500">The final amount is the total of the revenue entered for this admission in the Daily Book, and the referral commission is added automatically from the Daily Book expenses linked to it. The net amount follows from both.</p>
+          <p class="mt-4 text-xs text-slate-500">The final amount is the total of the revenue entered for this {{ pt.record }} in the Daily Book, and the referral commission is added automatically from the Daily Book expenses linked to it. The net amount follows from both.</p>
         </section>
 
       </div>
@@ -267,10 +267,10 @@
       <tbody class="divide-y divide-white/5 text-slate-300">
         <tr><td class="py-1 pr-2">Invoice Number</td><td class="py-1 text-slate-500">Optional</td></tr>
         <tr><td class="py-1 pr-2">Patient Name</td><td class="py-1 text-amber-400">Required</td></tr>
-        <tr><td class="py-1 pr-2">MRN / UMRN</td><td class="py-1 text-amber-400">Required</td></tr>
+        <tr><td class="py-1 pr-2">MRN / UMRN</td><td class="py-1 text-slate-500">Optional</td></tr>
         <tr><td class="py-1 pr-2">Address</td><td class="py-1 text-slate-500">Optional</td></tr>
-        <tr><td class="py-1 pr-2">Admission Date</td><td class="py-1 text-amber-400">Required (DD-MM-YYYY)</td></tr>
-        <tr><td class="py-1 pr-2">Discharge Date</td><td class="py-1 text-slate-500">Optional (DD-MM-YYYY)</td></tr>
+        <tr><td class="py-1 pr-2">{% if pt.is_diagnostic %}Visit Date{% else %}Admission Date{% endif %}</td><td class="py-1 text-amber-400">Required (DD-MM-YYYY)</td></tr>
+        {% if not pt.is_diagnostic %}<tr><td class="py-1 pr-2">Discharge Date</td><td class="py-1 text-slate-500">Optional (DD-MM-YYYY)</td></tr>{% endif %}
         <tr><td class="py-1 pr-2">Consult Doctor</td><td class="py-1 text-slate-500">Optional</td></tr>
         <tr><td class="py-1 pr-2">Reffered By</td><td class="py-1 text-slate-500">Optional</td></tr>
         <tr><td class="py-1 pr-2">Final Amount</td><td class="py-1 text-slate-500">Optional</td></tr>

@@ -6,7 +6,10 @@ from django.db.models import Q, QuerySet
 
 from apps.core.widgets import SearchableChoiceWidget, SearchableModelChoiceWidget
 
+from apps.organizations.tenant_context import get_current_organization
+
 from . import services
+from .access import patient_terms
 from .models import (
     BankAccount,
     BankChoices,
@@ -225,7 +228,9 @@ class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hist
         # Most recent admission first, so the patient just admitted is at the top.
         self.fields["kickback_bill"].queryset = KickbackEntry.objects.order_by("-admission_date", "-created_at")
         self.fields["kickback_bill"].label_from_instance = _admission_label
-        self.fields["kickback_bill"].empty_label = "— Select admission —"
+        terms = patient_terms(get_current_organization())
+        self.fields["kickback_bill"].empty_label = f"— Select {terms['record']} —"
+        self.fields["kickback_bill"].label = terms["picker"]
         self.fields["quantity"].required = False
         # Both fields carry a model-level default=0 (so a fresh SalesEntry
         # created without discount info still gets a sane gross/discount) —
@@ -660,6 +665,13 @@ class KickbackEntryForm(forms.ModelForm):
             attrs = self.fields[name].widget.attrs
             attrs["class"] = (attrs.get("class", "") + " sel-wide").strip()
         self.fields["payer_type"].required = True
+        # A diagnostic centre has visits, not admissions: no discharge date or
+        # ward, and the diagnosis box holds the tests done.
+        terms = patient_terms(get_current_organization())
+        if terms["is_diagnostic"]:
+            del self.fields["discharge_date"], self.fields["ward"]
+            self.fields["admission_date"].label = terms["date_label"]
+            self.fields["diagnosis"].label = "Tests / notes"
 
     def clean(self):
         cleaned = super().clean()

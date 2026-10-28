@@ -19,6 +19,7 @@ class Organization(models.Model):
         RETAIL_ECOMMERCE = "RETAIL_ECOMMERCE", "Retail & E-commerce"
         MANUFACTURING = "MANUFACTURING", "Manufacturing"
         HEALTHCARE = "HEALTHCARE", "Healthcare & Medical"
+        DIAGNOSTIC = "DIAGNOSTIC", "Diagnostic Centre & Lab"
         TECHNOLOGY = "TECHNOLOGY", "Technology & Software"
         PROFESSIONAL_SERVICES = "PROFESSIONAL_SERVICES", "Professional Services"
         FINANCIAL_SERVICES = "FINANCIAL_SERVICES", "Financial Services"

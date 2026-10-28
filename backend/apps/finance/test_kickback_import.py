@@ -4,7 +4,7 @@ from apps.finance import imports
 
 
 class KickbackImportRequiredFieldsTests(SimpleTestCase):
-    """Bill number is optional; patient name, MRN and admission date are
+    """Bill number is optional; patient name and admission date are
     required on every imported patient bill."""
 
     HEADERS = ["Bill Number", "Patient Name", "MRN", "Admission Date"]
@@ -18,16 +18,15 @@ class KickbackImportRequiredFieldsTests(SimpleTestCase):
         self.assertEqual(errors, [])
         self.assertEqual(rows[0]["bill_number"], "")
 
-    def test_patient_name_mrn_and_admission_date_are_required(self):
+    def test_patient_name_and_admission_date_are_required(self):
         rows, errors = self._build([
             ["BL-1", "", "MRN-2", "01-10-2026"],
             ["BL-3", "Sita Devi", "", "01-10-2026"],
             ["BL-4", "Asha", "MRN-4", ""],
         ])
-        self.assertEqual(rows, [])
+        self.assertEqual([r["patient_name"] for r in rows], ["Sita Devi"])  # blank MRN is fine
         self.assertEqual(errors, [
             (2, "patient name is missing"),
-            (3, "MRN is missing"),
             (4, "admission date is missing or not recognized"),
         ])
 
@@ -35,5 +34,5 @@ class KickbackImportRequiredFieldsTests(SimpleTestCase):
         self.assertEqual(
             [f for f in imports.KICKBACK_REQUIRED_FIELDS
              if not imports.map_kickback_columns(["Bill Number", "Admission Date"]).get(f)],
-            ["patient_name", "mrn"],
+            ["patient_name"],
         )

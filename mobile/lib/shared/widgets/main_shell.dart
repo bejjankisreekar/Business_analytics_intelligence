@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
 import '../../app/theme/app_colors.dart';
+import '../../features/auth/application/session_controller.dart';
 import '../../features/reports/application/reports_providers.dart';
+import '../../features/requests/application/requests_providers.dart';
 
 /// Hosts the four main tabs with a bottom bar and a raised "+" button in the middle for new entries.
 class MainShell extends ConsumerWidget {
@@ -12,29 +14,57 @@ class MainShell extends ConsumerWidget {
 
   final StatefulNavigationShell shell;
 
-  static const _tabs = [
-    _TabItem(
-      Icons.space_dashboard_outlined,
-      Icons.space_dashboard_rounded,
-      'Dashboard',
-    ),
-    _TabItem(Icons.bar_chart_outlined, Icons.bar_chart_rounded, 'Daily'),
-    _TabItem(
-      Icons.auto_graph_outlined,
-      Icons.auto_graph_rounded,
-      'Intelligence',
-    ),
-    _TabItem(Icons.grid_view_outlined, Icons.grid_view_rounded, 'More'),
-  ];
+  // Each tab opens one router branch (see router.dart). The Requests tab only shows for accounts
+  // that have customer requests, so branch 3 is simply left out of the bar for everyone else.
+  static const _dashboard = _TabItem(
+    0,
+    Icons.space_dashboard_outlined,
+    Icons.space_dashboard_rounded,
+    'Dashboard',
+  );
+  static const _daily = _TabItem(
+    1,
+    Icons.bar_chart_outlined,
+    Icons.bar_chart_rounded,
+    'Daily',
+  );
+  static const _intelligence = _TabItem(
+    2,
+    Icons.auto_graph_outlined,
+    Icons.auto_graph_rounded,
+    'Intelligence',
+  );
+  static const _requests = _TabItem(
+    3,
+    Icons.receipt_long_outlined,
+    Icons.receipt_long_rounded,
+    'Requests',
+  );
+  static const _more = _TabItem(
+    4,
+    Icons.grid_view_outlined,
+    Icons.grid_view_rounded,
+    'More',
+  );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    Widget tab(int index) => Expanded(
+    final hasRequests = ref.watch(
+      sessionControllerProvider.select((s) => s.user?.customerRequests ?? false),
+    );
+    final waiting = hasRequests
+        ? (ref.watch(waitingCountProvider).valueOrNull ?? 0)
+        : 0;
+
+    Widget tab(_TabItem item) => Expanded(
       child: _NavButton(
-        item: _tabs[index],
-        selected: shell.currentIndex == index,
-        onTap: () =>
-            shell.goBranch(index, initialLocation: index == shell.currentIndex),
+        item: item,
+        selected: shell.currentIndex == item.branch,
+        badge: item == _requests ? waiting : 0,
+        onTap: () => shell.goBranch(
+          item.branch,
+          initialLocation: item.branch == shell.currentIndex,
+        ),
       ),
     );
 
@@ -66,11 +96,12 @@ class MainShell extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Row(
                     children: [
-                      tab(0),
-                      tab(1),
+                      tab(_dashboard),
+                      tab(_daily),
                       const Expanded(child: SizedBox()),
-                      tab(2),
-                      tab(3),
+                      tab(_intelligence),
+                      if (hasRequests) tab(_requests),
+                      tab(_more),
                     ],
                   ),
                 ),
@@ -120,8 +151,10 @@ class MainShell extends ConsumerWidget {
 }
 
 class _TabItem {
-  const _TabItem(this.icon, this.activeIcon, this.label);
+  const _TabItem(this.branch, this.icon, this.activeIcon, this.label);
 
+  /// Which router branch this tab opens.
+  final int branch;
   final IconData icon;
   final IconData activeIcon;
   final String label;
@@ -132,11 +165,15 @@ class _NavButton extends StatelessWidget {
     required this.item,
     required this.selected,
     required this.onTap,
+    this.badge = 0,
   });
 
   final _TabItem item;
   final bool selected;
   final VoidCallback onTap;
+
+  /// A count shown on the icon (0 shows nothing).
+  final int badge;
 
   @override
   Widget build(BuildContext context) {
@@ -166,10 +203,16 @@ class _NavButton extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                selected ? item.activeIcon : item.icon,
-                color: selected ? Colors.white : AppColors.textSecondary,
-                size: 22,
+              Badge(
+                isLabelVisible: badge > 0,
+                label: Text(badge > 99 ? '99+' : '$badge'),
+                backgroundColor: AppColors.purchase,
+                textColor: Colors.white,
+                child: Icon(
+                  selected ? item.activeIcon : item.icon,
+                  color: selected ? Colors.white : AppColors.textSecondary,
+                  size: 22,
+                ),
               ),
               const SizedBox(height: 2),
               FittedBox(

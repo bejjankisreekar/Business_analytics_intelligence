@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 13+ asks before showing notifications (customer-request alerts). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Finday Intelligence"
         android:name="${applicationName}"
@@ -31,6 +33,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Push notifications without their own channel go to the customer-requests one (created in MainActivity). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="customer_requests" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

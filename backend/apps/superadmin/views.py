@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.db import DatabaseError, transaction
-from django.db.models import Count, Max, Q, Sum
+from django.db.models import Count, Max, ProtectedError, Q, Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -628,7 +628,18 @@ class OrganizationDeleteView(SuperAdminRequiredMixin, View):
 
         try:
             with transaction.atomic(using=env):
-                org.delete(using=env)
+                # Receivables / partner transactions are PROTECTed against their
+                # customer / partner, which blocks the org cascade. They belong
+                # to this org anyway, so clear them first and retry.
+                for _ in range(10):
+                    try:
+                        org.delete(using=env)
+                        break
+                    except ProtectedError as exc:
+                        for obj in list(exc.protected_objects):
+                            obj.delete(using=env)
+                else:
+                    raise RuntimeError("Too many protected dependencies to clear.")
             messages.success(request, f"Deleted organization '{org_name}' entirely.")
         except Exception as e:
             logger.exception("Failed to delete organization %s", pk)

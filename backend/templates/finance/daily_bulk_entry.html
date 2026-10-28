@@ -64,7 +64,7 @@
               <th data-col="Category" class="px-1 pb-1.5 font-medium">{{ labels.sale.category|default:'Category' }}<a href="{% url 'finance:categories' %}?kind=SALES" class="bulk-plus" target="_blank" rel="noopener" title="Add a new revenue category">+</a></th>
               <th data-col="Sub-category" class="px-1 pb-1.5 font-medium">{{ labels.sale.subcategory|default:'Sub-category' }}<a href="{% url 'finance:categories' %}?kind=SALES" class="bulk-plus" target="_blank" rel="noopener" title="Add a new sub-category">+</a></th>
               <th data-col="Item" class="px-1 pb-1.5 font-medium">{{ labels.sale.item|default:'Item' }}<a href="{% url 'finance:categories' %}?kind=SALES" class="bulk-plus" target="_blank" rel="noopener" title="Add a new item under a sub-category">+</a></th>
-              <th data-col="Admission" style="display: none; width: 10rem; min-width: 10rem; max-width: 10rem" class="px-1 pb-1.5 font-medium">Admission (IP)</th>
+              <th data-col="Admission" style="display: none; width: 10rem; min-width: 10rem; max-width: 10rem" class="px-1 pb-1.5 font-medium">{{ pt.picker }}</th>
               <th data-col="Qty" class="px-1 pb-1.5 font-medium">{{ labels.sale.qty|default:'Qty' }}</th>
               <th data-col="Gross" class="px-1 pb-1.5 font-medium">{{ labels.sale.gross|default:'Gross' }}</th>
               <th data-col="Discount" class="px-1 pb-1.5 font-medium">{{ labels.sale.discount|default:'Discount' }}</th>

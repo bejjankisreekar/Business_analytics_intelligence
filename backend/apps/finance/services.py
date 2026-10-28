@@ -85,6 +85,21 @@ KICKBACK_COLUMN_DEFAULTS = {
 }
 
 
+def kickback_column_defaults() -> dict:
+    """KICKBACK_COLUMN_DEFAULTS in the current organization's wording: a
+    diagnostic centre has visits, so no discharge column."""
+    from apps.organizations.tenant_context import get_current_organization
+
+    from .access import patient_terms
+
+    terms = patient_terms(get_current_organization())
+    defaults = dict(KICKBACK_COLUMN_DEFAULTS)
+    if terms["is_diagnostic"]:
+        defaults["admission_date"] = terms["date_column"]
+        del defaults["discharge_date"]
+    return defaults
+
+
 def kickback_column_labels(fs: FinanceSettings | None = None) -> dict:
     """{field: label} for the Kickbacks table — the organization's own names
     layered over KICKBACK_COLUMN_DEFAULTS, so a blank or corrupt entry falls
@@ -98,9 +113,10 @@ def kickback_column_labels(fs: FinanceSettings | None = None) -> dict:
         saved = {}
     if not isinstance(saved, dict):
         saved = {}
+    defaults = kickback_column_defaults()
     return {
         key: (saved[key].strip() if isinstance(saved.get(key), str) and saved[key].strip() else default)
-        for key, default in KICKBACK_COLUMN_DEFAULTS.items()
+        for key, default in defaults.items()
     }
 
 

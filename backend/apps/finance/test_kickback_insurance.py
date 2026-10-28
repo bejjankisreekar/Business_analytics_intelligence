@@ -98,11 +98,11 @@ class MrnImportTests(SimpleTestCase):
         self.assertEqual(errors, [])
         self.assertEqual(rows[0]["mrn"], "MRN-77")
 
-    def test_file_without_an_mrn_column_is_rejected(self):
+    def test_file_without_an_mrn_column_is_accepted(self):
         headers = ["Invoice Number", "Admission Date", "Patient Name"]
         mapping = imports.map_kickback_columns(headers)
         self.assertIsNone(mapping["mrn"])
-        self.assertIn("mrn", [f for f in imports.KICKBACK_REQUIRED_FIELDS if not mapping.get(f)])
+        self.assertNotIn("mrn", [f for f in imports.KICKBACK_REQUIRED_FIELDS if not mapping.get(f)])
 
 
 class ImportDateFormatTests(SimpleTestCase):

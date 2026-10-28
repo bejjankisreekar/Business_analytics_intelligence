@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/push/push_service.dart';
 import '../../../core/storage/token_storage.dart';
 import '../data/auth_repository.dart';
 import '../models/app_user.dart';
@@ -64,12 +65,18 @@ class SessionController extends Notifier<SessionState> {
   }
 
   Future<void> signOut() async {
+    // Tell the server first, while the saved sign-in still works, so this phone stops getting alerts.
+    await ref.read(pushServiceProvider).stop();
     await _tokens.clear();
     state = const SessionState.signedOut();
   }
 
   /// Called by the API client when the server rejects the saved token.
-  Future<void> expire() => signOut();
+  Future<void> expire() async {
+    // The token is already rejected, so there is nothing to unregister with.
+    await _tokens.clear();
+    state = const SessionState.signedOut();
+  }
 }
 
 final sessionControllerProvider =

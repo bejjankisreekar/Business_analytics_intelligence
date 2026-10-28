@@ -12,4 +12,14 @@ class Env {
   );
 
   static const String appName = 'Finday Intelligence';
+
+  /// Push notifications. Leave these unset and the app builds and runs without push. They come from
+  /// the Firebase console (Project settings > Your apps > Android); see docs/push-notifications.md.
+  ///
+  ///   flutter build apk --dart-define=FIREBASE_API_KEY=... --dart-define=FIREBASE_APP_ID=... \
+  ///     --dart-define=FIREBASE_MESSAGING_SENDER_ID=... --dart-define=FIREBASE_PROJECT_ID=...
+  static const String firebaseApiKey = String.fromEnvironment('FIREBASE_API_KEY');
+  static const String firebaseAppId = String.fromEnvironment('FIREBASE_APP_ID');
+  static const String firebaseSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
+  static const String firebaseProjectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
 }

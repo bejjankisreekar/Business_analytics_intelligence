@@ -129,7 +129,7 @@
       <h3 class="text-base font-semibold text-white">Hospital consulting doctors</h3>
       <button type="button" onclick="bai.closeModal('modal-kb-doctors')" class="text-slate-500 hover:text-white">✕</button>
     </div>
-    <p class="mt-1 text-xs text-slate-500">Pick the category that holds your hospital doctors (for example, a category called “Doctors”). On the IP Admissions page, “Consulting doctor” then lists every sub-category and item under it.</p>
+    <p class="mt-1 text-xs text-slate-500">Pick the category that holds your hospital doctors (for example, a category called “Doctors”). On the {{ pt.page }} page, “Consulting doctor” then lists every sub-category and item under it.</p>
     <form method="post" class="mt-5 space-y-4" data-searchable-selects>
       {% csrf_token %}
       <input type="hidden" name="save_kickback_doctor_category" value="1">
@@ -155,7 +155,7 @@
       <h3 class="text-base font-semibold text-white">IP billing revenue</h3>
       <button type="button" onclick="bai.closeModal('modal-ip-revenue')" class="text-slate-500 hover:text-white">✕</button>
     </div>
-    <p class="mt-1 text-xs text-slate-500">Pick the sales category that IP admission receipts and insurance claim payments are booked under. Used when no other category is picked.</p>
+    <p class="mt-1 text-xs text-slate-500">Pick the sales category that {% if pt.is_diagnostic %}patient bill receipts{% else %}IP admission receipts{% endif %} and insurance claim payments are booked under. Used when no other category is picked.</p>
     <form method="post" class="mt-5 space-y-4" data-searchable-selects>
       {% csrf_token %}
       <input type="hidden" name="save_ip_revenue_category" value="1">

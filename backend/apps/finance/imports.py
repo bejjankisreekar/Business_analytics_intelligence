@@ -207,7 +207,7 @@ KICKBACK_FIELD_ALIASES = {
     "patient_name": ["patient name", "patient", "name of patient", "pt name", "patient full name"],
     "mrn": ["mrn", "umrn", "uhid", "mr no", "mr number", "patient id", "patient number", "hospital number"],
     "patient_address": ["address", "patient address", "addr", "residence"],
-    "admission_date": ["admission date", "admit date", "date of admission"],
+    "admission_date": ["admission date", "admit date", "date of admission", "visit date", "date of visit"],
     "discharge_date": ["discharge date", "date of discharge"],
     "consulting_doctor": ["consult doctor", "consulting doctor", "doctor", "consultant"],
     "referred_by": ["reffered by", "referred by", "reference", "referral", "referred"],
@@ -220,7 +220,7 @@ KICKBACK_FIELD_ALIASES = {
     "patient_amount": ["patient amount", "patient pays", "patient share", "co pay", "copay"],
 }
 
-KICKBACK_REQUIRED_FIELDS = ("patient_name", "mrn", "admission_date")
+KICKBACK_REQUIRED_FIELDS = ("patient_name", "admission_date")
 
 
 def _parse_payer_type(value) -> str:
@@ -272,10 +272,10 @@ def build_kickback_rows(
 ) -> tuple[list[dict], list[tuple[int, str]]]:
     """Applies `mapping` to every parsed row, producing one
     KickbackEntry-ready dict per valid row, plus (row_number, reason) for
-    every row skipped outright (missing patient name or MRN, or an
+    every row skipped outright (missing patient name, or an
     unrecognized admission date) — row_number counts the uploaded file's
     own rows, header included, so it matches what the user sees in a
-    spreadsheet. Bill number is optional."""
+    spreadsheet. Bill number and MRN are optional."""
     index = {h: i for i, h in enumerate(headers)}
 
     def cell(row, field):
@@ -295,8 +295,6 @@ def build_kickback_rows(
         mrn = str(cell(row, "mrn") or "").strip()
         if not patient_name:
             row_errors.append("patient name is missing")
-        if not mrn:
-            row_errors.append("MRN is missing")
         if not admission_date:
             row_errors.append("admission date is missing or not recognized")
         if row_errors:

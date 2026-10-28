@@ -25,7 +25,7 @@ from .views import TenantLoginRequiredMixin, _referrer_names, _render_statement_
 # for follow-up with the insurer or TPA.
 FOLLOW_UP_DAYS = 30
 
-PAGE_SIZE = 50
+PAGE_SIZE = 25
 
 # Filter values that are not a single status.
 FILTER_OPEN = "open"

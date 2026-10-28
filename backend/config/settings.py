@@ -118,6 +118,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "config.context_processors.site_meta",
                 "config.context_processors.kickbacks_access",
+                "config.context_processors.patient_terms_context",
                 "config.context_processors.page_access",
                 "apps.superadmin.context_processors.console",
             ],

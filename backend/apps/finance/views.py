@@ -2956,7 +2956,7 @@ class KickbacksView(TenantLoginRequiredMixin, TemplateView):
             "kb_labels": services.kickback_column_labels(),
             "kb_label_fields": [
                 {"key": key, "default": default, "value": services.kickback_column_labels()[key]}
-                for key, default in services.KICKBACK_COLUMN_DEFAULTS.items()
+                for key, default in services.kickback_column_defaults().items()
             ],
             "kickback_form": KickbackEntryForm(auto_id="id_kickback_%s"),
         })
@@ -3046,7 +3046,7 @@ class KickbackColumnLabelsView(TenantLoginRequiredMixin, View):
             messages.success(request, "Column names reset to the defaults.")
         else:
             custom = {}
-            for key, default in services.KICKBACK_COLUMN_DEFAULTS.items():
+            for key, default in services.kickback_column_defaults().items():
                 value = (request.POST.get(f"label__{key}") or "").strip()[:40]
                 if value and value != default:
                     custom[key] = value

@@ -8,3 +8,8 @@ media/
 .idea/
 *.log
 node_modules/
+
+# Local demo login notes (never commit)
+demo_hospital_login.local.txt
+demo_diagnostic_login.local.txt
+superadmin_login.local.txt

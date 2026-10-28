@@ -19,4 +19,6 @@ class ApiEndpoints {
   static const categoryDetail = 'category-detail/';
   static const ledger = 'ledger/';
   static const billing = 'billing/';
+  static const customerRequests = 'customer-requests/';
+  static const devices = 'devices/';
 }
