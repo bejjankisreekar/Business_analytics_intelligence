@@ -42,6 +42,7 @@ NAV = [
         ("audit_log", "Audit log", "clipboard", {"audit_log"}, None, None),
         ("webhook_list", "Webhooks", "webhook", {"webhook_list", "webhook_detail"}, "failed_webhooks", "bad"),
         ("system_health", "System health", "heart", {"system_health"}, None, None),
+        ("database_usage", "Database usage", "database", {"database_usage"}, None, None),
         ("mobile_app", "Mobile app", "layers", {"mobile_app"}, None, None),
         ("admin_list", "Admins", "shield", {"admin_list"}, None, None),
     ]),

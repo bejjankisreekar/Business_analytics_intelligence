@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import mobile_app_views, ops_views, views
+from . import database_views, mobile_app_views, ops_views, views
 
 app_name = "superadmin"
 
@@ -20,6 +20,7 @@ urlpatterns = [
     path("<str:env>/webhooks/", ops_views.WebhookListView.as_view(), name="webhook_list"),
     path("<str:env>/webhooks/<int:pk>/", ops_views.WebhookDetailView.as_view(), name="webhook_detail"),
     path("<str:env>/system/", ops_views.SystemHealthView.as_view(), name="system_health"),
+    path("<str:env>/database/", database_views.DatabaseUsageView.as_view(), name="database_usage"),
     path("<str:env>/system/digest/", ops_views.SendDigestView.as_view(), name="send_digest"),
     path("<str:env>/admins/", ops_views.AdminListView.as_view(), name="admin_list"),
     path("<str:env>/admins/create/", ops_views.AdminCreateView.as_view(), name="admin_create"),

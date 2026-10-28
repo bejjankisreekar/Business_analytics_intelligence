@@ -7,7 +7,7 @@
   <div>
     <p class="sa-eyebrow">{{ env_label }}</p>
     <h1 class="mt-1">Mobile app</h1>
-    <p class="sa-subtitle">Upload the Android app (.apk). The version marked Current is what clients download from their Profile page.</p>
+    <p class="sa-subtitle">Upload the Android app (.apk) or paste its Google Drive link. The version marked Current is what clients download from their Profile page.</p>
   </div>
 </div>
 
@@ -22,12 +22,16 @@
     <input id="apk-notes" class="sa-input" type="text" name="notes" maxlength="500" placeholder="Bug fixes and faster sign-in">
   </div>
   <div class="min-w-[220px] flex-[2]">
-    <label class="sa-field-label" for="apk-file">APK file (max {{ max_mb }} MB)</label>
-    <input id="apk-file" class="sa-input" type="file" name="file" accept=".apk,application/vnd.android.package-archive" required>
+    <label class="sa-field-label" for="apk-link">Google Drive link</label>
+    <input id="apk-link" class="sa-input" type="url" name="drive_link" maxlength="500" placeholder="https://drive.google.com/file/d/…/view">
+  </div>
+  <div class="min-w-[220px] flex-[2]">
+    <label class="sa-field-label" for="apk-file">…or APK file (max {{ max_mb }} MB)</label>
+    <input id="apk-file" class="sa-input" type="file" name="file" accept=".apk,application/vnd.android.package-archive">
   </div>
   <button type="submit" id="apk-submit" class="sa-btn-solid px-3.5 py-2 text-xs">{% sa_icon "plus" "h-3.5 w-3.5" %} <span id="apk-submit-label">Upload new version</span></button>
 </form>
-<p class="mt-2 text-xs text-slate-500">Uploading makes the new version current right away. Large files can take a minute — keep this page open until it finishes.</p>
+<p class="mt-2 text-xs text-slate-500">Share the Drive file as “Anyone with the link”. A pasted link is turned into a direct download, so clients’ downloads start straight away and nothing is stored in the database. Adding a version makes it current right away. Large files can take a minute — keep this page open until it finishes.</p>
 
 <div class="sa-card mt-6 overflow-hidden">
   <div class="sa-table-wrap">
@@ -37,8 +41,8 @@
         {% for v in versions %}
         <tr>
           <td data-label="Version" class="font-semibold text-slate-100">{{ v.version }}{% if v.notes %}<span class="block max-w-xs truncate text-[11px] font-normal text-slate-500" title="{{ v.notes }}">{{ v.notes }}</span>{% endif %}</td>
-          <td data-label="File" class="text-xs"><span class="sa-mono">{{ v.file_name }}</span><span class="block text-[11px] text-slate-500" title="SHA-256">{{ v.sha256|slice:":16" }}…</span></td>
-          <td data-label="Size" class="tabular-nums">{{ v.file_size|filesizeformat }}</td>
+          <td data-label="File" class="text-xs"><span class="sa-mono">{{ v.file_name }}</span>{% if v.download_url %}<span class="block text-[11px] text-slate-500">Hosted on a link</span>{% else %}<span class="block text-[11px] text-slate-500" title="SHA-256">{{ v.sha256|slice:":16" }}…</span>{% endif %}</td>
+          <td data-label="Size" class="tabular-nums">{% if v.file_size %}{{ v.file_size|filesizeformat }}{% else %}—{% endif %}</td>
           <td data-label="Uploaded" class="whitespace-nowrap text-xs text-slate-400">{{ v.created_at|date:"d M Y, H:i" }}<span class="block text-[11px] text-slate-500">{{ v.uploaded_by_email }}</span></td>
           <td data-label="Status">{% if v.is_current %}<span class="sa-badge sa-badge--active"><span class="sa-dot"></span>Current</span>{% else %}<span class="sa-badge sa-badge--neutral">Older</span>{% endif %}</td>
           <td data-label="" class="whitespace-nowrap text-right">

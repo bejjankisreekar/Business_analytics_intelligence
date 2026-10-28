@@ -90,6 +90,10 @@ class MobileAppVersion(models.Model):
     is_current = models.BooleanField(default=False, db_index=True)
     uploaded_by_email = models.EmailField()
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    # A version can instead live outside the database (Google Drive, GitHub, ...):
+    # then `download_url` is a direct-download link, `file` is empty and clients
+    # are redirected to it.
+    download_url = models.URLField(max_length=500, blank=True, default="")
 
     class Meta:
         ordering = ["-created_at"]

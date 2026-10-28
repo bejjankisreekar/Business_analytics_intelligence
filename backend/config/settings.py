@@ -172,6 +172,14 @@ DATABASES = {
 # the other one keeps its own independent test database.
 DATABASES["prod" if IS_PRODUCTION else "dev"]["TEST"] = {"MIRROR": "default"}
 
+# Disk size each environment's database is allowed to use, in GB. The Database
+# usage page shows how much of this is used and what's left. Set it to the
+# storage your hosting plan gives that database.
+DATABASE_CAPACITY_GB = {
+    "dev": config("DEV_DB_CAPACITY_GB", default=10, cast=float),
+    "prod": config("PROD_DB_CAPACITY_GB", default=10, cast=float),
+}
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

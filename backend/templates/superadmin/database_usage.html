@@ -1,0 +1,135 @@
+{% extends "superadmin/_base.html" %}
+{% load humanize superadmin_tags %}
+{% block title %}Database usage · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">Database usage</h1>
+    <p class="sa-subtitle">How much space the {{ env_label|lower }} database takes, and what each part of it holds. Sizes are on disk, including indexes.</p>
+  </div>
+</div>
+
+{% if error %}
+<div class="sa-card mt-6 flex items-center gap-3 p-4 text-sm">
+  <span class="sa-alert-icon" style="background: var(--sa-bad-soft); color: var(--sa-bad)">{% sa_icon "alert" %}</span>
+  <p class="sa-bad">{{ error }}</p>
+</div>
+{% else %}
+
+<section class="sa-card mt-6 p-5" id="capacity">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <p class="sa-stat-label">Storage used</p>
+      <p class="mt-1 text-3xl font-semibold tabular-nums {% if over_capacity or used_pct >= 90 %}sa-bad{% elif used_pct >= 75 %}sa-warn{% else %}text-slate-100{% endif %}">{{ used_pct }}%</p>
+    </div>
+    <p class="text-sm text-slate-400 tabular-nums"><span class="font-semibold text-slate-200">{{ database_total|filesizeformat }}</span> used of {{ capacity_bytes|filesizeformat }} · <span class="font-semibold text-slate-200">{{ remaining_bytes|filesizeformat }}</span> remaining</p>
+  </div>
+  <div class="mt-4 h-3 w-full overflow-hidden rounded-full bg-slate-800"><div class="h-full rounded-full {% if over_capacity or used_pct >= 90 %}bg-red-500{% elif used_pct >= 75 %}bg-amber-500{% else %}bg-emerald-500{% endif %}" style="width: {{ used_pct }}%"></div></div>
+  <p class="mt-3 text-xs text-slate-500">{% if over_capacity %}The database is over its {{ capacity_bytes|filesizeformat }} allowance. {% endif %}Allowance set by <span class="sa-mono">{% if env_key == "prod" %}PROD_DB_CAPACITY_GB{% else %}DEV_DB_CAPACITY_GB{% endif %}</span> (GB) in the environment file.</p>
+</section>
+
+<div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+  <div class="sa-card sa-stat" title="Size of the whole database on disk, including indexes and system tables">
+    <p class="sa-stat-label">Database size</p><p class="sa-stat-value">{{ database_total|filesizeformat }}</p>
+  </div>
+  <div class="sa-card sa-stat" title="Size of the project's tables, including their indexes">
+    <p class="sa-stat-label">Tables</p><p class="sa-stat-value">{{ table_count|intcomma }}</p>
+  </div>
+  <div class="sa-card sa-stat" title="Estimated rows across all tables (from Postgres statistics)">
+    <p class="sa-stat-label">Rows (approx.)</p><p class="sa-stat-value">{{ row_estimate|intcomma }}</p>
+  </div>
+  <div class="sa-card sa-stat" title="Data held by clients on Our DB storage. Google Sheets clients are not counted.">
+    <p class="sa-stat-label">Client data</p><p class="sa-stat-value">{{ client_total|filesizeformat }}</p>
+  </div>
+</div>
+
+<section class="sa-card mt-5 overflow-hidden">
+  <div class="sa-card-head">
+    <div><h2 class="sa-section-title">What it's used for</h2><p class="sa-section-sub">Tables grouped by the app that owns them. Expand a row to see its tables.</p></div>
+    <span class="sa-mono text-xs text-slate-500 truncate">{{ db_name }}</span>
+  </div>
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr><th>Used for</th><th>Tables</th><th>Rows (approx.)</th><th>Size</th><th>Share</th></tr></thead>
+      <tbody>
+        {% for app in apps %}
+        <tr>
+          <td data-label="Used for">
+            <p class="font-semibold text-slate-100">{{ app.name }}</p>
+            <p class="text-[11px] text-slate-500">{{ app.purpose }}</p>
+          </td>
+          <td data-label="Tables" class="tabular-nums">{{ app.tables|length }}</td>
+          <td data-label="Rows (approx.)" class="tabular-nums">{{ app.rows|intcomma }}</td>
+          <td data-label="Size" class="tabular-nums">{{ app.total|filesizeformat }}</td>
+          <td data-label="Share">
+            <div class="flex items-center gap-2">
+              <div class="h-1.5 w-24 overflow-hidden rounded-full bg-slate-800"><div class="h-full rounded-full bg-amber-500" style="width: {{ app.share }}%"></div></div>
+              <span class="tabular-nums text-xs text-slate-400">{{ app.share }}%</span>
+            </div>
+          </td>
+        </tr>
+        <tr class="sa-subrow">
+          <td colspan="5" class="!p-0">
+            <details class="px-4 pb-3">
+              <summary class="cursor-pointer py-2 text-xs text-slate-400 hover:text-slate-200">Show {{ app.tables|length }} table{{ app.tables|length|pluralize }}</summary>
+              <div class="sa-table-wrap">
+                <table class="sa-table">
+                  <thead><tr><th>Table</th><th>Model</th><th>Rows (approx.)</th><th>Row data</th><th>Indexes</th><th>Total</th></tr></thead>
+                  <tbody>
+                    {% for t in app.tables %}
+                    <tr>
+                      <td class="sa-mono text-xs">{{ t.name }}</td>
+                      <td class="text-xs text-slate-400">{{ t.model|default:"—" }}</td>
+                      <td class="tabular-nums text-xs">{{ t.rows|intcomma }}</td>
+                      <td class="tabular-nums text-xs">{{ t.table|filesizeformat }}</td>
+                      <td class="tabular-nums text-xs">{{ t.indexes|filesizeformat }}</td>
+                      <td class="tabular-nums text-xs font-semibold text-slate-200">{{ t.total|filesizeformat }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="sa-empty">No tables found in {{ env_label|lower }}.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sa-card mt-5 overflow-hidden">
+  <div class="sa-card-head">
+    <div><h2 class="sa-section-title">Data held per client</h2><p class="sa-section-sub">Clients on Our DB storage, by the size of their sales, expense and purchase entries</p></div>
+    <span class="sa-badge sa-badge--neutral">{{ clients|length }} client{{ clients|length|pluralize }}</span>
+  </div>
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr><th>Client</th><th>Data held</th><th>Share of client data</th></tr></thead>
+      <tbody>
+        {% for c in clients %}
+        <tr>
+          <td data-label="Client" class="font-semibold text-slate-100">{{ c.name }}</td>
+          <td data-label="Data held" class="tabular-nums">{{ c.bytes|filesizeformat }}</td>
+          <td data-label="Share of client data">
+            <div class="flex items-center gap-2">
+              <div class="h-1.5 w-24 overflow-hidden rounded-full bg-slate-800"><div class="h-full rounded-full bg-amber-500" style="width: {{ c.share }}%"></div></div>
+              <span class="tabular-nums text-xs text-slate-400">{{ c.share }}%</span>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3"><div class="sa-empty">No clients store their data in this database.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<p class="mt-4 text-xs text-slate-500">Client data counts only finance entries (sales, expenses, purchases), measured by their stored size. Indexes and table overhead are not included, so it is smaller than the table sizes above.{% if largest_table %} Largest table: <span class="sa-mono">{{ largest_table.name }}</span> ({{ largest_table.total|filesizeformat }}).{% endif %}</p>
+{% endif %}
+{% endblock %}

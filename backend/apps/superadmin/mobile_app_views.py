@@ -1,6 +1,8 @@
 """Upload, switch and delete the Android app (.apk) that clients download from
 their Profile page. Stored per environment, like the rest of the console."""
 import hashlib
+import re
+from urllib.parse import parse_qs, urlparse
 
 from django.contrib import messages
 from django.db import transaction
@@ -13,6 +15,23 @@ from .models import MobileAppVersion
 from .views import _env_label_or_404
 
 MAX_APK_BYTES = 100 * 1024 * 1024
+_DRIVE_FILE_ID = re.compile(r"/file/d/([\w-]+)")
+
+
+def direct_download_url(link: str) -> str | None:
+    """The link to store for a pasted URL, or None when it isn't usable. A Google
+    Drive share link (which only opens a preview page) becomes a direct-download
+    link; any other https link is kept as it is."""
+    parts = urlparse(link.strip())
+    if parts.scheme != "https" or not parts.netloc:
+        return None
+    if parts.netloc in ("drive.google.com", "docs.google.com", "drive.usercontent.google.com"):
+        match = _DRIVE_FILE_ID.search(parts.path)
+        file_id = match.group(1) if match else (parse_qs(parts.query).get("id") or [""])[0]
+        if not re.fullmatch(r"[\w-]+", file_id):
+            return None
+        return f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t"
+    return parts.geturl()
 
 
 def _versions(env):
@@ -45,11 +64,14 @@ class MobileAppUploadView(SuperAdminRequiredMixin, View):
         version = request.POST.get("version", "").strip()
         notes = request.POST.get("notes", "").strip()[:500]
         upload = request.FILES.get("file")
+        link = request.POST.get("drive_link", "").strip()
         if not version or len(version) > 40:
             messages.error(request, "Enter a version number, e.g. 1.0.3.")
             return back
+        if link and upload is None:
+            return self._add_link(request, env, version, notes, link, back)
         if upload is None:
-            messages.error(request, "Choose the .apk file to upload.")
+            messages.error(request, "Choose the .apk file to upload, or paste a Google Drive link.")
             return back
         if not upload.name.lower().endswith(".apk"):
             messages.error(request, "Only .apk files can be uploaded.")
@@ -71,6 +93,23 @@ class MobileAppUploadView(SuperAdminRequiredMixin, View):
             )
             _make_current(env, created)
         messages.success(request, f"Uploaded mobile app {version}; clients now download this version.")
+        return back
+
+    def _add_link(self, request, env, version, notes, link, back):
+        url = direct_download_url(link)
+        if url is None:
+            messages.error(request, "That isn't a valid https link. Paste the Google Drive share link of the .apk.")
+            return back
+        if _versions(env).filter(version=version).exists():
+            messages.error(request, f"Version {version} is already added. Delete it first or use a new version number.")
+            return back
+        with transaction.atomic(using=env):
+            created = MobileAppVersion.objects.using(env).create(
+                version=version, notes=notes, file=b"", file_name=f"finday-{version}.apk"[:120], file_size=0,
+                sha256="", download_url=url, uploaded_by_email=request.user.email,
+            )
+            _make_current(env, created)
+        messages.success(request, f"Added mobile app {version} from its link; clients now download this version.")
         return back
 
 

@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -220,6 +220,8 @@ class MobileAppDownloadView(LoginRequiredMixin, View):
         version = MobileAppVersion.objects.filter(is_current=True).first()
         if version is None:
             raise Http404
+        if version.download_url:  # hosted elsewhere, e.g. Google Drive
+            return HttpResponseRedirect(version.download_url)
         response = HttpResponse(bytes(version.file), content_type="application/vnd.android.package-archive")
         response["Content-Disposition"] = f'attachment; filename="finday-{version.version}.apk"'
         response["Content-Length"] = str(version.file_size)

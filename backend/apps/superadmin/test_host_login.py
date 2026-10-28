@@ -189,6 +189,48 @@ class MobileAppTests(SheetsBackedMixin, TestCase):
         with self.assertRaises(Http404):  # an account without an organization
             get(User(email="nobody@test.local"))
 
+    def test_drive_link_is_stored_as_a_direct_download_and_clients_are_redirected(self):
+        from django.test import RequestFactory
+
+        from apps.accounts.views import MobileAppDownloadView
+
+        share = "https://drive.google.com/file/d/1AbC_dEf-123/view?usp=sharing"
+        self.sa.post(f"/superadmin/{ENV}/mobile-app/upload/", {"version": "3.0.0", "drive_link": share})
+        version = self._versions().get(version="3.0.0")
+        self.assertTrue(version.is_current)
+        self.assertEqual(
+            version.download_url,
+            "https://drive.usercontent.google.com/download?id=1AbC_dEf-123&export=download&confirm=t",
+        )
+        from .models import MobileAppVersion
+
+        MobileAppVersion.objects.create(  # clients read the default database
+            version="3.0.0", file=b"", file_name="app.apk", file_size=0, sha256="", is_current=True,
+            download_url=version.download_url, uploaded_by_email="a@test.local",
+        )
+        request = RequestFactory().get("/accounts/mobile-app/download/")
+        request.user = User(email="c@test.local", organization_id=self.org.pk)
+        response = MobileAppDownloadView.as_view()(request)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], version.download_url)
+
+    def test_other_drive_link_shapes_and_bad_links(self):
+        from .mobile_app_views import direct_download_url
+
+        expected = "https://drive.usercontent.google.com/download?id=XYZ_9&export=download&confirm=t"
+        self.assertEqual(direct_download_url("https://drive.google.com/open?id=XYZ_9"), expected)
+        self.assertEqual(direct_download_url("https://drive.google.com/uc?export=download&id=XYZ_9"), expected)
+        self.assertEqual(direct_download_url("https://example.com/app.apk"), "https://example.com/app.apk")
+        self.assertIsNone(direct_download_url("http://drive.google.com/file/d/XYZ/view"))  # not https
+        self.assertIsNone(direct_download_url("https://drive.google.com/drive/folders/XYZ"))  # a folder, no file id
+        self.assertIsNone(direct_download_url("not a link"))
+
+    def test_duplicate_link_version_is_rejected(self):
+        link = "https://drive.google.com/file/d/AAA/view"
+        self.sa.post(f"/superadmin/{ENV}/mobile-app/upload/", {"version": "4.0.0", "drive_link": link})
+        self.sa.post(f"/superadmin/{ENV}/mobile-app/upload/", {"version": "4.0.0", "drive_link": link})
+        self.assertEqual(self._versions().filter(version="4.0.0").count(), 1)
+
     def test_clients_cannot_manage_uploads(self):
         c = Client()
         c.force_login(User.objects.create_user(email="plain@test.local", password="x" * 12, role=User.Role.OWNER))

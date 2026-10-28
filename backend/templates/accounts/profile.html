@@ -219,7 +219,7 @@
       </div>
       <div>
         <p class="text-sm font-semibold text-white">Finday mobile app (Android)</p>
-        <p class="mt-0.5 text-xs text-slate-500">Version {{ mobile_app.version }} · {{ mobile_app.file_size|filesizeformat }}{% if mobile_app.notes %} · {{ mobile_app.notes }}{% endif %}</p>
+        <p class="mt-0.5 text-xs text-slate-500">Version {{ mobile_app.version }}{% if mobile_app.file_size %} · {{ mobile_app.file_size|filesizeformat }}{% endif %}{% if mobile_app.notes %} · {{ mobile_app.notes }}{% endif %}</p>
       </div>
     </div>
     <a href="{% url 'accounts:mobile_app_download' %}" class="btn-primary inline-flex whitespace-nowrap">Download APK</a>
