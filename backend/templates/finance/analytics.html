@@ -134,16 +134,7 @@
 </div>
 
 <!-- Charts row 4 -->
-<div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
-  <div class="card p-5">
-    <h3 class="text-sm font-semibold text-white">Revenue by channel</h3>
-    <p class="text-xs text-slate-500">{{ period.label }}</p>
-    {% if channel_breakdown|length > 1 %}
-    <div class="mt-4 chart-box" style="height: max(16rem, {% widthratio channel_breakdown|length 1 34 %}px)"><canvas id="chartChannelBreakdown"></canvas></div>
-    {% else %}
-    <p class="mt-8 py-6 text-center text-sm text-slate-500">Not enough categories yet to compare.</p>
-    {% endif %}
-  </div>
+<div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
   <div class="card p-5">
     <h3 class="text-sm font-semibold text-white">Cash vs bank</h3>
     <p class="text-xs text-slate-500">Money moved through each, {{ period.label }}</p>
@@ -156,35 +147,21 @@
   </div>
 </div>
 
-<!-- Revenue by sub-category -->
+<!-- Revenue by channel -->
 <div class="mt-8 flex items-center justify-between">
   <div>
     <h2 class="text-lg font-bold text-white">Where am I making money?</h2>
-    <p class="text-xs text-slate-500">{{ period.label }} · revenue by sub-category — cost isn't tracked at that level.</p>
+    <p class="text-xs text-slate-500">{{ period.label }} · revenue by channel — cost isn't tracked at that level.</p>
   </div>
 </div>
 
 <div class="mt-4 card p-5">
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h3 class="text-sm font-semibold text-white">Revenue by sub-category</h3>
-      <p class="text-xs text-slate-500">{{ period.label }}</p>
-    </div>
-    {% if subcategory_categories %}
-    <form method="get" class="flex items-center gap-2">
-      <input type="hidden" name="period" value="{{ period.key }}">
-      <select name="subcat_category" onchange="this.form.submit()" class="!mt-0 !w-auto sel-wide">
-        {% for c in subcategory_categories %}
-        <option value="{{ c.id }}" {% if selected_subcategory_category == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
-        {% endfor %}
-      </select>
-    </form>
-    {% endif %}
-  </div>
-  {% if product_revenue %}
-  <div class="mt-4 chart-box" style="height: max(16rem, {% widthratio product_revenue|length 1 34 %}px)"><canvas id="chartProductRevenue"></canvas></div>
+  <h3 class="text-sm font-semibold text-white">Revenue by channel</h3>
+  <p class="text-xs text-slate-500">{{ period.label }}</p>
+  {% if channel_breakdown|length > 1 %}
+  <div class="mt-4 chart-box" style="height: max(16rem, {% widthratio channel_breakdown|length 1 34 %}px)"><canvas id="chartChannelBreakdown"></canvas></div>
   {% else %}
-  <p class="mt-4 py-6 text-center text-sm text-slate-500">No revenue tagged with a sub-category yet.</p>
+  <p class="mt-4 py-6 text-center text-sm text-slate-500">Not enough categories yet to compare.</p>
   {% endif %}
 </div>
 
@@ -771,15 +748,6 @@
     charts.push(new Chart(document.getElementById("chartTopExpenses"), {
       type: "bar",
       data: { labels: {{ chart_expense_labels|safe }}, datasets: [{ data: {{ chart_expense_values|safe }}, backgroundColor: c.red, borderRadius: 4 }] },
-      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-        scales: { x: { grid: { color: c.grid } }, y: yLabelScale } },
-    }));
-    {% endif %}
-
-    {% if product_revenue %}
-    charts.push(new Chart(document.getElementById("chartProductRevenue"), {
-      type: "bar",
-      data: { labels: {{ chart_product_revenue_labels|safe }}, datasets: [{ data: {{ chart_product_revenue_values|safe }}, backgroundColor: c.donut, borderRadius: 4 }] },
       options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
         scales: { x: { grid: { color: c.grid } }, y: yLabelScale } },
     }));

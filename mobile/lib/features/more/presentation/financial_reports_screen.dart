@@ -29,7 +29,7 @@ class _FinancialReportsScreenState
   @override
   Widget build(BuildContext context) {
     return ReportPage(
-      title: 'Financial reports',
+      title: 'Financial statements',
       onRefresh: () =>
           ref.refresh(financialReportsProvider((_period, _flow)).future),
       tabs: TabPills<_Statement>(

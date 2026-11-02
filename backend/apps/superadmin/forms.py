@@ -5,7 +5,7 @@ from django.utils.text import slugify
 
 from apps.billing.models import Coupon, Invoice, Payment, Plan, Subscription
 from apps.core.widgets import SearchableChoiceWidget, SearchableModelChoiceWidget
-from apps.organizations.models import Organization, ServiceStatusChange, SupportRequest
+from apps.organizations.models import Organization, OrganizationCategory, ServiceStatusChange, SupportRequest
 from apps.accounts.manager_pages import ORG_PAGE_CHOICES
 
 PROFILE_FIELDS = [
@@ -591,3 +591,93 @@ class SupportReplyForm(forms.ModelForm):
             "admin_reply": forms.Textarea(attrs={"rows": 6, "placeholder": "Write the answer the client will see"}),
         }
         labels = {"admin_reply": "Reply to client"}
+
+
+class OrganizationCategoryForm(forms.ModelForm):
+    """A code for a kind of organization (HOSP, MOBS, REST ...) and the features it turns on."""
+
+    class Meta:
+        model = OrganizationCategory
+        fields = ["code", "name", "barcode_scanning_enabled", "inventory_type", "notes", "is_active"]
+        widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
+        labels = {
+            "code": "Code",
+            "barcode_scanning_enabled": "Scanning, inventory and labels",
+            "inventory_type": "Inventory type",
+        }
+
+    levels_json = forms.CharField(widget=forms.HiddenInput, required=False)
+
+    def __init__(self, *args, env="default", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.env = env
+        _style(self.fields)
+        for name in ("barcode_scanning_enabled", "is_active"):
+            self.fields[name].widget.attrs.pop("class", None)
+        import json
+        from apps.organizations.levels import default_levels
+
+        self.initial["levels_json"] = json.dumps(self.instance.levels if self.instance.pk else default_levels())
+
+    def clean_levels_json(self):
+        import json
+
+        from django.core.exceptions import ValidationError
+
+        from apps.organizations.levels import clean_levels, default_levels
+
+        raw = (self.cleaned_data.get("levels_json") or "").strip()
+        if not raw:
+            self.cleaned_levels = self.instance.levels if self.instance.pk else default_levels()
+            return raw
+        try:
+            self.cleaned_levels = clean_levels(json.loads(raw))
+        except ValueError:
+            raise forms.ValidationError("The levels could not be read. Reload the page and try again.")
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages)
+        return raw
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.levels = getattr(self, "cleaned_levels", instance.levels)
+        if commit:
+            instance.save()
+        return instance
+
+    def clean_code(self):
+        import re
+
+        code = (self.cleaned_data["code"] or "").strip().upper()
+        if not re.fullmatch(r"[A-Z0-9]{2,12}", code):
+            raise forms.ValidationError("Use 2 to 12 letters or digits, e.g. HOSP.")
+        clash = OrganizationCategory.objects.using(self.env).filter(code=code).exclude(pk=self.instance.pk)
+        if clash.exists():
+            raise forms.ValidationError("That code is already used.")
+        return code
+
+    # The default unique check looks in the default database; this form checks the chosen
+    # environment itself in clean_code, so skip the model-level one.
+    def validate_unique(self):
+        return
+
+
+class ClientLevelsForm(forms.Form):
+    """Changes the category structure of one client (their code's structure is the starting point)."""
+
+    levels_json = forms.CharField(widget=forms.HiddenInput)
+
+    def clean_levels_json(self):
+        import json
+
+        from django.core.exceptions import ValidationError
+
+        from apps.organizations.levels import clean_levels
+
+        try:
+            self.levels = clean_levels(json.loads(self.cleaned_data["levels_json"]))
+        except ValueError:
+            raise forms.ValidationError("The levels could not be read. Reload the page and try again.")
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages)
+        return self.cleaned_data["levels_json"]

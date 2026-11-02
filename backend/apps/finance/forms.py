@@ -177,12 +177,6 @@ class ReferrerChoiceField(forms.ModelMultipleChoiceField):
         return _ledger_label(ledger)
 
 
-def _admission_label(bill) -> str:
-    """MRN - name - admission date, for the Admission (IP) picker."""
-    parts = [bill.mrn or bill.bill_number, bill.patient_name, bill.admission_date.strftime("%d %b %Y")]
-    return " - ".join(part for part in parts if part)
-
-
 class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, HistoricalWindowFormMixin, forms.ModelForm):
     category_field = "channel"
     amount_field = "gross_amount"
@@ -227,10 +221,16 @@ class SalesEntryForm(RequireCategoryMixin, ClearBankAccountUnlessBankMixin, Hist
         self.fields["customer"].required = False
         # Most recent admission first, so the patient just admitted is at the top.
         self.fields["kickback_bill"].queryset = KickbackEntry.objects.order_by("-admission_date", "-created_at")
-        self.fields["kickback_bill"].label_from_instance = _admission_label
+        # Each line is the organization's chosen fields in order (Finance
+        # settings), MRN - patient name - admission date by default.
+        label_fields = services.admission_label_fields()
+        self.fields["kickback_bill"].label_from_instance = lambda bill: services.admission_label(bill, label_fields)
         terms = patient_terms(get_current_organization())
         self.fields["kickback_bill"].empty_label = f"— Select {terms['record']} —"
         self.fields["kickback_bill"].label = terms["picker"]
+        # Long pickers: show 6 at a time and scroll the rest.
+        for name in ("channel", "subcategory", "bank_account", "kickback_bill"):
+            self.fields[name].widget.attrs["class"] = "sel-rows-6"
         self.fields["quantity"].required = False
         # Both fields carry a model-level default=0 (so a fresh SalesEntry
         # created without discount info still gets a sane gross/discount) —

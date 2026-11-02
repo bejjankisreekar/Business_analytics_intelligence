@@ -25,7 +25,7 @@ class Command(BaseCommand):
                 continue
 
             access_token = get_valid_access_token(connection)
-            added = add_missing_tabs(access_token, connection.external_file_id)
+            added = add_missing_tabs(access_token, connection.external_file_id, organization=org)
             if not added:
                 self.stdout.write(f"{org.name} ({org.organization_code}): already up to date")
                 continue

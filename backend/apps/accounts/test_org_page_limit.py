@@ -41,10 +41,10 @@ class OrganizationPageLimitTests(TestCase):
 
     def test_menu_shows_only_the_allowed_pages(self, *_):
         page = self.client_.get(reverse("finance:daily_report"))
-        for label in ("Daily Book", "Daily Performance", "Monthly Summary", "Customer Requests"):
+        for label in ("Day Book", "Daily Performance", "Category Summary", "Customer Requests"):
             self.assertContains(page, label)
         for label in ("Business Analytics", "Revenue Insights", "Cost Insights", "Cash Position", "Ledgers",
-                      "Financial Reports", "Category Statement"):
+                      "Financial Statements", "Category Statement"):
             self.assertNotContains(page, label)
         # No empty section headings are left behind.
         self.assertNotContains(page, 'app-nav-label">Overview<')

@@ -11,7 +11,7 @@ import '../../entries/models/entry_type.dart';
 import '../../reports/application/reports_providers.dart';
 import '../../reports/data/reports_repository.dart';
 
-/// Every category with its total and a per-period breakdown, like the web Monthly Summary.
+/// Every category with its total and a per-period breakdown, like the web Category Summary.
 class MonthlySummaryScreen extends ConsumerStatefulWidget {
   const MonthlySummaryScreen({super.key});
 
@@ -29,7 +29,7 @@ class _MonthlySummaryScreenState extends ConsumerState<MonthlySummaryScreen> {
   Widget build(BuildContext context) {
     final key = (_type.apiValue, _granularity, _period);
     return ReportPage(
-      title: 'Monthly summary',
+      title: 'Category summary',
       onRefresh: () => ref.refresh(monthlySummaryProvider(key).future),
       tabs: TabPills<EntryType>(
         selected: _type,

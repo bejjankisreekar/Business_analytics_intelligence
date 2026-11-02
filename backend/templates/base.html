@@ -123,6 +123,11 @@
      only fits ~4 once the search box takes its share). */
   .bai-select-panel--searchable { display: flex; flex-direction: column; overflow: hidden; padding: 0.5rem; max-height: 40rem; }
   .bai-select-panel--searchable .bai-select-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  /* "sel-rows-6" on the <select>: list shows exactly 6 options, rest scroll
+     (6 × option height of 0.55rem padding ×2 + ~1.25rem line). */
+  .bai-select-panel.sel-rows-6 { max-height: none; }
+  .bai-select-panel.sel-rows-6:not(.bai-select-panel--searchable),
+  .bai-select-panel.sel-rows-6 .bai-select-list { max-height: calc(6 * 2.35rem); overflow-y: auto; }
   .bai-select-search {
     display: block; flex: none; width: 100%; box-sizing: border-box;
     margin: 0 0 0.45rem; padding: 0.5rem 0.7rem; border-radius: 0.5rem; outline: none;
@@ -521,7 +526,8 @@
       wrap.appendChild(trigger);
 
       const panel = document.createElement("div");
-      panel.className = "bai-select-panel hidden" + (select.classList.contains("sel-wide") ? " sel-wide" : "");
+      // The select's own classes were moved onto `wrap` above.
+      panel.className = "bai-select-panel hidden" + (wrap.classList.contains("sel-wide") ? " sel-wide" : "") + (wrap.classList.contains("sel-rows-6") ? " sel-rows-6" : "");
       panel.setAttribute("role", "listbox");
       // Appended to <body>, not `wrap`: this select can sit inside a
       // horizontally-scrollable table (bulk entry) or other container, and

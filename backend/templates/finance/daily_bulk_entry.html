@@ -3,7 +3,7 @@
 {% block title %}Bulk Entry · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
-<a href="{% url 'finance:daily_report' %}?date={{ selected_date|date:'Y-m-d' }}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Daily Book</a>
+<a href="{% url 'finance:daily_report' %}?date={{ selected_date|date:'Y-m-d' }}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Back to Day Book</a>
 
 <div class="mt-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
   <div class="min-w-0 max-w-3xl">

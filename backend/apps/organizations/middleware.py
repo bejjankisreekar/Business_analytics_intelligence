@@ -59,7 +59,7 @@ class TenantSchemaMiddleware:
         # ModelForm's automatic per-FK-field querysets), and each of those
         # as a separate request cost roughly a second of Sheets API
         # latency on its own regardless of how little data it held.
-        session.prefetch(all_sheet_backed_tabs())
+        session.prefetch(all_sheet_backed_tabs(org))
         set_active_session(session)
 
     def __call__(self, request):

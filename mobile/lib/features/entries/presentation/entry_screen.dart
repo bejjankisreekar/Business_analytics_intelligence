@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/branded_refresh.dart';
 import '../../../app/providers.dart';
+import '../../../app/router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/utils/date_formatter.dart';
@@ -126,7 +128,18 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     final date = isoDate(_date);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('New entry')),
+      appBar: AppBar(
+        title: const Text('New entry'),
+        actions: [
+          if (ref.watch(entryOptionsProvider).valueOrNull?.barcodeScanningEnabled ??
+              false)
+            IconButton(
+              tooltip: 'Scan & bill',
+              icon: const Icon(Icons.qr_code_scanner),
+              onPressed: () => context.push(AppRoutes.scanBill),
+            ),
+        ],
+      ),
       body: BrandedRefresh(
         onRefresh: () async {
           ref.invalidate(entryOptionsProvider);

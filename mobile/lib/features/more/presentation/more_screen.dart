@@ -143,14 +143,14 @@ class MoreScreen extends ConsumerWidget {
             item(
               Icons.calendar_month_outlined,
               AppColors.brand,
-              'Daily book',
+              'Day book',
               'Entries recorded on any day',
               AppRoutes.dailyBook,
             ),
             item(
               Icons.grid_view_outlined,
               AppColors.accent,
-              'Monthly summary',
+              'Category summary',
               'The last 12 months, tap a month for its days',
               AppRoutes.monthlySummary,
             ),
@@ -164,7 +164,7 @@ class MoreScreen extends ConsumerWidget {
             item(
               Icons.receipt_long_outlined,
               AppColors.sale,
-              'Financial reports',
+              'Financial statements',
               'P&L, balance sheet, cash flow, GST',
               AppRoutes.financialReports,
             ),

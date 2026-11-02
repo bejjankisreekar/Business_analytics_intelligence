@@ -1,0 +1,114 @@
+{# Edits a category structure: 2 to 8 levels, each with a name and a "common" tick. Writes JSON into the hidden input `input_id`. #}
+<div class="lv-editor" data-input="{{ input_id }}" data-min="{{ level_limits.min }}" data-max="{{ level_limits.max }}">
+  <div class="lv-presets">
+    <label class="sa-field-label" for="{{ input_id }}-preset">Start from</label>
+    <select id="{{ input_id }}-preset" class="sa-input lv-preset">
+      <option value="">— Choose a preset —</option>
+      {% for p in level_presets %}<option value="{{ p.key }}">{{ p.label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="lv-rows" role="list"></div>
+  <div class="lv-foot">
+    <button type="button" class="sa-btn-ghost rounded px-3 py-1.5 text-xs font-semibold lv-add">+ Add a level</button>
+    <span class="lv-count text-[11px] text-slate-500"></span>
+  </div>
+  <p class="lv-preview"></p>
+  <p class="text-[11px] text-slate-500">Levels that are not common form the tree, top to bottom; the last one is the item itself. A common level is a separate shared list (such as Colour) that any item can optionally take a value from.</p>
+</div>
+{{ level_presets_data|json_script:"lv-presets-data" }}
+
+<style>
+  .lv-editor { display: grid; gap: 0.6rem; }
+  .lv-rows { display: grid; gap: 0.4rem; }
+  .lv-row { display: grid; grid-template-columns: 1.6rem 1fr auto auto; gap: 0.5rem; align-items: center; }
+  .lv-num { font-size: 0.7rem; color: #64748b; text-align: right; }
+  .lv-common { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: #cbd5e1; white-space: nowrap; }
+  .lv-remove { background: none; border: none; color: #f87171; font-size: 1.1rem; cursor: pointer; line-height: 1; }
+  .lv-remove:disabled { opacity: 0.3; cursor: not-allowed; }
+  .lv-foot { display: flex; align-items: center; gap: 0.75rem; }
+  .lv-preview { font-size: 0.8rem; color: #cbd5e1; }
+</style>
+
+<script>
+(function () {
+  var script = document.currentScript;
+  var editor = script.previousElementSibling && script.previousElementSibling.classList.contains("lv-editor")
+    ? script.previousElementSibling : null;
+  document.querySelectorAll(".lv-editor").forEach(function (box) {
+    if (box.dataset.ready) return;
+    box.dataset.ready = "1";
+    var input = document.getElementById(box.dataset.input);
+    var min = parseInt(box.dataset.min, 10), max = parseInt(box.dataset.max, 10);
+    var presets = JSON.parse(document.getElementById("lv-presets-data").textContent);
+    var rowsBox = box.querySelector(".lv-rows");
+    var levels;
+    try { levels = JSON.parse(input.value || "[]"); } catch (e) { levels = []; }
+    if (!Array.isArray(levels) || !levels.length) levels = presets.default.slice();
+
+    function sync() {
+      input.value = JSON.stringify(levels.map(function (l) { return { name: l.name.trim(), common: !!l.common }; }));
+      var tree = levels.filter(function (l) { return !l.common; }).map(function (l) { return l.name || "…"; });
+      var commons = levels.filter(function (l) { return l.common; }).map(function (l) { return l.name || "…"; });
+      box.querySelector(".lv-preview").textContent = tree.join("  ›  ") + (commons.length ? "   ·   common: " + commons.join(", ") : "");
+      box.querySelector(".lv-count").textContent = levels.length + " of " + max + " levels";
+      box.querySelector(".lv-add").disabled = levels.length >= max;
+      rowsBox.querySelectorAll(".lv-remove").forEach(function (b) { b.disabled = levels.length <= min; });
+    }
+
+    function render() {
+      rowsBox.textContent = "";
+      levels.forEach(function (level, index) {
+        var row = document.createElement("div");
+        row.className = "lv-row";
+        row.setAttribute("role", "listitem");
+        var num = document.createElement("span");
+        num.className = "lv-num";
+        num.textContent = String(index + 1);
+        var name = document.createElement("input");
+        name.type = "text";
+        name.maxLength = 40;
+        name.className = "sa-input";
+        name.value = level.name;
+        name.placeholder = "Level name";
+        name.addEventListener("input", function () { level.name = name.value; sync(); });
+        var commonLabel = document.createElement("label");
+        commonLabel.className = "lv-common";
+        var tick = document.createElement("input");
+        tick.type = "checkbox";
+        tick.checked = !!level.common;
+        tick.addEventListener("change", function () { level.common = tick.checked; sync(); });
+        commonLabel.appendChild(tick);
+        commonLabel.appendChild(document.createTextNode("Common"));
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "lv-remove";
+        remove.setAttribute("aria-label", "Remove level " + (index + 1));
+        remove.textContent = "×";
+        remove.addEventListener("click", function () {
+          if (levels.length <= min) return;
+          levels.splice(index, 1);
+          render();
+        });
+        [num, name, commonLabel, remove].forEach(function (n) { row.appendChild(n); });
+        rowsBox.appendChild(row);
+      });
+      sync();
+    }
+
+    box.querySelector(".lv-add").addEventListener("click", function () {
+      if (levels.length >= max) return;
+      levels.push({ name: "", common: false });
+      render();
+      var inputs = rowsBox.querySelectorAll("input[type=text]");
+      inputs[inputs.length - 1].focus();
+    });
+    box.querySelector(".lv-preset").addEventListener("change", function () {
+      if (!this.value || !presets[this.value]) return;
+      levels = presets[this.value].map(function (l) { return { name: l.name, common: !!l.common }; });
+      this.value = "";
+      render();
+    });
+    render();
+  });
+})();
+</script>

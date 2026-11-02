@@ -1,0 +1,46 @@
+{% extends "superadmin/_base.html" %}
+{% load superadmin_tags %}
+{% block title %}Org codes · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<div class="sa-page-head">
+  <div>
+    <p class="sa-eyebrow">{{ env_label }}</p>
+    <h1 class="mt-1">Org codes</h1>
+    <p class="sa-subtitle">One code for each kind of organization, such as HOSP for hospitals or MOBS for mobile shops. A code sets which extra features its clients get. Only you can see these codes; clients never do.</p>
+  </div>
+  <a href="{% url 'superadmin:org_category_create' env_key %}" class="sa-btn-solid px-3.5 py-2 text-xs">{% sa_icon "plus" "h-3.5 w-3.5" %} New code</a>
+</div>
+
+<div class="sa-card mt-6 overflow-x-auto">
+  <table class="sa-table w-full">
+    <thead>
+      <tr>
+        <th>Code</th>
+        <th>Kind of organization</th>
+        <th>Scanning, inventory &amp; labels</th>
+        <th>Inventory type</th>
+        <th class="text-right">Clients</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in categories %}
+      <tr {% if not c.is_active %}class="opacity-60"{% endif %}>
+        <td><span class="sa-mono font-semibold text-slate-100">{{ c.code }}</span></td>
+        <td>{{ c.name }}{% if c.notes %}<span class="block text-[11px] text-slate-500">{{ c.notes|truncatechars:80 }}</span>{% endif %}</td>
+        <td>{% if c.barcode_scanning_enabled %}<span class="sa-chip sa-chip--mint">On</span>{% else %}<span class="sa-chip">Off</span>{% endif %}</td>
+        <td>{{ c.get_inventory_type_display }}</td>
+        <td class="text-right tabular-nums">{{ c.client_count }}</td>
+        <td>{% if c.is_active %}<span class="sa-badge sa-badge--active"><span class="sa-dot"></span>Active</span>{% else %}<span class="sa-badge sa-badge--neutral">Inactive</span>{% endif %}</td>
+        <td class="text-right"><a href="{% url 'superadmin:org_category_edit' env_key c.pk %}" class="sa-link text-xs">Edit</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7"><div class="sa-empty"><p class="font-semibold text-slate-200">No codes yet</p><p>Add the first one, for example HOSP for hospitals.</p></div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="mt-3 text-xs text-slate-500">Give a client its code on the client's own page, under <strong>Organization code</strong>. Saving a code here applies its features to every client that has it.</p>
+{% endblock %}

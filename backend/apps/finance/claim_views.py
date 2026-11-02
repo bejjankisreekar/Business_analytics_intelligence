@@ -33,7 +33,7 @@ FILTER_OVERDUE = "overdue"
 
 
 def _book_revenue(claim, payment, email: str) -> None:
-    """Money received on a claim is revenue on the day it arrives: a Daily Book
+    """Money received on a claim is revenue on the day it arrives: a Day Book
     entry linked to the claim's bill, so the bill's received total follows.
     Deductions are not revenue and are not booked."""
     if payment.amount <= 0:
@@ -285,7 +285,17 @@ class InsuranceClaimDetailView(TenantLoginRequiredMixin, View):
         if not has_kickbacks_access(request):
             return redirect("finance:dashboard")
         claim = get_object_or_404(InsuranceClaim, pk=pk)
-        return _render_detail(request, claim, ClaimPaymentForm(claim=claim))
+        # A rejected payment comes back here via redirect with what was typed
+        # (see AddClaimPaymentView) — shown once, so a refresh starts clean.
+        rejected = request.session.pop(_rejected_payment_key(claim.pk), None)
+        form = ClaimPaymentForm(rejected, claim=claim) if rejected else ClaimPaymentForm(claim=claim)
+        if rejected:
+            form.is_valid()
+        return _render_detail(request, claim, form)
+
+
+def _rejected_payment_key(claim_pk) -> str:
+    return f"claim_payment_rejected:{claim_pk}"
 
 
 class AddClaimPaymentView(TenantLoginRequiredMixin, View):
@@ -296,7 +306,12 @@ class AddClaimPaymentView(TenantLoginRequiredMixin, View):
         form = ClaimPaymentForm(request.POST, claim=claim)
         if not form.is_valid():
             messages.error(request, "Payment not saved — see the message under the form.")
-            return _render_detail(request, claim, form)
+            # Redirect rather than render, so refreshing the page doesn't
+            # re-submit the same rejected payment.
+            data = request.POST.copy()
+            data.pop("csrfmiddlewaretoken", None)
+            request.session[_rejected_payment_key(claim.pk)] = data.dict()
+            return redirect("finance:claim_detail", pk=claim.pk)
         payment = form.save(commit=False)
         payment.claim = claim
         payment.save()
@@ -307,7 +322,7 @@ class AddClaimPaymentView(TenantLoginRequiredMixin, View):
 
 
 class AddPatientPaymentView(TenantLoginRequiredMixin, View):
-    """Money the patient pays towards their share. It goes to the Daily Book
+    """Money the patient pays towards their share. It goes to the Day Book
     as revenue on the claim's admission, and is not counted against the claim."""
 
     def post(self, request, pk, *args, **kwargs):
@@ -398,7 +413,7 @@ class InsuranceClaimsExcelView(TenantLoginRequiredMixin, View):
         claims, today = _export_claims(request)
         wb = Workbook()
         ws = wb.active
-        ws.title = "Insurance Claims"
+        ws.title = "Insurance & TPA Claims"
         ws.append(CLAIM_EXPORT_HEADERS)
         for cell in ws[1]:
             cell.font = Font(bold=True)

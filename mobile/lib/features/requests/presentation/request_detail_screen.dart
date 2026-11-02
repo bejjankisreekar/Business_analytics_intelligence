@@ -175,7 +175,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
         .read(requestsRepositoryProvider)
         .setPayment(widget.number, paid: paid, mode: _payMode),
     paid
-        ? 'Marked as paid and added to your Daily Book.'
+        ? 'Marked as paid and added to your Day Book.'
         : 'Marked as payment pending.',
   );
 
@@ -304,7 +304,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                 children: [
                   Text(
                     _paid
-                        ? 'Paid ${_req['paid_at'] == null ? '' : 'on ${_when(_req['paid_at'] as String)} '}by ${_req['payment_mode'] == 'BANK' ? 'online' : 'cash'}. Ready to deliver. The amount is in your Daily Book.'
+                        ? 'Paid ${_req['paid_at'] == null ? '' : 'on ${_when(_req['paid_at'] as String)} '}by ${_req['payment_mode'] == 'BANK' ? 'online' : 'cash'}. Ready to deliver. The amount is in your Day Book.'
                         : 'Waiting for $currency ${_req['total']}. Mark it paid once the customer has paid.',
                   ),
                   const SizedBox(height: 12),

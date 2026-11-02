@@ -54,6 +54,9 @@ class Category(SheetAwareModelMixin, models.Model):
         "GST rate %", max_digits=5, decimal_places=2, default=0,
         help_text="Applied to every sale/purchase logged under this category, for the GST Summary report.",
     )
+    # Printed as a label and scanned to pick this category on a bill. Generated if left blank.
+    # Appended last on purpose (Sheets column order).
+    barcode = models.CharField(max_length=64, blank=True)
 
     class Meta:
         base_manager_name = "objects"
@@ -90,6 +93,8 @@ class Subcategory(SheetAwareModelMixin, models.Model):
     )
     name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
+    # Printed as a label and scanned to pick this sub-category on a bill. Generated if left blank.
+    barcode = models.CharField(max_length=64, blank=True)
 
     class Meta:
         base_manager_name = "objects"
@@ -127,6 +132,97 @@ class Customer(SheetAwareModelMixin, models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class Product(SheetAwareModelMixin, models.Model):
+    """A stock item that can be scanned at the till or on a purchase bill.
+    `barcode` is what the scanner reads; `sale_price` and `purchase_price`
+    pre-fill each scanned line, and the line's price can still be changed
+    on the bill."""
+
+    objects = SheetAwareManager()
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    # The product's own EAN/UPC from its packet, or a generated code (see scan_billing.new_code).
+    barcode = models.CharField(max_length=64, blank=True)
+    name = models.CharField(max_length=150)
+    category = models.ForeignKey(
+        Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="products",
+        limit_choices_to={"kind": "PRODUCT"},
+    )
+    # Where the item sits in the tree, e.g. Mobiles > Vivo > V10: category above, sub-category here.
+    subcategory = models.ForeignKey(
+        Subcategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="products",
+    )
+    sale_price = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    purchase_price = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # For an organization that keeps clothes (or similar): what makes this item differ from the next.
+    brand = models.CharField(max_length=100, blank=True)
+    size = models.CharField(max_length=30, blank=True)
+    colour = models.CharField(max_length=50, blank=True)
+    ram = models.CharField("RAM", max_length=30, blank=True)
+    storage = models.CharField(max_length=30, blank=True)
+    extra_details = models.CharField("Other details", max_length=255, blank=True)
+    # Quantity on hand before the shop started using the app (for items not tracked phone by phone).
+    opening_stock = models.PositiveIntegerField(default=0)
+    # Values for common levels that have no column of their own, as JSON text: {"Fabric": "Cotton"}.
+    # (Colour, RAM, Storage, Size and Brand use their own columns above.)
+    common_values = models.TextField(blank=True)
+
+    class Meta:
+        base_manager_name = "objects"
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "barcode"], name="finance_product_org_barcode_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.barcode})"
+
+
+class StockUnit(SheetAwareModelMixin, models.Model):
+    """One physical phone (or other serialised item), recorded by its IMEI or serial number.
+    Bought with a purchase bill (IN_STOCK), and marked SOLD when a sale bill takes it."""
+
+    objects = SheetAwareManager()
+
+    class Status(models.TextChoices):
+        IN_STOCK = "IN_STOCK", "In stock"
+        SOLD = "SOLD", "Sold"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    product = models.ForeignKey(
+        "Product", on_delete=models.PROTECT, related_name="units",
+    )
+    serial = models.CharField(max_length=64, help_text="IMEI or serial number printed on the phone")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.IN_STOCK)
+    purchase_bill_no = models.CharField(max_length=40, blank=True)
+    purchase_date = models.DateField(null=True, blank=True)
+    sale_bill_no = models.CharField(max_length=40, blank=True)
+    sale_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # What the phone is, recorded when it is bought. Brand and model start from the item.
+    brand = models.CharField(max_length=100, blank=True)
+    model_name = models.CharField(max_length=150, blank=True)
+    colour = models.CharField(max_length=50, blank=True)
+    ram = models.CharField("RAM", max_length=30, blank=True)
+    storage = models.CharField(max_length=30, blank=True)
+    imei2 = models.CharField("Second IMEI", max_length=64, blank=True)
+    other_details = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        base_manager_name = "objects"
+        ordering = ["serial"]
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "serial"], name="finance_stockunit_org_serial_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.product.name} · {self.serial}"
 
 
 class Vendor(SheetAwareModelMixin, models.Model):
@@ -251,6 +347,11 @@ class SalesEntry(SheetAwareModelMixin, models.Model):
         "KickbackEntry", on_delete=models.SET_NULL, null=True, blank=True, related_name="received_sales",
         help_text="The kickback bill this receipt relates to (optional)",
     )
+    # Scan-and-bill: one row per scanned item, all rows of one bill share bill_no.
+    product = models.ForeignKey(
+        "Product", on_delete=models.SET_NULL, null=True, blank=True, related_name="sales_entries",
+    )
+    bill_no = models.CharField(max_length=40, blank=True)
 
     class Meta:
         base_manager_name = "objects"
@@ -276,6 +377,10 @@ class SalesEntry(SheetAwareModelMixin, models.Model):
             self.amount = self.gross_amount - self.discount
         elif self.amount:
             self.gross_amount = self.amount
+        elif self.amount is None:
+            # Gross typed as 0 (e.g. a free OPD visit) and no amount set:
+            # neither branch above runs, so record 0 rather than no amount.
+            self.amount = (self.gross_amount or 0) - self.discount
         previous_bill_id = None
         if self.pk:
             previous = SalesEntry.objects.filter(pk=self.pk).first()
@@ -284,7 +389,7 @@ class SalesEntry(SheetAwareModelMixin, models.Model):
         for bill_id in {previous_bill_id, self.kickback_bill_id}:
             sync_kickback_received(bill_id)
         # A claim payment booked from this entry follows its amount and date, so
-        # a change made in the Daily Book shows on the claim.
+        # a change made in the Day Book shows on the claim.
         for payment in ClaimPayment.objects.filter(sales_entry_id=self.pk):
             if payment.amount != self.amount or payment.date != self.date:
                 payment.amount = self.amount
@@ -354,7 +459,7 @@ class ExpenseEntry(SheetAwareModelMixin, models.Model):
 
 
 def sync_kickback_total(bill_id) -> None:
-    """A bill's kickback is whatever the Daily Book expenses linked to it add up to."""
+    """A bill's kickback is whatever the Day Book expenses linked to it add up to."""
     if not bill_id:
         return
     bill = KickbackEntry.objects.filter(pk=bill_id).first()
@@ -392,6 +497,11 @@ class PurchaseEntry(SheetAwareModelMixin, models.Model):
     note = models.CharField(max_length=255, blank=True)
     created_by_email = models.CharField(max_length=254, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Scan-and-bill: one row per scanned item, all rows of one bill share bill_no.
+    product = models.ForeignKey(
+        "Product", on_delete=models.SET_NULL, null=True, blank=True, related_name="purchase_entries",
+    )
+    bill_no = models.CharField(max_length=40, blank=True)
 
     class Meta:
         base_manager_name = "objects"
@@ -639,6 +749,10 @@ class FinanceSettings(SheetAwareModelMixin, models.Model):
     # in the imported revenue file holds each field, remembered for next time.
     # Text, same as the column-label settings above. Appended last on purpose.
     sales_import_mapping = models.TextField(blank=True, default="")
+    # Comma-separated KickbackEntry fields, in order, that make up each line of
+    # the Admission (IP) picker, e.g. "mrn,patient_name,admission_date".
+    # Blank = the default. Appended last on purpose (Sheets column order).
+    admission_label_fields = models.TextField(blank=True, default="")
 
     class Meta:
         base_manager_name = "objects"
@@ -737,7 +851,7 @@ class KickbackEntry(SheetAwareModelMixin, models.Model):
 
 def sync_kickback_received(bill_id) -> None:
     """A bill's received total, last paid date and final amount all come from
-    the Daily Book revenue entries linked to it. The final amount is the total
+    the Day Book revenue entries linked to it. The final amount is the total
     of those entries; it is not typed in on the bill."""
     if not bill_id:
         return
@@ -861,7 +975,7 @@ class ClaimPayment(SheetAwareModelMixin, models.Model):
     reference = models.CharField("UTR / cheque no.", max_length=60, blank=True)
     note = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    # The Daily Book revenue entry this money was booked as. Created with the
+    # The Day Book revenue entry this money was booked as. Created with the
     # payment and removed with it. Appended last on purpose (Sheets column order).
     sales_entry = models.ForeignKey(
         SalesEntry, on_delete=models.SET_NULL, null=True, blank=True, related_name="claim_payments",
@@ -953,3 +1067,26 @@ class LedgerEntry(SheetAwareModelMixin, models.Model):
 
     def __str__(self) -> str:
         return f"{self.ledger} {self.date} — Dr {self.debit} / Cr {self.credit}"
+
+
+class CommonOption(SheetAwareModelMixin, models.Model):
+    """One value in a shared list for a common level, e.g. "Black" for the Colour level. The list
+    is the same for every group of items, and any item may take a value from it or none."""
+
+    objects = SheetAwareManager()
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="+")
+    level = models.CharField(max_length=40, help_text="The name of the common level, e.g. Colour.")
+    value = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        base_manager_name = "objects"
+        ordering = ["level", "value"]
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "level", "value"], name="finance_commonoption_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.level}: {self.value}"

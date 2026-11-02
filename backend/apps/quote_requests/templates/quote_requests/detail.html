@@ -92,10 +92,10 @@
       {% if req.payment_status == 'PAID' %}
         <span class="qr-badge qr-badge--quoted" style="margin-left:.4rem">Paid</span>
         <p class="qr-muted" style="margin:.35rem 0 0">Received {{ req.paid_at|date:"d M Y, H:i" }}{% if req.payment_mode %} · {% if req.payment_mode == 'BANK' %}Online{% else %}Cash{% endif %}{% endif %} · <b>Ready to deliver</b></p>
-        {% if req.sales_entry_id %}<p class="qr-muted" style="margin:.35rem 0 0">Added to your Daily Book as a sale. <a href="{% url 'finance:daily_report' %}" style="text-decoration:underline">View Daily Book</a></p>{% endif %}
+        {% if req.sales_entry_id %}<p class="qr-muted" style="margin:.35rem 0 0">Added to your Day Book as a sale. <a href="{% url 'finance:daily_report' %}" style="text-decoration:underline">View Day Book</a></p>{% endif %}
       {% else %}
         <span class="qr-badge qr-badge--pending" style="margin-left:.4rem">Pending</span>
-        <p class="qr-muted" style="margin:.35rem 0 0">Waiting for {{ organization.currency }} <b>{{ req.total|floatformat:2 }}</b>. Once the customer has paid, mark it here. The amount is added to your Daily Book as a sale.</p>
+        <p class="qr-muted" style="margin:.35rem 0 0">Waiting for {{ organization.currency }} <b>{{ req.total|floatformat:2 }}</b>. Once the customer has paid, mark it here. The amount is added to your Day Book as a sale.</p>
       {% endif %}
     </div>
     <form method="post" action="{% url 'quote_requests:payment' req.number %}">

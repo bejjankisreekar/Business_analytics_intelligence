@@ -155,7 +155,7 @@ class SheetSession:
             from .provisioning import add_missing_tabs
 
             try:
-                added = add_missing_tabs(self.access_token, self.spreadsheet_id)
+                added = add_missing_tabs(self.access_token, self.spreadsheet_id, only=still_missing)
                 results = client.batch_get_values(self.access_token, spreadsheet_id=self.spreadsheet_id, a1_ranges=ranges)
             except client.SheetsAPIError:
                 logger.exception("Sheets prefetch failed; falling back to per-tab loads")

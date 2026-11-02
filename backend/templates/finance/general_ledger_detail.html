@@ -61,7 +61,7 @@
       {% for row in rows %}
       <tr>
         <td class="py-2.5 pr-4 text-slate-400">{{ row.date|date:"d M Y" }}</td>
-        <td class="py-2.5 pr-4 text-slate-200">{{ row.particular|default:"—" }}{% if not row.entry %} <span class="ml-1 rounded-md bg-brand-500/15 px-1.5 py-0.5 text-[11px] font-medium text-brand-400">Daily Book</span>{% endif %}</td>
+        <td class="py-2.5 pr-4 text-slate-200">{{ row.particular|default:"—" }}{% if not row.entry %} <span class="ml-1 rounded-md bg-brand-500/15 px-1.5 py-0.5 text-[11px] font-medium text-brand-400">Day Book</span>{% endif %}</td>
         <td class="py-2.5 pr-4 text-right text-slate-300">{% if row.debit %}{{ organization.currency }} {{ row.debit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
         <td class="py-2.5 pr-4 text-right text-slate-300">{% if row.credit %}{{ organization.currency }} {{ row.credit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
         <td class="py-2.5 pr-4 text-right font-medium {% if row.balance < 0 %}text-red-400{% else %}text-slate-200{% endif %}">{{ organization.currency }} {{ row.balance|floatformat:0|intcomma }}</td>
@@ -72,7 +72,7 @@
             <button type="submit" class="text-xs font-medium text-red-400 hover:text-red-300">Delete</button>
           </form>
           {% else %}
-          <a href="{% url 'finance:daily_report' %}?date={{ row.date|date:'Y-m-d' }}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Open in Daily Book</a>
+          <a href="{% url 'finance:daily_report' %}?date={{ row.date|date:'Y-m-d' }}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Open in Day Book</a>
           {% endif %}
         </td>
       </tr>

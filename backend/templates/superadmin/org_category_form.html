@@ -1,0 +1,70 @@
+{% extends "superadmin/_base.html" %}
+{% block title %}{% if mode == "create" %}New code{% else %}Edit {{ category.code }}{% endif %} · {{ env_label }}{% endblock %}
+
+{% block sa_content %}
+<a href="{% url 'superadmin:org_category_list' env_key %}" class="sa-crumb">← {{ env_label }} org codes</a>
+<h1 class="mt-3 text-xl font-bold text-slate-100">{% if mode == "create" %}New code{% else %}Edit {{ category.code }}{% endif %}</h1>
+
+{% if form.non_field_errors %}
+<div class="mt-4 rounded border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+  {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+</div>
+{% endif %}
+
+<form method="post" class="sa-card mt-4 max-w-3xl p-5">
+  {% csrf_token %}
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div>
+      <label class="sa-field-label" for="{{ form.code.id_for_label }}">{{ form.code.label }}</label>
+      {{ form.code }}
+      <p class="mt-1 text-[11px] text-slate-600">2 to 12 letters or digits, e.g. HOSP.</p>
+      {% for e in form.code.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    <div class="sm:col-span-2">
+      <label class="sa-field-label" for="{{ form.name.id_for_label }}">Kind of organization</label>
+      {{ form.name }}
+      {% for e in form.name.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    </div>
+  </div>
+
+  <div class="mt-5 rounded border border-white/5 bg-white/[0.02] p-4">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">What this code turns on</h2>
+    <label class="mt-3 flex items-center gap-2 text-sm text-slate-300" for="{{ form.barcode_scanning_enabled.id_for_label }}">
+      {{ form.barcode_scanning_enabled }} Scan &amp; Bill, the camera scanner, inventory, labels and phone stock
+    </label>
+    <div class="mt-3 max-w-md">
+      <label class="sa-field-label" for="{{ form.inventory_type.id_for_label }}">Inventory type</label>
+      {{ form.inventory_type }}
+      <p class="mt-1 text-[11px] text-slate-600">Mobiles tracks each phone by IMEI. Clothes records brand, size and colour. Others keeps plain items and quantities. Only used when scanning is on.</p>
+    </div>
+  </div>
+
+  <div class="mt-5 rounded border border-white/5 bg-white/[0.02] p-4">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Category levels</h2>
+    <p class="mt-1 mb-3 text-[11px] text-slate-500">How deep the categories go for these clients, 3 by default, up to 8. Name each level, and tick Common for shared lists such as Colour, RAM or Storage.</p>
+    {{ form.levels_json }}
+    {% for e in form.levels_json.errors %}<p class="sa-errorlist">{{ e }}</p>{% endfor %}
+    {% include "superadmin/_levels_editor.html" with input_id=form.levels_json.id_for_label %}
+  </div>
+
+  <div class="mt-4">
+    <label class="sa-field-label" for="{{ form.notes.id_for_label }}">Notes (only you see these)</label>
+    {{ form.notes }}
+  </div>
+
+  <label class="mt-4 flex items-center gap-2 text-sm text-slate-300" for="{{ form.is_active.id_for_label }}">
+    {{ form.is_active }} Active (can be given to clients)
+  </label>
+
+  {% if mode == "edit" %}
+  <p class="mt-4 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+    Saving applies these features to the {{ clients }} client{{ clients|pluralize }} that already {{ clients|pluralize:"has,have" }} this code.
+  </p>
+  {% endif %}
+
+  <div class="mt-5 flex justify-end gap-2">
+    <a href="{% url 'superadmin:org_category_list' env_key %}" class="sa-btn-ghost rounded px-4 py-2 text-xs font-semibold">Cancel</a>
+    <button type="submit" class="sa-btn-primary px-4 py-2 text-xs">{% if mode == "create" %}Create code{% else %}Save{% endif %}</button>
+  </div>
+</form>
+{% endblock %}

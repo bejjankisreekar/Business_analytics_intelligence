@@ -244,9 +244,9 @@ class PaymentView(OwnerAccessMixin, View):
             messages.error(request, str(exc))
             return redirect("quote_requests:detail", number=number)
         if paid:
-            messages.success(request, "Marked as paid and added to your Daily Book as a sale. This order can be delivered.")
+            messages.success(request, "Marked as paid and added to your Day Book as a sale. This order can be delivered.")
         else:
-            messages.success(request, "Marked as payment pending. The sale was removed from your Daily Book.")
+            messages.success(request, "Marked as payment pending. The sale was removed from your Day Book.")
         return redirect("quote_requests:detail", number=number)
 
 

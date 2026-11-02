@@ -2,6 +2,8 @@ import uuid
 
 from django.db import models
 
+from .levels import default_levels
+
 
 class Organization(models.Model):
     """A tenant. Its own record (this row) lives in our shared Postgres
@@ -131,6 +133,30 @@ class Organization(models.Model):
         help_text="Fixed date before which this org may not backdate a sales/purchase/expense "
                    "entry. Blank = use the plan's rolling default. Ignored when "
                    "'No backdating limit' is checked. Superadmin-only.",
+    )
+    class InventoryType(models.TextChoices):
+        # What kind of stock this organization keeps, which decides what is recorded per item.
+        MOBILES = "MOBILES", "Mobiles (each phone tracked by IMEI)"
+        CLOTHES = "CLOTHES", "Clothes (brand, size, colour)"
+        OTHER = "OTHER", "Others (plain items and quantities)"
+
+    # Barcode scanning in Sales/Purchase entry (Scan & Bill, web and mobile).
+    # Off for every org until a superadmin turns it on for that org.
+    barcode_scanning_enabled = models.BooleanField(
+        default=False,
+        help_text="Lets this org scan product barcodes into sales and purchase bills. Superadmin-only.",
+    )
+    inventory_type = models.CharField(
+        max_length=10, choices=InventoryType.choices, default=InventoryType.OTHER,
+        help_text="What this org's stock is: mobiles, clothes or others. Superadmin-only.",
+    )
+    # How many category levels this org uses and what each is called (see apps.organizations.levels).
+    # Set by a superadmin from the org's code; can be changed for one org. Never edited by the org.
+    levels = models.JSONField(default=default_levels, blank=True)
+    # The code a superadmin gave this kind of organization (HOSP, MOBS, ...). Never shown to the org.
+    category = models.ForeignKey(
+        "OrganizationCategory", on_delete=models.SET_NULL, null=True, blank=True, related_name="organizations",
+        help_text="The code that sets this org's extra features. Superadmin-only.",
     )
     historical_entry_no_limit = models.BooleanField(
         default=False,
@@ -419,3 +445,44 @@ class SupportRequest(models.Model):
 
     def __str__(self) -> str:
         return f"{self.organization_id}: {self.subject}"
+
+
+
+class OrganizationCategory(models.Model):
+    """A code a superadmin gives to a kind of organization: HOSP for hospitals, MOBS for mobile
+    shops, REST for restaurants. The code decides which extra features that kind of organization
+    gets, so a mobile shop can have scanning and phone details while a hospital has neither.
+
+    Only a superadmin sees or changes these codes. They are never sent to an organization's
+    own pages or to the phone app, so an organization cannot tell its code or change it.
+    """
+
+    code = models.CharField(max_length=12, unique=True, help_text="Short code, letters and digits, e.g. HOSP.")
+    name = models.CharField(max_length=100, help_text="What this kind of organization is, e.g. Hospitals.")
+    barcode_scanning_enabled = models.BooleanField(
+        default=False,
+        help_text="Scan & Bill, the camera scanner, inventory, labels and phone stock for these organizations.",
+    )
+    inventory_type = models.CharField(
+        max_length=10, choices=Organization.InventoryType.choices, default=Organization.InventoryType.OTHER,
+        help_text="What these organizations keep in stock, which decides what is recorded for each item.",
+    )
+    levels = models.JSONField(
+        default=default_levels, blank=True,
+        help_text="The category levels these organizations use, 2 to 8, each with a name and whether it is common.",
+    )
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["code"]
+        verbose_name_plural = "Organization categories"
+
+    def __str__(self) -> str:
+        return f"{self.code} · {self.name}"
+
+    def save(self, *args, **kwargs):
+        self.code = (self.code or "").strip().upper()
+        super().save(*args, **kwargs)

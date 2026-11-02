@@ -37,7 +37,8 @@ class LoginForm(forms.Form):
                 if by_username is not None:
                     email = by_username.email
             user = authenticate(email=email, password=password)
-            if user is None:
+            # A removed client (organization deleted by superadmin) reads as unknown credentials.
+            if user is None or (user.organization_id and not user.organization.is_active):
                 raise forms.ValidationError("Incorrect email or password.")
             if not user.is_active:
                 raise forms.ValidationError("This account has been deactivated.")
@@ -350,7 +351,7 @@ class CreateManagerAccountForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Unbound form only: start with the Daily Book ticked.
+        # Unbound form only: start with the Day Book ticked.
         self.fields["pages"].initial = list(DEFAULT_MANAGER_PAGES)
 
     def clean(self):

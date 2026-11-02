@@ -5,7 +5,8 @@
 {% block app_content %}
 <div class="se-page">
   <div class="se-topbar">
-    <a href="{% url 'finance:daily_report' %}?date={{ selected_date|date:'Y-m-d' }}" class="se-back">← Daily Book</a>
+    <a href="{% url 'finance:daily_report' %}?date={{ selected_date|date:'Y-m-d' }}" class="se-back">← Day Book</a>
+    {% if kind != "expense" and organization.barcode_scanning_enabled %}<a href="{% url 'finance:scan_bill' %}?type={{ kind }}" class="se-bulk-link">Scan &amp; Bill →</a>{% endif %}
     <a href="{{ bulk_url }}" class="se-bulk-link">Bulk Entry →</a>
   </div>
 
@@ -38,7 +39,12 @@
             <span>{{ field.label }}{% if field.help_text %} <small>{{ field.help_text }}</small>{% endif %}</span>
           </label>
           {% else %}
-          {% if field.name != "note" %}<label for="{{ field.id_for_label }}" class="se-label">{{ field.label }}</label>{% endif %}
+          {% if field.name == "kickback_bill" and kind == "sale" %}
+          <div class="se-label-row">
+            <label for="{{ field.id_for_label }}" class="se-label">{{ field.label }}</label>
+            <button type="button" class="se-info" id="se-admission-info" aria-haspopup="dialog" title="Shown as: {{ admission_label.summary }} · click to change">i</button>
+          </div>
+          {% elif field.name != "note" %}<label for="{{ field.id_for_label }}" class="se-label">{{ field.label }}</label>{% endif %}
           {{ field }}
           {% endif %}
           {% for error in field.errors %}<p class="se-error">{{ error }}</p>{% endfor %}
@@ -78,6 +84,42 @@
       {% endif %}
     </aside>
   </div>
+
+  {% if kind == "sale" %}
+  {% comment %}Outside #se-form: forms can't nest. Plain selects, since an enhanced
+     select's panel lives on <body> and would sit under the modal.{% endcomment %}
+  <dialog class="se-dialog" id="se-admission-dialog" aria-labelledby="se-admission-dialog-title">
+    <form method="post" action="{% url 'finance:admission_label_fields' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <h2 id="se-admission-dialog-title" class="text-base font-semibold text-white">Admission (IP) list</h2>
+      <p class="mt-1 text-xs text-slate-400">Each admission in the list is shown as:</p>
+      <p class="se-dialog-now" id="se-admission-preview">{{ admission_label.summary }}</p>
+      <p class="mt-3 text-xs text-slate-400">Pick what to show, in order. Leave a position on “—” to skip it.</p>
+      <div class="se-dialog-slots">
+        {% for selected in admission_label.slots %}
+        <label class="se-dialog-slot">
+          <span class="se-label">{{ forloop.counter }}{% if forloop.counter == 1 %}st{% elif forloop.counter == 2 %}nd{% elif forloop.counter == 3 %}rd{% else %}th{% endif %}</span>
+          <select name="field" data-plain class="se-dialog-select">
+            <option value="">—</option>
+            {% for key, text in admission_label.choices %}
+            <option value="{{ key }}"{% if key == selected %} selected{% endif %}>{{ text }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="se-error hidden" id="se-admission-dup">Each detail can only be used once.</p>
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <button type="submit" name="reset" value="1" class="text-xs font-medium text-slate-400 hover:text-white">Reset to default</button>
+        <div class="flex gap-2">
+          <button type="button" class="se-bulk-link" id="se-admission-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="se-admission-save">Save</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+  {% endif %}
 </div>
 {% endblock %}
 
@@ -118,6 +160,15 @@
   .se-check small { font-size: 0.7rem; font-weight: 400; color: #64748b; }
   .se-net { display: flex; align-items: center; height: 2.4rem; border-radius: 0.5rem; background: rgba(255,255,255,0.03); padding: 0 0.75rem; }
   .se-net-value { font-size: 1rem; font-weight: 700; color: #fff; }
+  .se-label-row { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.2rem; }
+  .se-label-row .se-label { margin-bottom: 0; }
+  .se-info { display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: 1rem; border-radius: 9999px; border: 1px solid rgba(148,163,184,0.5); font: italic 600 0.65rem/1 Georgia, serif; color: #94a3b8; cursor: pointer; }
+  .se-info:hover, .se-info:focus-visible { border-color: #5b7cfa; color: #fff; background: rgba(91,124,250,0.25); outline: none; }
+  .se-dialog { width: min(28rem, calc(100vw - 2rem)); border-radius: 0.875rem; border: 1px solid rgba(255,255,255,0.1); background: #111627; color: #e2e8f0; padding: 1.1rem; }
+  .se-dialog::backdrop { background: rgba(2,6,23,0.6); }
+  .se-dialog-now { margin-top: 0.35rem; border-radius: 0.5rem; background: rgba(91,124,250,0.12); padding: 0.5rem 0.7rem; font-size: 0.85rem; font-weight: 600; color: #fff; }
+  .se-dialog-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin-top: 0.5rem; }
+  .se-dialog .se-dialog-select { width: 100%; height: 2.4rem; margin: 0; padding: 0 2rem 0 0.7rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.12); background-color: #0b1020; background-repeat: no-repeat; background-position: right 0.6rem center; background-size: 1rem; font-size: 0.85rem; color: #e2e8f0; }
   .se-list { display: flex; flex-direction: column; }
   .se-list-items { max-height: 17rem; overflow-y: auto; margin-top: 0.5rem; }
 
@@ -152,6 +203,12 @@
   html[data-theme="light"] .se-check small { color: #64748b; }
   html[data-theme="light"] .se-net { background: rgba(15,23,42,0.035); }
   html[data-theme="light"] .se-net-value { color: #0f172a; }
+  html[data-theme="light"] .se-info { border-color: rgba(71,85,105,0.45); color: #475569; }
+  html[data-theme="light"] .se-info:hover { color: #1e3a8a; background: rgba(67,97,238,0.12); }
+  html[data-theme="light"] .se-dialog { border-color: rgba(15,23,42,0.1); background: #ffffff; color: #0f172a; }
+  html[data-theme="light"] .se-dialog h2 { color: #0f172a; }
+  html[data-theme="light"] .se-dialog .se-dialog-select { border-color: rgba(15,23,42,0.16); background-color: #ffffff; color: #0f172a; }
+  html[data-theme="light"] .se-dialog-now { background: rgba(67,97,238,0.08); color: #1e3a8a; }
 
 </style>
 <script>
@@ -170,7 +227,8 @@
       subEl.add(new Option("None", ""));
       parents.forEach((p) => {
         subEl.add(new Option(p.name, p.id));
-        p.children.forEach((c) => subEl.add(new Option("   ↳ " + c.name, c.id)));
+        // Non-breaking spaces: ordinary ones collapse, so items wouldn't indent.
+        p.children.forEach((c) => subEl.add(new Option("      ↳ " + c.name, c.id)));
       });
       subEl.value = keep || "";
     };
@@ -203,6 +261,28 @@
     };
     mainEl.addEventListener("change", syncAdmission);
     syncAdmission();
+
+    // ⓘ next to Admission (IP): show and change what each line is made of.
+    const infoBtn = document.getElementById("se-admission-info");
+    const dialog = document.getElementById("se-admission-dialog");
+    if (infoBtn && dialog) {
+      const selects = Array.from(dialog.querySelectorAll("select[name=field]"));
+      const preview = document.getElementById("se-admission-preview");
+      const dup = document.getElementById("se-admission-dup");
+      const save = document.getElementById("se-admission-save");
+      const refresh = () => {
+        const picked = selects.filter((s) => s.value);
+        const keys = picked.map((s) => s.value);
+        const repeated = new Set(keys).size !== keys.length;
+        preview.textContent = picked.map((s) => s.options[s.selectedIndex].text).join(" - ") || "—";
+        dup.classList.toggle("hidden", !repeated);
+        save.disabled = repeated || !picked.length;
+      };
+      selects.forEach((s) => s.addEventListener("change", refresh));
+      infoBtn.addEventListener("click", () => { refresh(); dialog.showModal(); });
+      document.getElementById("se-admission-cancel").addEventListener("click", () => dialog.close());
+      dialog.addEventListener("click", (e) => { if (e.target === dialog) dialog.close(); });
+    }
 
     // Live net for revenue: gross minus discount.
     const grossEl = document.getElementById("id_gross_amount");

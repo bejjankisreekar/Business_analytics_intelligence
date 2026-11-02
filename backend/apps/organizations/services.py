@@ -140,3 +140,26 @@ def delete_organization_and_tenant(org: Organization, using: str = "default") ->
         # finance rows cascade away with the Organization row below —
         # that data genuinely is ours to manage.
         org.delete(using=using)
+
+
+def apply_category(org, category, *, using: str = "default") -> None:
+    """Gives `org` this code and the features it stands for (scanning and inventory type).
+    Passing None removes the code and leaves the features as they are."""
+    org.category = category
+    fields = ["category"]
+    if category is not None:
+        org.barcode_scanning_enabled = category.barcode_scanning_enabled
+        org.inventory_type = category.inventory_type
+        org.levels = category.levels
+        fields += ["barcode_scanning_enabled", "inventory_type", "levels"]
+    org.save(using=using, update_fields=fields)
+
+
+def sync_category(category, *, using: str = "default") -> int:
+    """Applies the code's current features to every organization that has the code.
+    Returns how many organizations it updated."""
+    count = 0
+    for org in Organization.objects.using(using).filter(category=category):
+        apply_category(org, category, using=using)
+        count += 1
+    return count

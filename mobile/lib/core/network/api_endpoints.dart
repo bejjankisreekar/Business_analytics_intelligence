@@ -11,6 +11,15 @@ class ApiEndpoints {
   static const cashPosition = 'cash-position/';
   static const entryOptions = 'entry-options/';
   static const entries = 'entries/';
+  static const productLookup = 'products/lookup/';
+  static const products = 'products/';
+  static const bills = 'bills/';
+  static const labelsPdf = 'labels/pdf/';
+  static const productSearch = 'products/search/';
+  static const stock = 'stock/';
+  static const inventory = 'inventory/';
+
+  static String productEdit(String id) => 'products/$id/';
   static const financialReports = 'financial-reports/';
   static const bankAccounts = 'bank-accounts/';
   static const vendors = 'vendors/';

@@ -35,7 +35,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   Widget build(BuildContext context) {
     final date = isoDate(_date);
     return Scaffold(
-      appBar: AppBar(title: const Text('Daily book')),
+      appBar: AppBar(title: const Text('Day book')),
       body: BrandedRefresh(
         onRefresh: () async => ref.invalidate(dayEntriesProvider(date)),
         child: ListView(

@@ -21,6 +21,9 @@ import '../features/auth/application/session_controller.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/entries/presentation/entry_screen.dart';
+import '../features/scan_bill/presentation/barcode_labels_screen.dart';
+import '../features/scan_bill/presentation/scan_bill_screen.dart';
+import '../features/scan_bill/presentation/stock_screen.dart';
 import '../features/history/presentation/history_screen.dart';
 import '../features/requests/presentation/request_detail_screen.dart';
 import '../features/requests/presentation/requests_screen.dart';
@@ -40,6 +43,9 @@ abstract final class AppRoutes {
   static const monthlySummary = '/monthly-summary';
   static const cashPosition = '/cash-position';
   static const entries = '/entries';
+  static const scanBill = '/scan-bill';
+  static const barcodeLabels = '/barcode-labels';
+  static const stock = '/phone-stock';
   static const financialReports = '/financial-reports';
   static const bankAccounts = '/bank-accounts';
   static const vendors = '/vendors';
@@ -132,6 +138,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const CashPositionScreen(),
       ),
       GoRoute(path: AppRoutes.entries, builder: (_, _) => const EntryScreen()),
+      GoRoute(path: AppRoutes.stock, builder: (_, _) => const StockScreen()),
+      GoRoute(
+        path: AppRoutes.barcodeLabels,
+        builder: (_, _) => const BarcodeLabelsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.scanBill,
+        builder: (_, state) => ScanBillScreen(
+          openCamera: state.uri.queryParameters['camera'] == '1',
+        ),
+      ),
       GoRoute(
         path: AppRoutes.financialReports,
         builder: (_, _) => const FinancialReportsScreen(),

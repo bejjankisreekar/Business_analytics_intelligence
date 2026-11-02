@@ -1,7 +1,7 @@
 {% extends "finance/pdf/_base_pdf.html" %}
 {% load humanize %}
 {% block page_size %}A4 landscape{% endblock %}
-{% block subtitle %}Monthly Summary · {{ kind_label }} · {{ period.label }} ({{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}){% endblock %}
+{% block subtitle %}Category Summary · {{ kind_label }} · {{ period.label }} ({{ period.start|date:"d M Y" }} – {{ period.end|date:"d M Y" }}){% endblock %}
 {% block statement %}
 <p class="muted" style="margin-top:2px;">
   vs {{ yoy.prior_start|date:"d M Y" }} – {{ yoy.prior_end|date:"d M Y" }} (same period last year):

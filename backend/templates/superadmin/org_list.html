@@ -135,6 +135,8 @@
           </td>
           <td data-label="Storage">
             {% if org.storage_mode == "GOOGLE_SHEETS" %}<span class="sa-chip sa-chip--blue">Sheets</span>{% else %}<span class="sa-chip sa-chip--mint">Our DB</span>{% endif %}
+            {% if org.category %}<span class="sa-chip sa-chip--violet mt-1 block w-fit sa-mono" title="{{ org.category.name }}">{{ org.category.code }}</span>{% endif %}
+            {% if org.barcode_scanning_enabled %}<span class="sa-chip sa-chip--violet mt-1 block w-fit" title="Barcode scanning, inventory and labels are switched on for this client">Scan on · {{ org.get_inventory_type_display|truncatechars:9 }}</span>{% endif %}
           </td>
           <td data-label="Health">{% sa_health org.health %}
             {% if org.health.reasons %}<span class="mt-1 block max-w-[14rem] truncate text-[11px] text-slate-500" title="{{ org.health.reasons|join:'; ' }}">{{ org.health.reasons.0 }}</span>{% endif %}

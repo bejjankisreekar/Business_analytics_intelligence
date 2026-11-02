@@ -6,6 +6,7 @@ import '../../../app/router.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/report_blueprint.dart';
 import '../../../shared/widgets/report_widgets.dart';
+import '../../entries/application/entries_providers.dart';
 import '../../reports/application/reports_providers.dart';
 import '../../reports/data/reports_repository.dart';
 
@@ -52,8 +53,26 @@ class _DailyPerformanceScreenState
     final key = (isoDate(_range.start), isoDate(_range.end));
     final result = ref.watch(dailyPerformanceProvider(key));
 
+    final scanEnabled =
+        ref.watch(entryOptionsProvider).valueOrNull?.barcodeScanningEnabled ??
+        false;
+
     return ReportPage(
       title: 'Daily performance',
+      actions: [
+        if (scanEnabled)
+          IconButton(
+            tooltip: 'Inventory & stock',
+            icon: const Icon(Icons.inventory_2_outlined),
+            onPressed: () => context.push(AppRoutes.stock),
+          ),
+        if (scanEnabled)
+          IconButton(
+            tooltip: 'Scan items',
+            icon: const Icon(Icons.qr_code_scanner),
+            onPressed: () => context.push('${AppRoutes.scanBill}?camera=1'),
+          ),
+      ],
       onRefresh: () => ref.refresh(dailyPerformanceProvider(key).future),
       filters: [
         FilterRow(

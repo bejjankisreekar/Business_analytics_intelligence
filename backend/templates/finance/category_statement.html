@@ -3,7 +3,7 @@
 {% block title %}Category Statement · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
-<a href="{% url 'finance:reports' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Financial Reports</a>
+<a href="{% url 'finance:reports' %}" class="text-xs font-medium text-slate-500 hover:text-slate-300">← Financial Statements</a>
 
 <h1 class="cs-title mt-2 text-2xl font-bold text-white">Category Statement</h1>
 <p class="mt-1 max-w-2xl text-sm text-slate-400">Pick a category — or drill into one sub-category or a specific item (e.g. one doctor, one employee) — and a date range, to see every entry behind the total.</p>
@@ -27,7 +27,7 @@
   <input type="hidden" name="kind" value="{{ kind }}">
   <div class="cs-field">
     <label for="cs-category" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Category</label>
-    <select id="cs-category" name="category" data-searchable class="!mt-1">
+    <select id="cs-category" name="category" data-searchable class="!mt-1 sel-rows-6">
       <option value="">— Select category —</option>
       {% for c in categories %}
       <option value="{{ c.id }}" {% if c.id|stringformat:"s" == category_id %}selected{% endif %}>{{ c.name }}</option>
@@ -36,7 +36,7 @@
   </div>
   <div class="cs-field">
     <label for="cs-subcategory" class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">Sub-category / Item</label>
-    <select id="cs-subcategory" name="subcategory" data-searchable data-initial="{{ subcategory_id }}" class="!mt-1"></select>
+    <select id="cs-subcategory" name="subcategory" data-searchable data-initial="{{ subcategory_id }}" class="!mt-1 sel-rows-6"></select>
   </div>
   <div class="cs-date">
     <label for="cs-from"class="block text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>

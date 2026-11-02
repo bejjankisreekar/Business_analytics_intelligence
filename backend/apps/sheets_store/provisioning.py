@@ -23,20 +23,27 @@ DEFAULT_PURCHASE_CATEGORIES = ["Raw Materials", "Inventory / Stock", "Packaging"
 DEFAULT_SALES_CHANNELS = ["In-store", "Online", "Wholesale", "Other"]
 
 
-def tenant_models() -> list:
-    return list(django_apps.get_app_config(TENANT_APP_LABEL).get_models())
+def tenant_models(organization=None) -> list:
+    """The finance models with a tab. A feature's models are left out for an organization without its switch."""
+    return [
+        m for m in django_apps.get_app_config(TENANT_APP_LABEL).get_models()
+        if store.tab_enabled_for(m.__name__, organization)
+    ]
 
 
 def _header_row(model) -> list:
     return [field.verbose_name.title() for field in store.sheet_fields(model)]
 
 
-def add_missing_tabs(access_token: str, spreadsheet_id: str) -> list[str]:
+def add_missing_tabs(access_token: str, spreadsheet_id: str, organization=None, only=None) -> list[str]:
     """Adds a tab (with its header row) for every finance model that doesn't
     have one yet in an existing spreadsheet — for models added after the sheet
     was first provisioned. Returns the names of the tabs it added; safe to call
-    repeatedly."""
-    models = tenant_models()
+    repeatedly. `organization` leaves out a feature's tabs when its switch is off,
+    and `only` limits it to those tab names."""
+    models = tenant_models(organization)
+    if only is not None:
+        models = [m for m in models if m.__name__ in set(only)]
     existing = set(client.get_sheet_ids(access_token, spreadsheet_id=spreadsheet_id))
     missing = [m for m in models if m.__name__ not in existing]
     if not missing:
@@ -52,7 +59,7 @@ def provision_sheet_tenant(org, *, access_token: str, folder_id: str) -> str:
     only), seeds default categories + FinanceSettings as real rows, and
     returns the new spreadsheet id.
     """
-    models = tenant_models()
+    models = tenant_models(org)
     spreadsheet_id = client.create_spreadsheet(
         access_token,
         title=f"{org.organization_code} Data",

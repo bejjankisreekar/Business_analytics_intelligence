@@ -271,6 +271,57 @@
         {% if subscription_history %}<p class="mt-4 text-[11px] text-slate-500">Extensions &amp; prior periods are listed with their own dates in the subscription history below.</p>{% endif %}
       </div>
 
+      <div class="od-divider px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="od-dt">Organization code</h3>
+          <p class="text-[11px] text-slate-500">Only you can see this. The code sets the client's extra features (scanning and inventory type). The client is never shown it.</p>
+          {% if org.category %}<p class="mt-1 text-xs text-slate-300"><span class="sa-mono font-semibold">{{ org.category.code }}</span> · {{ org.category.name }}</p>{% endif %}
+        </div>
+        <form method="post" action="{% url 'superadmin:org_category_assign' env_key org.pk %}">
+          {% csrf_token %}
+          <select name="category" class="sa-input mb-2" aria-label="Organization code">
+            <option value="">— No code —</option>
+            {% for c in org_categories %}<option value="{{ c.pk }}" {% if org.category_id == c.pk %}selected{% endif %}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="sa-btn-primary px-4 py-2 text-xs">Assign code</button>
+        </form>
+      </div>
+
+      <details class="od-divider px-5 py-4">
+        <summary class="od-summary">Category structure ({{ org_levels_count }} levels)</summary>
+        <form method="post" action="{% url 'superadmin:org_levels' env_key org.pk %}" class="mt-4">
+          {% csrf_token %}
+          <p class="mb-3 text-[11px] text-slate-500">How deep this client's categories go, 3 by default, up to 8. Giving the client a code sets this to the code's structure. Change it here for this client only.</p>
+          <input type="hidden" name="levels_json" id="client-levels-json" value="{{ levels_json }}">
+          {% include "superadmin/_levels_editor.html" with input_id="client-levels-json" %}
+          <div class="mt-4 flex justify-end"><button type="submit" class="sa-btn-primary px-4 py-2 text-xs">Save structure</button></div>
+        </form>
+      </details>
+
+      <div class="od-divider px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="od-dt">Barcode scanning (Scan &amp; Bill)</h3>
+          <p class="text-[11px] text-slate-500">Off by default. When on, this org can scan product barcodes into sales and purchase bills.</p>
+        </div>
+        <form method="post" action="{% url 'superadmin:barcode_scanning_toggle' env_key org.pk %}">
+          {% csrf_token %}
+          <label class="sa-field-label" for="inventory-type">Inventory type</label>
+          <select id="inventory-type" name="inventory_type" class="sa-input mb-2">
+            {% for value, label in inventory_type_choices %}<option value="{{ value }}" {% if org.inventory_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          {% if org.barcode_scanning_enabled %}
+          <input type="hidden" name="enabled" value="1">
+          <button type="submit" class="sa-btn-primary px-4 py-2 text-xs">Save type</button>
+          <button type="submit" name="enabled" value="0" class="sa-btn-primary px-4 py-2 text-xs">Turn off</button>
+          <span class="ml-2 text-xs text-emerald-300">On</span>
+          {% else %}
+          <input type="hidden" name="enabled" value="1">
+          <button type="submit" class="sa-btn-primary px-4 py-2 text-xs">Turn on</button>
+          <span class="ml-2 text-xs text-slate-400">Off</span>
+          {% endif %}
+        </form>
+      </div>
+
       <details class="od-divider px-5 py-4">
         <summary class="od-summary">Edit dates</summary>
         <form method="post" action="{% url 'superadmin:edit_key_dates' env_key org.pk %}" class="mt-4">

@@ -130,6 +130,44 @@
   </div>
 </section>
 
+<section class="sa-card mt-5 overflow-hidden" id="app-files">
+  <div class="sa-card-head">
+    <div><h2 class="sa-section-title">App builds stored here</h2><p class="sa-section-sub">Each uploaded Android build is kept in the database. Delete old ones to free space. The current build stays, because clients download it.</p></div>
+    <form method="post" action="{% url 'superadmin:database_compact' env_key %}">
+      {% csrf_token %}
+      <button class="sa-btn-ghost px-3 py-2 text-xs" data-confirm="Compact the database now? This locks the app-builds table for a moment." data-confirm-label="Compact">{% sa_icon "bolt" "h-3.5 w-3.5" %} Free disk space</button>
+    </form>
+  </div>
+  <div class="sa-table-wrap">
+    <table class="sa-table sa-table--stack">
+      <thead><tr><th>Version</th><th>File</th><th>Size</th><th>Uploaded</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for v in app_files %}
+        <tr>
+          <td data-label="Version" class="font-semibold text-slate-100">{{ v.version }}</td>
+          <td data-label="File" class="sa-mono text-xs">{{ v.file_name|default:"—" }}</td>
+          <td data-label="Size" class="tabular-nums">{% if v.file_size %}{{ v.file_size|filesizeformat }}{% else %}—{% endif %}</td>
+          <td data-label="Uploaded" class="whitespace-nowrap text-xs text-slate-400">{{ v.created_at|date:"d M Y, H:i" }}</td>
+          <td data-label="Status">{% if v.is_current %}<span class="sa-badge sa-badge--active"><span class="sa-dot"></span>Current</span>{% else %}<span class="sa-badge sa-badge--neutral">Older</span>{% endif %}</td>
+          <td data-label="" class="whitespace-nowrap text-right">
+            {% if v.is_current %}
+            <a class="sa-link text-xs" href="{% url 'superadmin:mobile_app' env_key %}">Change current</a>
+            {% else %}
+            <form method="post" action="{% url 'superadmin:database_app_delete' env_key v.pk %}" class="inline">
+              {% csrf_token %}
+              <button class="sa-link sa-bad text-xs" data-confirm="Delete app version {{ v.version }}? Its file is removed for good." data-confirm-label="Delete">Delete</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="sa-empty">No app builds stored in {{ env_label|lower }}.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
 <p class="mt-4 text-xs text-slate-500">Client data counts only finance entries (sales, expenses, purchases), measured by their stored size. Indexes and table overhead are not included, so it is smaller than the table sizes above.{% if largest_table %} Largest table: <span class="sa-mono">{{ largest_table.name }}</span> ({{ largest_table.total|filesizeformat }}).{% endif %}</p>
 {% endif %}
 {% endblock %}

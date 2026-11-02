@@ -32,7 +32,7 @@ class HealthcareOnlyPagesTests(TestCase):
         self.assertNotContains(resp, "Hospital Consulting Doctors")
         dash = self.client_.get("/app/")
         self.assertNotContains(dash, "IP Admissions")
-        self.assertNotContains(dash, "Insurance Claims")
+        self.assertNotContains(dash, "TPA Claims")
 
     def test_retail_org_cannot_open_claims_or_admissions(self, *_):
         self.assertEqual(self.client_.get("/app/insurance-claims/").status_code, 302)

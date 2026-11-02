@@ -56,8 +56,8 @@
   <div class="card p-6 lg:col-span-3">
     <div class="flex items-start justify-between gap-3">
       <div>
-        <h2 class="text-sm font-semibold text-white">Paid out in Daily Book</h2>
-        <p class="mt-0.5 text-xs text-slate-500">Expenses linked to this bill in the Daily Book.</p>
+        <h2 class="text-sm font-semibold text-white">Paid out in Day Book</h2>
+        <p class="mt-0.5 text-xs text-slate-500">Expenses linked to this bill in the Day Book.</p>
       </div>
       <p class="text-sm font-semibold text-amber-400">{{ organization.currency }} {{ payments_total|floatformat:0|intcomma }}</p>
     </div>
@@ -82,11 +82,11 @@
             <td class="py-2.5 pr-3 text-slate-400">{{ p.get_payment_mode_display }}{% if p.bank_account %} · {{ p.bank_account.name }}{% endif %}</td>
             <td class="py-2.5 pr-3 text-slate-400">{{ p.paid_to_ledger.name|default:"—" }}</td>
             <td class="py-2.5 text-right">
-              <a href="{% url 'finance:daily_report' %}?date={{ p.date|date:'Y-m-d' }}" class="text-sm font-medium text-brand-400 hover:text-brand-300">Open in Daily Book →</a>
+              <a href="{% url 'finance:daily_report' %}?date={{ p.date|date:'Y-m-d' }}" class="text-sm font-medium text-brand-400 hover:text-brand-300">Open in Day Book →</a>
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="6" class="py-8 text-center text-slate-500">No payments are linked to this bill yet. Pick it in the Commission bill column of a Daily Book expense.</td></tr>
+          <tr><td colspan="6" class="py-8 text-center text-slate-500">No payments are linked to this bill yet. Pick it in the Commission bill column of a Day Book expense.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -121,7 +121,7 @@
           <td class="py-2.5 pr-3 text-slate-400">{{ r.get_payment_mode_display }}{% if r.bank_account %} · {{ r.bank_account.name }}{% endif %}</td>
           <td class="py-2.5 pr-3 text-right font-medium text-mint-400">{{ r.amount|floatformat:0|intcomma }}</td>
           <td class="py-2.5 text-right">
-            <a href="{% url 'finance:daily_report' %}?date={{ r.date|date:'Y-m-d' }}" class="text-sm font-medium text-brand-400 hover:text-brand-300">Open in Daily Book →</a>
+            <a href="{% url 'finance:daily_report' %}?date={{ r.date|date:'Y-m-d' }}" class="text-sm font-medium text-brand-400 hover:text-brand-300">Open in Day Book →</a>
           </td>
         </tr>
         {% empty %}

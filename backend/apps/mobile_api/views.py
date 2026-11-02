@@ -5,16 +5,18 @@ from collections import defaultdict
 from decimal import Decimal
 
 from django.db.models import Sum
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.accounts.forms import LoginForm
 from apps.billing import services as billing_services
-from apps.finance import services
+from apps.finance import barcode_labels, inventory, scan_billing, services
+from apps.finance.scan_views import label_items
 from apps.finance.forms import ExpenseEntryForm, PurchaseEntryForm, SalesEntryForm
 from apps.finance.models import (
-    BankAccount, Category, ExpenseEntry, PaymentMode, PurchaseEntry, SalesEntry, Vendor,
+    Product, StockUnit,
+    BankAccount, Category, ExpenseEntry, PaymentMode, PurchaseEntry, SalesEntry, Subcategory, Vendor,
 )
 from apps.finance.periods import PERIOD_CHOICES, resolve_period
 
@@ -100,6 +102,15 @@ def me(request):
     return JsonResponse(_identity_json(request.user))
 
 
+def _product_subcategories(user) -> list:
+    if not scan_billing.barcode_scanning_on(user):
+        return []
+    return [
+        {"id": str(s.id), "name": s.name, "path": scan_billing.subcategory_path(s)}
+        for s in Subcategory.objects.filter(is_active=True).select_related("category").order_by("category__name", "name")
+    ]
+
+
 @require_GET
 @api_login_required
 def entry_options(request):
@@ -123,6 +134,19 @@ def entry_options(request):
             {"id": str(b.id), "name": b.name} for b in BankAccount.objects.filter(is_active=True).order_by("name")
         ],
         "vendors": list(Vendor.objects.filter(is_active=True).order_by("name").values_list("name", flat=True)),
+        "barcode_scanning_enabled": scan_billing.barcode_scanning_on(request.user),
+        "inventory_type": scan_billing.inventory_type() if scan_billing.barcode_scanning_on(request.user) else "OTHER",
+        "attribute_keys": scan_billing.ATTRIBUTES_BY_TYPE.get(
+            scan_billing.inventory_type() if scan_billing.barcode_scanning_on(request.user) else "OTHER",
+            scan_billing.ATTRIBUTES_BY_TYPE["OTHER"],
+        ),
+        # Only for organizations with scanning on; others are sent nothing about it.
+        "product_subcategories": _product_subcategories(request.user),
+        "structure": scan_billing.structure_config() if scan_billing.barcode_scanning_on(request.user) else None,
+        "product_categories": [
+            {"id": str(c.id), "name": c.name}
+            for c in Category.objects.filter(kind=Category.Kind.PRODUCT, is_active=True).order_by("name")
+        ],
         "min_date": min_date.isoformat() if min_date else None,
     })
 
@@ -382,7 +406,7 @@ def _month_bounds(label: str) -> dict:
     return {"from": first.isoformat(), "to": min(last, datetime.date.today()).isoformat()}
 
 
-# kind -> (model, category field), same tabs as the web Monthly Summary.
+# kind -> (model, category field), same tabs as the web Category Summary.
 SUMMARY_KINDS = {
     "sale": (SalesEntry, "channel"),
     "purchase": (PurchaseEntry, "category"),
@@ -398,7 +422,7 @@ def _cells_json(cells) -> list:
 @require_GET
 @api_login_required
 def monthly_summary(request):
-    """Category-by-period summary (as on the web Monthly Summary) plus the last 12 months, newest first."""
+    """Category-by-period summary (as on the web Category Summary) plus the last 12 months, newest first."""
     kind = request.GET.get("kind", "sale")
     if kind not in SUMMARY_KINDS:
         kind = "sale"
@@ -867,3 +891,228 @@ def billing_pay_verify(request, pk):
         raw_response={"order_id": order_id, "payment_id": payment_id, "source": "mobile"},
     )
     return JsonResponse({"ok": True})
+
+
+def _scanning_disabled():
+    """A 403 for an organization without barcode scanning, or None when it is on."""
+    return JsonResponse({"error": scan_billing.DISABLED_MESSAGE, "code": "feature_disabled"}, status=403)
+
+
+@require_GET
+@api_login_required
+def product_lookup(request):
+    """The product with this barcode, for the scan screen. 404 when none is saved yet."""
+    if not scan_billing.barcode_scanning_on(request.user):
+        return _scanning_disabled()
+    kind, item = scan_billing.resolve_code(request.GET.get("barcode", ""))
+    if kind is None:
+        return JsonResponse({"error": "No product, category or sub-category has this barcode.", "code": "not_found"}, status=404)
+    return JsonResponse(scan_billing.code_json(kind, item))
+
+
+@csrf_exempt
+@require_POST
+@api_login_required
+def products(request):
+    if not scan_billing.barcode_scanning_on(request.user):
+        return _scanning_disabled()
+    data = _body(request)
+    category = scan_billing.pick(Category.objects.filter(kind=Category.Kind.PRODUCT), data.get("category"))
+    subcategory = scan_billing.pick(Subcategory.objects.filter(is_active=True), data.get("subcategory"))
+    try:
+        product = scan_billing.create_product(
+            barcode=str(data.get("barcode") or ""),
+            name=str(data.get("name") or ""),
+            sale_price=data.get("sale_price"),
+            purchase_price=data.get("purchase_price"),
+            category=category,
+            subcategory=subcategory,
+            attributes=scan_billing.clean_attributes(data),
+            opening_stock=data.get("opening_stock"),
+            path=data["path"] if isinstance(data.get("path"), list) else None,
+            common=data.get("common"),
+        )
+    except scan_billing.BillError as exc:
+        return JsonResponse({"error": exc.message, "code": "validation", "fields": exc.fields}, status=400)
+    return JsonResponse({"product": scan_billing.product_json(product)}, status=201)
+
+
+@csrf_exempt
+@require_POST
+@api_login_required
+def bills(request):
+    """Saves a scanned sale or purchase bill. `lines` is a list of
+    {product_id, quantity, unit_price?}; the price defaults to the product's."""
+    if not scan_billing.barcode_scanning_on(request.user):
+        return _scanning_disabled()
+    data = _body(request)
+    kind = data.get("type")
+    if kind not in ("sale", "purchase"):
+        return JsonResponse({"error": "type must be sale or purchase.", "code": "invalid_type"}, status=400)
+    category_kind = Category.Kind.SALES if kind == "sale" else Category.Kind.PURCHASE
+    category = scan_billing.pick(Category.objects.filter(kind=category_kind), data.get("category"))
+    bank_account = scan_billing.pick(BankAccount.objects.filter(is_active=True), data.get("bank_account"))
+    subcategory = scan_billing.pick(Subcategory.objects.filter(is_active=True), data.get("subcategory"))
+    try:
+        day = datetime.date.fromisoformat(str(data.get("date") or datetime.date.today().isoformat()))
+    except ValueError:
+        return JsonResponse({"error": "Pick a valid date.", "code": "validation", "fields": {"date": "Pick a valid date."}}, status=400)
+    try:
+        result = scan_billing.save_bill(
+            kind=kind,
+            date=day,
+            payment_mode=data.get("payment_mode", PaymentMode.CASH),
+            bank_account=bank_account,
+            category=category,
+            vendor=str(data.get("vendor") or "").strip(),
+            lines=data.get("lines") or [],
+            min_date=_min_date(request.user),
+            created_by_email=request.user.email,
+            subcategory=subcategory,
+        )
+    except scan_billing.BillError as exc:
+        return JsonResponse({"error": exc.message, "code": "validation", "fields": exc.fields}, status=400)
+    return JsonResponse({
+        "bill_no": result["bill_no"],
+        "items": len(result["rows"]),
+        "total": f"{result['total']:.2f}",
+        "date": day.isoformat(),
+    }, status=201)
+
+
+@require_GET
+@api_login_required
+def barcode_labels_pdf(request):
+    """A printable A4 sheet of labels for `kind` = product, category or subcategory."""
+    if not scan_billing.barcode_scanning_on(request.user):
+        return _scanning_disabled()
+    kind = request.GET.get("kind", "product")
+    if kind not in ("product", "category", "subcategory"):
+        return JsonResponse({"error": "kind must be product, category or subcategory.", "code": "invalid_kind"}, status=400)
+    labels = label_items(kind)
+    if not labels:
+        return JsonResponse({"error": "There are no items of this kind to print yet.", "code": "no_items"}, status=404)
+    response = HttpResponse(barcode_labels.labels_pdf(labels), content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="barcode-labels-{kind}.pdf"'
+    return response
+
+
+@require_GET
+@api_login_required
+def product_search(request):
+    """Products whose name contains the text typed, for adding an item without scanning it."""
+    if not scan_billing.barcode_scanning_on(request.user):
+        return _scanning_disabled()
+    query = request.GET.get("q", "").strip().lower()
+    if len(query) < 2:
+        return JsonResponse({"products": []})
+    matches = [
+        scan_billing.product_json(p)
+        for p in Product.objects.filter(is_active=True).order_by("name")
+        if query in p.name.lower()
+    ][:15]
+    return JsonResponse({"products": matches})
+
+
+@csrf_exempt
+@require_POST
+@api_login_required
+def product_edit(request, pk):
+    """Edits a saved product's name, code, prices or category (the same rules as the web scan screen)."""
+    if not scan_billing.barcode_scanning_on(request.user):
+        return _scanning_disabled()
+    product = Product.objects.filter(pk=pk, is_active=True).first()
+    if product is None:
+        return JsonResponse({"error": "That product was not found.", "code": "not_found"}, status=404)
+    data = _body(request)
+    category = (
+        scan_billing.pick(Category.objects.filter(kind=Category.Kind.PRODUCT), data.get("category"))
+        if "category" in data else product.category
+    )
+    try:
+        product = scan_billing.update_product(
+            product,
+            name=data.get("name", ""),
+            barcode=str(data.get("barcode") or ""),
+            sale_price=data.get("sale_price"),
+            purchase_price=data.get("purchase_price"),
+            category=category,
+            subcategory=scan_billing.pick(Subcategory.objects.filter(is_active=True), data.get("subcategory")),
+            keep_subcategory="subcategory" not in data,
+            attributes=scan_billing.clean_attributes(data, keep_blank=True),
+            opening_stock=data.get("opening_stock") if "opening_stock" in data else None,
+            path=data["path"] if isinstance(data.get("path"), list) else None,
+            common=data.get("common"),
+        )
+    except scan_billing.BillError as exc:
+        return JsonResponse({"error": exc.message, "code": "validation", "fields": exc.fields}, status=400)
+    return JsonResponse({"product": scan_billing.product_json(product)})
+
+
+@require_GET
+@api_login_required
+def stock_units(request):
+    """Every phone recorded by IMEI, newest first. `status` = IN_STOCK or SOLD narrows it; `q` matches IMEI or model."""
+    if not scan_billing.barcode_scanning_on(request.user):
+        return _scanning_disabled()
+    rows = inventory.unit_rows(request.GET.get("status", ""), request.GET.get("q", ""))
+    units = [
+        {
+            "id": r["id"],
+            "serial": r["serial"],
+            "status": r["status"],
+            "product": r["product"],
+            "purchase_bill_no": r["purchase_bill_no"],
+            "purchase_date": r["purchase_date"].isoformat() if r["purchase_date"] else None,
+            "sale_bill_no": r["sale_bill_no"],
+            "sale_date": r["sale_date"].isoformat() if r["sale_date"] else None,
+            "description": r["description"],
+            "brand": r["brand"],
+            "model": r["model"],
+            "colour": r["colour"],
+            "ram": r["ram"],
+            "storage": r["storage"],
+            "imei2": r["imei2"],
+            "other": r["other"],
+        }
+        for r in rows[:300]
+    ]
+    in_stock = sum(1 for r in rows if r["status"] == "IN_STOCK")
+    return JsonResponse({"units": units, "in_stock": in_stock, "sold": len(rows) - in_stock})
+
+
+@require_GET
+@api_login_required
+def inventory_items(request):
+    """For every item: bought, sold and in stock, with their values, plus the totals."""
+    if not scan_billing.barcode_scanning_on(request.user):
+        return _scanning_disabled()
+    rows = inventory.inventory_rows()
+    totals = inventory.inventory_totals(rows)
+    return JsonResponse({
+        "inventory_type": scan_billing.inventory_type(),
+        "items": [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "barcode": r["barcode"],
+                "path": r["path"],
+                "attributes": r["attributes"],
+                "tracked": r["tracked"],
+                "purchased": r["purchased"],
+                "sold": r["sold"],
+                "in_stock": r["in_stock"],
+                "stock_value": f"{r['stock_value']:.2f}",
+                "purchase_value": f"{r['purchase_value']:.2f}",
+                "sale_value": f"{r['sale_value']:.2f}",
+            }
+            for r in rows
+        ],
+        "totals": {
+            "items": totals["items"],
+            "purchased": totals["purchased"],
+            "sold": totals["sold"],
+            "in_stock": totals["in_stock"],
+            "stock_value": f"{totals['stock_value']:.2f}",
+        },
+    })

@@ -22,7 +22,7 @@ final intelligenceProvider = FutureProvider.autoDispose.family<Json, String>((
   return ref.watch(reportsRepositoryProvider).intelligence(period);
 });
 
-/// Monthly summary, keyed by `(kind, granularity, period)`.
+/// Category summary, keyed by `(kind, granularity, period)`.
 final monthlySummaryProvider = FutureProvider.autoDispose
     .family<Json, (String, String, String)>((ref, key) {
       return ref
@@ -34,7 +34,7 @@ final cashPositionProvider = FutureProvider.autoDispose<Json>((ref) {
   return ref.watch(reportsRepositoryProvider).cashPosition();
 });
 
-/// Financial reports, keyed by `(period, flow)`; flow is `all`, `cash` or `bank` (cash flow only).
+/// Financial statements, keyed by `(period, flow)`; flow is `all`, `cash` or `bank` (cash flow only).
 final financialReportsProvider = FutureProvider.autoDispose
     .family<Json, (String, String)>((ref, key) {
       return ref

@@ -14,9 +14,9 @@ from django.urls import reverse
 
 # (key, label, finance url names that belong to the page)
 MANAGER_PAGES = (
-    ("daily_report", "Daily Book", (
+    ("daily_report", "Day Book", (
         "daily_report", "daily_report_pdf", "daily_entry_days", "daily_bulk_entry",
-        "bulk_add_sales", "bulk_add_expenses", "bulk_add_purchases", "single_entry",
+        "bulk_add_sales", "bulk_add_expenses", "bulk_add_purchases", "single_entry", "admission_label_fields",
         "import_sales", "import_sales_sample", "import_sales_commit", "import_sales_mapping",
         "add_transfer", "edit_transfer", "delete_transfer",
         "add_customer", "toggle_customer",
@@ -32,14 +32,14 @@ MANAGER_PAGES = (
     ("purchase_expense_intelligence", "Cost Insights", (
         "purchase_expense_intelligence", "expense_category_trend",
     )),
-    ("monthly_summary", "Monthly Summary", (
+    ("monthly_summary", "Category Summary", (
         "monthly_summary", "monthly_summary_excel", "monthly_summary_pdf",
     )),
     ("category_statement", "Category Statement", (
         "category_statement", "category_statement_excel", "category_statement_csv",
         "category_statement_pdf",
     )),
-    ("financial_reports", "Financial Reports", (
+    ("financial_reports", "Financial Statements", (
         "reports", "report_line_detail", "pnl_pdf", "balance_sheet_pdf", "cash_flow_pdf", "gst_pdf",
     )),
     ("cash_position", "Cash Position", (
@@ -59,7 +59,7 @@ MANAGER_PAGES = (
         "edit_kickback_entry", "delete_kickback_entry", "kickbacks_csv", "kickbacks_excel",
         "kickbacks_pdf", "import_kickback_entries", "kickbacks_import_sample",
     )),
-    ("insurance_claims", "Insurance Claims", (
+    ("insurance_claims", "Insurance & TPA Claims", (
         "claims", "add_claim", "edit_claim", "claim_detail", "delete_claim",
         "add_claim_payment", "delete_claim_payment", "claims_excel", "claims_pdf", "add_patient_payment",
         "insurer_analytics",
@@ -88,7 +88,7 @@ CUSTOMER_REQUESTS_URL_NAMES = frozenset({
     "inbox", "toggle", "qr", "qr_download", "detail", "owner_pdf", "payment",
 })
 
-# Only the Daily Book (entry screen) is on by default, matching what managers
+# Only the Day Book (entry screen) is on by default, matching what managers
 # could already open before per-page access existed.
 DEFAULT_MANAGER_PAGES = ("daily_report",)
 

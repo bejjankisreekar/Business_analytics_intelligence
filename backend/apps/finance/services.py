@@ -120,6 +120,61 @@ def kickback_column_labels(fs: FinanceSettings | None = None) -> dict:
     }
 
 
+# What each line of the Admission (IP) picker can be made of, in the order the
+# organization picks. Keys are KickbackEntry fields.
+ADMISSION_LABEL_CHOICES = {
+    "mrn": "MRN / UMRN",
+    "bill_number": "Bill no.",
+    "patient_name": "Patient name",
+    "admission_date": "Admission date",
+    "consulting_doctor": "Consulting doctor",
+    "referred_by": "Ref doctor",
+    "ward": "Ward / bed",
+    "patient_phone": "Phone",
+}
+ADMISSION_LABEL_DEFAULT = ["mrn", "patient_name", "admission_date"]
+ADMISSION_LABEL_MAX = 4
+
+
+def admission_label_choices() -> dict:
+    """ADMISSION_LABEL_CHOICES in the organization's wording (a diagnostic
+    centre has visits, not admissions)."""
+    from apps.organizations.tenant_context import get_current_organization
+
+    from .access import patient_terms
+
+    choices = dict(ADMISSION_LABEL_CHOICES)
+    terms = patient_terms(get_current_organization())
+    if terms["is_diagnostic"]:
+        choices["admission_date"] = terms["date_column"]
+    return choices
+
+
+def admission_label_fields(fs: FinanceSettings | None = None) -> list:
+    """The saved Admission (IP) picker fields, in order. Unknown or repeated
+    keys are dropped; nothing usable falls back to the default."""
+    fs = fs or get_finance_settings()
+    fields = []
+    for key in (fs.admission_label_fields or "").split(","):
+        key = key.strip()
+        if key in ADMISSION_LABEL_CHOICES and key not in fields:
+            fields.append(key)
+    return fields[:ADMISSION_LABEL_MAX] or list(ADMISSION_LABEL_DEFAULT)
+
+
+def admission_label(bill, fields) -> str:
+    """One Admission (IP) picker line: the bill's `fields` joined with " - ",
+    skipping blanks."""
+    parts = []
+    for key in fields:
+        value = getattr(bill, key, "")
+        if isinstance(value, datetime.date):
+            value = value.strftime("%d %b %Y")
+        if value:
+            parts.append(str(value))
+    return " - ".join(parts) or bill.bill_number
+
+
 def sales_import_mapping(fs: FinanceSettings | None = None) -> dict:
     """{field: file column name} remembered from the last Import Revenue
     mapping. Blank or corrupt settings give an empty dict."""
@@ -570,7 +625,7 @@ def _matrix_cells(values: list) -> list[dict]:
 def category_period_matrix(model, field: str, start: datetime.date, end: datetime.date, granularity: str = "monthly") -> dict:
     """Category-by-period spreadsheet for an arbitrary date range — every
     category with activity in range down the side, one column per
-    day/week/month/quarter/year across the top. Backs the Monthly Summary
+    day/week/month/quarter/year across the top. Backs the Category Summary
     report's Sales/Purchases/Expenses tabs. Column count is capped (a huge
     custom range at daily granularity would otherwise blow up the table);
     `truncated` tells the view whether the range was cut short.
@@ -658,7 +713,7 @@ def _shift_years(d: datetime.date, years: int) -> datetime.date:
 
 def year_over_year_comparison(model, start: datetime.date, end: datetime.date) -> dict:
     """This exact date range's total vs the same range one year earlier —
-    the side-by-side grand-total comparison on the Monthly Summary report."""
+    the side-by-side grand-total comparison on the Category Summary report."""
     prior_start, prior_end = _shift_years(start, -1), _shift_years(end, -1)
     current_total = _sum(model.objects.filter(date__gte=start, date__lte=end))
     prior_total = _sum(model.objects.filter(date__gte=prior_start, date__lte=prior_end))
@@ -712,32 +767,6 @@ def cost_tree(model, start: datetime.date, end: datetime.date, category_field: s
         return {"name": node["name"], "amount": node["amount"], "children": kids}
 
     return sorted((finish(c) for c in cats.values()), key=lambda c: -c["amount"])
-
-
-def subcategory_revenue_categories(start: datetime.date, end: datetime.date) -> list[Category]:
-    """Sales categories (e.g. 'OPD Consultation', 'Pharmacy Sales') that have
-    sub-category-tagged revenue in the period — powers the category filter
-    on the 'Revenue by sub-category' chart, since listing every
-    sub-category across every category in one chart mixes unrelated things
-    together and reads as noise once there are more than a handful."""
-    return list(
-        Category.objects.filter(
-            kind=Category.Kind.SALES,
-            subcategories__sales_entries__date__gte=start,
-            subcategories__sales_entries__date__lte=end,
-        ).distinct().order_by("name")
-    )
-
-
-def subcategory_revenue_breakdown(
-    start: datetime.date, end: datetime.date, category_id=None
-) -> list[dict]:
-    """Revenue by sub-category, optionally scoped to a single sales category."""
-    qs = SalesEntry.objects.filter(date__gte=start, date__lte=end, subcategory__isnull=False)
-    if category_id:
-        qs = qs.filter(subcategory__category_id=category_id)
-    rows = qs.values("subcategory__name").annotate(total=Sum("amount")).order_by("-total")
-    return [{"name": row["subcategory__name"] or "Uncategorized", "amount": row["total"]} for row in rows]
 
 
 def product_quantity_breakdown(start: datetime.date, end: datetime.date, model=SalesEntry) -> list[dict]:

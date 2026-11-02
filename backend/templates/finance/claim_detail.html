@@ -5,7 +5,7 @@
 {% block app_content %}
 <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
   <div>
-    <a href="{% url 'finance:claims' %}" class="text-sm font-medium text-slate-500 hover:text-slate-300">← Back to Insurance Claims</a>
+    <a href="{% url 'finance:claims' %}" class="text-sm font-medium text-slate-500 hover:text-slate-300">← Back to Insurance &amp; TPA Claims</a>
     <h1 class="mt-2 text-2xl font-bold text-white">{{ claim.claim_number|default:"Claim without a reference no." }}</h1>
     <p class="mt-1 text-sm text-slate-400">
       {{ claim.get_claim_type_display }} · {{ claim.insurer_display }}{% if claim.patient_name %} · {{ claim.patient_name }}{% endif %}
@@ -24,7 +24,7 @@
   </div>
 </div>
 
-<div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+<div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
   <div class="card p-5">
     <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Claimed</p>
     <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ claim.claimed_amount|floatformat:0|intcomma }}</p>
@@ -44,6 +44,11 @@
   <div class="card p-5">
     <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Patient share</p>
     <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ claim.patient_share|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Discount</p>
+    <p class="mt-1.5 text-xl font-bold text-slate-200">{{ organization.currency }} {{ claim.discount_amount|floatformat:0|intcomma }}</p>
+    {% if claim.bill %}<p class="mt-1 text-xs text-slate-500">Given on bill {{ claim.bill.bill_number }}</p>{% endif %}
   </div>
   <div class="card p-5">
     <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Outstanding</p>
@@ -84,7 +89,7 @@
               <th class="pb-2 pr-3 text-right font-medium">Received</th>
               <th class="pb-2 pr-3 text-right font-medium">Deducted</th>
               <th class="pb-2 pr-3 font-medium">UTR / cheque</th>
-              <th class="pb-2 pr-3 font-medium">Daily Book</th>
+              <th class="pb-2 pr-3 font-medium">Day Book</th>
               <th class="pb-2 font-medium"></th>
             </tr>
           </thead>
@@ -95,7 +100,7 @@
               <td class="py-2.5 pr-3 text-right font-medium text-mint-400">{{ p.amount|floatformat:0|intcomma }}</td>
               <td class="py-2.5 pr-3 text-right text-slate-400">{{ p.deduction|floatformat:0|intcomma }}</td>
               <td class="py-2.5 pr-3 text-slate-400">{{ p.reference|default:"—" }}</td>
-              <td class="py-2.5 pr-3">{% if p.sales_entry_id %}<a href="{% url 'finance:daily_report' %}?date={{ p.date|date:'Y-m-d' }}" class="text-sm font-medium text-brand-400 hover:text-brand-300">Open in Daily Book →</a>{% else %}<span class="text-xs text-slate-500">Not in Daily Book</span>{% endif %}</td>
+              <td class="py-2.5 pr-3">{% if p.sales_entry_id %}<a href="{% url 'finance:daily_report' %}?date={{ p.date|date:'Y-m-d' }}" class="text-sm font-medium text-brand-400 hover:text-brand-300">Open in Day Book →</a>{% else %}<span class="text-xs text-slate-500">Not in Day Book</span>{% endif %}</td>
               <td class="py-2.5 text-right">
                 <form method="post" action="{% url 'finance:delete_claim_payment' p.pk %}" onsubmit="return confirm('Remove this payment?');">
                   {% csrf_token %}
@@ -111,6 +116,12 @@
       </div>
     </div>
 
+    {% if claim.approved_amount > 0 and claim.outstanding_amount <= 0 %}
+    <div class="card p-6">
+      <h2 class="text-sm font-semibold text-white">Record a payment</h2>
+      <p class="mt-2 text-sm text-slate-400">This claim is fully settled — the {{ organization.currency }} {{ claim.approved_amount|floatformat:0|intcomma }} approved has all been received or deducted. To add another payment, first remove one above or raise the approved amount with <a href="{% url 'finance:edit_claim' claim.pk %}" class="font-medium text-brand-400 hover:text-brand-300">Edit claim</a>.</p>
+    </div>
+    {% else %}
     <form method="post" action="{% url 'finance:add_claim_payment' claim.pk %}" class="card space-y-4 p-6">
       {% csrf_token %}
       <h2 class="text-sm font-semibold text-white">Record a payment</h2>
@@ -150,11 +161,12 @@
         <button type="submit" class="btn-primary !px-5 !py-2.5 !text-sm">Record payment</button>
       </div>
     </form>
+    {% endif %}
     {% if claim.bill %}
     <form method="post" action="{% url 'finance:add_patient_payment' claim.pk %}" class="card space-y-4 p-6">
       {% csrf_token %}
       <h2 class="text-sm font-semibold text-white">Record a patient payment</h2>
-      <p class="text-xs text-slate-500">The patient's share of the bill ({{ organization.currency }} {{ claim.bill.patient_amount|floatformat:0|intcomma }}). Goes to the Daily Book as revenue on this admission, and is not counted against the claim.</p>
+      <p class="text-xs text-slate-500">The patient's share of the bill ({{ organization.currency }} {{ claim.bill.patient_amount|floatformat:0|intcomma }}). Goes to the Day Book as revenue on this admission, and is not counted against the claim.</p>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="block text-xs font-medium text-slate-400">Received on</label>

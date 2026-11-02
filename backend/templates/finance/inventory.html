@@ -1,0 +1,163 @@
+{% extends "finance/_app_base.html" %}
+{% load humanize %}
+{% block title %}Inventory & Stock · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="iv-page">
+  <div class="iv-topbar">
+    <a href="{{ scan_url }}" class="iv-back">← Scan &amp; Bill</a>
+  </div>
+
+  <header class="iv-header">
+    <h1>Inventory &amp; stock</h1>
+    <p>What you bought, what you sold, and what is left, for every item. Stock comes from the bills saved on Scan &amp; Bill.</p>
+  </header>
+
+  <div class="iv-summary">
+    <div class="iv-stat"><span>Items</span><strong>{{ totals.items }}</strong></div>
+    <div class="iv-stat"><span>Bought</span><strong>{{ totals.purchased }}</strong></div>
+    <div class="iv-stat"><span>Sold</span><strong>{{ totals.sold }}</strong></div>
+    <div class="iv-stat iv-stat--hi"><span>In stock</span><strong>{{ totals.in_stock }}</strong></div>
+    <div class="iv-stat"><span>Stock value</span><strong>{{ organization.currency }} {{ totals.stock_value|floatformat:2|intcomma }}</strong></div>
+  </div>
+
+  <nav class="iv-tabs" role="tablist">
+    <a href="{{ inventory_url }}" role="tab" aria-selected="{% if tab == 'items' %}true{% else %}false{% endif %}" class="iv-tab {% if tab == 'items' %}iv-tab--on{% endif %}">Stock by item</a>
+    <a href="{{ inventory_url }}?tab=phones" role="tab" aria-selected="{% if tab == 'phones' %}true{% else %}false{% endif %}" class="iv-tab {% if tab == 'phones' %}iv-tab--on{% endif %}">Phones by IMEI</a>
+    <a href="{{ inventory_url }}?tab=activity" role="tab" aria-selected="{% if tab == 'activity' %}true{% else %}false{% endif %}" class="iv-tab {% if tab == 'activity' %}iv-tab--on{% endif %}">Purchases &amp; sales</a>
+  </nav>
+
+  {% if tab == 'items' %}
+  <section class="iv-card">
+    {% if rows %}
+    <div class="iv-scroll">
+    <table class="iv-table">
+      <thead>
+        <tr>
+          <th>Item</th><th>Sub-category</th>
+          <th class="iv-num">Bought</th><th class="iv-num">Sold</th><th class="iv-num">In stock</th>
+          <th class="iv-num">Stock value</th><th class="iv-num">Purchase value</th><th class="iv-num">Sales value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.name }}{% if r.tracked %} <span class="iv-tag">by IMEI</span>{% endif %}<div class="iv-sub">{{ r.barcode }}</div></td>
+          <td>{{ r.path|default:"—" }}</td>
+          <td class="iv-num">{{ r.purchased }}</td>
+          <td class="iv-num">{{ r.sold }}</td>
+          <td class="iv-num"><strong class="{% if r.in_stock <= 0 %}iv-low{% endif %}">{{ r.in_stock }}</strong></td>
+          <td class="iv-num">{{ r.stock_value|floatformat:2|intcomma }}</td>
+          <td class="iv-num">{{ r.purchase_value|floatformat:2|intcomma }}</td>
+          <td class="iv-num">{{ r.sale_value|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="iv-note">A phone model counts the phones in stock by IMEI. Any other item is bought minus sold. Stock value is the in-stock quantity at the item's purchase price.</p>
+    {% else %}
+    <p class="iv-empty">No items yet. Items appear here once they are added on Scan &amp; Bill.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if tab == 'phones' %}
+  <section class="iv-card">
+    <form method="get" class="iv-filter">
+      <input type="hidden" name="tab" value="phones">
+      <select name="status" class="iv-input">
+        <option value="" {% if not status %}selected{% endif %}>All phones</option>
+        <option value="IN_STOCK" {% if status == 'IN_STOCK' %}selected{% endif %}>In stock</option>
+        <option value="SOLD" {% if status == 'SOLD' %}selected{% endif %}>Sold</option>
+      </select>
+      <input type="search" name="q" value="{{ q }}" class="iv-input iv-grow" placeholder="Search IMEI, model, brand or colour">
+      <button type="submit" class="iv-btn">Filter</button>
+    </form>
+    {% if units %}
+    <div class="iv-scroll">
+    <table class="iv-table">
+      <thead><tr><th>Phone</th><th>IMEI</th><th>Status</th><th>Bought</th><th>Sold</th></tr></thead>
+      <tbody>
+        {% for u in units %}
+        <tr>
+          <td>{{ u.description|default:u.product }}{% if u.other %}<div class="iv-sub">{{ u.other }}</div>{% endif %}</td>
+          <td class="iv-mono">{{ u.serial }}{% if u.imei2 %}<div class="iv-sub">IMEI 2 {{ u.imei2 }}</div>{% endif %}</td>
+          <td><span class="iv-pill {% if u.status == 'SOLD' %}iv-pill--sold{% else %}iv-pill--in{% endif %}">{% if u.status == 'SOLD' %}Sold{% else %}In stock{% endif %}</span></td>
+          <td>{{ u.purchase_date|date:"d M Y" }}{% if u.purchase_bill_no %}<div class="iv-sub">{{ u.purchase_bill_no }}</div>{% endif %}</td>
+          <td>{% if u.sale_date %}{{ u.sale_date|date:"d M Y" }}{% else %}—{% endif %}{% if u.sale_bill_no %}<div class="iv-sub">{{ u.sale_bill_no }}</div>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="iv-empty">No phones match. Phones are recorded when you scan their IMEI on a purchase.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if tab == 'activity' %}
+  <section class="iv-card">
+    {% if movements %}
+    <div class="iv-scroll">
+    <table class="iv-table">
+      <thead><tr><th>Date</th><th>Type</th><th>Item</th><th class="iv-num">Qty</th><th class="iv-num">Amount</th><th>Bill</th></tr></thead>
+      <tbody>
+        {% for m in movements %}
+        <tr>
+          <td>{{ m.date|date:"d M Y" }}</td>
+          <td><span class="iv-pill {% if m.kind == 'sale' %}iv-pill--sold{% else %}iv-pill--in{% endif %}">{% if m.kind == 'sale' %}Sold{% else %}Bought{% endif %}</span></td>
+          <td>{{ m.product }}{% if m.note %}<div class="iv-sub">{{ m.note }}</div>{% endif %}</td>
+          <td class="iv-num">{{ m.quantity }}</td>
+          <td class="iv-num">{{ m.amount|floatformat:2|intcomma }}</td>
+          <td class="iv-mono">{{ m.bill_no|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="iv-note">The last 90 days, newest first.</p>
+    {% else %}
+    <p class="iv-empty">No purchases or sales of items in the last 90 days.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+
+<style>
+  .iv-page { max-width: 1100px; margin: 0 auto; padding: 1rem; color: #0f172a; }
+  .iv-topbar { font-size: 0.85rem; margin-bottom: 0.75rem; }
+  .iv-back { color: #64748b; text-decoration: none; }
+  .iv-header h1 { font-size: 1.25rem; font-weight: 700; }
+  .iv-header p { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; max-width: 46rem; }
+  .iv-summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin: 1rem 0; }
+  @media (min-width: 760px) { .iv-summary { grid-template-columns: repeat(5, 1fr); } }
+  .iv-stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 0.9rem; padding: 0.75rem 0.9rem; display: flex; flex-direction: column; gap: 0.15rem; }
+  .iv-stat span { font-size: 0.72rem; color: #64748b; }
+  .iv-stat strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+  .iv-stat--hi { border-color: #c7d2fe; background: #eef2ff; }
+  .iv-tabs { display: inline-flex; flex-wrap: wrap; border: 1px solid #cbd5e1; border-radius: 0.6rem; overflow: hidden; background: #fff; margin-bottom: 0.75rem; }
+  .iv-tab { padding: 0.45rem 1rem; font-size: 0.85rem; color: #475569; text-decoration: none; }
+  .iv-tab--on { background: #eef0ff; color: #3730a3; font-weight: 600; }
+  .iv-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: 1rem; }
+  .iv-scroll { overflow-x: auto; }
+  .iv-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .iv-table th, .iv-table td { padding: 0.5rem 0.4rem; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
+  .iv-table th { font-size: 0.72rem; font-weight: 500; color: #64748b; white-space: nowrap; }
+  .iv-num { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .iv-sub { font-size: 0.72rem; color: #94a3b8; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .iv-mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8rem; }
+  .iv-tag { font-size: 0.65rem; background: #eef2ff; color: #4338ca; border-radius: 999px; padding: 0.05rem 0.4rem; margin-left: 0.25rem; }
+  .iv-low { color: #b91c1c; }
+  .iv-pill { font-size: 0.72rem; border-radius: 999px; padding: 0.1rem 0.55rem; font-weight: 600; }
+  .iv-pill--in { background: #dcfce7; color: #15803d; }
+  .iv-pill--sold { background: #fef3c7; color: #b45309; }
+  .iv-note { font-size: 0.78rem; color: #64748b; margin-top: 0.75rem; }
+  .iv-empty { text-align: center; color: #94a3b8; padding: 1.5rem 0; font-size: 0.9rem; }
+  .iv-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+  .iv-input { background: #fff; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.4rem 0.6rem; font-size: 0.85rem; color: #0f172a; }
+  .iv-grow { flex: 1; min-width: 10rem; }
+  .iv-btn { padding: 0.4rem 0.9rem; border-radius: 0.5rem; border: none; background: #4f46e5; color: #fff; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+</style>
+{% endblock %}

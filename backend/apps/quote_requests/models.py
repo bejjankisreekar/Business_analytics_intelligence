@@ -91,7 +91,7 @@ class QuoteRequest(models.Model):
     # Once PAID the order can be delivered.
     payment_status = models.CharField(max_length=10, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
     paid_at = models.DateTimeField(null=True, blank=True)
-    # How it was paid ("CASH" / "BANK") and the Daily Book sale booked for it, so the
+    # How it was paid ("CASH" / "BANK") and the Day Book sale booked for it, so the
     # sale can be taken back out if the payment is reverted.
     payment_mode = models.CharField(max_length=10, blank=True)
     sales_entry_id = models.UUIDField(null=True, blank=True)

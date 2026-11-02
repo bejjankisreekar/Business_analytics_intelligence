@@ -327,7 +327,7 @@ class QuoteRequestFlowTests(TestCase):
         req.refresh_from_db()
         self.assertEqual(req.sales_entry_id, sale.pk)
         self.assertEqual(req.payment_mode, "BANK")
-        self.assertContains(owner.get(f"/customer-requests/{req.number}/"), "Added to your Daily Book")
+        self.assertContains(owner.get(f"/customer-requests/{req.number}/"), "Added to your Day Book")
 
     def test_marking_paid_twice_books_only_one_sale(self, *_):
         owner, req, *_x = self._quoted_request()

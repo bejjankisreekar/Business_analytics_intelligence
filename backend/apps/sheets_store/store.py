@@ -26,7 +26,25 @@ def _tab_name(model) -> str:
     return model.__name__
 
 
-def all_sheet_backed_tabs() -> list[str]:
+# Tabs that belong to a feature a superadmin switches on per organization. An organization
+# without the switch never gets these tabs, and they are not read for it. {tab: Organization flag}
+FEATURE_FLAGGED_TABS = {
+    "Product": "barcode_scanning_enabled",
+    "StockUnit": "barcode_scanning_enabled",
+    "CommonOption": "barcode_scanning_enabled",
+}
+
+
+def tab_enabled_for(tab: str, organization) -> bool:
+    """Whether `organization` uses this tab. Core tabs always; a feature's tabs only with its switch on.
+    With no organization given, every tab counts."""
+    flag = FEATURE_FLAGGED_TABS.get(tab)
+    if flag is None or organization is None:
+        return True
+    return bool(getattr(organization, flag, False))
+
+
+def all_sheet_backed_tabs(organization=None) -> list[str]:
     """Every model's tab name, across every installed app, that reads and
     writes through a SheetSession (i.e. uses SheetAwareManager) — the full
     set TenantSchemaMiddleware prefetches in one Sheets API call when a
@@ -41,6 +59,7 @@ def all_sheet_backed_tabs() -> list[str]:
         model.__name__
         for model in django_apps.get_models()
         if isinstance(getattr(model, "objects", None), SheetAwareManager)
+        and tab_enabled_for(model.__name__, organization)
     ]
 
 

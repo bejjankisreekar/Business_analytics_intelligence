@@ -10,13 +10,17 @@ from collections import defaultdict
 
 from django.apps import apps
 from django.conf import settings
+from django.contrib import messages
 from django.db import DatabaseError, connections
-from django.views.generic import TemplateView
+from django.shortcuts import get_object_or_404, redirect
+from django.views.generic import TemplateView, View
 
 from apps.accounts.mixins import SuperAdminRequiredMixin
 from apps.organizations.models import Organization
 
 from .health import db_bytes_for
+from .mobile_app_views import _versions
+from .models import MobileAppVersion
 from .views import _env_label_or_404
 
 logger = logging.getLogger(__name__)
@@ -138,6 +142,7 @@ def database_usage(env):
         "clients": clients,
         "client_total": client_total,
         "largest_table": max(tables, key=lambda t: t["total"], default=None),
+        "app_files": list(_versions(env)),
     }
 
 
@@ -156,3 +161,35 @@ class DatabaseUsageView(SuperAdminRequiredMixin, TemplateView):
             logger.exception("Database usage: %s read failed", env)
             context["error"] = "The database could not be read. Check System health for details."
         return context
+
+
+class DatabaseAppFileDeleteView(SuperAdminRequiredMixin, View):
+    """Delete a stored app build from the usage page. The current build is
+    kept, because clients download it; change it on the Mobile app page first."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        version = get_object_or_404(_versions(env), pk=pk)
+        if version.is_current:
+            messages.error(request, f"Version {version.version} is the current app. Make another version current before deleting it.")
+        else:
+            MobileAppVersion.objects.using(env).filter(pk=version.pk).delete()
+            messages.success(request, f"Deleted app version {version.version}.")
+        return redirect("superadmin:database_usage", env=env)
+
+
+class DatabaseCompactView(SuperAdminRequiredMixin, View):
+    """Give space freed by deleted app builds back to the disk. VACUUM FULL
+    rewrites the app-version table, locking it briefly while it runs."""
+
+    def post(self, request, env):
+        _env_label_or_404(env)
+        table = MobileAppVersion._meta.db_table
+        try:
+            with connections[env].cursor() as cur:
+                cur.execute(f'VACUUM FULL "{table}"')
+            messages.success(request, "Freed space from deleted app builds.")
+        except DatabaseError:
+            logger.exception("Database compact: %s failed", env)
+            messages.error(request, "Could not compact the database. Check System health for details.")
+        return redirect("superadmin:database_usage", env=env)

@@ -26,7 +26,7 @@ class OrgPageAccessEditTests(TestCase):
         page = self.c.get(self.url)
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "Page access")
-        for label in ("Daily Book", "Daily Performance", "Monthly Summary", "Customer Requests"):
+        for label in ("Day Book", "Daily Performance", "Category Summary", "Customer Requests"):
             self.assertContains(page, label)
         self.assertContains(page, "Leave every box unticked for full access")
 

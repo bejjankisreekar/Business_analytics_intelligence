@@ -29,8 +29,10 @@ def user_from_token(token: str):
         payload = signing.loads(token, salt=TOKEN_SALT, max_age=TOKEN_MAX_AGE)
     except signing.BadSignature:
         return None
-    user = get_user_model().objects.filter(pk=payload.get("uid"), is_active=True).first()
+    user = get_user_model().objects.filter(pk=payload.get("uid"), is_active=True).select_related("organization").first()
     if user is None or user.password[-12:] != payload.get("ph"):
+        return None
+    if user.organization_id and not user.organization.is_active:  # client removed by superadmin
         return None
     return user
 
@@ -71,7 +73,7 @@ def api_login_required(view):
             return _error("This account is suspended.", 403, "suspended")
         if not billing_services.has_active_access(org):
             return _error("Your plan has lapsed. Renew on the web app.", 403, "billing_locked")
-        # Managers only get what the owner ticked; entries live under "Daily Book".
+        # Managers only get what the owner ticked; entries live under "Day Book".
         from apps.accounts.manager_pages import RESTRICTED_ROLES, pages_for
 
         if user.role in RESTRICTED_ROLES and "daily_report" not in pages_for(user):

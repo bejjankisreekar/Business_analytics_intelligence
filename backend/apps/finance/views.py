@@ -18,6 +18,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.html import escape
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.safestring import mark_safe
 from django.views.generic import TemplateView, View
 
@@ -74,6 +75,7 @@ from .models import (
     PartnerTransaction,
     Payable,
     PaymentMode,
+    Product,
     PurchaseEntry,
     Receivable,
     SalesEntry,
@@ -243,11 +245,19 @@ class DashboardView(TenantLoginRequiredMixin, TemplateView):
 
         kpis = services.kpis_for_period(period)
         cash, bank = services.cash_and_bank_as_of(period.end)
-        series = services.daily_series(period.start, period.end)
+        # Early in the month the daily chart would only have a point or two —
+        # reach back into last month so it always spans at least a week.
+        chart_start = min(period.start, period.end - datetime.timedelta(days=6))
+        series = services.daily_series(chart_start, period.end)
         expense_breakdown = services.category_breakdown(ExpenseEntry, period.start, period.end)
+        if chart_start < period.start:
+            chart_daily_caption = f"Last 7 days ({chart_start.strftime('%d %b')} – {period.end.strftime('%d %b %Y')})"
+        else:
+            chart_daily_caption = f"Daily totals for {period.label}"
 
         context.update({
             "active_nav": "dashboard",
+            "chart_daily_caption": chart_daily_caption,
             "organization": self.request.user.organization,
             "today": today,
             "period": period,
@@ -619,15 +629,6 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
         product_quantity = services.product_quantity_breakdown(period.start, period.end)
         purchase_quantity = services.product_quantity_breakdown(period.start, period.end, model=PurchaseEntry)
 
-        subcategory_categories = services.subcategory_revenue_categories(period.start, period.end)
-        category_ids = {str(c.id) for c in subcategory_categories}
-        selected_subcategory_category = self.request.GET.get("subcat_category")
-        if selected_subcategory_category not in category_ids:
-            selected_subcategory_category = next(iter(category_ids), None)
-        product_revenue = services.subcategory_revenue_breakdown(
-            period.start, period.end, category_id=selected_subcategory_category
-        )
-
         cash_running = []
         running = services.total_balance_as_of(period.start - datetime.timedelta(days=1))
         for row in series:
@@ -689,11 +690,6 @@ class AnalyticsView(TenantLoginRequiredMixin, PeriodMixin, TemplateView):
             "expense_breakdown": expense_breakdown,
             "purchase_breakdown": purchase_breakdown,
             "channel_breakdown": channel_breakdown,
-            "product_revenue": product_revenue,
-            "chart_product_revenue_labels": to_json([r["name"] for r in product_revenue]),
-            "chart_product_revenue_values": to_json([r["amount"] for r in product_revenue]),
-            "subcategory_categories": subcategory_categories,
-            "selected_subcategory_category": selected_subcategory_category,
             "product_quantity": product_quantity,
             "product_quantity_groups": _product_quantity_groups(product_quantity),
             "purchase_quantity_groups": _product_quantity_groups(purchase_quantity),
@@ -1223,7 +1219,7 @@ class DailySummaryPdfView(DailySummaryRangeMixin, TenantLoginRequiredMixin, View
 
 
 class DailyEntryDaysView(TenantLoginRequiredMixin, View):
-    """JSON for the Daily Book's month-calendar pop-up: for ?month=YYYY-MM,
+    """JSON for the Day Book's month-calendar pop-up: for ?month=YYYY-MM,
     how many revenue/expense/purchase entries were logged on each day."""
 
     def get(self, request, *args, **kwargs):
@@ -1785,6 +1781,49 @@ def _single_entry_groups(form, main_field: str) -> list[tuple[str, list]]:
     return [(title, [form[name] for name in names if name in form.fields]) for title, names in layout]
 
 
+def _admission_label_context() -> dict:
+    """The Admission (IP) picker's ⓘ panel: what each line shows now, and one
+    slot per position (blank = unused) for changing it."""
+    choices = services.admission_label_choices()
+    fields = services.admission_label_fields()
+    return {
+        "summary": " - ".join(choices[key] for key in fields),
+        "choices": list(choices.items()),
+        "slots": [fields[i] if i < len(fields) else "" for i in range(services.ADMISSION_LABEL_MAX)],
+    }
+
+
+class AdmissionLabelFieldsView(TenantLoginRequiredMixin, View):
+    """Save which bill fields, in which order, make up each Admission (IP)
+    picker line. Back to the page it was changed from."""
+
+    def post(self, request, *args, **kwargs):
+        fs = services.get_finance_settings()
+        if "reset" in request.POST:
+            fs.admission_label_fields = ""
+            messages.success(request, "Admission list reset to the default.")
+        else:
+            picked = []
+            for key in request.POST.getlist("field"):
+                if key in services.ADMISSION_LABEL_CHOICES and key not in picked:
+                    picked.append(key)
+            if not picked:
+                messages.error(request, "Pick at least one detail to show.")
+                return redirect(_safe_next(request))
+            picked = picked[:services.ADMISSION_LABEL_MAX]
+            fs.admission_label_fields = "" if picked == services.ADMISSION_LABEL_DEFAULT else ",".join(picked)
+            messages.success(request, "Admission list updated.")
+        fs.save()
+        return redirect(_safe_next(request))
+
+
+def _safe_next(request) -> str:
+    target = request.POST.get("next") or ""
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
+        return target
+    return reverse("finance:single_entry")
+
+
 class SingleEntryView(TenantLoginRequiredMixin, View):
     """Record one revenue/expense/purchase at a time. The row is written to the
     same SalesEntry/ExpenseEntry/PurchaseEntry table the bulk screen reads from,
@@ -1815,6 +1854,7 @@ class SingleEntryView(TenantLoginRequiredMixin, View):
             "subcategory_map_json": to_json(services.subcategory_map()),
             # Admission (IP) only applies to the IP billing revenue category.
             "ip_revenue_category_id": str(services.get_finance_settings().ip_revenue_category_id or ""),
+            "admission_label": _admission_label_context(),
             "tabs": [
                 {
                     "kind": k,
@@ -1979,7 +2019,7 @@ def _monthly_summary_query(request):
 
 
 class ReportLineDetailView(TenantLoginRequiredMixin, View):
-    """JSON list of the individual entries behind one Financial Reports
+    """JSON list of the individual entries behind one Financial Statements
     row — e.g. clicking "Salaries & Wages" or "Revenue" shows exactly
     which transactions add up to that figure, instead of just the total.
 
@@ -2065,7 +2105,7 @@ class MonthlySummaryView(TenantLoginRequiredMixin, TemplateView):
 
 
 class MonthlySummaryExcelView(TenantLoginRequiredMixin, View):
-    """The Monthly Summary grid (plain amounts — not the Δ%/share views)
+    """The Category Summary grid (plain amounts — not the Δ%/share views)
     as a formatted .xlsx workbook: bold headers/totals, a currency number
     format, and the category column + header row frozen for scrolling."""
 
@@ -2130,7 +2170,7 @@ class MonthlySummaryExcelView(TenantLoginRequiredMixin, View):
 
 
 class MonthlySummaryPdfView(TenantLoginRequiredMixin, View):
-    """The Monthly Summary grid (plain amounts) as a landscape PDF, mirroring
+    """The Category Summary grid (plain amounts) as a landscape PDF, mirroring
     the P&L/Balance Sheet/Cash Flow export pattern on the Reports page."""
 
     def get(self, request, *args, **kwargs):
@@ -2524,9 +2564,67 @@ class FinanceSettingsView(TenantLoginRequiredMixin, TemplateView):
             for kind, defaults in services.BULK_COLUMN_DEFAULTS.items()
         ]
         can_edit_org = bool(user.organization_id) and user.role in (User.Role.OWNER, User.Role.ADMIN)
+        self._add_inventory(context, user)
         context["can_connect_drive"] = can_edit_org and drive.is_configured()
         context["drive_connection"] = getattr(user.organization, "cloud_backup", None) if can_edit_org else None
         return context
+
+    def _add_inventory(self, context, user):
+        """The editable inventory list, for an organization with scanning switched on."""
+        from . import inventory, scan_billing
+
+        context["inventory_enabled"] = scan_billing.barcode_scanning_on(user)
+        if not context["inventory_enabled"]:
+            return
+        stock = {r["id"]: r for r in inventory.inventory_rows()}
+        items = []
+        for product in Product.objects.filter(is_active=True).order_by("name"):
+            row = stock.get(str(product.pk), {})
+            items.append({
+                "id": str(product.pk), "name": product.name, "barcode": product.barcode,
+                "category": str(product.category_id or ""), "subcategory": str(product.subcategory_id or ""),
+                "sale_price": product.sale_price, "purchase_price": product.purchase_price,
+                "opening_stock": product.opening_stock,
+                "brand": product.brand, "size": product.size, "colour": product.colour, "ram": product.ram,
+                "storage": product.storage, "extra": product.extra_details,
+                "path": scan_billing.product_path(product), "common": scan_billing.common_values(product),
+                "purchased": row.get("purchased", 0), "sold": row.get("sold", 0),
+                "in_stock": row.get("in_stock", 0), "tracked": row.get("tracked", False),
+            })
+        kind = scan_billing.inventory_type()
+        for item in items:
+            item["sale_price"] = f"{item['sale_price']:.2f}"
+            item["purchase_price"] = f"{item['purchase_price']:.2f}"
+        context["inventory_type_label"] = {"MOBILES": "Mobiles", "CLOTHES": "Clothes"}.get(kind, "Others")
+        context["inventory_url"] = reverse("finance:inventory")
+        context["inventory_payload"] = {
+            "structure": scan_billing.structure_config(),
+            "commonRows": scan_billing.common_option_rows(),
+            "type": kind,
+            "items": items,
+            "keys": scan_billing.ATTRIBUTES_BY_TYPE.get(kind, scan_billing.ATTRIBUTES_BY_TYPE["OTHER"]),
+            "categories": [
+                {"id": str(c.pk), "name": c.name}
+                for c in Category.objects.filter(kind=Category.Kind.PRODUCT, is_active=True).order_by("name")
+            ],
+            "subcategories": [
+                {"id": str(s.pk), "name": f"{s.category.name} › {s.name}"}
+                for s in Subcategory.objects.filter(is_active=True).select_related("category").order_by(
+                    "category__name", "name"
+                )
+            ],
+            "urls": {
+                "create": reverse("finance:scan_bill_product"),
+                "detail": reverse(
+                    "finance:scan_bill_product_detail", args=["00000000-0000-0000-0000-000000000000"],
+                ).replace("00000000-0000-0000-0000-000000000000", "__ID__"),
+                "unitAdd": reverse("finance:scan_bill_unit_add"),
+                "commonAdd": reverse("finance:common_option_add"),
+                "commonRemove": reverse(
+                    "finance:common_option_remove", args=["00000000-0000-0000-0000-000000000000"],
+                ).replace("00000000-0000-0000-0000-000000000000", "__ID__"),
+            },
+        }
 
     def post(self, request, *args, **kwargs):
         fs = services.get_finance_settings()

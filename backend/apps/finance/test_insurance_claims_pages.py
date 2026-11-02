@@ -120,8 +120,13 @@ class InsuranceClaimPagesTests(TestCase):
         over = self.client_.post(f"/app/insurance-claims/{claim.pk}/payments/add/", {
             "date": "2026-10-10", "amount": "20000", "deduction": "0",
         })
-        self.assertEqual(over.status_code, 200)  # re-rendered with the error
-        self.assertContains(over, "more than is left to settle")
+        # Redirected back (not re-rendered), so a refresh can't re-submit it;
+        # the error and typed amount show once, then a refresh is clean.
+        self.assertRedirects(over, f"/app/insurance-claims/{claim.pk}/", fetch_redirect_response=False)
+        shown = self.client_.get(f"/app/insurance-claims/{claim.pk}/")
+        self.assertContains(shown, "more than is left to settle")
+        self.assertContains(shown, 'value="20000"')
+        self.assertNotContains(self.client_.get(f"/app/insurance-claims/{claim.pk}/"), "more than is left to settle")
         self.assertEqual(ClaimPayment.objects.filter(claim=claim).count(), 1)
 
         payment = ClaimPayment.objects.get(claim=claim)

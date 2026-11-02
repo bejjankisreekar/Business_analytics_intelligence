@@ -1,6 +1,6 @@
 {% extends "finance/_app_base.html" %}
 {% load humanize %}
-{% block title %}Daily Book · {{ SITE_NAME }}{% endblock %}
+{% block title %}Day Book · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
 <style>
@@ -55,7 +55,7 @@
 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
   <div>
     <div class="flex items-center gap-2">
-      <h1 class="text-2xl font-bold text-white">Daily Book</h1>
+      <h1 class="text-2xl font-bold text-white">Day Book</h1>
       <span class="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-semibold tracking-wide text-slate-400">{{ organization.currency }}</span>
     </div>
     <p class="mt-1 text-sm text-slate-400">A cashier-style sheet of everything logged for the day.</p>
@@ -107,6 +107,14 @@
 <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
   <!-- 2×2 action grid on phones, inline row from sm up -->
   <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+    {% if request.user.organization.barcode_scanning_enabled %}
+    <a href="{% url 'finance:scan_bill' %}?type=sale&camera=1&date={{ report.date|date:'Y-m-d' }}" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5 sm:justify-start sm:px-4">
+      <svg class="h-4 w-4 flex-none text-mint-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M7 12h10"/></svg>Scan items
+    </a>
+    <a href="{% url 'finance:inventory' %}" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5 sm:justify-start sm:px-4">
+      <svg class="h-4 w-4 flex-none text-mint-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8"/></svg>Inventory &amp; stock
+    </a>
+    {% endif %}
     <a href="{% url 'finance:single_entry' %}?type=sale&date={{ report.date|date:'Y-m-d' }}" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5 sm:justify-start sm:px-4">
       <svg class="h-4 w-4 flex-none text-mint-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Single entry
     </a>

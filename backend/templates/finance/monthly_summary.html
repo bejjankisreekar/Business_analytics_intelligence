@@ -1,6 +1,6 @@
 {% extends "finance/_app_base.html" %}
-{% load humanize %}
-{% block title %}Monthly Summary · {{ SITE_NAME }}{% endblock %}
+{% load humanize static %}
+{% block title %}Category Summary · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
 <style>
@@ -96,7 +96,15 @@
   .ms-name-cell { display: flex; align-items: center; }
   .ms-name-spacer { display: inline-block; width: 1.45rem; flex: none; }
   .ms-subrow.hidden { display: none; }
-  .ms-subrow td.ms-name { padding-left: 2.35rem; font-weight: 400; color: #9aa4bd; font-size: 0.79rem; }
+  .ms-table th.ms-trend, .ms-table td.ms-trend { text-align: center; width: 3.5rem; }
+  .ms-trend-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.75rem; height: 1.75rem; border-radius: 0.45rem;
+    color: #7f95ff; background: rgba(91,124,250,0.1); transition: background .15s, color .15s;
+  }
+  .ms-trend-btn:hover, .ms-trend-btn:focus-visible { background: rgba(91,124,250,0.25); color: #fff; outline: none; }
+  .ms-trend-btn svg { width: 1rem; height: 1rem; }
+  .ms-subrow td.ms-name { padding-left: 3.6rem; font-weight: 400; color: #9aa4bd; font-size: 0.79rem; }
   .ms-subrow td { color: #8b93ab; }
   .ms-subrow td.stat-up { color: #34d9b8; }
   .ms-subrow td.stat-down { color: #f87171; }
@@ -135,7 +143,7 @@
 
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="ms-title text-2xl font-bold text-white">Monthly Summary</h1>
+    <h1 class="ms-title text-2xl font-bold text-white">Category Summary</h1>
     <p class="mt-1 text-sm text-slate-400">{{ kind_label }} by category · {{ period.label }}</p>
   </div>
   <form method="get" id="ms-filter-form" class="ms-filters flex flex-wrap items-end gap-2">
@@ -250,6 +258,7 @@
           <th colspan="1" class="ms-period-head ms-period-start">{{ label }}</th>
           {% endfor %}
           <th class="ms-total" rowspan="2">Total</th>
+          <th class="ms-trend" rowspan="2">Trend</th>
         </tr>
         <tr>
           {% for label in matrix.labels %}
@@ -278,6 +287,7 @@
           <td class="ms-change {% if cell.change == None %}text-slate-600{% elif cell.change >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if cell.change != None %}{% if cell.change >= 0 %}▲{% else %}▼{% endif %} {{ cell.change|floatformat:1 }}%{% else %}—{% endif %}</td>
           {% endfor %}
           <td class="ms-total">{{ row.total|floatformat:2|intcomma }}</td>
+          <td class="ms-trend"><button type="button" class="ms-trend-btn" aria-label="Show trend" title="Show trend" data-name="{{ row.name }}" data-total="{{ row.total|floatformat:2|intcomma }}" data-values="{% for cell in row.cells %}{{ cell.value|default:0|stringformat:'s' }}{% if not forloop.last %},{% endif %}{% endfor %}" onclick="bai.msOpenTrend(this)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></button></td>
         </tr>
         {% for subrow in row.subrows %}
         <tr class="ms-subrow ms-subrow-{{ forloop.parentloop.counter }}{% if not expand_all %} hidden{% endif %}">
@@ -287,10 +297,11 @@
           <td class="ms-change {% if cell.change == None %}text-slate-600{% elif cell.change >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if cell.change != None %}{% if cell.change >= 0 %}▲{% else %}▼{% endif %} {{ cell.change|floatformat:1 }}%{% else %}—{% endif %}</td>
           {% endfor %}
           <td class="ms-total">{{ subrow.total|floatformat:2|intcomma }}</td>
+          <td class="ms-trend"><button type="button" class="ms-trend-btn" aria-label="Show trend" title="Show trend" data-name="{{ row.name }} › {{ subrow.name }}" data-total="{{ subrow.total|floatformat:2|intcomma }}" data-values="{% for cell in subrow.cells %}{{ cell.value|default:0|stringformat:'s' }}{% if not forloop.last %},{% endif %}{% endfor %}" onclick="bai.msOpenTrend(this)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></button></td>
         </tr>
         {% endfor %}
         {% empty %}
-        <tr><td class="ms-name text-slate-500" colspan="{{ matrix.labels|length|add:matrix.labels|length|add:2 }}">No {{ kind }} recorded for {{ period.label }}.</td></tr>
+        <tr><td class="ms-name text-slate-500" colspan="{{ matrix.labels|length|add:matrix.labels|length|add:3 }}">No {{ kind }} recorded for {{ period.label }}.</td></tr>
         {% endfor %}
       </tbody>
       {% if matrix.rows %}
@@ -302,13 +313,31 @@
           <td class="ms-change {% if cell.change == None %}text-slate-500{% elif cell.change >= 0 %}stat-up{% else %}stat-down{% endif %}">{% if cell.change != None %}{% if cell.change >= 0 %}▲{% else %}▼{% endif %} {{ cell.change|floatformat:1 }}%{% else %}—{% endif %}</td>
           {% endfor %}
           <td>{{ matrix.grand_total|floatformat:2|intcomma }}</td>
+          <td class="ms-trend"></td>
         </tr>
       </tfoot>
       {% endif %}
     </table>
   </div>
 </div>
-<p class="mt-3 text-xs text-slate-500">Amounts in {{ organization.currency }}. Δ% is the change from the previous column in the same row.</p>
+<p class="mt-3 text-xs text-slate-500">Amounts in {{ organization.currency }}. Δ% is the change from the previous column in the same row. Click a row's trend icon to see it as a line chart.</p>
+
+<!-- Row total click: line chart of that row across the columns shown -->
+<div id="ms-trend-modal" class="modal-overlay fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="ms-trend-title" onclick="if (event.target === this) bai.msCloseTrend()">
+  <div class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h3 id="ms-trend-title" class="text-lg font-semibold text-white"></h3>
+        <p id="ms-trend-sub" class="mt-0.5 text-xs text-slate-500"></p>
+      </div>
+      <button type="button" onclick="bai.msCloseTrend()" aria-label="Close" class="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="mt-4 h-72"><canvas id="ms-trend-chart"></canvas></div>
+  </div>
+</div>
+{{ matrix.labels|json_script:"ms-trend-labels" }}
 <script>
   bai.msToggleSubrows = (btn, idx) => {
     const expanded = btn.getAttribute("aria-expanded") === "true";
@@ -351,5 +380,50 @@
       th.colSpan = showChange ? 2 : 1;
     });
   };
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/chart-theme.js' %}"></script>
+<script>Chart.defaults.locale = "en-IN";</script>
+<script>
+  // Row total click → line chart of that row over the columns on screen,
+  // so it follows whatever View by / Range filter the table is showing.
+  let msTrendChart = null;
+  let msTrendRow = null;
+  const msTrendLabels = JSON.parse(document.getElementById("ms-trend-labels").textContent);
+  const msTrendColor = { sales: "mint", purchases: "brand", expenses: "red" }["{{ kind }}"];
+
+  function msRenderTrend() {
+    if (msTrendChart) msTrendChart.destroy();
+    const c = baiChartTheme.applyDefaults();
+    msTrendChart = new Chart(document.getElementById("ms-trend-chart"), {
+      type: "line",
+      data: {
+        labels: msTrendLabels,
+        datasets: [{
+          label: msTrendRow.name, data: msTrendRow.values,
+          borderColor: c[msTrendColor], backgroundColor: c[msTrendColor + "Fill"],
+          cubicInterpolationMode: "monotone", fill: true, pointRadius: msTrendLabels.length > 40 ? 0 : 3, pointHoverRadius: 5,
+        }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: c.grid } } } },
+    });
+  }
+
+  bai.msOpenTrend = (btn) => {
+    msTrendRow = { name: btn.dataset.name, values: btn.dataset.values.split(",").map(Number) };
+    document.getElementById("ms-trend-title").textContent = msTrendRow.name;
+    document.getElementById("ms-trend-sub").textContent =
+      "{{ kind_label }} · {% for value, label in granularity_choices %}{% if value == granularity %}{{ label }}{% endif %}{% endfor %} · {{ period.label }} · Total {{ organization.currency }} " + btn.dataset.total;
+    document.getElementById("ms-trend-modal").classList.remove("hidden");
+    msRenderTrend();
+  };
+  bai.msCloseTrend = () => document.getElementById("ms-trend-modal").classList.add("hidden");
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") bai.msCloseTrend(); });
+  baiChartTheme.onThemeChange(() => { if (msTrendChart) msRenderTrend(); return []; });
 </script>
 {% endblock %}

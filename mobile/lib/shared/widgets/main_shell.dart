@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/router.dart';
 import '../../app/theme/app_colors.dart';
 import '../../features/auth/application/session_controller.dart';
+import '../../features/entries/application/entries_providers.dart';
 import '../../features/reports/application/reports_providers.dart';
 import '../../features/requests/application/requests_providers.dart';
 
@@ -68,8 +69,23 @@ class MainShell extends ConsumerWidget {
       ),
     );
 
+    // The camera button opens the scanner ready to sell; its Purchase tab switches to buying.
+    final scanEnabled =
+        ref.watch(entryOptionsProvider).valueOrNull?.barcodeScanningEnabled ??
+        false;
+
     return Scaffold(
       body: shell,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: scanEnabled
+          ? FloatingActionButton(
+              tooltip: 'Scan to sell or purchase',
+              backgroundColor: AppColors.brand,
+              foregroundColor: AppColors.onBrand,
+              onPressed: () => context.push('${AppRoutes.scanBill}?camera=1'),
+              child: const Icon(Icons.qr_code_scanner),
+            )
+          : null,
       bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(

@@ -31,7 +31,7 @@
       html[data-theme="light"] .dash-hello-sub { color: #3a56d4; }
       html[data-theme="light"] .dash-period strong { color: #0f172a; }
     </style>
-    <h1 class="dash-hello text-white">Welcome back, <span class="dash-grad">{{ request.user.get_full_name|default:request.user.username }}</span> ✨</h1>
+    <h1 class="dash-hello text-white">Welcome back, <span class="dash-grad">{{ request.user.get_full_name|default:request.user.username }}</span> 👋</h1>
     <p class="dash-period">Showing <strong>{{ period.label }}</strong></p>
   </div>
   <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -90,7 +90,7 @@
 <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
   <div class="card dash-card p-5 xl:col-span-2">
     <h3 class="text-sm font-semibold text-white">Revenue vs expenses vs purchases</h3>
-    <p class="text-xs text-slate-500">Daily totals for {{ period.label }}</p>
+    <p class="text-xs text-slate-500">{{ chart_daily_caption }}</p>
     <div class="dash-chart mt-4 h-72"><canvas id="chartDaily"></canvas></div>
   </div>
   <div class="card dash-card p-5">
@@ -135,7 +135,7 @@
           <td class="py-2.5 text-right font-medium text-white">{{ e.amount|floatformat:0|intcomma }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="py-6 text-center text-slate-500">No entries yet — head to Daily Book → Bulk Entry to log your first revenue entry, expense or purchase.</td></tr>
+        <tr><td colspan="5" class="py-6 text-center text-slate-500">No entries yet — head to Day Book → Bulk Entry to log your first revenue entry, expense or purchase.</td></tr>
         {% endfor %}
       </tbody>
     </table>

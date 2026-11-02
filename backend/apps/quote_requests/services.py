@@ -255,7 +255,7 @@ def _sales_channel(org):
 
 
 def book_sale(req: QuoteRequest, mode: str, email: str) -> None:
-    """Records the paid amount as one lump-sum sale in the Daily Book, dated the day it was paid.
+    """Records the paid amount as one lump-sum sale in the Day Book, dated the day it was paid.
 
     Every request goes under the one "Customer requests" revenue channel as a single
     lump-sum amount (not split per item or per product category).
@@ -281,7 +281,7 @@ def book_sale(req: QuoteRequest, mode: str, email: str) -> None:
 
 
 def release_sale(req: QuoteRequest) -> None:
-    """Takes the request's sale back out of the Daily Book (payment reverted or amount changed)."""
+    """Takes the request's sale back out of the Day Book (payment reverted or amount changed)."""
     if req.sales_entry_id is not None:
         from apps.finance.models import SalesEntry
 
@@ -293,7 +293,7 @@ def release_sale(req: QuoteRequest) -> None:
 
 
 def set_payment(req: QuoteRequest, *, paid: bool, mode: str, email: str) -> None:
-    """Marks a quoted request Paid (booking the sale in the Daily Book) or back to Pending
+    """Marks a quoted request Paid (booking the sale in the Day Book) or back to Pending
     (removing it). Raises RequestError until the quote has been sent."""
     if req.status != QuoteRequest.Status.QUOTED:
         raise RequestError("Send the quote first, then record the payment.")

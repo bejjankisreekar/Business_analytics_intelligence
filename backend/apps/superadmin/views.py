@@ -23,7 +23,10 @@ from apps.billing import services as billing_services
 from apps.billing import payments as payment_services
 from apps.billing.models import Coupon, CouponRedemption, Invoice, Payment, Plan, Subscription
 from apps.organizations import service_control
-from apps.organizations.models import DataStorageChangeRequest, Organization, ServiceStatusChange, SupportRequest
+from apps.organizations.models import (
+    DataStorageChangeRequest, Organization, OrganizationCategory, ServiceStatusChange, SupportRequest,
+)
+from apps.organizations import services as org_services
 from apps.organizations.services import OrganizationSignupError, create_organization_with_tenant_schema_and_admin
 
 from apps.organizations.forms import ApproveStorageChangeForm
@@ -45,6 +48,8 @@ from .forms import (
     ExtendTrialForm,
     GenerateInvoiceForm,
     GrantComplimentaryForm,
+    ClientLevelsForm,
+    OrganizationCategoryForm,
     PlanForm,
     RecordInvoicePaymentForm,
     RecordPaymentForm,
@@ -413,6 +418,12 @@ class OrganizationDetailView(SuperAdminRequiredMixin, TemplateView):
             "end_date": subscription.end_date if subscription else None,
             "cancellation_date": subscription.cancellation_date if subscription else None,
         })
+        context["inventory_type_choices"] = Organization.InventoryType.choices
+        context["org_categories"] = OrganizationCategory.objects.using(env).filter(is_active=True).order_by("code")
+        from apps.organizations.levels import org_levels
+
+        context.update(_level_context(org_levels(org)))
+        context["org_levels_count"] = len(org_levels(org))
         context["team"] = User.objects.using(env).filter(organization_id=org.id).order_by("email")
         context.update(self._console_extras(env, org, subscription))
         return context
@@ -626,24 +637,37 @@ class OrganizationDeleteView(SuperAdminRequiredMixin, View):
         org = get_object_or_404(Organization.objects.using(env), pk=pk)
         org_name = org.name
 
+        # Lock the client out first, in its own quick commit: even if the full
+        # delete below is slow or fails, their logins and app tokens stop working now.
+        with transaction.atomic(using=env):
+            User.objects.using(env).filter(organization=org).update(is_active=False)
+            Organization.objects.using(env).filter(pk=org.pk).update(is_active=False)
+
         try:
             with transaction.atomic(using=env):
-                # Receivables / partner transactions are PROTECTed against their
-                # customer / partner, which blocks the org cascade. They belong
-                # to this org anyway, so clear them first and retry.
+                # Receivables / partner transactions / stock units are PROTECTed
+                # against rows that cascade with the org, which blocks the delete.
+                # They belong to this org anyway, so clear them (one query per
+                # model, not one per row) and retry.
                 for _ in range(10):
                     try:
                         org.delete(using=env)
                         break
                     except ProtectedError as exc:
-                        for obj in list(exc.protected_objects):
-                            obj.delete(using=env)
+                        by_model = {}
+                        for obj in exc.protected_objects:
+                            by_model.setdefault(type(obj), []).append(obj.pk)
+                        for model, pks in by_model.items():
+                            model._base_manager.using(env).filter(pk__in=pks).delete()
                 else:
                     raise RuntimeError("Too many protected dependencies to clear.")
             messages.success(request, f"Deleted organization '{org_name}' entirely.")
         except Exception as e:
             logger.exception("Failed to delete organization %s", pk)
-            messages.error(request, f"Failed to delete organization: {str(e)}")
+            messages.error(
+                request,
+                f"Failed to delete organization: {str(e)}. Its logins are already disabled; try deleting again.",
+            )
 
         return redirect("superadmin:org_list", env=env)
 
@@ -695,6 +719,27 @@ class ExtendTrialView(SuperAdminRequiredMixin, View):
             messages.success(request, f"Extended {org.name}'s trial.")
         else:
             messages.error(request, "Couldn't extend the trial — please check the date.")
+        return redirect("superadmin:org_detail", env=env, pk=pk)
+
+
+class BarcodeScanningToggleView(SuperAdminRequiredMixin, View):
+    """Turns Scan & Bill (barcode scanning in sales and purchase entry) on or
+    off for one organization. Off by default for every organization."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        org = get_object_or_404(Organization.objects.using(env), pk=pk)
+        enabled = request.POST.get("enabled") == "1"
+        org.barcode_scanning_enabled = enabled
+        fields = ["barcode_scanning_enabled"]
+        chosen = request.POST.get("inventory_type")
+        if chosen in Organization.InventoryType.values:
+            org.inventory_type = chosen
+            fields.append("inventory_type")
+        org.save(using=env, update_fields=fields)
+        state = "enabled" if enabled else "disabled"
+        kind = org.get_inventory_type_display().split(" (")[0]
+        messages.success(request, f"Barcode scanning {state} for {org.name} (inventory type: {kind}).")
         return redirect("superadmin:org_detail", env=env, pk=pk)
 
 
@@ -868,6 +913,127 @@ class ResumeServiceView(_BaseServiceActionView):
 
     def control_fn(self, org, *, using, admin_email, reason, notes):
         return service_control.resume_service(org, using=using, admin_email=admin_email, notes=notes)
+
+
+def _level_context(levels=None) -> dict:
+    """What the structure editor needs: the presets, the limits, and the current levels as JSON."""
+    from apps.organizations import levels as level_module
+
+    return {
+        "level_presets": [{"key": key, "label": label} for key, (label, _) in level_module.PRESETS.items()],
+        "level_presets_data": {key: lv for key, (_, lv) in level_module.PRESETS.items()},
+        "level_limits": {"min": level_module.MIN_LEVELS, "max": level_module.MAX_LEVELS},
+        "levels_json": json.dumps(levels if levels is not None else level_module.default_levels()),
+    }
+
+
+class OrgCategoryListView(SuperAdminRequiredMixin, TemplateView):
+    """The codes for kinds of organization, and what each one turns on. Superadmin only."""
+
+    template_name = "superadmin/org_category_list.html"
+
+    def get_context_data(self, **kwargs):
+        env = kwargs["env"]
+        context = super().get_context_data(**kwargs)
+        context["env_key"] = env
+        context["env_label"] = _env_label_or_404(env)
+        from django.db.models import Count
+
+        context["categories"] = OrganizationCategory.objects.using(env).annotate(
+            client_count=Count("organizations")
+        ).order_by("code")
+        return context
+
+
+class OrgCategoryCreateView(SuperAdminRequiredMixin, View):
+    template_name = "superadmin/org_category_form.html"
+
+    def _render(self, request, env, form):
+        return render(request, self.template_name, {
+            "form": form, "env_key": env, "env_label": ENVIRONMENTS[env], "mode": "create", **_level_context(),
+        })
+
+    def get(self, request, env):
+        _env_label_or_404(env)
+        return self._render(request, env, OrganizationCategoryForm(env=env))
+
+    def post(self, request, env):
+        _env_label_or_404(env)
+        form = OrganizationCategoryForm(request.POST, env=env)
+        if form.is_valid():
+            category = form.save(commit=False)
+            category.save(using=env)
+            messages.success(request, f"Created code {category.code}.")
+            return redirect("superadmin:org_category_list", env=env)
+        return self._render(request, env, form)
+
+
+class OrgCategoryEditView(SuperAdminRequiredMixin, View):
+    template_name = "superadmin/org_category_form.html"
+
+    def _render(self, request, env, form, category, clients):
+        return render(request, self.template_name, {
+            "form": form, "env_key": env, "env_label": ENVIRONMENTS[env], "mode": "edit",
+            "category": category, "clients": clients, **_level_context(),
+        })
+
+    def _clients(self, env, category):
+        return Organization.objects.using(env).filter(category=category).count()
+
+    def get(self, request, env, pk):
+        _env_label_or_404(env)
+        category = get_object_or_404(OrganizationCategory.objects.using(env), pk=pk)
+        return self._render(
+            request, env, OrganizationCategoryForm(instance=category, env=env), category, self._clients(env, category),
+        )
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        category = get_object_or_404(OrganizationCategory.objects.using(env), pk=pk)
+        form = OrganizationCategoryForm(request.POST, instance=category, env=env)
+        if form.is_valid():
+            category = form.save(commit=False)
+            category.save(using=env)
+            # Saving applies the code's features to every client that has it.
+            updated = org_services.sync_category(category, using=env)
+            messages.success(
+                request, f"Saved {category.code}. Applied to {updated} client{'' if updated == 1 else 's'}.",
+            )
+            return redirect("superadmin:org_category_list", env=env)
+        return self._render(request, env, form, category, self._clients(env, category))
+
+
+class OrganizationLevelsView(SuperAdminRequiredMixin, View):
+    """Changes the category structure for one client."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        org = get_object_or_404(Organization.objects.using(env), pk=pk)
+        form = ClientLevelsForm(request.POST)
+        if form.is_valid():
+            org.levels = form.levels
+            org.save(using=env, update_fields=["levels"])
+            messages.success(request, f"Saved the category structure for {org.name}.")
+        else:
+            messages.error(request, " ".join(form.errors.get("levels_json", ["Couldn't save the structure."])))
+        return redirect("superadmin:org_detail", env=env, pk=pk)
+
+
+class OrganizationCategoryAssignView(SuperAdminRequiredMixin, View):
+    """Gives one client a code (or removes it). Giving a code applies its features to the client."""
+
+    def post(self, request, env, pk):
+        _env_label_or_404(env)
+        org = get_object_or_404(Organization.objects.using(env), pk=pk)
+        chosen = request.POST.get("category", "")
+        if not chosen:
+            org_services.apply_category(org, None, using=env)
+            messages.success(request, f"Removed the code from {org.name}. Its features are unchanged.")
+        else:
+            category = get_object_or_404(OrganizationCategory.objects.using(env), pk=chosen, is_active=True)
+            org_services.apply_category(org, category, using=env)
+            messages.success(request, f"{org.name} now has code {category.code}.")
+        return redirect("superadmin:org_detail", env=env, pk=pk)
 
 
 class PlanListView(SuperAdminRequiredMixin, TemplateView):

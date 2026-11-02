@@ -141,6 +141,7 @@
   .dsd-table tbody tr:hover td { background: rgb(var(--tint-rgb) / .06); }
   .dsd-table td.dsd-col-amount { font-weight: 700; font-variant-numeric: tabular-nums; }
   .dsd-table td.dsd-col-muted { color: rgb(var(--slate-500)); }
+  .dsd-table th.dsd-col-qty, .dsd-table td.dsd-col-qty { text-align: right; font-variant-numeric: tabular-nums; }
   .dsd-table tfoot td { padding: .55rem .7rem; font-weight: 700; font-variant-numeric: tabular-nums; border-top: 2px solid rgb(var(--tint-rgb) / .14); background: rgb(var(--tint-rgb) / .045); color: rgb(var(--fg-strong)); }
 
   .dsd-pay { display: inline-flex; align-items: center; gap: .25rem; border-radius: .4rem; padding: 1.5px 7px; font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
@@ -265,6 +266,7 @@
   const DS_COL_CATEGORY = { label: "Category", cls: "", get: (e) => bai.escapeHtml(e.category) || "Uncategorized" };
   const DS_COL_SUBCATEGORY = { label: "Subcategory", cls: "dsd-col-muted", get: (e) => e.subcategory ? bai.escapeHtml(e.subcategory) : "—" };
   const DS_COL_NOTE = { label: "Note", cls: "dsd-col-muted", get: (e) => e.note ? bai.escapeHtml(e.note) : "—" };
+  const DS_COL_QTY = { label: "Qty", cls: "dsd-col-qty", get: (e) => (e.quantity !== null && e.quantity !== undefined) ? bai.escapeHtml(String(e.quantity)) : "—" };
   const DS_COL_PAYMENT = { label: "Payment", cls: "", get: (e) => dsPaymentChip(e.payment_mode) };
   const DS_COL_AMOUNT = { label: "Amount ({{ organization.currency }})", cls: "dsd-col-amount", get: (e) => bai.fmtAmount(e.amount) };
 
@@ -273,7 +275,7 @@
       columns: [
         DS_COL_CATEGORY, DS_COL_SUBCATEGORY,
         { label: "Customer", cls: "dsd-col-muted", optional: true, raw: (e) => e.customer, get: (e) => e.customer ? bai.escapeHtml(e.customer) : "—" },
-        DS_COL_PAYMENT, DS_COL_NOTE, DS_COL_AMOUNT,
+        DS_COL_QTY, DS_COL_PAYMENT, DS_COL_NOTE, DS_COL_AMOUNT,
       ] },
     { key: "expenses", label: "Expenses", accent: "#f87171", icon: DS_ICON_EXPENSES,
       columns: [DS_COL_CATEGORY, DS_COL_SUBCATEGORY, DS_COL_PAYMENT, DS_COL_NOTE, DS_COL_AMOUNT] },
@@ -281,7 +283,7 @@
       columns: [
         DS_COL_CATEGORY, DS_COL_SUBCATEGORY,
         { label: "Vendor", cls: "dsd-col-muted", optional: true, raw: (e) => e.vendor, get: (e) => e.vendor ? bai.escapeHtml(e.vendor) : "—" },
-        DS_COL_PAYMENT, DS_COL_NOTE, DS_COL_AMOUNT,
+        DS_COL_QTY, DS_COL_PAYMENT, DS_COL_NOTE, DS_COL_AMOUNT,
       ] },
   ];
 
@@ -363,6 +365,10 @@
       if (extraCol) {
         const extraValue = extraCol.get(e);
         if (extraValue !== "—") subParts.push(extraValue);
+      }
+      if (columns.includes(DS_COL_QTY)) {
+        const qtyValue = DS_COL_QTY.get(e);
+        if (qtyValue !== "—") subParts.push(`Qty ${qtyValue}`);
       }
       const noteValue = DS_COL_NOTE.get(e);
       const noteHtml = noteValue !== "—" ? `<div class="dsd-mrow-note">${noteValue}</div>` : "";

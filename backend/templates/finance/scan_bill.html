@@ -1,0 +1,1103 @@
+{% extends "finance/_app_base.html" %}
+{% load static %}
+{% block title %}Scan & Bill · {{ SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+<div class="sb-page">
+  <div class="sb-topbar">
+    <a href="{{ daily_url }}" class="sb-back">← Day Book</a>
+    <a href="{% url 'finance:single_entry' %}?type={{ kind }}" class="sb-back">Single Entry →</a>
+    <a href="{% url 'finance:inventory' %}" class="sb-back">Inventory &amp; stock →</a>
+    <a href="{% url 'finance:barcode_labels' %}" class="sb-back">Print barcode labels →</a>
+  </div>
+
+  <header class="sb-header">
+    <div>
+      <h1>Scan &amp; Bill</h1>
+      <p>Scan items with a camera or a barcode scanner, then save the bill.</p>
+    </div>
+    <div class="sb-type-switch" role="tablist">
+      <a href="?type=sale" role="tab" aria-selected="{% if kind == 'sale' %}true{% else %}false{% endif %}" class="sb-type {% if kind == 'sale' %}sb-type--active{% endif %}">Sale</a>
+      <a href="?type=purchase" role="tab" aria-selected="{% if kind == 'purchase' %}true{% else %}false{% endif %}" class="sb-type {% if kind == 'purchase' %}sb-type--active{% endif %}">Purchase</a>
+    </div>
+  </header>
+
+  <div class="sb-grid">
+    <section class="sb-card">
+      <h2 class="sb-title">1. Scan items</h2>
+      <div class="sb-scan-row">
+        <input id="sb-barcode" type="text" autocomplete="off" autofocus class="sb-input" placeholder="Scan or type a barcode, then press Enter">
+        <button type="button" id="sb-camera-toggle" class="sb-btn">Use camera</button>
+      </div>
+      <div id="sb-camera" class="sb-camera" hidden></div>
+      <p id="sb-status" class="sb-status" role="status" aria-live="polite"></p>
+
+      <div class="sb-search">
+        <label class="sb-label" for="sb-search">Or find the product by name</label>
+        <input id="sb-search" type="search" class="sb-input" placeholder="Type at least 2 letters of the product name" autocomplete="off">
+        <div id="sb-results" class="sb-results" hidden></div>
+      </div>
+
+      <div id="sb-new" class="sb-new" hidden>
+        <p class="sb-new-title">This barcode is new. Add the product to continue.</p>
+        <div class="sb-new-grid">
+          <label class="sb-field sb-span-2"><span class="sb-label">Barcode</span>
+            <input id="sb-new-barcode" type="text" class="sb-input" readonly></label>
+          <label class="sb-field sb-span-2"><span class="sb-label" id="sb-new-name-label">Product name</span>
+            <input id="sb-new-name" type="text" maxlength="150" class="sb-input" placeholder="e.g. Cotton kurta, M"></label>
+          <label class="sb-field"><span class="sb-label">Sale price</span>
+            <input id="sb-new-sale" type="number" min="0" step="0.01" class="sb-input" placeholder="0.00"></label>
+          <label class="sb-field"><span class="sb-label">Purchase price</span>
+            <input id="sb-new-purchase" type="number" min="0" step="0.01" class="sb-input" placeholder="0.00"></label>
+          <div id="sb-new-attrs" class="sb-new-grid sb-span-2"></div>
+        </div>
+        <div class="sb-actions">
+          <button type="button" id="sb-new-cancel" class="sb-btn">Cancel</button>
+          <button type="button" id="sb-new-save" class="sb-btn sb-btn--primary">Save product &amp; add</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="sb-card">
+      <h2 class="sb-title">2. Bill</h2>
+      <div class="sb-table-wrap">
+        <table class="sb-table">
+          <thead>
+            <tr><th>Item</th><th class="sb-num">Qty (edit)</th><th class="sb-num">{% if kind == 'sale' %}Selling price{% else %}Purchase price{% endif %} (edit)</th><th class="sb-num">Total</th><th></th></tr>
+          </thead>
+          <tbody id="sb-lines"></tbody>
+        </table>
+        <p id="sb-empty" class="sb-empty">No items yet. Scan the first one.</p>
+      </div>
+      <p class="sb-hint">Each price starts at the product's price. Change the price or quantity for this bill if you sell at a different amount.</p>
+      <div class="sb-total">
+        <span>Items <strong id="sb-count">0</strong></span>
+        <span>Total <strong>{{ organization.currency }} <span id="sb-total">0.00</span></strong></span>
+      </div>
+
+      <form id="sb-form" class="sb-form" novalidate>
+        {% csrf_token %}
+        <label class="sb-field">
+          <span class="sb-label">Date</span>
+          <input id="sb-date" name="date" type="date" class="sb-input" value="{{ bill_date }}"{% if min_date %} min="{{ min_date }}"{% endif %}>
+        </label>
+        <label class="sb-field">
+          <span class="sb-label">{% if kind == 'sale' %}Revenue channel{% else %}Purchase category{% endif %}</span>
+          <select id="sb-category" name="category" class="sb-input">
+            {% if kind == 'sale' %}
+              <option value="">— Pick a channel —</option>
+              {% for ch in channels %}<option value="{{ ch.pk }}">{{ ch.name }}</option>{% endfor %}
+            {% else %}
+              <option value="">— Pick a category —</option>
+              {% for cat in purchase_categories %}<option value="{{ cat.pk }}">{{ cat.name }}</option>{% endfor %}
+            {% endif %}
+          </select>
+        </label>
+        <label class="sb-field">
+          <span class="sb-label">Sub-category (optional)</span>
+          <select id="sb-subcategory" name="subcategory" class="sb-input">
+            <option value="">— None —</option>
+            {% for sub in subcategories %}<option value="{{ sub.pk }}" data-category="{{ sub.category_id }}">{{ sub.category.name }} → {{ sub.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="sb-field">
+          <span class="sb-label">Payment</span>
+          <select id="sb-payment" name="payment_mode" class="sb-input">
+            {% for value, label in payment_modes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="sb-field">
+          <span class="sb-label">Bank</span>
+          <select id="sb-bank" name="bank_account" class="sb-input">
+            <option value="">— None —</option>
+            {% for bank in bank_accounts %}<option value="{{ bank.pk }}">{{ bank.name }}</option>{% endfor %}
+          </select>
+        </label>
+        {% if kind == 'purchase' %}
+        <label class="sb-field sb-span-2">
+          <span class="sb-label">Vendor (optional)</span>
+          <input id="sb-vendor" name="vendor" type="text" maxlength="150" class="sb-input" placeholder="Supplier name">
+        </label>
+        {% endif %}
+        <div class="sb-span-2 sb-actions">
+          <button type="button" id="sb-clear" class="sb-btn">Clear bill</button>
+          <button type="submit" id="sb-save" class="sb-btn sb-btn--primary">Save {{ kind }} bill</button>
+        </div>
+      </form>
+
+      <div id="sb-done" class="sb-done" hidden>
+        <p class="font-semibold">Saved bill <span id="sb-done-no"></span></p>
+        <p id="sb-done-text"></p>
+        <a id="sb-done-link" class="sb-btn sb-btn--primary" href="{{ daily_url }}">Open Day Book</a>
+      </div>
+    </section>
+  </div>
+</div>
+
+<datalist id="sb-dl-brand">
+  <option value="Apple"><option value="Samsung"><option value="Xiaomi"><option value="Redmi"><option value="Vivo">
+  <option value="Oppo"><option value="Realme"><option value="OnePlus"><option value="Motorola"><option value="Nokia">
+  <option value="Google"><option value="Poco"><option value="iQOO"><option value="Infinix"><option value="Tecno">
+  <option value="Nothing"><option value="Honor"><option value="Lava"><option value="Itel">
+</datalist>
+<datalist id="sb-dl-ram"><option value="2GB"><option value="3GB"><option value="4GB"><option value="6GB"><option value="8GB"><option value="12GB"><option value="16GB"></datalist>
+<datalist id="sb-dl-storage"><option value="32GB"><option value="64GB"><option value="128GB"><option value="256GB"><option value="512GB"><option value="1TB"></datalist>
+<datalist id="sb-dl-size"><option value="XS"><option value="S"><option value="M"><option value="L"><option value="XL"><option value="XXL"><option value="Free size"></datalist>
+<datalist id="sb-dl-colour"><option value="Black"><option value="White"><option value="Blue"><option value="Red"><option value="Green"><option value="Grey"><option value="Silver"><option value="Gold"><option value="Navy"></datalist>
+<select id="sb-subcat-source" hidden>
+  <option value="">— None —</option>
+  {% for sub in product_subcategories %}<option value="{{ sub.pk }}">{{ sub.category.name }} › {{ sub.name }}</option>{% endfor %}
+</select>
+{{ sb_config|json_script:"sb-config" }}
+{% endblock %}
+
+{% block extra_js %}
+<style>
+  .sb-page { max-width: 1100px; margin: 0 auto; padding: 1rem; color: #0f172a; }
+  .sb-page [hidden] { display: none !important; }
+  .sb-topbar { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; font-size: 0.85rem; }
+  .sb-back { color: #64748b; text-decoration: none; }
+  .sb-back:hover { color: #0f172a; }
+  .sb-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; }
+  .sb-header h1 { font-size: 1.25rem; font-weight: 700; color: #0f172a; }
+  .sb-header p { font-size: 0.85rem; color: #64748b; }
+  .sb-type-switch { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 0.6rem; overflow: hidden; background: #fff; }
+  .sb-type { padding: 0.45rem 1rem; font-size: 0.85rem; color: #475569; text-decoration: none; }
+  .sb-type--active { background: #eef0ff; color: #3730a3; font-weight: 600; }
+  .sb-grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .sb-grid { grid-template-columns: 1fr 1.25fr; } }
+  .sb-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: 1rem; min-width: 0; box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
+  .sb-title { font-size: 0.95rem; font-weight: 600; color: #0f172a; margin-bottom: 0.75rem; }
+  .sb-scan-row { display: flex; gap: 0.5rem; }
+  .sb-input { width: 100%; min-width: 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.5rem 0.65rem; color: #0f172a; font-size: 0.9rem; box-sizing: border-box; }
+  /* Every field on the bill is the same height. The shared dropdown script wraps each
+     select in a button, so the wrapper takes the field's box and the button fills it. */
+  .sb-input, .sb-page input.sb-input, .sb-page select.sb-input { height: 2.25rem; box-sizing: border-box; }
+  .sb-input.bai-select-wrap { display: block; position: relative; height: 2.25rem; padding: 0; border: none; background: transparent; }
+  .sb-input .bai-select-native { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+  .sb-input .bai-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; height: 100%; padding: 0 0.65rem; background: #fff; border: 1px solid #cbd5e1; border-radius: 0.5rem; color: #0f172a; font-size: 0.9rem; text-align: left; box-sizing: border-box; }
+  .sb-input .bai-select-trigger-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-input .bai-select-trigger-chevron { width: 14px; height: 14px; flex: none; color: #64748b; }
+  .sb-input:focus { outline: 2px solid rgba(79,70,229,0.35); outline-offset: 1px; }
+  .sb-input[readonly] { background: #f8fafc; color: #475569; }
+  .sb-btn { padding: 0.5rem 0.9rem; border-radius: 0.5rem; border: 1px solid #cbd5e1; background: #fff; color: #334155; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+  .sb-btn:hover { background: #f1f5f9; }
+  .sb-btn--primary { background: #4f46e5; border-color: #4f46e5; color: #fff; font-weight: 600; text-decoration: none; display: inline-block; }
+  .sb-btn--primary:hover { background: #4338ca; }
+  .sb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .sb-camera { margin-top: 0.75rem; border-radius: 0.6rem; overflow: hidden; background: #0f172a; }
+  .sb-search { margin-top: 0.75rem; }
+  .sb-results { margin-top: 0.4rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; background: #fff; max-height: 16rem; overflow-y: auto; }
+  .sb-result { display: flex; width: 100%; justify-content: space-between; gap: 0.5rem; padding: 0.5rem 0.65rem; background: none; border: none; border-bottom: 1px solid #f1f5f9; text-align: left; font-size: 0.85rem; color: #0f172a; cursor: pointer; }
+  .sb-result:hover { background: #eef2ff; }
+  .sb-result-price { color: #64748b; white-space: nowrap; }
+  .sb-status { min-height: 1.25rem; margin-top: 0.6rem; font-size: 0.85rem; color: #64748b; }
+  .sb-status[data-tone="error"] { color: #b91c1c; }
+  .sb-status[data-tone="ok"] { color: #15803d; }
+  .sb-new { margin-top: 0.75rem; border: 1px dashed #f59e0b; background: #fffbeb; border-radius: 0.6rem; padding: 0.75rem; }
+  .sb-new-title { font-size: 0.85rem; color: #92400e; margin-bottom: 0.5rem; }
+  .sb-new-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  .sb-span-2 { grid-column: span 2; }
+  .sb-field { display: block; min-width: 0; }
+  .sb-label { display: block; margin-bottom: 0.2rem; font-size: 0.72rem; color: #64748b; }
+  .sb-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
+  .sb-table-wrap { overflow-x: auto; }
+  .sb-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .sb-table th, .sb-table td { padding: 0.45rem 0.35rem; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: middle; }
+  .sb-table th { font-size: 0.72rem; font-weight: 500; color: #64748b; }
+  .sb-table td:first-child { color: #0f172a; min-width: 9rem; }
+  .sb-num { text-align: right !important; }
+  .sb-table .sb-input { padding: 0.3rem 0.4rem; width: 7.5rem; text-align: right; background: #fffbeb; border-color: #f59e0b; }
+  .sb-table .sb-qty { width: 4.5rem; }
+  .sb-imei { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.72rem; color: #64748b; }
+  .sb-detail { padding: 0.25rem 0; }
+  .sb-detail-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.8rem; color: #0f172a; }
+  .sb-detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.5rem 1rem; }
+  .sb-dkey { display: block; font-size: 0.68rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; }
+  .sb-dval { display: block; font-size: 0.88rem; color: #0f172a; font-weight: 600; word-break: break-word; }
+  .sb-dval--empty { color: #94a3b8; font-weight: 400; font-style: italic; }
+  .sb-link { background: none; border: none; color: #4f46e5; font-size: 0.75rem; cursor: pointer; padding: 0; margin-left: 0.35rem; }
+  .sb-link:hover { text-decoration: underline; }
+  .sb-editor-row td { background: #f8fafc; }
+  .sb-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; padding: 0.25rem 0; }
+  .sb-editor .sb-actions { grid-column: span 2; }
+  .sb-remove { background: none; border: none; color: #dc2626; cursor: pointer; font-size: 1rem; }
+  .sb-empty { padding: 1.25rem 0; text-align: center; font-size: 0.85rem; color: #94a3b8; }
+  .sb-hint { font-size: 0.78rem; color: #64748b; margin-top: 0.5rem; }
+  .sb-total { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.75rem; font-size: 0.85rem; color: #64748b; }
+  .sb-total strong { color: #0f172a; font-variant-numeric: tabular-nums; }
+  .sb-form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 1rem; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
+  .sb-form .sb-actions { grid-column: span 2; }
+  .sb-done { margin-top: 1rem; border: 1px solid #86efac; background: #f0fdf4; border-radius: 0.6rem; padding: 0.75rem; display: grid; gap: 0.4rem; justify-items: start; color: #0f172a; }
+  .sb-done p { font-size: 0.9rem; }
+  @media (max-width: 520px) {
+    .sb-new-grid, .sb-form { grid-template-columns: 1fr; }
+    .sb-span-2 { grid-column: span 1; }
+    .sb-form .sb-actions { grid-column: span 1; }
+    .sb-scan-row { flex-direction: column; }
+  }
+</style>
+<script src="{% static 'vendor/html5-qrcode/html5-qrcode.min.js' %}" defer></script>
+<script>
+(function () {
+  var cfg = JSON.parse(document.getElementById("sb-config").textContent);
+  cfg.openCamera = cfg.openCamera === true;
+  var kind = cfg.kind;
+  var csrf = document.querySelector("#sb-form [name=csrfmiddlewaretoken]").value;
+  var lines = [];
+  var pendingProduct = null;  // purchase: the model whose IMEIs are being scanned
+  // What this organization keeps decides what an item carries and whether phones are tracked by IMEI.
+  var phonesOn = cfg.inventoryType === "MOBILES";
+  // The category structure: group levels above the item, the item's own level name, and common levels.
+  var structure = cfg.structure || { groups: ["Category", "Sub-category"], item: "Item", commons: [], pathOptions: [[], []], commonOptions: {} };
+  // Starter suggestions for common levels people usually have; the shop's own saved values come first.
+  var STARTER_VALUES = {
+    colour: ["Black", "White", "Blue", "Red", "Green", "Grey", "Silver", "Gold", "Navy"],
+    ram: ["2GB", "3GB", "4GB", "6GB", "8GB", "12GB", "16GB"],
+    storage: ["32GB", "64GB", "128GB", "256GB", "512GB", "1TB"],
+    size: ["XS", "S", "M", "L", "XL", "XXL", "Free size"],
+    brand: ["Apple", "Samsung", "Xiaomi", "Redmi", "Vivo", "Oppo", "Realme", "OnePlus", "Motorola", "Nokia", "Google"],
+  };
+  var pendingBarcode = "";
+  var newStructure = { groupInputs: [], commonInputs: {} };
+  var scanner = null;
+  var lastCode = "";
+  var lastCodeAt = 0;
+
+  function $(id) { return document.getElementById(id); }
+
+  function setStatus(text, tone) {
+    var el = $("sb-status");
+    el.textContent = text;
+    el.dataset.tone = tone || "";
+  }
+
+  function money(value) {
+    return (Math.round((Number(value) || 0) * 100) / 100).toFixed(2);
+  }
+
+  function postJson(url, body) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf, "Accept": "application/json" },
+      body: JSON.stringify(body),
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        return { ok: res.ok, status: res.status, data: data };
+      });
+    });
+  }
+
+  function defaultPrice(product) {
+    return kind === "sale" ? product.sale_price : product.purchase_price;
+  }
+
+  function addProduct(product) {
+    if (kind === "sale" && product.tracked) {
+      setStatus(product.name + " is tracked phone by phone. Scan the IMEI of the phone being sold.", "error");
+      return;
+    }
+    if (kind === "purchase") pendingProduct = product;
+    var existing = lines.find(function (line) { return line.product_id === product.id && !line.serial; });
+    if (existing) {
+      existing.quantity += 1;
+    } else {
+      lines.push({ product_id: product.id, name: product.name, product: product, quantity: 1, unit_price: defaultPrice(product), editing: false });
+    }
+    render();
+    setStatus("Added " + product.name + ".", "ok");
+  }
+
+  // A phone scanned by its IMEI or serial number: one line per phone.
+  function addSerial(product, serial, unitPrice, description, unit) {
+    var duplicate = lines.some(function (line) { return line.serial === serial; });
+    if (duplicate) {
+      setStatus("IMEI " + serial + " is already on this bill.", "error");
+      return;
+    }
+    if (kind === "purchase") {
+      // The box barcode put a placeholder line in; the first IMEI replaces it.
+      lines = lines.filter(function (line) { return !(line.product_id === product.id && !line.serial); });
+    }
+    lines.push({ product_id: product.id, name: product.name, product: product, serial: serial, quantity: 1,
+      unit_price: unitPrice === undefined ? defaultPrice(product) : unitPrice, editing: false,
+      details: kind === "purchase" ? lastDetails(product) : {}, detailsOpen: false, description: description || "",
+      unit: unit || null });
+    render();
+    setStatus("Added " + product.name + " · IMEI " + serial + ".", "ok");
+  }
+
+  // A new phone of the same model starts with the last one's colour, RAM and storage.
+  function lastDetails(product) {
+    for (var i = lines.length - 1; i >= 0; i--) {
+      var line = lines[i];
+      if (line.product_id === product.id && line.serial && line.details) {
+        return { colour: line.details.colour || "", ram: line.details.ram || "", storage: line.details.storage || "" };
+      }
+    }
+    // No phone of this model on the bill yet: start from the item's own details.
+    var own = {};
+    ["brand", "colour", "ram", "storage"].forEach(function (key) { if (product[key]) own[key] = product[key]; });
+    return own;
+  }
+
+  function detailsText(details) {
+    var d = details || {};
+    var parts = [d.brand, d.model, d.colour, d.ram ? "RAM " + d.ram : "", d.storage, d.imei2 ? "IMEI 2 " + d.imei2 : "", d.other];
+    return parts.filter(function (p) { return p; }).join(" · ");
+  }
+
+  function looksLikeImei(code) {
+    return /^[0-9A-Za-z-]{14,20}$/.test(code);
+  }
+
+  function render() {
+    var body = $("sb-lines");
+    body.textContent = "";
+    lines.forEach(function (line, index) {
+      var tr = document.createElement("tr");
+
+      var name = document.createElement("td");
+      name.textContent = line.name;
+      if (line.product_id) {
+        var edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "sb-link";
+        edit.textContent = "Edit item";
+        edit.addEventListener("click", function () {
+          line.editing = !line.editing;
+          render();
+        });
+        name.appendChild(document.createTextNode(" "));
+        name.appendChild(edit);
+      }
+      if (!line.serial) {
+        // An ordinary item: where it sits in the tree and its barcode.
+        var where = [line.product.attributes_text, (line.product.path || []).join(" › "), line.product.barcode]
+          .filter(function (p) { return p; }).join(" · ");
+        if (where) {
+          var whereLine = document.createElement("div");
+          whereLine.className = "sb-imei";
+          whereLine.textContent = where;
+          name.appendChild(whereLine);
+        }
+      }
+      tr.appendChild(name);
+
+      if (line.serial) {
+        var imei = document.createElement("div");
+        imei.className = "sb-imei";
+        imei.textContent = "IMEI " + line.serial;
+        name.appendChild(imei);
+        var info = kind === "purchase" ? detailsText(line.details) : "";
+        if (info) {
+          var summary = document.createElement("div");
+          summary.className = "sb-imei";
+          summary.textContent = info;
+          name.appendChild(summary);
+        }
+        if (kind === "purchase") {
+          var more = document.createElement("button");
+          more.type = "button";
+          more.className = "sb-link";
+          more.textContent = line.detailsOpen ? "Hide phone details" : "Phone details";
+          more.addEventListener("click", function () {
+            line.detailsOpen = !line.detailsOpen;
+            render();
+          });
+          name.appendChild(more);
+        }
+      }
+
+      var qty = numberInput("sb-input sb-qty", line.quantity, "1", "1", function (value) {
+        line.quantity = Math.max(1, parseInt(value, 10) || 1);
+        render();
+      }, function (value) {
+        line.quantity = Math.max(1, parseInt(value, 10) || 1);
+        refreshTotals();
+      });
+      if (line.serial) qty.readOnly = true;
+      tr.appendChild(cell(qty, "sb-num"));
+
+      var price = numberInput("sb-input", line.unit_price, "0", "0.01", function (value) {
+        line.unit_price = money(value);
+        render();
+      }, function (value) {
+        line.unit_price = Math.max(0, Number(value) || 0);
+        refreshTotals();
+      });
+      tr.appendChild(cell(price, "sb-num"));
+
+      var total = document.createElement("td");
+      total.className = "sb-num";
+      total.textContent = money(line.quantity * line.unit_price);
+      tr.appendChild(total);
+
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "sb-remove";
+      remove.setAttribute("aria-label", "Remove " + line.name);
+      remove.textContent = "×";
+      remove.addEventListener("click", function () {
+        lines.splice(index, 1);
+        render();
+      });
+      tr.appendChild(cell(remove, ""));
+
+      body.appendChild(tr);
+      if (line.editing) body.appendChild(itemEditor(line));
+      if (line.detailsOpen && kind === "purchase") body.appendChild(phoneEditor(line));
+      if (kind === "sale" && line.unit) body.appendChild(unitRow(line));
+    });
+
+    $("sb-empty").hidden = lines.length > 0;
+    var count = lines.reduce(function (sum, line) { return sum + line.quantity; }, 0);
+    var total = lines.reduce(function (sum, line) { return sum + line.quantity * line.unit_price; }, 0);
+    $("sb-count").textContent = count;
+    $("sb-total").textContent = money(total);
+  }
+
+  // The item's own details (name, code, prices), edited in place. Saving changes the saved product.
+  function itemEditor(line) {
+    var tr = document.createElement("tr");
+    tr.className = "sb-editor-row";
+    var td = document.createElement("td");
+    td.colSpan = 5;
+    var grid = document.createElement("div");
+    grid.className = "sb-editor";
+
+    var fields = {
+      name: textField(structure.item, line.product.name, "text"),
+      barcode: textField("Barcode", line.product.barcode, "text"),
+      sale: textField("Sale price", line.product.sale_price, "number"),
+      purchase: textField("Purchase price", line.product.purchase_price, "number"),
+    };
+    Object.keys(fields).forEach(function (key) { grid.appendChild(fields[key].wrap); });
+
+    var set = structureFields(line.product);
+    grid.appendChild(set.fragment);
+
+    var actions = document.createElement("div");
+    actions.className = "sb-actions";
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "sb-btn";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", function () { line.editing = false; render(); });
+    var save = document.createElement("button");
+    save.type = "button";
+    save.className = "sb-btn sb-btn--primary";
+    save.textContent = "Save item";
+    save.addEventListener("click", function () {
+      var values = {
+        name: fields.name.input.value,
+        barcode: fields.barcode.input.value,
+        sale_price: fields.sale.input.value || 0,
+        purchase_price: fields.purchase.input.value || 0,
+      };
+      var typed = structureValues(set);
+      values.path = typed.path;
+      values.common = typed.common;
+      saveItem(line, values);
+    });
+    actions.appendChild(cancel);
+    actions.appendChild(save);
+
+    grid.appendChild(actions);
+    td.appendChild(grid);
+    tr.appendChild(td);
+    return tr;
+  }
+
+  // Everything recorded for a phone being sold, with a way to fill in what is missing.
+  function unitRow(line) {
+    var u = line.unit;
+    var tr = document.createElement("tr");
+    tr.className = "sb-editor-row";
+    var td = document.createElement("td");
+    td.colSpan = 5;
+    var box = document.createElement("div");
+    box.className = "sb-detail";
+
+    var head = document.createElement("div");
+    head.className = "sb-detail-head";
+    var title = document.createElement("strong");
+    title.textContent = "Phone details";
+    var toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "sb-link";
+    toggle.textContent = line.detailsOpen ? "Cancel" : "Edit details";
+    toggle.addEventListener("click", function () {
+      line.detailsOpen = !line.detailsOpen;
+      render();
+    });
+    head.appendChild(title);
+    head.appendChild(toggle);
+    box.appendChild(head);
+
+    if (line.detailsOpen) {
+      box.appendChild(unitEditor(line));
+    } else {
+      var grid = document.createElement("div");
+      grid.className = "sb-detail-grid";
+      [
+        ["Brand", u.brand], ["Model", u.model || line.product.name], ["Colour", u.colour],
+        ["RAM", u.ram], ["Storage", u.storage], ["IMEI", u.serial], ["IMEI 2", u.imei2], ["Other", u.other],
+      ].forEach(function (pair) {
+        var item = document.createElement("div");
+        var key = document.createElement("span");
+        key.className = "sb-dkey";
+        key.textContent = pair[0];
+        var value = document.createElement("span");
+        value.className = pair[1] ? "sb-dval" : "sb-dval sb-dval--empty";
+        value.textContent = pair[1] || "not recorded";
+        item.appendChild(key);
+        item.appendChild(value);
+        grid.appendChild(item);
+      });
+      box.appendChild(grid);
+    }
+    td.appendChild(box);
+    tr.appendChild(td);
+    return tr;
+  }
+
+  // Edits what is recorded for a sold phone and saves it to the phone's own record.
+  function unitEditor(line) {
+    var u = line.unit;
+    var wrap = document.createElement("div");
+    var grid = document.createElement("div");
+    grid.className = "sb-editor";
+    var spec = [
+      ["brand", "Brand", u.brand], ["model", "Model", u.model || line.product.name],
+      ["colour", "Colour", u.colour], ["ram", "RAM (e.g. 8GB)", u.ram],
+      ["storage", "Storage (e.g. 128GB)", u.storage], ["imei2", "Second IMEI (dual SIM)", u.imei2],
+      ["other", "Other details", u.other],
+    ];
+    var inputs = {};
+    spec.forEach(function (entry) {
+      var field = textField(entry[1], entry[2] || "", "text");
+      if (entry[0] === "other") field.wrap.style.gridColumn = "span 2";
+      inputs[entry[0]] = field.input;
+      grid.appendChild(field.wrap);
+    });
+    var actions = document.createElement("div");
+    actions.className = "sb-actions";
+    var save = document.createElement("button");
+    save.type = "button";
+    save.className = "sb-btn sb-btn--primary";
+    save.textContent = "Save details";
+    save.addEventListener("click", function () {
+      var payload = {};
+      Object.keys(inputs).forEach(function (key) { payload[key] = inputs[key].value; });
+      postJson(cfg.unitUrl.replace("__ID__", u.id), payload).then(function (result) {
+        if (!result.ok) {
+          var fields = result.data.fields || {};
+          var first = Object.keys(fields).map(function (key) { return fields[key]; })[0];
+          setStatus(first || result.data.error || "Couldn't save the details.", "error");
+          return;
+        }
+        line.unit = result.data.unit;
+        line.detailsOpen = false;
+        render();
+        setStatus("Saved the phone's details.", "ok");
+      }).catch(function () {
+        setStatus("Can't reach the server. Check your connection.", "error");
+      });
+    });
+    actions.appendChild(save);
+    grid.appendChild(actions);
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
+  // What this phone is: brand, model, colour, RAM, storage, a second IMEI, and anything else.
+  function phoneEditor(line) {
+    var tr = document.createElement("tr");
+    tr.className = "sb-editor-row";
+    var td = document.createElement("td");
+    td.colSpan = 5;
+    var grid = document.createElement("div");
+    grid.className = "sb-editor";
+    line.details = line.details || {};
+    var spec = [
+      ["brand", "Brand", line.product.subcategory_path ? line.product.subcategory_path.split(" › ").pop() : ""],
+      ["model", "Model", line.product.name],
+      ["colour", "Colour", ""],
+      ["ram", "RAM (e.g. 8GB)", ""],
+      ["storage", "Storage (e.g. 128GB)", ""],
+      ["imei2", "Second IMEI (dual SIM)", ""],
+      ["other", "Other details", ""],
+    ];
+    spec.forEach(function (entry) {
+      var key = entry[0];
+      var field = textField(entry[1], line.details[key] || "", "text");
+      field.input.placeholder = entry[2];
+      if (key === "other") field.wrap.style.gridColumn = "span 2";
+      // Saved as you type; the line is redrawn when the editor is closed.
+      field.input.addEventListener("input", function () { line.details[key] = field.input.value; });
+      grid.appendChild(field.wrap);
+    });
+    var actions = document.createElement("div");
+    actions.className = "sb-actions";
+    var done = document.createElement("button");
+    done.type = "button";
+    done.className = "sb-btn sb-btn--primary";
+    done.textContent = "Done";
+    done.addEventListener("click", function () { line.detailsOpen = false; render(); });
+    actions.appendChild(done);
+    grid.appendChild(actions);
+    td.appendChild(grid);
+    tr.appendChild(td);
+    return tr;
+  }
+
+  // A suggestion list the browser shows while typing; reused by id.
+  function suggestionList(id, values) {
+    var list = document.getElementById(id);
+    if (!list) {
+      list = document.createElement("datalist");
+      list.id = id;
+      document.body.appendChild(list);
+    }
+    list.textContent = "";
+    values.forEach(function (value) {
+      var option = document.createElement("option");
+      option.value = value;
+      list.appendChild(option);
+    });
+    return id;
+  }
+
+  // One box for each group level above the item, then one for each common level (optional).
+  // `product` fills them in (its path and common values); returns the boxes with the fields.
+  function structureFields(product) {
+    var path = (product && product.path) || [];
+    var common = (product && product.common) || {};
+    var groupInputs = [];
+    var commonInputs = {};
+    var fragment = document.createDocumentFragment();
+    structure.groups.forEach(function (name, index) {
+      var field = textField(name, path[index] || "", "text");
+      field.input.setAttribute("list", suggestionList("sb-path-" + index, (structure.pathOptions && structure.pathOptions[index]) || []));
+      groupInputs.push(field.input);
+      fragment.appendChild(field.wrap);
+    });
+    structure.commons.forEach(function (name) {
+      var saved = (structure.commonOptions && structure.commonOptions[name]) || [];
+      var starter = (STARTER_VALUES[name.toLowerCase()] || []).filter(function (v) { return saved.indexOf(v) === -1; });
+      var field = textField(name + " (optional)", common[name] || "", "text");
+      field.input.setAttribute("list", suggestionList("sb-common-" + name.replace(/\W+/g, "_"), saved.concat(starter)));
+      commonInputs[name] = field.input;
+      fragment.appendChild(field.wrap);
+    });
+    return { fragment: fragment, groupInputs: groupInputs, commonInputs: commonInputs };
+  }
+
+  // The path (top group first, trailing blanks dropped) and common values typed into those boxes.
+  function structureValues(set) {
+    var path = set.groupInputs.map(function (input) { return input.value.trim(); });
+    while (path.length && !path[path.length - 1]) path.pop();
+    var common = {};
+    Object.keys(set.commonInputs).forEach(function (name) { common[name] = set.commonInputs[name].value; });
+    return { path: path, common: common };
+  }
+
+  function textField(label, value, type) {
+    var wrap = document.createElement("label");
+    wrap.className = "sb-field";
+    var span = document.createElement("span");
+    span.className = "sb-label";
+    span.textContent = label;
+    var input = document.createElement("input");
+    input.type = type;
+    input.className = "sb-input";
+    if (type === "number") input.min = "0";
+    if (type === "number") input.step = "0.01";
+    input.value = value;
+    wrap.appendChild(span);
+    wrap.appendChild(input);
+    return { wrap: wrap, input: input };
+  }
+
+  function saveItem(line, values) {
+    var url = cfg.productDetailUrl.replace("__ID__", line.product_id);
+    postJson(url, values).then(function (result) {
+      if (!result.ok) {
+        var fields = result.data.fields || {};
+        var first = Object.keys(fields).map(function (key) { return fields[key]; })[0];
+        setStatus(first || result.data.error || "Couldn't save the item.", "error");
+        return;
+      }
+      var product = result.data.product;
+      line.product = product;
+      line.name = product.name;
+      line.unit_price = defaultPrice(product);
+      line.editing = false;
+      render();
+      setStatus("Saved " + product.name + ".", "ok");
+    }).catch(function () {
+      setStatus("Can't reach the server. Check your connection.", "error");
+    });
+  }
+
+  function cell(child, className) {
+    var td = document.createElement("td");
+    if (className) td.className = className;
+    td.appendChild(child);
+    return td;
+  }
+
+  function numberInput(className, value, min, step, onChange, onType) {
+    var input = document.createElement("input");
+    input.type = "number";
+    input.className = className;
+    input.min = min;
+    input.step = step;
+    input.value = value;
+    // Select the old value on click, so typing replaces it instead of joining onto it.
+    input.addEventListener("focus", function () { input.select(); });
+    if (onType) {
+      // Totals follow each keystroke; the row itself is redrawn when the box is left.
+      input.addEventListener("input", function () { onType(input.value); });
+    }
+    input.addEventListener("change", function () { onChange(input.value); });
+    return input;
+  }
+
+  function refreshTotals() {
+    var count = lines.reduce(function (sum, line) { return sum + (Number(line.quantity) || 0); }, 0);
+    var total = lines.reduce(function (sum, line) {
+      return sum + (Number(line.quantity) || 0) * (Number(line.unit_price) || 0);
+    }, 0);
+    $("sb-count").textContent = count;
+    $("sb-total").textContent = money(total);
+  }
+
+  function lookup(barcode) {
+    barcode = (barcode || "").trim();
+    if (!barcode) return;
+    setStatus("Looking up " + barcode + "…");
+    fetch(cfg.lookupUrl + "?barcode=" + encodeURIComponent(barcode), {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" },
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (res.ok) {
+          $("sb-new").hidden = true;
+          if (data.type === "category") {
+            pickCategory(data.category);
+          } else if (data.type === "subcategory") {
+            pickSubcategory(data.subcategory);
+          } else if (data.type === "unit") {
+            pickUnit(data.unit);
+          } else {
+            addProduct(data.product);
+          }
+        } else if (res.status === 404) {
+          if (phonesOn && kind === "purchase" && pendingProduct && looksLikeImei(barcode)) {
+            addSerial(pendingProduct, barcode.toUpperCase());
+          } else if (phonesOn && kind === "sale" && looksLikeImei(barcode)) {
+            setStatus("No phone with IMEI " + barcode + " is in stock.", "error");
+          } else {
+            showNewProduct(barcode);
+          }
+        } else {
+          setStatus(data.error || "Lookup failed. Try again.", "error");
+        }
+      });
+    }).catch(function () {
+      setStatus("Can't reach the server. Check your connection.", "error");
+    });
+  }
+
+  // A phone's IMEI on a sale adds that exact phone; on a purchase it says the phone is already in stock.
+  function pickUnit(unit) {
+    if (kind === "purchase") {
+      setStatus("IMEI " + unit.serial + " is already recorded in stock.", "error");
+      return;
+    }
+    if (unit.status !== "IN_STOCK") {
+      setStatus("IMEI " + unit.serial + " is already sold.", "error");
+      return;
+    }
+    addSerial(unit.product, unit.serial, unit.product.sale_price, unit.description, unit);
+  }
+
+  // A category label sets the bill's channel (sale) or category (purchase).
+  function pickCategory(category) {
+    if (category.kind !== expectedCategoryKind()) {
+      setStatus(category.name + " is a " + kindLabel(category.kind) + " category, not for this bill.", "error");
+      return;
+    }
+    $("sb-category").value = category.id;
+    filterSubcategories();
+    setStatus("Category set to " + category.name + ".", "ok");
+  }
+
+  // A sub-category label sets the category and the sub-category together.
+  function pickSubcategory(sub) {
+    if (sub.category_kind !== expectedCategoryKind()) {
+      setStatus(sub.name + " belongs to a " + kindLabel(sub.category_kind) + " category, not for this bill.", "error");
+      return;
+    }
+    $("sb-category").value = sub.category_id;
+    filterSubcategories();
+    $("sb-subcategory").value = sub.id;
+    setStatus("Sub-category set to " + sub.name + ".", "ok");
+  }
+
+  function expectedCategoryKind() {
+    return kind === "sale" ? "SALES" : "PURCHASE";
+  }
+
+  function kindLabel(value) {
+    return { SALES: "revenue", PURCHASE: "purchase", EXPENSE: "expense", PRODUCT: "product" }[value] || value;
+  }
+
+  // Only the sub-categories under the chosen category are offered.
+  function filterSubcategories() {
+    var categoryId = $("sb-category").value;
+    var select = $("sb-subcategory");
+    Array.prototype.forEach.call(select.options, function (option) {
+      if (!option.value) return;
+      option.hidden = option.dataset.category !== categoryId;
+    });
+    var current = select.options[select.selectedIndex];
+    if (current && current.value && current.hidden) select.value = "";
+  }
+
+  function showNewProduct(barcode) {
+    pendingBarcode = barcode;
+    $("sb-new-barcode").value = barcode;
+    $("sb-new-name").value = "";
+    $("sb-new-sale").value = "";
+    $("sb-new-purchase").value = "";
+    $("sb-new-name-label").textContent = structure.item;
+    $("sb-new-attrs").textContent = "";
+    newStructure = structureFields({});
+    $("sb-new-attrs").appendChild(newStructure.fragment);
+    $("sb-new").hidden = false;
+    setStatus("No product has barcode " + barcode + " yet.", "error");
+    $("sb-new-name").focus();
+  }
+
+  function saveNewProduct() {
+    var name = $("sb-new-name").value.trim();
+    if (!name) {
+      setStatus("Enter the " + structure.item.toLowerCase() + " name.", "error");
+      $("sb-new-name").focus();
+      return;
+    }
+    var payload = {
+      barcode: pendingBarcode,
+      name: name,
+      sale_price: $("sb-new-sale").value || 0,
+      purchase_price: $("sb-new-purchase").value || 0,
+    };
+    var typed = structureValues(newStructure);
+    payload.path = typed.path;
+    payload.common = typed.common;
+    postJson(cfg.productUrl, payload).then(function (result) {
+      if (!result.ok) {
+        setStatus(result.data.error || "Couldn't save the product.", "error");
+        return;
+      }
+      $("sb-new").hidden = true;
+      addProduct(result.data.product);
+      $("sb-barcode").focus();
+    }).catch(function () {
+      setStatus("Can't reach the server. Check your connection.", "error");
+    });
+  }
+
+  function saveBill(event) {
+    event.preventDefault();
+    if (!lines.length) {
+      setStatus("Scan at least one item before saving.", "error");
+      return;
+    }
+    var button = $("sb-save");
+    button.disabled = true;
+    var payload = {
+      type: kind,
+      date: $("sb-date").value,
+      category: $("sb-category").value,
+      subcategory: $("sb-subcategory").value,
+      payment_mode: $("sb-payment").value,
+      bank_account: $("sb-bank").value,
+      vendor: kind === "purchase" && $("sb-vendor") ? $("sb-vendor").value : "",
+      lines: lines.map(function (line) {
+        return {
+          product_id: line.product_id,
+          quantity: line.quantity,
+          unit_price: line.unit_price,
+          serials: line.serial ? [line.serial] : [],
+          details: line.serial && kind === "purchase" ? line.details : undefined,
+        };
+      }),
+    };
+    postJson(cfg.saveUrl, payload).then(function (result) {
+      button.disabled = false;
+      if (!result.ok) {
+        var fields = result.data.fields || {};
+        var first = Object.keys(fields).map(function (key) { return fields[key]; })[0];
+        setStatus(first || result.data.error || "Couldn't save the bill.", "error");
+        return;
+      }
+      $("sb-done-no").textContent = result.data.bill_no;
+      $("sb-done-text").textContent = result.data.items + " item(s), total " + cfg.currency + " " + result.data.total + ".";
+      $("sb-done-link").href = result.data.daily_url;
+      $("sb-done").hidden = false;
+      lines = [];
+      render();
+      setStatus("Bill saved.", "ok");
+    }).catch(function () {
+      button.disabled = false;
+      setStatus("Can't reach the server. Check your connection.", "error");
+    });
+  }
+
+  function toggleCamera() {
+    if (scanner) {
+      stopCamera();
+      return;
+    }
+    if (!window.Html5Qrcode) {
+      setStatus("The camera scanner didn't load. Reload the page. If it still fails, type the barcode and press Enter.", "error");
+      return;
+    }
+    $("sb-camera").hidden = false;
+    scanner = new Html5Qrcode("sb-camera");
+    scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 260, height: 140 } },
+      onCameraCode,
+      function () {}
+    ).then(function () {
+      $("sb-camera-toggle").textContent = "Stop camera";
+    }).catch(function (err) {
+      scanner = null;
+      $("sb-camera").hidden = true;
+      $("sb-camera-toggle").textContent = "Use camera";
+      setStatus(cameraProblem(err), "error");
+    });
+  }
+
+  // Turns a camera failure into a message the shop staff can act on.
+  function cameraProblem(err) {
+    var text = String(err && (err.name || err.message || err));
+    if (!window.isSecureContext) {
+      return "The browser blocks the camera on this address. Open the app at http://localhost:8000 on this computer, or use the https:// site.";
+    }
+    if (/NotAllowed|Permission/i.test(text)) {
+      return "Camera permission is off. Click the camera icon in the address bar (or the site settings), allow the camera, then press Use camera again.";
+    }
+    if (/NotFound|Requested device not found|no camera/i.test(text)) {
+      return "No camera was found on this device. Use a USB barcode scanner, or type the barcode and press Enter.";
+    }
+    if (/NotReadable|in use|TrackStart/i.test(text)) {
+      return "The camera is in use by another app. Close it and press Use camera again.";
+    }
+    return "Camera could not start (" + text + "). You can still type the barcode and press Enter.";
+  }
+
+  function onCameraCode(code) {
+    // A held barcode fires many times a second; take it once.
+    var now = Date.now();
+    if (code === lastCode && now - lastCodeAt < 2000) return;
+    lastCode = code;
+    lastCodeAt = now;
+    lookup(code);
+  }
+
+  function stopCamera() {
+    var active = scanner;
+    scanner = null;
+    $("sb-camera-toggle").textContent = "Use camera";
+    $("sb-camera").hidden = true;
+    if (active) {
+      active.stop().catch(function () {}).then(function () { active.clear(); });
+    }
+  }
+
+  $("sb-barcode").addEventListener("keydown", function (event) {
+    // A USB or Bluetooth barcode gun types the code and then presses Enter.
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    var code = this.value;
+    this.value = "";
+    lookup(code);
+  });
+  $("sb-camera-toggle").addEventListener("click", toggleCamera);
+  $("sb-new-save").addEventListener("click", saveNewProduct);
+  $("sb-new-cancel").addEventListener("click", function () {
+    $("sb-new").hidden = true;
+    setStatus("");
+    $("sb-barcode").focus();
+  });
+  $("sb-clear").addEventListener("click", function () {
+    lines = [];
+    render();
+    $("sb-done").hidden = true;
+    setStatus("");
+  });
+  // Name search: a product can be added without scanning it.
+  var searchTimer = null;
+  $("sb-search").addEventListener("input", function () {
+    clearTimeout(searchTimer);
+    var query = this.value.trim();
+    searchTimer = setTimeout(function () { runSearch(query); }, 250);
+  });
+
+  function runSearch(query) {
+    var box = $("sb-results");
+    box.textContent = "";
+    if (query.length < 2) { box.hidden = true; return; }
+    fetch(cfg.searchUrl + "?q=" + encodeURIComponent(query), {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" },
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      box.textContent = "";
+      if (!data.products.length) {
+        var none = document.createElement("div");
+        none.className = "sb-result";
+        none.textContent = "No saved product matches. Scan its barcode to add it.";
+        box.appendChild(none);
+      }
+      data.products.forEach(function (product) {
+        var row = document.createElement("button");
+        row.type = "button";
+        row.className = "sb-result";
+        var name = document.createElement("span");
+        name.textContent = product.name;
+        var price = document.createElement("span");
+        price.className = "sb-result-price";
+        price.textContent = cfg.currency + " " + defaultPrice(product);
+        row.appendChild(name);
+        row.appendChild(price);
+        row.addEventListener("click", function () {
+          addProduct(product);
+          $("sb-search").value = "";
+          box.textContent = "";
+          box.hidden = true;
+          $("sb-barcode").focus();
+        });
+        box.appendChild(row);
+      });
+      box.hidden = false;
+    }).catch(function () {
+      setStatus("Can't reach the server. Check your connection.", "error");
+    });
+  }
+
+  $("sb-category").addEventListener("change", filterSubcategories);
+  filterSubcategories();
+  $("sb-form").addEventListener("submit", saveBill);
+  render();
+  // The camera library is a deferred script, so start the camera once the page has loaded.
+  if (cfg.openCamera) document.addEventListener("DOMContentLoaded", toggleCamera);
+})();
+</script>
+{% endblock %}

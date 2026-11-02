@@ -1,0 +1,322 @@
+{% if inventory_enabled %}
+{# The editable inventory list on the Setup page: add items, change prices, opening quantity, groups and details. #}
+<section class="inv-setup" id="inventory-setup">
+  <div class="inv-head">
+    <div>
+      <h2>Inventory</h2>
+      <p>{{ inventory_type_label }} · add items and edit their groups, price, quantity and details. Bought and sold counts come from your bills.</p>
+    </div>
+    <a href="{{ inventory_url }}" class="inv-link">Inventory &amp; stock →</a>
+  </div>
+  <form id="inv-csrf" hidden>{% csrf_token %}</form>
+  {{ inventory_payload|json_script:"inv-data" }}
+
+  <h3>Add an item</h3>
+  <div id="inv-add" class="inv-add"></div>
+  <p id="inv-add-msg" class="inv-msg" role="status"></p>
+
+  <h3>Items <span id="inv-count" class="inv-count"></span></h3>
+  <div class="inv-scroll"><table class="inv-table" id="inv-table"></table></div>
+  <p id="inv-empty" class="inv-empty" hidden>No items yet. Add the first one above.</p>
+
+  <div id="inv-common" hidden>
+    <h3>Common lists</h3>
+    <p class="inv-note">These lists are shared by every item, whatever group it is in. An item can take a value from one or leave it blank. A new value typed on an item is added here automatically.</p>
+    <div id="inv-common-lists" class="inv-commons"></div>
+    <p id="inv-common-msg" class="inv-msg" role="status"></p>
+  </div>
+
+  <div id="inv-phones" hidden>
+    <h3>Add phones already in stock</h3>
+    <p class="inv-note">Each phone is recorded by its IMEI. Nothing is added to purchases, so the books are not changed.</p>
+    <div id="inv-phone-form" class="inv-add"></div>
+    <p id="inv-phone-msg" class="inv-msg" role="status"></p>
+  </div>
+</section>
+
+<style>
+  .inv-setup { margin-top: 2rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: 1.25rem; color: #0f172a; }
+  .inv-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+  .inv-head h2 { font-size: 1.1rem; font-weight: 700; }
+  .inv-head p, .inv-note { font-size: 0.8rem; color: #64748b; margin-top: 0.2rem; max-width: 46rem; }
+  .inv-link { font-size: 0.85rem; color: #4f46e5; text-decoration: none; }
+  .inv-setup h3 { font-size: 0.9rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }
+  .inv-count { font-weight: 400; color: #64748b; font-size: 0.8rem; }
+  .inv-add { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); align-items: end; }
+  .inv-field { display: block; min-width: 0; }
+  .inv-field span { display: block; font-size: 0.7rem; color: #64748b; margin-bottom: 0.15rem; }
+  .inv-in { width: 100%; min-width: 5rem; box-sizing: border-box; background: #fff; border: 1px solid #cbd5e1; border-radius: 0.45rem; padding: 0.35rem 0.5rem; font-size: 0.85rem; color: #0f172a; height: 2.1rem; }
+  /* The shared dropdown script wraps each select in a button; the wrapper takes the field's box. */
+  .inv-in.bai-select-wrap { display: block; position: relative; height: 2.1rem; padding: 0; border: none; background: transparent; }
+  .inv-in .bai-select-native { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+  .inv-in .bai-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; height: 100%; padding: 0 0.5rem; background: #fff; border: 1px solid #cbd5e1; border-radius: 0.45rem; color: #0f172a; font-size: 0.85rem; text-align: left; box-sizing: border-box; }
+  .inv-in .bai-select-trigger-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inv-in .bai-select-trigger-chevron { width: 14px; height: 14px; flex: none; color: #64748b; }
+  .inv-table td .inv-in { min-width: 6.5rem; }
+  .inv-table td:first-child .inv-in { min-width: 11rem; }
+  .inv-table td .bai-select-wrap { min-width: 9rem; }
+  .inv-in:focus { outline: 2px solid rgba(79,70,229,0.35); outline-offset: 1px; }
+  .inv-in[disabled] { background: #f1f5f9; color: #94a3b8; }
+  .inv-btn { height: 2.1rem; padding: 0 0.9rem; border-radius: 0.45rem; border: none; background: #4f46e5; color: #fff; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+  .inv-btn:hover { background: #4338ca; }
+  .inv-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .inv-msg { font-size: 0.8rem; margin-top: 0.4rem; min-height: 1.1rem; color: #15803d; }
+  .inv-msg[data-tone="error"] { color: #b91c1c; }
+  .inv-scroll { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 0.6rem; }
+  .inv-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .inv-table th { font-size: 0.68rem; font-weight: 500; color: #64748b; text-align: left; padding: 0.45rem 0.35rem; white-space: nowrap; background: #f8fafc; }
+  .inv-table td { padding: 0.3rem 0.3rem; border-top: 1px solid #e2e8f0; vertical-align: middle; }
+  .inv-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .inv-low { color: #b91c1c; font-weight: 700; }
+  .inv-stat { color: #64748b; font-size: 0.72rem; }
+  .inv-empty { text-align: center; color: #94a3b8; padding: 1rem 0; font-size: 0.85rem; }
+  .inv-rowmsg { font-size: 0.72rem; margin-left: 0.4rem; color: #15803d; }
+  .inv-rowmsg[data-tone="error"] { color: #b91c1c; }
+  .inv-commons { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
+  .inv-clist { border: 1px solid #e2e8f0; border-radius: 0.6rem; padding: 0.75rem; }
+  .inv-clist h4 { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.4rem; }
+  .inv-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.5rem; min-height: 1.5rem; }
+  .inv-chip { display: inline-flex; align-items: center; gap: 0.25rem; background: #eef2ff; color: #3730a3; border-radius: 999px; padding: 0.1rem 0.2rem 0.1rem 0.6rem; font-size: 0.78rem; }
+  .inv-chip button { background: none; border: none; color: #6366f1; cursor: pointer; font-size: 0.95rem; line-height: 1; padding: 0 0.3rem; }
+  .inv-cnone { color: #94a3b8; font-size: 0.78rem; }
+  .inv-crow { display: flex; gap: 0.4rem; }
+</style>
+
+<script>
+(function () {
+  var data = JSON.parse(document.getElementById("inv-data").textContent);
+  var csrf = document.querySelector("#inv-csrf [name=csrfmiddlewaretoken]").value;
+  var structure = data.structure;
+  var phonesOn = data.type === "MOBILES";
+  var STARTER = {
+    colour: ["Black", "White", "Blue", "Red", "Green", "Grey", "Silver", "Gold", "Navy"],
+    ram: ["2GB", "3GB", "4GB", "6GB", "8GB", "12GB", "16GB"],
+    storage: ["32GB", "64GB", "128GB", "256GB", "512GB", "1TB"],
+    size: ["XS", "S", "M", "L", "XL", "XXL", "Free size"],
+    brand: ["Apple", "Samsung", "Xiaomi", "Redmi", "Vivo", "Oppo", "Realme", "OnePlus", "Motorola", "Nokia", "Google"],
+  };
+
+  function el(tag, props, children) {
+    var node = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) {
+      if (k === "text") node.textContent = props[k]; else if (k === "class") node.className = props[k]; else node.setAttribute(k, props[k]);
+    });
+    (children || []).forEach(function (c) { node.appendChild(c); });
+    return node;
+  }
+
+  function post(url, body) {
+    return fetch(url, {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf, "Accept": "application/json" },
+      body: JSON.stringify(body || {}),
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (json) { return { ok: res.ok, data: json }; });
+    });
+  }
+
+  function firstError(result, fallback) {
+    var fields = result.data.fields || {};
+    var first = Object.keys(fields).map(function (k) { return fields[k]; })[0];
+    return first || result.data.error || fallback;
+  }
+
+  function say(node, text, tone) { node.textContent = text; node.dataset.tone = tone || ""; }
+
+  function suggestions(id, values) {
+    var list = document.getElementById(id);
+    if (!list) { list = el("datalist", { id: id }); document.body.appendChild(list); }
+    list.textContent = "";
+    values.forEach(function (v) { list.appendChild(el("option", { value: v })); });
+    return id;
+  }
+
+  function input(value, type, step) {
+    var node = el("input", { type: type || "text", class: "inv-in" });
+    if (type === "number") { node.min = "0"; node.step = step || "1"; }
+    node.value = value === undefined || value === null ? "" : value;
+    return node;
+  }
+
+  function field(label, node) { return el("label", { class: "inv-field" }, [el("span", { text: label }), node]); }
+
+  // The boxes for one item: its name, barcode, one box per group level, prices, opening quantity,
+  // and one box per common level. Used by the add form and by every row.
+  function itemInputs(item) {
+    var path = item.path || [], common = item.common || {};
+    var f = {
+      name: input(item.name), barcode: input(item.barcode),
+      sale_price: input(item.sale_price, "number", "0.01"), purchase_price: input(item.purchase_price, "number", "0.01"),
+      opening_stock: input(item.opening_stock, "number"),
+      groups: structure.groups.map(function (name, index) {
+        var box = input(path[index] || "");
+        box.setAttribute("list", suggestions("inv-path-" + index, (structure.pathOptions && structure.pathOptions[index]) || []));
+        return box;
+      }),
+      commons: {},
+    };
+    if (phonesOn) { f.opening_stock.disabled = true; f.opening_stock.title = "Phones are counted by IMEI"; }
+    structure.commons.forEach(function (name) {
+      var saved = (structure.commonOptions && structure.commonOptions[name]) || [];
+      var starter = (STARTER[name.toLowerCase()] || []).filter(function (v) { return saved.indexOf(v) === -1; });
+      var box = input(common[name] || "");
+      box.setAttribute("list", suggestions("inv-common-" + name.replace(/\W+/g, "_"), saved.concat(starter)));
+      f.commons[name] = box;
+    });
+    return f;
+  }
+
+  // The request for the boxes: path (top group first, blanks at the end dropped) and common values.
+  function values(f) {
+    var path = f.groups.map(function (b) { return b.value.trim(); });
+    while (path.length && !path[path.length - 1]) path.pop();
+    var common = {};
+    Object.keys(f.commons).forEach(function (name) { common[name] = f.commons[name].value; });
+    var out = {
+      name: f.name.value, barcode: f.barcode.value, sale_price: f.sale_price.value, purchase_price: f.purchase_price.value,
+      path: path, common: common,
+    };
+    if (!f.opening_stock.disabled) out.opening_stock = f.opening_stock.value;
+    return out;
+  }
+
+  // Titles and boxes in one order, for the table and the add form.
+  function columns(f) {
+    var cols = [[structure.item, f.name], ["Barcode", f.barcode]];
+    structure.groups.forEach(function (name, i) { cols.push([name, f.groups[i]]); });
+    cols.push(["Selling price", f.sale_price], ["Purchase price", f.purchase_price], ["Opening qty", f.opening_stock]);
+    structure.commons.forEach(function (name) { cols.push([name, f.commons[name]]); });
+    return cols;
+  }
+
+  // ---- add an item
+  var addBox = document.getElementById("inv-add");
+  var addInputs = itemInputs({ name: "", barcode: "", sale_price: "", purchase_price: "", opening_stock: 0 });
+  addInputs.name.placeholder = "e.g. iPhone 15, Cotton shirt";
+  addInputs.barcode.placeholder = "Leave blank to generate";
+  columns(addInputs).forEach(function (c) { addBox.appendChild(field(c[0], c[1])); });
+  var addButton = el("button", { type: "button", class: "inv-btn", text: "Add item" });
+  addBox.appendChild(addButton);
+  var addMsg = document.getElementById("inv-add-msg");
+
+  addButton.addEventListener("click", function () {
+    if (!addInputs.name.value.trim()) { say(addMsg, "Enter the " + structure.item.toLowerCase() + " name.", "error"); addInputs.name.focus(); return; }
+    addButton.disabled = true;
+    post(data.urls.create, values(addInputs)).then(function (result) {
+      addButton.disabled = false;
+      if (!result.ok) { say(addMsg, firstError(result, "Couldn't add the item."), "error"); return; }
+      say(addMsg, "Added " + result.data.product.name + ".", "");
+      window.location.hash = "inventory-setup";
+      window.location.reload();
+    }).catch(function () { addButton.disabled = false; say(addMsg, "Can't reach the server.", "error"); });
+  });
+
+  // ---- the items, every field editable
+  var table = document.getElementById("inv-table");
+  document.getElementById("inv-count").textContent = "(" + data.items.length + ")";
+  document.getElementById("inv-empty").hidden = data.items.length > 0;
+  if (data.items.length) {
+    var head = el("tr");
+    var sample = itemInputs(data.items[0]);
+    columns(sample).map(function (c) { return c[0]; }).concat(["Bought", "Sold", "In stock", ""]).forEach(function (title) {
+      head.appendChild(el("th", { text: title }));
+    });
+    table.appendChild(el("thead", {}, [head]));
+    var body = el("tbody");
+    data.items.forEach(function (item) {
+      var f = itemInputs(item);
+      var tr = el("tr");
+      columns(f).forEach(function (c) { tr.appendChild(el("td", {}, [c[1]])); });
+      [item.purchased, item.sold].forEach(function (n) { tr.appendChild(el("td", { class: "inv-num inv-stat", text: String(n) })); });
+      tr.appendChild(el("td", { class: "inv-num" + (item.in_stock <= 0 ? " inv-low" : ""), text: String(item.in_stock) + (item.tracked ? " by IMEI" : "") }));
+      var save = el("button", { type: "button", class: "inv-btn", text: "Save" });
+      var msg = el("span", { class: "inv-rowmsg" });
+      tr.appendChild(el("td", {}, [save, msg]));
+      save.addEventListener("click", function () {
+        save.disabled = true;
+        post(data.urls.detail.replace("__ID__", item.id), values(f)).then(function (result) {
+          save.disabled = false;
+          if (!result.ok) { say(msg, firstError(result, "Not saved."), "error"); return; }
+          say(msg, "Saved", "");
+        }).catch(function () { save.disabled = false; say(msg, "No connection.", "error"); });
+      });
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+  }
+
+  // ---- the shared common lists
+  if (structure.commons.length) {
+    document.getElementById("inv-common").hidden = false;
+    var listsBox = document.getElementById("inv-common-lists");
+    var commonMsg = document.getElementById("inv-common-msg");
+    var rows = data.commonRows.slice();
+
+    function drawLists() {
+      listsBox.textContent = "";
+      structure.commons.forEach(function (level) {
+        var chips = el("div", { class: "inv-chips" });
+        var mine = rows.filter(function (r) { return r.level === level; });
+        if (!mine.length) chips.appendChild(el("span", { class: "inv-cnone", text: "No values yet" }));
+        mine.forEach(function (row) {
+          var remove = el("button", { type: "button", "aria-label": "Remove " + row.value, text: "×" });
+          remove.addEventListener("click", function () {
+            post(data.urls.commonRemove.replace("__ID__", row.id)).then(function (result) {
+              if (!result.ok) { say(commonMsg, firstError(result, "Couldn't remove it."), "error"); return; }
+              rows = rows.filter(function (r) { return r.id !== row.id; });
+              say(commonMsg, "Removed " + row.value + ". Items that already have it keep it.", "");
+              drawLists();
+            });
+          });
+          chips.appendChild(el("span", { class: "inv-chip" }, [document.createTextNode(row.value), remove]));
+        });
+        var add = input("");
+        add.placeholder = "Add " + level.toLowerCase();
+        var addBtn = el("button", { type: "button", class: "inv-btn", text: "Add" });
+        function addValue() {
+          if (!add.value.trim()) return;
+          post(data.urls.commonAdd, { level: level, value: add.value }).then(function (result) {
+            if (!result.ok) { say(commonMsg, firstError(result, "Couldn't add it."), "error"); return; }
+            if (!rows.some(function (r) { return r.id === result.data.option.id; })) rows.push(result.data.option);
+            say(commonMsg, "Added " + result.data.option.value + " to " + level + ".", "");
+            drawLists();
+          });
+        }
+        addBtn.addEventListener("click", addValue);
+        add.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); addValue(); } });
+        listsBox.appendChild(el("div", { class: "inv-clist" }, [
+          el("h4", { text: level }), chips, el("div", { class: "inv-crow" }, [add, addBtn]),
+        ]));
+      });
+    }
+    drawLists();
+  }
+
+  // ---- phones already in stock (mobiles only)
+  if (phonesOn && data.items.length) {
+    document.getElementById("inv-phones").hidden = false;
+    var box = document.getElementById("inv-phone-form");
+    var pick = el("select", { class: "inv-in" });
+    pick.appendChild(el("option", { value: "", text: "— Pick the item —" }));
+    data.items.forEach(function (item) { pick.appendChild(el("option", { value: item.id, text: item.name })); });
+    var phone = { product: pick, serial: input(""), imei2: input(""), other: input("") };
+    var phoneLabels = { product: "Item", serial: "IMEI", imei2: "Second IMEI", other: "Other details" };
+    Object.keys(phone).forEach(function (key) { box.appendChild(field(phoneLabels[key], phone[key])); });
+    var phoneButton = el("button", { type: "button", class: "inv-btn", text: "Add phone" });
+    box.appendChild(phoneButton);
+    var phoneMsg = document.getElementById("inv-phone-msg");
+    phoneButton.addEventListener("click", function () {
+      var body = {};
+      Object.keys(phone).forEach(function (key) { body[key] = phone[key].value; });
+      phoneButton.disabled = true;
+      post(data.urls.unitAdd, body).then(function (result) {
+        phoneButton.disabled = false;
+        if (!result.ok) { say(phoneMsg, firstError(result, "Couldn't add the phone."), "error"); return; }
+        say(phoneMsg, "Added " + result.data.unit.description + " · IMEI " + result.data.unit.serial + ".", "");
+        phone.serial.value = ""; phone.imei2.value = ""; phone.serial.focus();
+      }).catch(function () { phoneButton.disabled = false; say(phoneMsg, "Can't reach the server.", "error"); });
+    });
+  }
+})();
+</script>
+{% endif %}

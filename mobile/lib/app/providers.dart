@@ -6,6 +6,8 @@ import '../features/auth/application/session_controller.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/reports/data/reports_repository.dart';
 import '../features/entries/data/entries_repository.dart';
+import '../features/scan_bill/data/scan_bill_repository.dart';
+import '../features/scan_bill/data/stock_repository.dart';
 
 /// Composition root: providers shared across features.
 
@@ -26,6 +28,14 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 final entriesRepositoryProvider = Provider<EntriesRepository>((ref) {
   return EntriesRepository(ref.watch(apiClientProvider));
+});
+
+final scanBillRepositoryProvider = Provider<ScanBillRepository>((ref) {
+  return ScanBillRepository(ref.watch(apiClientProvider));
+});
+
+final stockRepositoryProvider = Provider<StockRepository>((ref) {
+  return StockRepository(ref.watch(apiClientProvider));
 });
 
 final reportsRepositoryProvider = Provider<ReportsRepository>((ref) {

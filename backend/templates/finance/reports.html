@@ -1,6 +1,6 @@
 {% extends "finance/_app_base.html" %}
 {% load humanize static %}
-{% block title %}Financial Reports · {{ SITE_NAME }}{% endblock %}
+{% block title %}Financial Statements · {{ SITE_NAME }}{% endblock %}
 
 {% block app_content %}
 <style>
@@ -74,7 +74,7 @@
 </style>
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
   <div>
-    <h1 class="rpt-title text-2xl font-bold text-white">Financial Reports</h1>
+    <h1 class="rpt-title text-2xl font-bold text-white">Financial Statements</h1>
     <p class="mt-1 text-sm text-slate-400">{{ period.label }}</p>
   </div>
   <form method="get" class="rpt-period flex flex-wrap items-end gap-2">
@@ -437,7 +437,7 @@
   bai.openModal = (id) => document.getElementById(id).classList.remove("hidden");
   bai.closeModal = (id) => document.getElementById(id).classList.add("hidden");
 
-  // Row click-through: what makes up a Financial Reports line's amount.
+  // Row click-through: what makes up a Financial Statements line's amount.
   bai.reportPeriod = { from: "{{ period.start|date:'Y-m-d' }}", to: "{{ period.end|date:'Y-m-d' }}" };
   bai.escapeHtml = (s) => String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   bai.fmtAmount = (n) => Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
